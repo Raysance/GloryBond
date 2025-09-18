@@ -1,16 +1,15 @@
 /.venv/
 
-/chats/*.json
-/history/*.json
-/history/personal/
-/memory/*.json
-/news/*.txt
+# /chats/*.json
+# /history/*.json
+# /history/personal/
+# /memory/*.json
+# /news/*.txt
 
 .env
 config.yaml
 emojiref.json
 QBOT.log
-variables_static.json
 
 **/__pycache__/
 *.pyc
