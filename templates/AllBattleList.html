@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>王者荣耀战局详情</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            position: relative;
+            color: white;
+            padding: 40px 20px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            min-height: 140px;
+            background: transparent;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: transparent;
+            z-index: -2;
+        }
+
+        .hero-avatars-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+        }
+
+        .hero-avatar-bg {
+            position: absolute;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            filter: blur(0.5px);
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .hero-avatar-bg.main {
+            width: 120px;
+            height: 120px;
+            top: 10px;
+            right: 15px;
+            z-index: 0;
+            border-radius: 50%;
+            -webkit-mask: radial-gradient(circle at center, 
+                rgba(0,0,0,1) 0%,
+                rgba(0,0,0,1) 50%,
+                rgba(0,0,0,0.8) 65%,
+                rgba(0,0,0,0.4) 80%,
+                rgba(0,0,0,0.1) 90%,
+                rgba(0,0,0,0) 100%);
+            mask: radial-gradient(circle at center, 
+                rgba(0,0,0,1) 0%,
+                rgba(0,0,0,1) 50%,
+                rgba(0,0,0,0.8) 65%,
+                rgba(0,0,0,0.4) 80%,
+                rgba(0,0,0,0.1) 90%,
+                rgba(0,0,0,0) 100%);
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+            padding-right: 140px;
+        }
+
+        .header .current-player {
+            font-size: 32px;
+            font-weight: 900;
+            text-align: left;
+            margin-bottom: 8px;
+            margin-left: 20px;
+            color: #ffffff;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.9), 0 0 15px rgba(0,0,0,0.7);
+            transform: skew(-3deg) perspective(500px) rotateX(5deg);
+            letter-spacing: 1px;
+            background: linear-gradient(90deg, 
+                rgba(0,0,0,0.6) 0%,
+                rgba(0,0,0,0.3) 60%,
+                rgba(0,0,0,0.1) 100%);
+            padding: 8px 20px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-align: left;
+            margin-left: 20px;
+            color: #ffffff;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.8);
+            transform: perspective(400px) rotateX(10deg);
+            position: relative;
+        }
+
+        .header h1::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #ffffff, transparent);
+        }
+
+        .battle-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .battle-info-item {
+            text-align: center;
+        }
+
+        .battle-info-item h3 {
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: rgba(255,255,255,0.8);
+            font-weight: 500;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
+        }
+
+        .battle-info-item p {
+            font-size: 16px;
+            color: #ffffff;
+            font-weight: 600;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+        }
+
+        .teams-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .team {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        .team.red {
+            border-left: 3px solid #e74c3c;
+        }
+
+        .team.blue {
+            border-left: 3px solid #3498db;
+        }
+
+        .team-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f1f2f6;
+        }
+
+        .team-name {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .team.red .team-name {
+            color: #e74c3c;
+        }
+
+        .team.blue .team-name {
+            color: #3498db;
+        }
+
+        .team-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .win-indicator {
+            background: #27ae60;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .lose-indicator {
+            background: #e74c3c;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .players-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .player-card {
+            background: transparent;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+            transition: background-color 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .player-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.6;
+            z-index: 0;
+            background-image: inherit;
+            mask: linear-gradient(to left, 
+                rgba(0,0,0,1) 0%, 
+                rgba(0,0,0,0.9) 20%, 
+                rgba(0,0,0,0.6) 50%, 
+                rgba(0,0,0,0.2) 80%, 
+                rgba(0,0,0,0) 100%);
+            -webkit-mask: linear-gradient(to left, 
+                rgba(0,0,0,1) 0%, 
+                rgba(0,0,0,0.9) 20%, 
+                rgba(0,0,0,0.6) 50%, 
+                rgba(0,0,0,0.2) 80%, 
+                rgba(0,0,0,0) 100%);
+        }
+
+        .player-card:last-child {
+            border-bottom: none;
+        }
+
+        .player-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            padding-right: 120px;
+        }
+
+        .hero-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .player-info {
+            flex: 1;
+        }
+
+        .player-info h4 {
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #1a1a1a;
+        }
+
+        .kda {
+            font-size: 16px;
+            font-weight: 600;
+            color: #d63031;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            min-width: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-size: 11px;
+            font-weight: 600;
+            color: #2c3e50;
+            line-height: 1.1;
+        }
+
+        .stat-emoji {
+            font-size: 12px;
+            margin-bottom: 1px;
+        }
+
+        .stat-label {
+            font-size: 8px;
+            color: #bdc3c7;
+            margin-top: 1px;
+            display: block;
+        }
+
+        .equipment {
+            margin-top: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .equipment h5 {
+            display: none;
+        }
+
+        .equipment-grid {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .equipment-item {
+            width: 28px;
+            height: 28px;
+            border-radius: 3px;
+            object-fit: cover;
+            border: none;
+            background: transparent;
+        }
+
+        .mvp-badge {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .team-summary {
+            margin-bottom: 30px;
+        }
+
+        .team-summary h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .team-comparison {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 40px;
+            margin-bottom: 20px;
+        }
+
+        .vs-divider {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333333;
+            padding: 0 20px;
+        }
+
+        .team-total-stats {
+            text-align: center;
+        }
+
+        .team-total-stats h3 {
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .team-total-stats.red h3 {
+            color: #d63031;
+        }
+
+        .team-total-stats.blue h3 {
+            color: #0984e3;
+        }
+
+        .total-kda {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 8px 0;
+            color: #1a1a1a;
+        }
+
+        .total-stats-grid {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .total-stat-item {
+            font-size: 12px;
+            font-weight: 500;
+            color: #333333;
+        }
+
+        .dragons-towers {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .objective-item {
+            text-align: center;
+            padding: 4px 8px;
+            background: transparent;
+            border: none;
+        }
+
+        .objective-item h4 {
+            margin-bottom: 2px;
+            color: #34495e;
+            font-size: 12px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 14px;
+            border-top: 1px solid #e9ecef;
+            margin-top: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .teams-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .team-comparison {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .vs-divider {
+                order: -1;
+                margin: 20px 0;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #6c757d;
+        }
+
+        .error {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="loading" id="loading">正在加载战局数据...</div>
+        <div id="content" style="display: none;">
+            <!-- 内容将通过JavaScript动态生成 -->
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let battleData = null;
+
+        // 加载JSON数据
+        async function loadBattleData() {
+            try {
+                const filename='{{filename}}';
+                const response = await fetch(filename);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                battleData = await response.json();
+                console.log('战局数据加载成功:', battleData);
+                renderBattleDashboard();
+            } catch (error) {
+                console.error('加载战局数据失败:', error);
+                showError('加载战局数据失败，请检查 example.json 文件是否存在且格式正确。');
+            }
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').innerHTML = `<div class="error">${message}</div>`;
+            document.getElementById('content').style.display = 'block';
+        }
+
+        // 渲染战局面板
+        function renderBattleDashboard() {
+            try {
+                if (!battleData || !battleData.data) {
+                    throw new Error('战局数据格式错误');
+                }
+
+                const data = battleData.data;
+                const head = data.head;
+                const battle = data.battle;
+                const redTeam = data.redTeam;
+                const blueTeam = data.blueTeam;
+                const redRoles = data.redRoles || [];
+                const blueRoles = data.blueRoles || [];
+
+                // 创建主要内容
+                const content = `
+                    <div class="header" id="gameHeader">
+                        <div class="hero-avatars-bg" id="heroAvatarsBg">
+                            <!-- 英雄头像背景将在这里动态生成 -->
+                        </div>
+                        <div class="header-content">
+                            <div class="current-player" id="currentPlayer">
+                                <!-- 当前玩家信息 -->
+                            </div>
+                            <h1 id="gameMode">王者荣耀战局详情</h1>
+                            <div class="battle-info" id="battleInfo">
+                                <!-- 战斗基本信息将在这里动态填充 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="team-summary">
+                        <h2>战斗结果</h2>
+                        <div class="team-comparison" id="teamComparison">
+                            <!-- 队伍对比数据将在这里动态填充 -->
+                        </div>
+                        <div class="dragons-towers" id="objectives">
+                            <!-- 目标建筑数据将在这里动态填充 -->
+                        </div>
+                    </div>
+
+                    <div class="teams-section">
+                        <div class="team red" id="redTeam">
+                            <div class="team-header">
+                                <div>
+                                    <div class="team-name">红色方</div>
+                                </div>
+                                <div class="team-stats" id="redTeamStats">
+                                    <!-- 红队统计将在这里填充 -->
+                                </div>
+                            </div>
+                            <div class="players-grid" id="redPlayers">
+                                <!-- 红队玩家将在这里动态填充 -->
+                            </div>
+                        </div>
+
+                        <div class="team blue" id="blueTeam">
+                            <div class="team-header">
+                                <div>
+                                    <div class="team-name">蓝色方</div>
+                                </div>
+                                <div class="team-stats" id="blueTeamStats">
+                                    <!-- 蓝队统计将在这里填充 -->
+                                </div>
+                            </div>
+                            <div class="players-grid" id="bluePlayers">
+                                <!-- 蓝队玩家将在这里动态填充 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="footer">
+                        <p>王者荣耀战局数据展示 - 生成于 <span id="currentTime"></span></p>
+                    </div>
+                `;
+
+                // 插入内容
+                document.getElementById('content').innerHTML = content;
+
+                // 渲染各部分数据
+                renderHeaderBackground();
+                renderBattleInfo();
+                renderTeamComparison();
+                renderTeamStats();
+                renderPlayers(redRoles, 'redPlayers', head.roleId);
+                renderPlayers(blueRoles, 'bluePlayers', head.roleId);
+
+                // 设置时间
+                setCurrentTime();
+
+                // 隐藏加载状态，显示内容
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+
+            } catch (error) {
+                console.error('渲染战局面板失败:', error);
+                showError('渲染战局面板失败，数据格式可能有误。');
+            }
+        }
+
+        // 格式化时间
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        // 渲染头部背景
+        function renderHeaderBackground() {
+            const { head, battle } = battleData.data;
+            
+            // 找到当前玩家信息
+            const currentPlayerName = head.roleName;
+            const currentPlayerHero = head.heroName;
+            
+            // 获取当前玩家的英雄头像
+            let currentPlayerHeroIcon = head.roleIcon || '';
+            
+            // 设置当前玩家信息 - 显示玩家名和英雄名
+            document.getElementById('currentPlayer').innerHTML = `${currentPlayerName} • ${currentPlayerHero}`;
+            
+            // 设置游戏模式标题
+            document.getElementById('gameMode').innerHTML = battle.mapName;
+            
+            // 创建英雄头像背景效果
+            const heroAvatarsBg = document.getElementById('heroAvatarsBg');
+            let avatarsHTML = '';
+            
+            // 只显示当前玩家的英雄头像
+            if (currentPlayerHeroIcon) {
+                avatarsHTML += `<div class="hero-avatar-bg main" style="background-image: url('${currentPlayerHeroIcon}')"></div>`;
+                
+                // 提取头像主题色并设置背景
+                extractThemeColorAndSetBackground(currentPlayerHeroIcon);
+            }
+            
+            heroAvatarsBg.innerHTML = avatarsHTML;
+        }
+
+        // 提取主题色并设置背景
+        function extractThemeColorAndSetBackground(imageUrl) {
+            // 创建临时canvas来分析图片主色调
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 50;
+                canvas.height = 50;
+                
+                ctx.drawImage(img, 0, 0, 50, 50);
+                
+                try {
+                    const imageData = ctx.getImageData(0, 0, 50, 50);
+                    const data = imageData.data;
+                    
+                    let r = 0, g = 0, b = 0;
+                    let count = 0;
+                    
+                    // 采样中心区域像素
+                    for (let i = 0; i < data.length; i += 4) {
+                        r += data[i];
+                        g += data[i + 1];
+                        b += data[i + 2];
+                        count++;
+                    }
+                    
+                    r = Math.floor(r / count);
+                    g = Math.floor(g / count);
+                    b = Math.floor(b / count);
+                    
+                    // 调整亮度，使其适合作为背景
+                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                    const factor = brightness > 128 ? 0.3 : 0.6; // 亮色变暗，暗色稍微提亮
+                    
+                    r = Math.floor(r * factor);
+                    g = Math.floor(g * factor);
+                    b = Math.floor(b * factor);
+                    
+                    // 应用主题色到背景
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        .header::after {
+                            background: linear-gradient(135deg, 
+                                rgba(${r}, ${g}, ${b}, 0.8) 0%, 
+                                rgba(${Math.floor(r*0.7)}, ${Math.floor(g*0.7)}, ${Math.floor(b*0.7)}, 0.6) 40%, 
+                                rgba(${r}, ${g}, ${b}, 0.7) 100%) !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                    
+                } catch (e) {
+                    // 如果无法提取颜色，使用默认背景
+                    console.log('无法提取主题色，使用默认背景');
+                }
+            };
+            
+            img.onerror = function() {
+                console.log('图片加载失败，使用默认背景');
+            };
+            
+            img.src = imageUrl;
+        }
+
+        // 渲染战斗信息
+        function renderBattleInfo() {
+            const { battle } = battleData.data;
+            
+            const battleInfoHTML = `
+                <div class="battle-info-item">
+                    <h3>对局时长</h3>
+                    <p>${formatTime(battle.usedTime)}</p>
+                </div>
+                <div class="battle-info-item">
+                    <h3>开始时间</h3>
+                    <p>${battle.startTime}</p>
+                </div>
+                <div class="battle-info-item">
+                    <h3>结束时间</h3>
+                    <p>${battle.dtEventTime}</p>
+                </div>
+            `;
+            document.getElementById('battleInfo').innerHTML = battleInfoHTML;
+        }
+
+        // 渲染队伍对比
+        function renderTeamComparison() {
+            const { redTeam, blueTeam } = battleData.data;
+            
+            const comparisonHTML = `
+                <div class="team-total-stats red">
+                    <h3>🔴 红色方 ${redTeam.gameResult ? '🏆 胜利' : '❌ 失败'}</h3>
+                    <div class="total-kda">${redTeam.killCnt}/${redTeam.deadCnt}/${redTeam.assistCnt}</div>
+                    <div class="total-stats-grid">
+                        <span class="total-stat-item">💰 ${Math.floor(redTeam.money / 1000)}k</span>
+                        <span class="total-stat-item">🏰 ${redTeam.towerCnt}</span>
+                    </div>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="team-total-stats blue">
+                    <h3>🔵 蓝色方 ${blueTeam.gameResult ? '🏆 胜利' : '❌ 失败'}</h3>
+                    <div class="total-kda">${blueTeam.killCnt}/${blueTeam.deadCnt}/${blueTeam.assistCnt}</div>
+                    <div class="total-stats-grid">
+                        <span class="total-stat-item">💰 ${Math.floor(blueTeam.money / 1000)}k</span>
+                        <span class="total-stat-item">🏰 ${blueTeam.towerCnt}</span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('teamComparison').innerHTML = comparisonHTML;
+            
+            // 渲染目标建筑数据
+            const objectivesHTML = `
+                <div class="objective-item">
+                    <h4>🐉 暴君</h4>
+                    <p>${redTeam.dragonCnt || 0} - ${blueTeam.dragonCnt || 0}</p>
+                </div>
+                <div class="objective-item">
+                    <h4>🦅 主宰</h4>
+                    <p>${redTeam.masterCnt || 0} - ${blueTeam.masterCnt || 0}</p>
+                </div>
+            `;
+            document.getElementById('objectives').innerHTML = objectivesHTML;
+        }
+
+        // 渲染队伍统计
+        function renderTeamStats() {
+            const { redTeam, blueTeam } = battleData.data;
+            
+            // 红队统计
+            const redStatsHTML = redTeam.gameResult ? 
+                '<span class="win-indicator">胜利</span>' : 
+                '<span class="lose-indicator">失败</span>';
+            document.getElementById('redTeamStats').innerHTML = redStatsHTML;
+            
+            // 蓝队统计
+            const blueStatsHTML = blueTeam.gameResult ? 
+                '<span class="win-indicator">胜利</span>' : 
+                '<span class="lose-indicator">失败</span>';
+            document.getElementById('blueTeamStats').innerHTML = blueStatsHTML;
+        }
+        // 渲染玩家列表
+        function renderPlayers(players, containerId, currentPlayerId) {
+            const container = document.getElementById(containerId);
+            if (!container || !players) return;
+
+            container.innerHTML = players.map((player, index) => {
+                const basicInfo = player.basicInfo || {};
+                const battleStats = player.battleStats || {};
+                const battleRecords = player.battleRecords || {};
+                const usedHero = battleRecords.usedHero || {};
+                const usedSkin = battleRecords.usedSkin || {};
+                const finalEquips = battleRecords.finalEquips || [];
+
+                const isMvp = battleStats.mvp || false;
+
+                // 使用英雄头像作为圆形头像
+                const heroIcon = usedHero.heroIcon || usedHero.extraAvatar || '/api/placeholder/40/40';
+                const heroName = usedHero.heroName || '未知英雄';
+                
+                // 获取皮肤背景图片
+                const skinBg = usedSkin.skinIcon || usedSkin.skinIcon128128 || usedHero.heroIcon || '';
+
+                // 生成装备HTML
+                const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
+                    if (equip && equip.equipIcon) {
+                        return `<img src="${equip.equipIcon}" alt="${equip.equipName || ''}" class="equipment-item" title="${equip.equipName || ''}">`;
+                    }
+                    return '<div class="equipment-item"></div>';
+                }).join('');
+
+                return `
+                    <div class="player-card" data-skin-url="${skinBg}" data-card-index="${index}">
+                        <div class="player-main">
+                            <img src="${heroIcon}" 
+                                 alt="${heroName}" 
+                                 class="hero-avatar"
+                                 onerror="this.src='/api/placeholder/40/40'">
+                            <div class="player-info">
+                                <h4>${basicInfo.roleName || '未知玩家'}${isMvp ? '<span class="mvp-badge">MVP</span>' : ''}</h4>
+                                <div class="kda">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</div>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-emoji">💰</span>
+                                    <span class="stat-value">${Math.floor((battleStats.money || 0) / 1000)}k</span>
+                                    <span class="stat-label">经济</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-emoji">⚔️</span>
+                                    <span class="stat-value">${battleStats.hurt || 0}</span>
+                                    <span class="stat-label">伤害</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-emoji">🛡️</span>
+                                    <span class="stat-value">${battleStats.hurtH || 0}</span>
+                                    <span class="stat-label">承伤</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-emoji">⭐</span>
+                                    <span class="stat-value">${battleStats.gradeGame || '0.0'}</span>
+                                    <span class="stat-label">评分</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="equipment">
+                            <h5>装备</h5>
+                            <div class="equipment-grid">
+                                ${equipmentHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 设置皮肤背景
+            setTimeout(() => {
+                const cards = container.querySelectorAll('.player-card');
+                cards.forEach((card) => {
+                    const skinUrl = card.getAttribute('data-skin-url');
+                    const cardIndex = card.getAttribute('data-card-index');
+                    
+                    if (skinUrl && skinUrl !== '') {
+                        // 创建动态CSS规则为::after伪元素设置背景
+                        const styleId = `skin-bg-${containerId}-${cardIndex}`;
+                        let existingStyle = document.getElementById(styleId);
+                        if (existingStyle) {
+                            existingStyle.remove();
+                        }
+                        
+                        const style = document.createElement('style');
+                        style.id = styleId;
+                        style.textContent = `
+                            .player-card[data-card-index="${cardIndex}"]::after {
+                                background-image: url('${skinUrl}') !important;
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                });
+            }, 100);
+        }
+
+        // 设置头部背景（移除，已合并到renderHeaderBackground）
+        // function setHeaderBackground() 已删除
+
+        // 设置当前时间
+        function setCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            const timeElement = document.getElementById('currentTime');
+            if (timeElement) {
+                timeElement.textContent = timeString;
+            }
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBattleData();
+        });
+    </script>
+</body>
+</html>
