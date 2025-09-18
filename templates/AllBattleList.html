@@ -684,9 +684,16 @@
                 const response = await fetch('{{filename}}');
                 const data = await response.json();
                 
+                console.log('原始数据样本:', data.slice(0, 3).map(p => ({ nickname: p.nickname, id: p.id, idType: typeof p.id })));
+                
                 // 过滤掉不可见的玩家
                 playersData = data.filter(player => player.visible !== false && player.btl_aver !== -999);
-                selectedPlayers = new Set(playersData.map(p => p.id));
+                console.log('过滤后的玩家数据:', playersData.length, '个玩家');
+                console.log('前3个玩家的ID:', playersData.slice(0, 3).map(p => ({ nickname: p.nickname, id: p.id, idType: typeof p.id })));
+                
+                // 使用玩家ID或索引来初始化selectedPlayers
+                selectedPlayers = new Set(playersData.map((p, index) => p.id !== undefined ? p.id : index));
+                console.log('selectedPlayers Set:', selectedPlayers);
                 
                 // 数据加载完成后初始化页面
                 init();
@@ -839,7 +846,7 @@
 
         // 格式化游戏详情悬浮框内容
         function getGameDetailsTooltip(player) {
-            if (!player.details || player.details.length === 0) {
+            if (!player || !player.details || player.details.length === 0) {
                 return '<div class="tooltip-header">暂无详细战绩</div>';
             }
             
@@ -975,14 +982,23 @@
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = '';
 
-            // 筛选并排序玩家
+            // 筛选并排序玩家 - 使用玩家ID或索引来筛选
             const visiblePlayers = playersData
-                .filter(player => selectedPlayers.has(player.id))
+                .filter((player, index) => {
+                    const playerId = player.id !== undefined ? player.id : index;
+                    return selectedPlayers.has(playerId);
+                })
                 .sort((a, b) => {
                     return getSortValue(b, currentSortMethod) - getSortValue(a, currentSortMethod);
                 });
 
             visiblePlayers.forEach((player, index) => {
+                console.log('处理玩家:', player.nickname, 'ID:', player.id, 'ID类型:', typeof player.id);
+                
+                // 直接使用索引作为数据标识符，更可靠
+                const dataIndex = index;
+                console.log('使用的dataIndex:', dataIndex);
+                
                 const bgColor = getBackgroundColor(player.star_up, player.peak_up);
                 const starChange = getStarChangeDisplay(player.star_up, player.peak_up);
                 
@@ -1018,7 +1034,7 @@
                             </div>
                         </div>
                         
-                        <div class="games-today" data-player-id="${player.id}">
+                        <div class="games-today" data-index="${dataIndex}">
                             <div class="games-today-header">
                                 <svg class="icon" viewBox="0 0 24 24">
                                     <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
@@ -1047,17 +1063,32 @@
             });
 
             // 添加事件监听器
-            document.querySelectorAll('.games-today').forEach(element => {
-                const playerId = parseInt(element.dataset.playerId);
-                const player = visiblePlayers.find(p => p.id === playerId);
-                
-                element.addEventListener('mouseenter', (event) => {
-                    const tooltipContent = getGameDetailsTooltip(player);
-                    showTooltip(event, tooltipContent);
+            setTimeout(() => {
+                console.log('开始绑定事件监听器，visiblePlayers数量:', visiblePlayers.length);
+                document.querySelectorAll('.games-today').forEach(element => {
+                    console.log('处理元素，dataset:', element.dataset);
+                    const indexStr = element.dataset.index;
+                    console.log('原始index字符串:', indexStr, '类型:', typeof indexStr);
+                    const index = parseInt(indexStr);
+                    console.log('解析后的index:', index, '是否为NaN:', isNaN(index));
+                    
+                    if (!isNaN(index) && index >= 0 && index < visiblePlayers.length) {
+                        const player = visiblePlayers[index];
+                        console.log('找到玩家数据:', player.nickname);
+                        
+                        element.addEventListener('mouseenter', (event) => {
+                            console.log('鼠标进入，玩家数据:', player.nickname, player.details);
+                            const tooltipContent = getGameDetailsTooltip(player);
+                            console.log('悬浮框内容:', tooltipContent);
+                            showTooltip(event, tooltipContent);
+                        });
+                        
+                        element.addEventListener('mouseleave', hideTooltip);
+                    } else {
+                        console.warn('未找到玩家数据，index:', index, '原始字符串:', indexStr);
+                    }
                 });
-                
-                element.addEventListener('mouseleave', hideTooltip);
-            });
+            }, 100);
         }
 
         // 渲染筛选项
@@ -1065,12 +1096,13 @@
             const filterGrid = document.getElementById('filterGrid');
             filterGrid.innerHTML = '';
 
-            playersData.forEach(player => {
-                const isSelected = selectedPlayers.has(player.id);
+            playersData.forEach((player, index) => {
+                const playerId = player.id !== undefined ? player.id : index;
+                const isSelected = selectedPlayers.has(playerId);
                 const starChange = getStarChangeDisplay(player.star_up, player.peak_up);
                 
                 const itemHTML = `
-                    <div class="filter-item ${isSelected ? 'selected' : ''}" onclick="togglePlayer(${player.id})">
+                    <div class="filter-item ${isSelected ? 'selected' : ''}" onclick="togglePlayer(${playerId})">
                         <div class="filter-checkbox ${isSelected ? 'checked' : ''}"></div>
                         <div class="mini-card">
                             <div class="mini-card-name">${player.nickname}</div>
