@@ -35,26 +35,6 @@ async def not_found_exception_handler(request: Request, exc: HTTPException):
         {"request": request},
         status_code=404
     )
-# @app.exception_handler(HTTPException)
-# async def custom_http_exception_handler(request: Request, exc: HTTPException):
-#     if exc.status_code == 404:
-#         template_name = exc.detail.get("template", "404_all.html") if isinstance(exc.detail, dict) else "404_all.html"
-#         context = exc.detail.get("context", {}) if isinstance(exc.detail, dict) else {}
-#         context["request"] = request
-#         return templates.TemplateResponse(
-#             template_name,
-#             context,
-#             status_code=404
-#         )
-#     # 处理其他HTTP异常
-#     return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
-# @app.get("/btlist/", response_class=HTMLResponse)
-# async def show_error(request:Request,key: str):
-#     return templates.TemplateResponse(
-#         "404.html",
-#         {"request": request},
-#         status_code=404
-#     )
 
 @app.get("/btlist", response_class=HTMLResponse)
 async def show_btlist(request:Request,key: str):
