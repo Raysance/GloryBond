@@ -1,13 +1,10 @@
 /.venv/
 
-/chats/
-!/chats/
-/history/
-!/history/
-/memory/
-!/memory/
-/news/
-!/news/
+/chats/*.json
+/history/*.json
+/history/personal/
+/memory/*.json
+/news/*.txt
 
 .env
 config.yaml

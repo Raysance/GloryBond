@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>王者荣耀战局详情</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            position: relative;
+            color: white;
+            padding: 40px 20px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            min-height: 140px;
+            background: transparent;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: transparent;
+            z-index: -2;
+        }
+
+        .hero-avatars-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+        }
+
+        .hero-avatar-bg {
+            position: absolute;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            filter: blur(0.5px);
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .hero-avatar-bg.main {
+            width: 120px;
+            height: 120px;
+            top: 10px;
+            right: 15px;
+            z-index: 0;
+            border-radius: 50%;
+            -webkit-mask: radial-gradient(circle at center, 
+                rgba(0,0,0,1) 0%,
+                rgba(0,0,0,1) 50%,
+                rgba(0,0,0,0.8) 65%,
+                rgba(0,0,0,0.4) 80%,
+                rgba(0,0,0,0.1) 90%,
+                rgba(0,0,0,0) 100%);
+            mask: radial-gradient(circle at center, 
+                rgba(0,0,0,1) 0%,
+                rgba(0,0,0,1) 50%,
+                rgba(0,0,0,0.8) 65%,
+                rgba(0,0,0,0.4) 80%,
+                rgba(0,0,0,0.1) 90%,
+                rgba(0,0,0,0) 100%);
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+            padding-right: 140px;
+        }
+
+        .header .current-player {
+            font-size: 32px;
+            font-weight: 900;
+            text-align: left;
+            margin-bottom: 8px;
+            margin-left: 20px;
+            color: #ffffff;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.9), 0 0 15px rgba(0,0,0,0.7);
+            transform: skew(-3deg) perspective(500px) rotateX(5deg);
+            letter-spacing: 1px;
+            background: linear-gradient(90deg, 
+                rgba(0,0,0,0.6) 0%,
+                rgba(0,0,0,0.3) 60%,
+                rgba(0,0,0,0.1) 100%);
+            padding: 8px 20px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-align: left;
+            margin-left: 20px;
+            color: #ffffff;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.8);
+            transform: perspective(400px) rotateX(10deg);
+            position: relative;
+        }
+
+        .header h1::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #ffffff, transparent);
+        }
+
+        .battle-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .battle-info-item {
+            text-align: center;
+        }
+
+        .battle-info-item h3 {
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: rgba(255,255,255,0.8);
+            font-weight: 500;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.9);
+        }
+
+        .battle-info-item p {
+            font-size: 16px;
+            color: #ffffff;
+            font-weight: 600;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+        }
+
+        .teams-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .team {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        .team.red {
+            border-left: 3px solid #e74c3c;
+        }
+
+        .team.blue {
+            border-left: 3px solid #3498db;
+        }
+
+        .team-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f1f2f6;
+        }
+
+        .team-name {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .team.red .team-name {
+            color: #e74c3c;
+        }
+
+        .team.blue .team-name {
+            color: #3498db;
+        }
+
+        .team-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .win-indicator {
+            background: #27ae60;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .lose-indicator {
+            background: #e74c3c;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .players-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .player-card {
+            background: transparent;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+            transition: background-color 0.2s ease;
+        }
+
+        .player-card:hover {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .player-card:last-child {
+            border-bottom: none;
+        }
+
+        .player-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .hero-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+        }
+
+        .player-info {
+            flex: 1;
+        }
+
+        .player-info h4 {
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #1a1a1a;
+        }
+
+        .kda {
+            font-size: 16px;
+            font-weight: 600;
+            color: #d63031;
+        }
+
+        .stats-grid {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            min-width: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-value {
+            font-size: 11px;
+            font-weight: 600;
+            color: #2c3e50;
+            line-height: 1.1;
+        }
+
+        .stat-emoji {
+            font-size: 12px;
+            margin-bottom: 1px;
+        }
+
+        .stat-label {
+            font-size: 8px;
+            color: #bdc3c7;
+            margin-top: 1px;
+            display: block;
+        }
+
+        .equipment {
+            margin-top: 8px;
+        }
+
+        .equipment h5 {
+            display: none;
+        }
+
+        .equipment-grid {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .equipment-item {
+            width: 28px;
+            height: 28px;
+            border-radius: 3px;
+            object-fit: cover;
+            border: none;
+            background: transparent;
+        }
+
+        .mvp-badge {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .team-summary {
+            margin-bottom: 30px;
+        }
+
+        .team-summary h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .team-comparison {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            gap: 40px;
+            margin-bottom: 20px;
+        }
+
+        .vs-divider {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333333;
+            padding: 0 20px;
+        }
+
+        .team-total-stats {
+            text-align: center;
+        }
+
+        .team-total-stats h3 {
+            margin-bottom: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .team-total-stats.red h3 {
+            color: #d63031;
+        }
+
+        .team-total-stats.blue h3 {
+            color: #0984e3;
+        }
+
+        .total-kda {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 8px 0;
+            color: #1a1a1a;
+        }
+
+        .total-stats-grid {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .total-stat-item {
+            font-size: 12px;
+            font-weight: 500;
+            color: #333333;
+        }
+
+        .dragons-towers {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .objective-item {
+            text-align: center;
+            padding: 4px 8px;
+            background: transparent;
+            border: none;
+        }
+
+        .objective-item h4 {
+            margin-bottom: 2px;
+            color: #34495e;
+            font-size: 12px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .teams-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .team-comparison {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .vs-divider {
+                order: -1;
+                margin: 20px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header" id="gameHeader">
+            <div class="hero-avatars-bg" id="heroAvatarsBg">
+                <!-- 英雄头像背景将在这里动态生成 -->
+            </div>
+            <div class="header-content">
+                <div class="current-player" id="currentPlayer">
+                    <!-- 当前玩家信息 -->
+                </div>
+                <h1 id="gameMode">王者荣耀战局详情</h1>
+                <div class="battle-info" id="battleInfo">
+                    <!-- 战斗基本信息将在这里动态填充 -->
+                </div>
+            </div>
+        </div>
+
+        <div class="team-summary">
+            <h2>战斗结果</h2>
+            <div class="team-comparison" id="teamComparison">
+                <!-- 队伍对比数据将在这里动态填充 -->
+            </div>
+            <div class="dragons-towers" id="objectives">
+                <!-- 目标建筑数据将在这里动态填充 -->
+            </div>
+        </div>
+
+        <div class="teams-section">
+            <div class="team red" id="redTeam">
+                <div class="team-header">
+                    <div>
+                        <div class="team-name">红色方</div>
+                    </div>
+                    <div class="team-stats" id="redTeamStats">
+                        <!-- 红队统计将在这里填充 -->
+                    </div>
+                </div>
+                <div class="players-grid" id="redPlayers">
+                    <!-- 红队玩家将在这里动态填充 -->
+                </div>
+            </div>
+
+            <div class="team blue" id="blueTeam">
+                <div class="team-header">
+                    <div>
+                        <div class="team-name">蓝色方</div>
+                    </div>
+                    <div class="team-stats" id="blueTeamStats">
+                        <!-- 蓝队统计将在这里填充 -->
+                    </div>
+                </div>
+                <div class="players-grid" id="bluePlayers">
+                    <!-- 蓝队玩家将在这里动态填充 -->
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>王者荣耀战局数据展示 - 生成于 <span id="currentTime"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // 战局数据
+        const battleData = {
+            "result": 0,
+            "returnCode": 0,
+            "returnMsg": "",
+            "data": {
+                "head": {
+                    "gameResult": true,
+                    "acntCamp": 2,
+                    "mapName": "排位赛",
+                    "gradeGame": "10.9",
+                    "kda": "6.00",
+                    "killCnt": 5,
+                    "deadCnt": 3,
+                    "assistCnt": 7,
+                    "roleId": "2000000107",
+                    "roleName": "这就是牢拉",
+                    "teamNum": 1,
+                    "matchDesc": "实力局",
+                    "userId": "2000000018",
+                    "heroId": 109,
+                    "heroName": "妲己"
+                },
+                "battle": {
+                    "gameType": 4,
+                    "usedTime": 660,
+                    "dtEventTime": "09-04 21:35",
+                    "mapName": "排位赛",
+                    "startTime": "09-04 21:24"
+                },
+                "redTeam": {
+                    "acntCamp": 2,
+                    "killCnt": 20,
+                    "deadCnt": 10,
+                    "assistCnt": 24,
+                    "money": 38366,
+                    "towerCnt": 6,
+                    "ldragon1": 1,
+                    "ldragon2": 1,
+                    "bdragon1": 0,
+                    "bdragon2": 0,
+                    "bdragon3": 0,
+                    "gameResult": true
+                },
+                "blueTeam": {
+                    "acntCamp": 1,
+                    "killCnt": 10,
+                    "deadCnt": 20,
+                    "assistCnt": 11,
+                    "money": 31766,
+                    "towerCnt": 0,
+                    "ldragon1": 1,
+                    "ldragon2": 0,
+                    "bdragon1": 0,
+                    "bdragon2": 0,
+                    "bdragon3": 0,
+                    "gameResult": false
+                },
+                "playerList": [
+                    {
+                        "basicInfo": {
+                            "roleId": "2000000107",
+                            "roleName": "这就是牢拉",
+                            "acntCamp": 2,
+                            "userId": "2000000018",
+                            "isMe": true
+                        },
+                        "battleStats": {
+                            "killCnt": 5,
+                            "deadCnt": 3,
+                            "assistCnt": 7,
+                            "money": 7625,
+                            "mvp": true,
+                            "totalHurtCnt": "186392",
+                            "towerCnt": 0,
+                            "heroLevel": 13,
+                            "kda": "6.00",
+                            "killSoldier": "29"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 109,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/bcd91d44280372709afd773f986cb339.jpg",
+                                "heroName": "妲己"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1426,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1426.png",
+                                    "equipName": "疾步之靴"
+                                },
+                                {
+                                    "equipId": 1227,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1227.png",
+                                    "equipName": "炽热支配"
+                                },
+                                {
+                                    "equipId": 1221,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1221.png",
+                                    "equipName": "大棒"
+                                },
+                                {
+                                    "equipId": 12211,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/12211.png",
+                                    "equipName": "梦魇之牙"
+                                },
+                                {
+                                    "equipId": 1214,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1214.png",
+                                    "equipName": "圣者法典"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "204587266",
+                            "roleName": "dxxhxhxhxhzh",
+                            "acntCamp": 2,
+                            "userId": "1587122565",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 4,
+                            "deadCnt": 1,
+                            "assistCnt": 4,
+                            "money": 7888,
+                            "mvp": false,
+                            "totalHurtCnt": "184612",
+                            "towerCnt": 0,
+                            "heroLevel": 13,
+                            "kda": "12.00",
+                            "killSoldier": "42"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 166,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/78b618cf3ba7e492876776e09dc70bde.jpg",
+                                "heroName": "亚瑟"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1423,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1423.png",
+                                    "equipName": "冷静之靴"
+                                },
+                                {
+                                    "equipId": 1331,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1331.png",
+                                    "equipName": "红莲斗篷"
+                                },
+                                {
+                                    "equipId": 1335,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1335.png",
+                                    "equipName": "魔女斗篷"
+                                },
+                                {
+                                    "equipId": 1332,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1332.png",
+                                    "equipName": "霸者重装"
+                                },
+                                {
+                                    "equipId": 1111,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1111.png",
+                                    "equipName": "铁剑"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "3462169075",
+                            "roleName": "*8n-.",
+                            "acntCamp": 2,
+                            "userId": "1733283761",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 5,
+                            "deadCnt": 4,
+                            "assistCnt": 4,
+                            "money": 8406,
+                            "mvp": false,
+                            "totalHurtCnt": "274720",
+                            "towerCnt": 2,
+                            "heroLevel": 13,
+                            "kda": "3.38",
+                            "killSoldier": "34"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 169,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/d09631d5a0f92bff8a26c8dd2f70bd76.jpg",
+                                "heroName": "后羿"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1422,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1422.png",
+                                    "equipName": "抵抗之靴"
+                                },
+                                {
+                                    "equipId": 1136,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1136.png",
+                                    "equipName": "影刃"
+                                },
+                                {
+                                    "equipId": 1141,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1141.png",
+                                    "equipName": "逐日之弓"
+                                },
+                                {
+                                    "equipId": 1133,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1133.png",
+                                    "equipName": "无尽战刃"
+                                },
+                                {
+                                    "equipId": 1154,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1154.png",
+                                    "equipName": "穿云弓"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "3848920728",
+                            "roleName": "阿2128",
+                            "acntCamp": 2,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 5,
+                            "deadCnt": 2,
+                            "assistCnt": 2,
+                            "money": 7543,
+                            "mvp": false,
+                            "totalHurtCnt": "395262",
+                            "towerCnt": 0,
+                            "heroLevel": 14,
+                            "kda": "5.25",
+                            "killSoldier": "7"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 193,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/6b0811ba0ade67dc92b4b74475f01e78.jpg",
+                                "heroName": "铠"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1523,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1523.png",
+                                    "equipName": "追击刀锋"
+                                },
+                                {
+                                    "equipId": 1422,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1422.png",
+                                    "equipName": "抵抗之靴"
+                                },
+                                {
+                                    "equipId": 1137,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1137.png",
+                                    "equipName": "暗影战斧"
+                                },
+                                {
+                                    "equipId": 1134,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1134.png",
+                                    "equipName": "宗师之力"
+                                },
+                                {
+                                    "equipId": 1121,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1121.png",
+                                    "equipName": "风暴巨剑"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "0",
+                            "roleName": "逐星却无影q",
+                            "acntCamp": 2,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 1,
+                            "deadCnt": 0,
+                            "assistCnt": 7,
+                            "money": 6904,
+                            "mvp": false,
+                            "totalHurtCnt": "52866",
+                            "towerCnt": 0,
+                            "heroLevel": 13,
+                            "kda": "12.00",
+                            "killSoldier": "6"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 577,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/65ebf60d43956209a471b4ca17787384.jpg",
+                                "heroName": "少司缘"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1754,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1754.png",
+                                    "equipName": "近卫·形昭"
+                                },
+                                {
+                                    "equipId": 1422,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1422.png",
+                                    "equipName": "抵抗之靴"
+                                },
+                                {
+                                    "equipId": 1226,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1226.png",
+                                    "equipName": "圣杯"
+                                },
+                                {
+                                    "equipId": 1317,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1317.png",
+                                    "equipName": "急速铠甲"
+                                },
+                                {
+                                    "equipId": 1324,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1324.png",
+                                    "equipName": "雪山圆盾"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "0",
+                            "roleName": "四虎虎探险",
+                            "acntCamp": 1,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 3,
+                            "deadCnt": 5,
+                            "assistCnt": 1,
+                            "money": 5523,
+                            "mvp": false,
+                            "totalHurtCnt": "228358",
+                            "towerCnt": 0,
+                            "heroLevel": 11,
+                            "kda": "1.20",
+                            "killSoldier": "5"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 538,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9f40d6872ff179f006f8291688f0c141.jpg",
+                                "heroName": "云缨"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1533,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1533.png",
+                                    "equipName": "贪婪之噬"
+                                },
+                                {
+                                    "equipId": 1423,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1423.png",
+                                    "equipName": "冷静之靴"
+                                },
+                                {
+                                    "equipId": 1137,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1137.png",
+                                    "equipName": "暗影战斧"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "0",
+                            "roleName": "乃斯米虎哦",
+                            "acntCamp": 1,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 1,
+                            "deadCnt": 1,
+                            "assistCnt": 3,
+                            "money": 5400,
+                            "mvp": false,
+                            "totalHurtCnt": "25694",
+                            "towerCnt": 0,
+                            "heroLevel": 11,
+                            "kda": "6.00",
+                            "killSoldier": "2"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 184,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/367a49a852497baa42678c1b16de9313.jpg",
+                                "heroName": "蔡文姬"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1721,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1746.png",
+                                    "equipName": "极影·救赎"
+                                },
+                                {
+                                    "equipId": 1422,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1422.png",
+                                    "equipName": "抵抗之靴"
+                                },
+                                {
+                                    "equipId": 1214,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1214.png",
+                                    "equipName": "圣者法典"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "0",
+                            "roleName": "友谊指导者",
+                            "acntCamp": 1,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 1,
+                            "deadCnt": 4,
+                            "assistCnt": 2,
+                            "money": 7380,
+                            "mvp": false,
+                            "totalHurtCnt": "180103",
+                            "towerCnt": 0,
+                            "heroLevel": 13,
+                            "kda": "1.12",
+                            "killSoldier": "35"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 128,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/8a39067f6ecf70d61328ec0ea54abe92.jpg",
+                                "heroName": "曹操"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1345,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1345.png",
+                                    "equipName": "荆棘护手"
+                                },
+                                {
+                                    "equipId": 1423,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1423.png",
+                                    "equipName": "冷静之靴"
+                                },
+                                {
+                                    "equipId": 1126,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1126.png",
+                                    "equipName": "末世"
+                                },
+                                {
+                                    "equipId": 1331,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1331.png",
+                                    "equipName": "红莲斗篷"
+                                },
+                                {
+                                    "equipId": 1111,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1111.png",
+                                    "equipName": "铁剑"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "0",
+                            "roleName": "萌新，别乱看",
+                            "acntCamp": 1,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 4,
+                            "deadCnt": 4,
+                            "assistCnt": 1,
+                            "money": 7315,
+                            "mvp": true,
+                            "totalHurtCnt": "152877",
+                            "towerCnt": 0,
+                            "heroLevel": 12,
+                            "kda": "1.88",
+                            "killSoldier": "25"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 545,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/b4b70fbed6396c2e036c3ae6c04356cd.jpg",
+                                "heroName": "莱西奥"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1425,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1425.png",
+                                    "equipName": "急速战靴"
+                                },
+                                {
+                                    "equipId": 1126,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1126.png",
+                                    "equipName": "末世"
+                                },
+                                {
+                                    "equipId": 1133,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1133.png",
+                                    "equipName": "无尽战刃"
+                                },
+                                {
+                                    "equipId": 1154,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1154.png",
+                                    "equipName": "穿云弓"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "basicInfo": {
+                            "roleId": "0",
+                            "roleName": "知你即灭你",
+                            "acntCamp": 1,
+                            "userId": "0",
+                            "isMe": false
+                        },
+                        "battleStats": {
+                            "killCnt": 1,
+                            "deadCnt": 6,
+                            "assistCnt": 4,
+                            "money": 6148,
+                            "mvp": false,
+                            "totalHurtCnt": "101598",
+                            "towerCnt": 0,
+                            "heroLevel": 12,
+                            "kda": "1.25",
+                            "killSoldier": "21"
+                        },
+                        "battleRecords": {
+                            "usedHero": {
+                                "heroId": 109,
+                                "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/bcd91d44280372709afd773f986cb339.jpg",
+                                "heroName": "妲己"
+                            },
+                            "finalEquips": [
+                                {
+                                    "equipId": 1233,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1233.png",
+                                    "equipName": "回响之杖"
+                                },
+                                {
+                                    "equipId": 1424,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1424.png",
+                                    "equipName": "秘法之靴"
+                                },
+                                {
+                                    "equipId": 12211,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/12211.png",
+                                    "equipName": "梦魇之牙"
+                                },
+                                {
+                                    "equipId": 1211,
+                                    "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1211.png",
+                                    "equipName": "咒术典籍"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        };
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        function renderHeaderBackground() {
+            const { head, battle, playerList } = battleData.data;
+            
+            // 找到当前玩家信息
+            const currentPlayerName = head.roleName;
+            const currentPlayerHero = head.heroName;
+            
+            // 获取当前玩家的英雄头像
+            let currentPlayerHeroIcon = '';
+            const currentPlayerData = playerList.find(player => player.basicInfo.roleName === currentPlayerName);
+            
+            if (currentPlayerData && currentPlayerData.battleRecords && currentPlayerData.battleRecords.usedHero) {
+                currentPlayerHeroIcon = currentPlayerData.battleRecords.usedHero.heroIcon;
+            }
+            
+            // 设置当前玩家信息 - 显示玩家名和英雄名
+            document.getElementById('currentPlayer').innerHTML = `${currentPlayerName} • ${currentPlayerHero}`;
+            
+            // 设置游戏模式标题
+            document.getElementById('gameMode').innerHTML = battle.mapName;
+            
+            // 创建英雄头像背景效果
+            const heroAvatarsBg = document.getElementById('heroAvatarsBg');
+            let avatarsHTML = '';
+            
+            // 只显示当前玩家的英雄头像
+            if (currentPlayerHeroIcon) {
+                avatarsHTML += `<div class="hero-avatar-bg main" style="background-image: url('${currentPlayerHeroIcon}')"></div>`;
+                
+                // 提取头像主题色并设置背景
+                extractThemeColorAndSetBackground(currentPlayerHeroIcon);
+            }
+            
+            heroAvatarsBg.innerHTML = avatarsHTML;
+            
+            // 不设置背景头像，只保留渐变背景
+        }
+
+        function extractThemeColorAndSetBackground(imageUrl) {
+            // 创建临时canvas来分析图片主色调
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 50;
+                canvas.height = 50;
+                
+                ctx.drawImage(img, 0, 0, 50, 50);
+                
+                try {
+                    const imageData = ctx.getImageData(0, 0, 50, 50);
+                    const data = imageData.data;
+                    
+                    let r = 0, g = 0, b = 0;
+                    let count = 0;
+                    
+                    // 采样中心区域像素
+                    for (let i = 0; i < data.length; i += 4) {
+                        r += data[i];
+                        g += data[i + 1];
+                        b += data[i + 2];
+                        count++;
+                    }
+                    
+                    r = Math.floor(r / count);
+                    g = Math.floor(g / count);
+                    b = Math.floor(b / count);
+                    
+                    // 调整亮度，使其适合作为背景
+                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                    const factor = brightness > 128 ? 0.3 : 0.6; // 亮色变暗，暗色稍微提亮
+                    
+                    r = Math.floor(r * factor);
+                    g = Math.floor(g * factor);
+                    b = Math.floor(b * factor);
+                    
+                    // 应用主题色到背景
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        .header::after {
+                            background: linear-gradient(135deg, 
+                                rgba(${r}, ${g}, ${b}, 0.8) 0%, 
+                                rgba(${Math.floor(r*0.7)}, ${Math.floor(g*0.7)}, ${Math.floor(b*0.7)}, 0.6) 40%, 
+                                rgba(${r}, ${g}, ${b}, 0.7) 100%) !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                    
+                } catch (e) {
+                    // 如果无法提取颜色，使用默认背景
+                    console.log('无法提取主题色，使用默认背景');
+                }
+            };
+            
+            img.onerror = function() {
+                console.log('图片加载失败，使用默认背景');
+            };
+            
+            img.src = imageUrl;
+        }
+
+        function renderBattleInfo() {
+            const { head, battle } = battleData.data;
+            
+            // 设置动态header背景
+            renderHeaderBackground();
+            
+            const battleInfoHTML = `
+                <div class="battle-info-item">
+                    <h3>对局时长</h3>
+                    <p>${formatTime(battle.usedTime)}</p>
+                </div>
+                <div class="battle-info-item">
+                    <h3>开始时间</h3>
+                    <p>${battle.startTime}</p>
+                </div>
+                <div class="battle-info-item">
+                    <h3>结束时间</h3>
+                    <p>${battle.dtEventTime}</p>
+                </div>
+            `;
+            document.getElementById('battleInfo').innerHTML = battleInfoHTML;
+        }
+
+        function renderTeamComparison() {
+            const { redTeam, blueTeam } = battleData.data;
+            
+            const comparisonHTML = `
+                <div class="team-total-stats red">
+                    <h3>🔴 红色方 ${redTeam.gameResult ? '🏆 胜利' : '❌ 失败'}</h3>
+                    <div class="total-kda">${redTeam.killCnt}/${redTeam.deadCnt}/${redTeam.assistCnt}</div>
+                    <div class="total-stats-grid">
+                        <div class="total-stat-item">💰 ${(redTeam.money / 1000).toFixed(1)}k</div>
+                        <div class="total-stat-item">🏰 ${redTeam.towerCnt}</div>
+                        <div class="total-stat-item">🐲 ${redTeam.ldragon1 + redTeam.ldragon2}</div>
+                    </div>
+                </div>
+                <div class="vs-divider">⚔️ VS</div>
+                <div class="team-total-stats blue">
+                    <h3>🔵 蓝色方 ${blueTeam.gameResult ? '🏆 胜利' : '❌ 失败'}</h3>
+                    <div class="total-kda">${blueTeam.killCnt}/${blueTeam.deadCnt}/${blueTeam.assistCnt}</div>
+                    <div class="total-stats-grid">
+                        <div class="total-stat-item">💰 ${(blueTeam.money / 1000).toFixed(1)}k</div>
+                        <div class="total-stat-item">🏰 ${blueTeam.towerCnt}</div>
+                        <div class="total-stat-item">🐲 ${blueTeam.ldragon1 + blueTeam.ldragon2}</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('teamComparison').innerHTML = comparisonHTML;
+        }
+
+        function renderPlayer(player, isCurrentUser = false) {
+            const { basicInfo, battleStats, battleRecords } = player;
+            const { usedHero, finalEquips, skill } = battleRecords;
+            
+            const equipmentHTML = finalEquips ? finalEquips.map(equip => 
+                `<img src="${equip.equipIcon}" alt="${equip.equipName}" class="equipment-item" title="${equip.equipName}">`
+            ).join('') : '';
+
+            return `
+                <div class="player-card ${isCurrentUser ? 'current-user' : ''}">
+                    <div class="player-main">
+                        <img src="${usedHero.heroIcon}" alt="${usedHero.heroName}" class="hero-avatar">
+                        <div class="player-info">
+                            <h4>${basicInfo.roleName}${battleStats.mvp ? '<span class="mvp-badge">MVP</span>' : ''}</h4>
+                            <div class="kda">${battleStats.killCnt}/${battleStats.deadCnt}/${battleStats.assistCnt}</div>
+                        </div>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-emoji">💰</div>
+                                <div class="stat-value">${(battleStats.money / 1000).toFixed(1)}k</div>
+                                <div class="stat-label">经济</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-emoji">💥</div>
+                                <div class="stat-value">${(battleStats.totalHurtCnt / 1000).toFixed(0)}k</div>
+                                <div class="stat-label">伤害</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-emoji">🏰</div>
+                                <div class="stat-value">${battleStats.towerCnt}</div>
+                                <div class="stat-label">推塔</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-emoji">⬆️</div>
+                                <div class="stat-value">${battleStats.heroLevel}</div>
+                                <div class="stat-label">等级</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-emoji">🗡️</div>
+                                <div class="stat-value">${battleStats.killSoldier}</div>
+                                <div class="stat-label">补刀</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${equipmentHTML ? `
+                        <div class="equipment">
+                            <div class="equipment-grid">${equipmentHTML}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function renderPlayers() {
+            const { playerList, head } = battleData.data;
+            const currentUserId = head.userId;
+            
+            // 分离红蓝两队
+            const redPlayers = playerList.filter(player => player.basicInfo.acntCamp === 2);
+            const bluePlayers = playerList.filter(player => player.basicInfo.acntCamp === 1);
+            
+            // 渲染红队玩家
+            const redPlayersHTML = redPlayers.map(player => 
+                renderPlayer(player, player.basicInfo.userId === currentUserId)
+            ).join('');
+            document.getElementById('redPlayers').innerHTML = redPlayersHTML;
+            
+            // 渲染蓝队玩家
+            const bluePlayersHTML = bluePlayers.map(player => 
+                renderPlayer(player, player.basicInfo.userId === currentUserId)
+            ).join('');
+            document.getElementById('bluePlayers').innerHTML = bluePlayersHTML;
+
+            // 添加队伍结果指示器
+            const { redTeam, blueTeam } = battleData.data;
+            if (redTeam.gameResult) {
+                document.getElementById('redTeam').querySelector('.team-stats').innerHTML = '<span class="win-indicator">胜利</span>';
+            } else {
+                document.getElementById('redTeam').querySelector('.team-stats').innerHTML = '<span class="lose-indicator">失败</span>';
+            }
+            
+            if (blueTeam.gameResult) {
+                document.getElementById('blueTeam').querySelector('.team-stats').innerHTML = '<span class="win-indicator">胜利</span>';
+            } else {
+                document.getElementById('blueTeam').querySelector('.team-stats').innerHTML = '<span class="lose-indicator">失败</span>';
+            }
+        }
+
+        function init() {
+            // 设置当前时间
+            document.getElementById('currentTime').textContent = new Date().toLocaleString('zh-CN');
+            
+            // 渲染各个部分
+            renderBattleInfo();
+            renderTeamComparison();
+            renderPlayers();
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
