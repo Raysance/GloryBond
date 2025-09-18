@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>排行详情-示例玩家52守卫🤖</title>
     <style>
         * {
             margin: 0;
@@ -527,6 +527,14 @@
             font-size: 12px;
         }
 
+        .footer {
+            text-align: center;
+            padding: 20px;
+            /* color: #6c757d; */
+            font-size: 14px;
+            border-top: 1px solid #e9ecef;
+            margin-top: 40px;
+        }
         .mini-card {
             flex: 1;
         }
@@ -630,7 +638,7 @@
             <svg class="icon" viewBox="0 0 24 24">
                 <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
             </svg>
-            王者荣耀数据面板
+            排行数据一览
         </h1>
         <div class="stats-overview" id="statsOverview">
             <!-- 统计信息将通过 JavaScript 动态生成 -->
@@ -672,6 +680,9 @@
         </div>
     </div>
 
+    <div class="footer">
+        <p>Data from 示例玩家52守卫🤖</p>
+    </div>
     <script>
         // 全局变量
         let playersData = [];
@@ -774,8 +785,11 @@
         function renderStatsOverview() {
             const statsOverview = document.getElementById('statsOverview');
             
-            // 只计算选中的玩家
-            const visiblePlayers = playersData.filter(player => selectedPlayers.has(player.id));
+            // 只计算选中的玩家 - 使用一致的ID逻辑
+            const visiblePlayers = playersData.filter((player, index) => {
+                const playerId = player.id !== undefined ? player.id : index;
+                return selectedPlayers.has(playerId);
+            });
             
             if (visiblePlayers.length === 0) {
                 statsOverview.innerHTML = '';
@@ -982,7 +996,7 @@
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = '';
 
-            // 筛选并排序玩家 - 使用玩家ID或索引来筛选
+            // 筛选并排序玩家
             const visiblePlayers = playersData
                 .filter((player, index) => {
                     const playerId = player.id !== undefined ? player.id : index;

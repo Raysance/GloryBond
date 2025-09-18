@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>王者荣耀战局详情</title>
+    <title>战局详情-示例玩家52守卫🤖</title>
     <style>
         * {
             margin: 0;
@@ -222,21 +222,25 @@
         }
 
         .win-indicator {
-            background: #27ae60;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
+            background: transparent;
+            color: #27ae60;
+            padding: 4px 8px;
+            border-radius: 0;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
+            border: none;
+            box-shadow: none;
         }
 
         .lose-indicator {
-            background: #e74c3c;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
+            background: transparent;
+            color: #e74c3c;
+            padding: 4px 8px;
+            border-radius: 0;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
+            border: none;
+            box-shadow: none;
         }
 
         .players-grid {
@@ -295,12 +299,12 @@
         }
 
         .hero-avatar {
-            width: 40px;
-            height: 40px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
             object-fit: cover;
-            border: 2px solid #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
         .player-info {
@@ -308,20 +312,34 @@
         }
 
         .player-info h4 {
-            font-size: 14px;
+            font-size: 16px;
             margin-bottom: 4px;
             color: #1a1a1a;
+            font-weight: 600;
         }
 
         .kda {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: 700;
             color: #d63031;
+        }
+
+        .player-rating {
+            margin-top: 8px;
+            text-align: center;
+            background: transparent;
+            color: #667eea;
+            padding: 6px 12px;
+            border-radius: 0;
+            font-size: 20px;
+            font-weight: 700;
+            box-shadow: none;
+            border: none;
         }
 
         .stats-grid {
             display: flex;
-            gap: 8px;
+            gap: 12px;
             align-items: center;
             flex-wrap: wrap;
         }
@@ -331,29 +349,30 @@
             padding: 0;
             background: transparent;
             border: none;
-            min-width: 32px;
+            min-width: 40px;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
         .stat-value {
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: 700;
             color: #2c3e50;
             line-height: 1.1;
         }
 
         .stat-emoji {
-            font-size: 12px;
-            margin-bottom: 1px;
+            font-size: 16px;
+            margin-bottom: 2px;
         }
 
         .stat-label {
-            font-size: 8px;
+            font-size: 10px;
             color: #bdc3c7;
-            margin-top: 1px;
+            margin-top: 2px;
             display: block;
+            font-weight: 600;
         }
 
         .equipment {
@@ -621,8 +640,10 @@
             
             .win-indicator,
             .lose-indicator {
-                padding: 6px 12px;
+                padding: 4px 8px;
                 font-size: 12px;
+                background: transparent;
+                border-radius: 0;
             }
             
             /* 玩家卡片更紧凑 */
@@ -645,17 +666,27 @@
             }
             
             .hero-avatar {
-                width: 35px;
-                height: 35px;
+                width: 50px;
+                height: 50px;
             }
             
             .player-info h4 {
-                font-size: 13px;
+                font-size: 15px;
                 margin-bottom: 3px;
             }
             
             .kda {
-                font-size: 14px;
+                font-size: 16px;
+            }
+
+            .player-rating {
+                margin-top: 6px;
+                padding: 4px 8px;
+                font-size: 18px;
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+                background: transparent;
             }
             
             .mvp-badge {
@@ -666,23 +697,23 @@
             
             /* 统计数据更紧凑 */
             .stats-grid {
-                gap: 6px;
+                gap: 8px;
             }
             
             .stat-item {
-                min-width: 28px;
+                min-width: 35px;
             }
             
             .stat-value {
-                font-size: 10px;
+                font-size: 12px;
             }
             
             .stat-emoji {
-                font-size: 10px;
+                font-size: 14px;
             }
             
             .stat-label {
-                font-size: 7px;
+                font-size: 8px;
             }
             
             /* 装备区域更紧凑 */
@@ -1008,41 +1039,52 @@
 
         // 渲染队伍对比
         function renderTeamComparison(data) {
-            const { redTeam, blueTeam } = data;
+            const { redTeam, blueTeam, head } = data;
+            
+            console.log('渲染队伍对比数据:', { redTeam, blueTeam, head });
+            
+            // 判断当前玩家所在队伍
+            const currentPlayerTeam = head.camp; // 假设 head.camp 表示当前玩家的阵营
+            let currentPlayerResult = '';
+            
+            // 根据当前玩家阵营显示胜败
+            if (currentPlayerTeam === 1) { // 红队
+                currentPlayerResult = redTeam.gameResult ? '胜利' : '失败';
+            } else { // 蓝队
+                currentPlayerResult = blueTeam.gameResult ? '胜利' : '失败';
+            }
             
             const comparisonHTML = `
                 <div class="team-total-stats red">
                     <h3>🔴 ${redTeam.gameResult ? ' 胜利' : ' 失败'}</h3>
-                    <div class="total-kda">${redTeam.killCnt}/${redTeam.deadCnt}/${redTeam.assistCnt}</div>
                     <div class="total-stats-grid">
-                        <span class="total-stat-item">💰 ${Math.floor(redTeam.money / 1000)}k</span>
-                        <span class="total-stat-item">🏰 ${redTeam.towerCnt}</span>
+                        <span class="total-stat-item">💰 ${Math.floor((redTeam.money || 0) / 1000)}k</span>
+                        <span class="total-stat-item">🏰 ${redTeam.towerCnt || 0}</span>
                     </div>
                 </div>
                 <div class="vs-divider">VS</div>
                 <div class="team-total-stats blue">
                     <h3>🔵 ${blueTeam.gameResult ? ' 胜利' : ' 失败'}</h3>
-                    <div class="total-kda">${blueTeam.killCnt}/${blueTeam.deadCnt}/${blueTeam.assistCnt}</div>
                     <div class="total-stats-grid">
-                        <span class="total-stat-item">💰 ${Math.floor(blueTeam.money / 1000)}k</span>
-                        <span class="total-stat-item">🏰 ${blueTeam.towerCnt}</span>
+                        <span class="total-stat-item">💰 ${Math.floor((blueTeam.money || 0) / 1000)}k</span>
+                        <span class="total-stat-item">🏰 ${blueTeam.towerCnt || 0}</span>
                     </div>
                 </div>
             `;
-            document.getElementById('teamComparison').innerHTML = comparisonHTML;
             
-            // 渲染目标建筑数据
-            const objectivesHTML = `
-                <div class="objective-item">
-                    <h4>🐉 暴君</h4>
-                    <p>${redTeam.dragonCnt || 0} - ${blueTeam.dragonCnt || 0}</p>
-                </div>
-                <div class="objective-item">
-                    <h4>🦅 主宰</h4>
-                    <p>${redTeam.masterCnt || 0} - ${blueTeam.masterCnt || 0}</p>
-                </div>
-            `;
-            document.getElementById('objectives').innerHTML = objectivesHTML;
+            const teamComparisonElement = document.getElementById('teamComparison');
+            if (teamComparisonElement) {
+                teamComparisonElement.innerHTML = comparisonHTML;
+                console.log('战斗结果已渲染');
+            } else {
+                console.error('找不到teamComparison元素');
+            }
+            
+            // 不再显示目标建筑数据，清空objectives容器
+            const objectivesElement = document.getElementById('objectives');
+            if (objectivesElement) {
+                objectivesElement.innerHTML = '';
+            }
         }
 
         // 渲染队伍统计
@@ -1119,12 +1161,10 @@
                                     <span class="stat-value">${Math.floor((battleStats.totalBeheroHurtCnt || 0) / 1000)}k</span>
                                     <span class="stat-label">承伤</span>
                                 </div>
-                                <div class="stat-item">
-                                    <span class="stat-emoji">⭐</span>
-                                    <span class="stat-value">${battleStats.gradeGame || '0.0'}</span>
-                                    <span class="stat-label">评分</span>
-                                </div>
                             </div>
+                        </div>
+                        <div class="player-rating">
+                            评分: ${battleStats.gradeGame || '0.0'}
                         </div>
                         <div class="equipment">
                             <h5>装备</h5>
