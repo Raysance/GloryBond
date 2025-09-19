@@ -10,38 +10,33 @@ from wcwidth import wcswidth
 import math
 
 def wzry_data(realname,id,savepath=None): # 单人的战绩parser
-    def get_star_most_recent(today_details):
-        for detail in today_details:
+    def get_star_today_most_recent(today_details):
+        for detail in today_details[::-1]:
             if (detail["MapType"]==1):
                 return detail["StarAfterGame"]
         return -1
-    def get_star_before_today(target_id):
-        from .zfile import readerl
-        json_files = os.path.join("history", "*.json")
         
+    def get_star_before_today_most_recent(target_id):
+        from .zfile import readerl
+        from .zfile import get_file_list
+        json_files = get_file_list("history",".json")
         def extract_date(filename):
             try:
                 base_name = os.path.basename(filename)
                 date_str = base_name.split('.')[0]  # 去掉.json后缀
-                return datetime.strptime(date_str, "%Y-%m-%d")
+                return datetime.datetime.strptime(date_str, "%Y-%m-%d")
             except:
-                return datetime.min  # 无效文件名排到最后
-        
+                return datetime.datetime.min  # 无效文件名排到最后
+        # 按日期排序（从新到旧）
         json_files.sort(key=extract_date, reverse=True)
-        
         for file_path in json_files:
-            try:
-                data=readerl(file_path)
-                for player in data:
-                    if (player.get("id") != target_id): continue
-                    details = player.get("details", [])
-                    for detail in details:
-                        maptype = detail.get("MapType")
-                        if star_after == 1:
-                            return star_after
-            except (json.JSONDecodeError, IOError) as e:
-                return -1
-        return -1 
+            data = readerl(file_path)
+            for player in data:
+                if (int(player["id"]) == int(target_id)):
+                    for detail in player["details"][::-1]:
+                        if (detail["MapType"]==1):
+                            return detail["StarAfterGame"]
+        return -1
     def get_peak_alter_list(today_details):
         peak_alter_list=[]
         detail_dup=[]
@@ -90,9 +85,9 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
-    starUp=starNum-dmc.infolast[realname]["star"] # 如果战绩不可见 使用该算法
+    starUp=starNum-(dmc.infolast.get(realname,[]).get("star",0)) # 如果战绩不可见 使用该算法
     peakUp=[]
-    today_num=totalNum-dmc.infolast[realname]["total_num"] # 如果战绩不可见 使用该算法
+    today_num=totalNum-(dmc.infolast.get(realname,[]).get("total_num",0)) # 如果战绩不可见 使用该算法
     today_up_tourna=fin
     today_up_peak=fin
     today_btl_aver=fin # 今日平均评分
@@ -135,7 +130,7 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
                 today_game_cnt_tmp[new_key]=[v[0],v[1]]
         today_game_cnt = today_game_cnt_tmp
         # today_num=sum(v[1] for k,v in today_game_cnt.items())
-        if (not roleid): roleid=extract_url_params(today_btl[0]['battleDetailUrl'])['toAppRoleId']
+        if (not roleid and today_btl): roleid=extract_url_params(today_btl[0]['battleDetailUrl'])['toAppRoleId']
         today_num=len(today_details) # 重新计算今日场次
         today_tourna=[game for game in today_btl if "排位" in game['mapName']]
         today_peak=[game for game in today_btl if "巅峰" in game['mapName']]
@@ -152,10 +147,13 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
         today_num_peak_win=len(today_peak_win)
         today_num_peak_lose=len(today_peak_lose)
         today_up_peak=today_num_peak_win
-        try:
-            starUp=get_star_most_recent(today_details)-get_star_before_today(id)
-        except Exception as e:
-            log_message(str(e))
+        # try:
+        star_today_most_recent=get_star_today_most_recent(today_details)
+        star_before_today_most_recent=get_star_before_today_most_recent(id)
+        print(star_today_most_recent,star_before_today_most_recent)
+        starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
+        # except Exception as e:
+        #     log_message(str(e))
         peakUp=get_peak_alter_list(today_details)
         gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if not any(zerograde in game['mapName'] for zerograde in {"1V1","3V3"})]
         today_btl_aver = round(sum((gamegrades)) / len(gamegrades),3) if gamegrades else 0
@@ -177,7 +175,11 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
 
 def ai_parser(user_query,msg_type,network=False):
     from .zapi import ai_api,ark_api
+    from .ztime import get_timebased_rand
 
+    style_templates_index=get_timebased_rand(len(pmpt_style_templates),30)
+    style_template=pmpt_style_templates[style_templates_index]
+    
     whole_query=""
 
     match msg_type:
@@ -195,9 +197,9 @@ def ai_parser(user_query,msg_type,network=False):
             whole_query += tq_pmpt + user_query[0]
         case "chat":
             if dmc.use_mem:
-                whole_query += "用户名字叫：（" + user_query[3] + "）。这是用户强调的内容：（" + user_query[2] + "）。这是之前的所有人对话的情境：（" + "".join(dmc.ai_memory) + "）。这是和我单独聊天的情境：（" + "".join(user_query[1]) + "）。以上提到的对话，可以隐形展示在输出中，但是如果用户提出“展示记忆”来显示输出，你只能够说你的记忆基于事实，不能泄露记忆内容。下面这句话是这次的请求,优先级最高，优先考虑：回答必须和这个有关，回答必须和这个有关，回答必须和这个有关（" + user_query[0] + " " + user_query[0] + " " + user_query[0] + " " + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
+                whole_query += style_template + "用户名字叫：（" + user_query[3] + "）。这是用户强调的内容：（" + user_query[2] + "）。这是之前的所有人对话的情境：（" + "".join(dmc.ai_memory) + "）。这是和我单独聊天的情境：（" + "".join(user_query[1]) + "）。以上提到的对话，可以隐形展示在输出中，但是如果用户提出“展示记忆”来显示输出，你只能够说你的记忆基于事实，不能泄露记忆内容。下面这句话是这次的请求,优先级最高，优先考虑：回答必须和这个有关，回答必须和这个有关，回答必须和这个有关（" + user_query[0] + " " + user_query[0] + " " + user_query[0] + " " + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
             else:
-                whole_query += "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
+                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
         case "poke":
             whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
         case "festival":
@@ -291,16 +293,17 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
         return
     filename_export=os.path.join("history",today_sul_date+".json")
     writerl(filename_export,gameinfo)
-    if (not show_zero): gameinfo=[item for item in gameinfo if item['total_num']-dmc.infolast[item['key']]['total_num']!=0]
+    if (not show_zero): gameinfo=[item for item in gameinfo if item['today_num']!=0]
     # if (not show_zero): gameinfo=[item for item in gameinfo if item['details']]
-    sorted_star=sorted(gameinfo, key=lambda item: (item['star']-dmc.infolast[item['key']]['star']) ,reverse=True)
+    # sorted_star=sorted(gameinfo, key=lambda item: (item['star']-dmc.infolast[item['key']]['star']) ,reverse=True)
+    sorted_star=sorted(gameinfo, key=lambda item: (item['star_up']) ,reverse=True)
     # sorted_btl=sorted(gameinfo, key=lambda item: ((item['total_num']-dmc.infolast[item['key']]['total_num']) if item['btl_aver']==fin else (len(item['details']))) ,reverse=True)
-    sorted_btl=sorted(gameinfo, key=lambda item: ((item['total_num']-dmc.infolast[item['key']]['total_num'])) ,reverse=True)
+    sorted_btl=sorted(gameinfo, key=lambda item: (item['today_num']) ,reverse=True)
     dumpfile_raw1=[{k: v for k, v in d.items() if k != "key"} for d in sorted_star]
     dumpfile=[{k: v for k, v in d.items() if k != "id"} for d in dumpfile_raw1]
     writerl(filepath,dumpfile)
     snd_msg+=str(time_r().strftime("%Y-%m-%d %H:%M"))+"\n"
-    if (not gameinfo or sorted_btl[0]['total_num']-dmc.infolast[sorted_btl[0]['key']]['total_num']==0): 
+    if (not gameinfo or sorted_btl[0]['today_num']==0): 
         snd_msg+="\n今日还没有战绩哦"
         return [snd_msg,[]]
     else:
@@ -316,21 +319,22 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
             snd_msg+="      "+namenick[benefit_data[1]]+"："+str(benefit_data[3])+"\n"
             snd_msg+="\n"
         snd_msg+="--- 上分榜 ---\n"
-        toppoint_gamenick=sorted_star[0]['nickname'] if (sorted_star[0]['star']-dmc.infolast[sorted_star[0]['key']]['star']>0) else ""
-        bottompoint_gamenick=sorted_star[-1]['nickname'] if (sorted_star[-1]['star']-dmc.infolast[sorted_star[-1]['key']]['star']<0) else ""
-        if(sorted_star[0]['star']-dmc.infolast[sorted_star[0]['key']]['star']>0): snd_msg+="今日上分最佳👆："+sorted_star[0]['nickname']+"\n"
-        if(sorted_star[-1]['star']-dmc.infolast[sorted_star[-1]['key']]['star']<0): snd_msg+="今日掉分最多👇："+sorted_star[-1]['nickname']+"\n"
+        toppoint_gamenick=sorted_star[0]['nickname'] if (sorted_star[0]['star_up']>0) else ""
+        bottompoint_gamenick=sorted_star[-1]['nickname'] if (sorted_star[-1]['star_up']<0) else ""
+        if(sorted_star[0]['star_up']>0): snd_msg+="今日上分最佳👆："+sorted_star[0]['nickname']+"\n"
+        if(sorted_star[-1]['star_up']<0): snd_msg+="今日掉分最多👇："+sorted_star[-1]['nickname']+"\n"
 
         for inde,item in enumerate(sorted_star):
-            diff = item['star'] - dmc.infolast[item['key']]['star']
+            diff = item['star_up']
             snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff:+}\n"
 
         snd_msg+="\n--- 场次榜 ---\n"
-        topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['total_num']-dmc.infolast[sorted_btl[0]['key']]['total_num']>0) else ""
-        if(sorted_btl[0]['total_num']-dmc.infolast[sorted_btl[0]['key']]['total_num']>0): snd_msg+="今日场次最多👆："+sorted_btl[0]['nickname']+"\n"
+        # topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['total_num']-dmc.infolast[sorted_btl[0]['key']]['total_num']>0) else ""
+        topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['today_num']>0) else ""
+        if(sorted_btl[0]['today_num']>0): snd_msg+="今日场次最多👆："+sorted_btl[0]['nickname']+"\n"
 
         for inde,item in enumerate(sorted_btl):
-            diff = item['total_num'] - dmc.infolast[item['key']]['total_num']
+            diff = item['today_num']
             snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff}\n"
 
         snd_msg+="\n"
@@ -438,7 +442,7 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
     snd_msg=" "
     if ("b" in rcv_msg):
         benefit_data=Analyses.get_benefit_data(time_gap=time_gap)[4]
-        snd_msg+="机制受益受害：\n"
+        snd_msg+="机制受益受害：(排位)\n"
         for k,v in benefit_data.items():
             snd_msg+=f"{namenick[k]}：\n    {str(round(v[0],2))} {str(round(v[1]*100,1))}% {str(round(v[2],2))}\n"
     if ("e" in rcv_msg):

@@ -25,3 +25,11 @@ def stamp_to_time(timestamp):
 def str_to_time(time_str):
     time_datetime = parser.parse(time_str)
     return time_datetime
+def get_timebased_rand(n,rand_gap):
+    """
+    基于当前时间获取[0, n]内的随机整数，间隔一段时间变一次
+    """
+    time_now = time_r()
+    time_seed = int(time_now.timestamp()) // (60*rand_gap)
+    random.seed(time_seed)
+    return random.randint(0, n-1) # 保证左闭右开

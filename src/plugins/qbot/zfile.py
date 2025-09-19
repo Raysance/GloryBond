@@ -104,3 +104,11 @@ def copyfile(src_file,dst_file):
     shutil.copy(src_file,dst_file)
 def file_exist(file_path):
     return os.path.exists(file_path)
+def get_file_list(root_path,end_with):
+    file_list=[]
+    if os.path.exists(root_path) and os.path.isdir(root_path):
+        for filename in os.listdir(root_path):
+            if filename.endswith(end_with):
+                file_path = os.path.join(root_path, filename)
+                file_list.append(file_path)
+    return file_list
