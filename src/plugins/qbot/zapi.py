@@ -8,6 +8,8 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr=-1,pvptype=-1):
+    roleid=str(roleid)
+    userid=str(userid)
     btldetail_url = "https://kohcamp.qq.com/game/battledetail"
     btlist_url = "https://kohcamp.qq.com/game/morebattlelist"
     profile_url = "https://kohcamp.qq.com/game/koh/profile"
@@ -24,7 +26,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
         "cgameid": "20001",
         "cgzip": "1",
         "cisarm64": "true",
-        "crand": confs["wzry"]["crand"],
+        "crand": '1758455866028',
         "csupportarm64": "true",
         "csystem": "android",
         "csystemversioncode": "32",
@@ -61,6 +63,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
         "relaySvr": relaysvr,
         "battleType": int(pvptype)
     }
+    print(btldetail_data)
     btlist_data = {
         "lastTime": 0,
         "recommendPrivacy": 0,
@@ -83,7 +86,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
         "roleId": roleid
     }
     heropower_data = {
-        "recommendPrivacy":0,
+        "recommendPrivacy": 0,
         "targetUserId":userid,
         "targetRoleId":roleid
     }
@@ -91,12 +94,15 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
         case "btldetail":
             url=btldetail_url
             data=btldetail_data
+            # headers["content-length"]="131"
         case "btlist":
             url=btlist_url
             data=btlist_data
+            # headers["content-length"]="133"
         case "profile":
             url=profile_url
             data=profile_data
+            # headers["content-length"]="122"
         case "season":
             url=season_url
             data=season_data
@@ -110,52 +116,16 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
 
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=1, period=2)  # 每2秒最多调用1次 #太快返回不了
-def wzry_api(id,key, option=None):
-    try_time=3
-    if (option==None): option="0"
-
-    log_message("VISIT: wzry_api "+str(id))
-    url_btlist = f"{wzry_btl_url}?key={key}&id={id}&option={option}"
-    url_rnk = f"{wzry_profile_url}?key={key}&id={id}"
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded;charset:utf-8;"
-    }
-    rnk_data={}
-    btlist_data={}
-    for i in range(try_time):
-        try:
-            response_rnk = requests.get(url_rnk, headers=headers)
-            rnk_data = response_rnk.json().get("data", {})
-            if (len(rnk_data)==0):
-                time.sleep(1)
-                continue
-            else: break
-        except Exception as e:
-            if (i==try_time-1):
-                raise Exception("王者荣耀数据源错误: "+str(e))
-            else:
-                continue
-    for i in range(try_time):
-        try:
-            response_btlist = requests.get(url_btlist, headers=headers)
-            btlist_data = response_btlist.json().get("data", {})
-            if (len(btlist_data)==0):
-                time.sleep(1)
-                continue
-            else: break
-            break
-        except Exception as e:
-            if (i==try_time-1):
-                raise Exception("王者荣耀数据源错误: "+str(e))
-            else:
-                continue
-    assert "list" in btlist_data and "roleCard" in rnk_data, "王者荣耀数据源错误"
-    # btlist_data=wzry_get_official(reqtype="btlist",userid=id,roleid=0)
+def wzry_api(userid,roleid):
+    log_message("VISIT: wzry_api "+str(f"{userid} {roleid}"))
+    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
+    profile_data=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
     # rnk_data
     combined_data = {
         "btlist": btlist_data,
-        "rnk": rnk_data
+        "profile": profile_data
     }
+    # print(combined_data)
     return combined_data
 
 @sleep_and_retry    # 当达到限制时自动等待

@@ -9,7 +9,7 @@ import redis
 from wcwidth import wcswidth
 import math
 
-def wzry_data(realname,id,savepath=None): # 单人的战绩parser
+def wzry_data(realname,savepath=None): # 单人的战绩parser
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
             if (detail["MapType"]==1):
@@ -66,25 +66,28 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
     from .zfunc import extract_url_params
 
     log_message("VISIT: wzry_data")
+    
+    userid=userlist[realname]
+    roleid=roleidlist[realname]
 
     if (savepath==None): savepath=""
 
     try:
-        res=wzry_api(id,confs["QQBot"]["t1qq_key"])
+        res=wzry_api(userid=userid,roleid=roleid)
     except Exception as e:
         raise Exception(str(e))
 
     if (savepath!=""):
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
         writerl(savepath,res)
-    
-    nickname=res["rnk"]["roleCard"]["roleName"] # 昵称
-    rankName=res["rnk"]["roleCard"]["roleJobName"] # 段位
-    rankStar=int(res["rnk"]["roleCard"]["starNum"]) # 星级
-    fightPower=int(res["rnk"]["roleCard"]["fightPowerItem"]["value1"]) # 战力
-    totalNum=int(res["rnk"]["roleCard"]["totalBattleCountItem"]["value1"]) # 总场数
+    roleInfo=[roles for roles in res["profile"]["roleList"] if int(roles["roleId"])==roleid][0]
+    nickname=roleInfo["roleName"]
+    rankInfo=[mods for mods in res["profile"]["head"]["mods"] if mods["modId"]==701][0]
+    rankName=rankInfo["name"]
+    rankStar=int(json.loads(rankInfo["param1"])["rankingStar"])
+    totalNum=[int(mods["content"]) for mods in res["profile"]["head"]["mods"] if mods["name"]=="总场次"][0]
     starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
-    winRate=res["rnk"]["roleCard"]["winRateItem"]["value1"] # 总胜率
+    winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
     BtlVisible=not res["btlist"]["invisible"]
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
@@ -98,7 +101,6 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
     today_details=[] # 今日所有战局
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
-    roleid=0
     if(BtlVisible):
         today_btl = [game for game in res['btlist']['list'] if (time_sul(parser.parse(game['gametime'])).date()==sul_time.date())]
         today_details=[{\
@@ -134,7 +136,7 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
                 today_game_cnt_tmp[new_key]=[v[0],v[1]]
         today_game_cnt = today_game_cnt_tmp
         # today_num=sum(v[1] for k,v in today_game_cnt.items())
-        if (not roleid and today_btl): roleid=extract_url_params(today_btl[0]['battleDetailUrl'])['toAppRoleId']
+        # if (not roleid and today_btl): roleid=extract_url_params(today_btl[0]['battleDetailUrl'])['toAppRoleId']
         today_num=len(today_details) # 重新计算今日场次
         today_tourna=[game for game in today_btl if "排位" in game['mapName']]
         today_peak=[game for game in today_btl if "巅峰" in game['mapName']]
@@ -153,7 +155,7 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
         today_up_peak=today_num_peak_win
         # try:
         star_today_most_recent=get_star_today_most_recent(today_details)
-        star_before_today_most_recent=get_star_before_today_most_recent(id)
+        star_before_today_most_recent=get_star_before_today_most_recent(userid)
         print(star_today_most_recent,star_before_today_most_recent)
         starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
         # except Exception as e:
@@ -288,7 +290,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     gameinfo=[]
     for key in userlist:
         try:
-            game_data=wzry_data(key,userlist[key])
+            game_data=wzry_data(key)
             gameinfo.append(game_data)
         except Exception as e:
             continue
@@ -387,7 +389,7 @@ def single_process(rcv_msg):
             copyfile(detail_filepath,website_filepath)
 
         else:
-            gameinfo=wzry_data(matching_name,userlist[matching_name],website_filepath)
+            gameinfo=wzry_data(matching_name,website_filepath)
         dmc.last_request_btllist=gameinfo['details']
         dmc.last_request_roleid=gameinfo['roleid']
         website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single")
@@ -529,7 +531,12 @@ def heropower_process(rcv_msg):
     print(res)
     ret_text=f"{namenick[matching_name]}的战力英雄\n"
     for hero in res['heroList']:
-        ret_text+=f"{hero['basicInfo']['title']}: {hero['basicInfo']['heroFightPower']}\n   {hero['honorTitle']['region']['provinceName']}{hero['honorTitle']['desc']['full']} \n"
+        try:
+            ret_text+=f"{hero['basicInfo']['title']}:   {hero['basicInfo']['heroFightPower']}\n   {hero['honorTitle']['region']['provinceName']}{hero['honorTitle']['region']['countyName']}  No.{hero['honorTitle']['rank']} \n"
+        except Exception as e:
+            pass
+        # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
+        # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
     return ret_text
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
     from .zfile import readerl
