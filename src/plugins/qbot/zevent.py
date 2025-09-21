@@ -51,6 +51,7 @@ _rnk=on_keyword(set(rnk_keywords),rule=to_me(),priority=4, block=True)
 _single=on_keyword(set(single_keywords),rule=to_me(),priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=to_me(),priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=to_me(),priority=4, block=True)
+_heropower=on_keyword(set(heropower_keywords),rule=to_me(),priority=4, block=True)
 # _benefit_view=on_keyword(set(btlview_keywords),rule=to_me(),priority=4, block=True)
 
 _tq=on_keyword({"tq",},rule=to_me(),priority=5, block=True)
@@ -248,8 +249,6 @@ async def f_atall(bot,event):
     at_msg=""
     for name,id in qid.items():
         at_msg+=MessageSegment.at(str(id))
-    # user_id = "2000000085"  # 要@的用户QQ号
-    # at_msg = MessageSegment.at(user_id) + ""
     await _atall.send(at_msg)
     urge_msg=ai_parser([str(datetime.datetime.now()),str(namenick),today_news],"urge_game")
     await _atall.send(urge_msg)
@@ -286,6 +285,7 @@ async def f_single(bot,event):
     from .zfunc import single_process
     from .zfunc import get_emoji
     from .zfunc import get_emoji_url
+    from .zfunc import btldetail_process # 附带解析最后一局
 
     whether_emoji=(random.random()>0.2)
     userqid=event.get_user_id()
@@ -301,11 +301,6 @@ async def f_single(bot,event):
         await _single.send(str(e))
         return
     await _single.send(sgl_info[0])
-    try:
-        for poked in sgl_info[1]:
-            await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
-    except Exception as e:
-        pass
 
     whether_emoji=False
     if (whether_emoji):
@@ -317,20 +312,24 @@ async def f_single(bot,event):
         emoji_data =  MessageSegment.image(emoji_url)
         await _single.send(emoji_data)
 
-    if (dmc.last_request_btllist):
-        from .zfunc import btldetail_process
-        last_btl_info=None
-        for item in dmc.last_request_btllist:
-            if (abs(int(item['MapType']))==1):
-                last_btl_info=item
-        if (last_btl_info):
-            last_btl_roleid=dmc.last_request_roleid
-            linkurl,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
-            # btl_info=MessageSegment.image(picpath)+MessageSegment.text(" "+linkurl)
-            btl_info=MessageSegment.text(f"最后一局战绩{'👆' if last_btl_info['Result']=='胜利' else '👇'}\n{last_btl_info['MapName']} {last_btl_info['HeroName']}: {last_btl_info['KillCnt']}/{last_btl_info['DeadCnt']}/{last_btl_info['AssistCnt']} {last_btl_info['GameGrade']}\n{linkurl}")
-            print(picpath,linkurl)
-            await _single.send(btl_info)
+    last_btl_info=None
+    for item in dmc.last_request_btllist: 
+        # if (abs(int(item['MapType']))<=1):
+        last_btl_info=item
+    if (last_btl_info): # 存在至少一局
+        last_btl_roleid=dmc.last_request_roleid
+        btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
+        # snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
+        if (btl_info):
+            snd_msg=btl_info
+            await _single.send(snd_msg)
 
+    try:
+        for poked in sgl_info[1]:
+            await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
+    except Exception as e:
+        pass
+        
     return
 @_btlview.handle()
 async def f_btlview(bot,event):
@@ -355,6 +354,17 @@ async def f_btldetail(bot,event):
     last_btl_params=dmc.last_request_btllist[0]['Params']
     linkurl,picpath=btldetail_process(**last_btl_params)
     await _btldetail.send(linkurl)
+@_heropower.handle()
+async def f_heropower(bot,event):
+    from .zfunc import heropower_process
+    from .zfunc import qid2nick
+
+    userqid=event.get_user_id()
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    
+    snd_msg=heropower_process(rcv_msg)
+    
+    await _heropower.send(snd_msg)
 @_chat.handle()
 async def f_chat(bot,event):
     from .zfile import chats_loader

@@ -19,6 +19,9 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
     def get_star_before_today_most_recent(target_id):
         from .zfile import readerl
         from .zfile import get_file_list
+        from .ztime import date_sul
+
+        date_delta=str(date_sul())
         json_files = get_file_list("history",".json")
         def extract_date(filename):
             try:
@@ -30,6 +33,7 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
         # 按日期排序（从新到旧）
         json_files.sort(key=extract_date, reverse=True)
         for file_path in json_files:
+            if (date_delta in file_path): continue
             data = readerl(file_path)
             for player in data:
                 if (int(player["id"]) == int(target_id)):
@@ -85,9 +89,9 @@ def wzry_data(realname,id,savepath=None): # 单人的战绩parser
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
-    starUp=starNum-(dmc.infolast.get(realname,[]).get("star",0)) # 如果战绩不可见 使用该算法
+    starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法
     peakUp=[]
-    today_num=totalNum-(dmc.infolast.get(realname,[]).get("total_num",0)) # 如果战绩不可见 使用该算法
+    today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法
     today_up_tourna=fin
     today_up_peak=fin
     today_btl_aver=fin # 今日平均评分
@@ -360,14 +364,7 @@ def single_process(rcv_msg):
     exist_battle=True
     if ("$" in rcv_msg): ai_feedback=False
 
-    matching_name=""
-    for realname,nicknames in nameref.items():
-        for nickname in nicknames:
-            if (nickname in rcv_msg):
-                matching_name=realname
-                break
-        if (matching_name): break
-    if (not matching_name): matching_name=ai_parser([rcv_msg],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
+    matching_name=extract_name(rcv_msg)
 
     today_date=str(time_r().strftime("%Y-%m-%d"))
     exhibit_date_woyear=str(time_sul().strftime("%m-%d"))
@@ -470,7 +467,39 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid):
     from .zfile import writerl
     from .zfunc import create_website
     from .tools import html_to_pic
+
     res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gamesvr=gameSvrId,relaysvr=relaySvrId,roleid=roleid,pvptype=pvptype)
+    if ('head' not in res or all(map5 not in res['head']['mapName'] for map5 in {"排位","巅峰","战队","王者峡谷"}) or any(mapnot5 in str.lower(res['head']['mapName']) for mapnot5 in {"1v1","2v2"})): return None,None
+
+    my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
+    my_team_total_money=0
+    my_team_total_grade=0
+    my_money=0
+    my_grade=0
+    for single_info in my_team_detail:
+        my_team_total_money+=int(single_info['battleStats']['money'])
+        my_team_total_grade+=float(single_info['battleStats']['gradeGame'])
+        if (single_info['basicInfo']['userId']==res['head']['userId']):
+            my_money=int(single_info['battleStats']['money'])
+            my_grade=float(single_info['battleStats']['gradeGame'])
+    team_contribute_factor=(5 * my_grade / my_team_total_grade) * pow((5 * my_money / my_team_total_money), -0.5)
+    team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
+    my_userid=res['head']['userId']
+    our_player_infos_suf=[]
+    for player in my_team_detail:
+        user_id=player['basicInfo']['userId']
+        for our_player_name,our_player_id in userlist.items():
+            if (int(user_id)==int(our_player_id) and int(user_id)!=int(my_userid)):
+                our_player_infos_suf.append([our_player_name,player['battleStats']['gradeGame']])
+                break
+            
+    our_player_infos=[[namenick[playername],playergrade] for playername,playergrade in our_player_infos_suf]
+    our_player_text=""
+    if (our_player_infos):
+        our_player_text="With: "
+        for info in our_player_infos:
+            our_player_text+=f"{info[0]}({info[1]}) "
+        our_player_text+="\n"
     exact_now_time=str(round(time.time()*1000000))
     filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
     json_output_path=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
@@ -478,7 +507,30 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid):
     linkurl=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"btldetail")
     writerl(json_output_path,res)
     # html_to_pic.capture_webpage(linkurl,picpath)
-    return linkurl,picpath
+    snd_message=""
+    snd_message+=(
+        f"最后一局 {'🏆' if res['head']['gameResult']==True else '🏳️'} "
+        f"{team_contribute_text}"
+        f"\n{res['head']['mapName']} {res['head']['heroName']}: {res['head']['killCnt']}/{res['head']['deadCnt']}/{res['head']['assistCnt']} {res['head']['gradeGame']}\n"
+        f"{our_player_text}"
+        f"{linkurl}"
+    )
+    return snd_message,""
+    # return linkurl,picpath,det_message
+def heropower_process(rcv_msg):
+    from .zapi import wzry_get_official
+
+    matching_name=extract_name(rcv_msg)
+    if (matching_name=="name_error"): return None
+    userid=userlist[matching_name]
+    roleid=roleidlist[matching_name]
+
+    res=wzry_get_official(reqtype="heropower",userid=userid,roleid=roleid)
+    print(res)
+    ret_text=f"{namenick[matching_name]}的战力英雄\n"
+    for hero in res['heroList']:
+        ret_text+=f"{hero['basicInfo']['title']}: {hero['basicInfo']['heroFightPower']}\n   {hero['honorTitle']['region']['provinceName']}{hero['honorTitle']['desc']['full']} \n"
+    return ret_text
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
     from .zfile import readerl
     from .zfile import writerl
@@ -669,8 +721,16 @@ def extract_url_params(url):
     params = parse_qs(parsed_url.query)
     # 将值从列表转换为单个值（如果参数只有一个值）
     return {key: value[0] if len(value) == 1 else value for key, value in params.items()}
-def get_random_hash():
-    pass
+def extract_name(origin_text):
+    matching_name=None
+    for realname,nicknames in nameref.items():
+        for nickname in nicknames:
+            if (nickname in origin_text):
+                matching_name=realname
+                break
+        if (matching_name): break
+    if (not matching_name): matching_name=ai_parser([rcv_msg],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
+    return matching_name
 # 配置定时任务
 async def scheduler_func():
     scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
