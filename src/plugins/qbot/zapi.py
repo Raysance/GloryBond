@@ -142,7 +142,7 @@ def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
             ],
             stream=False,
             temperature=temperature
-        )
+        ).
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     return response.choices[0].message.content
