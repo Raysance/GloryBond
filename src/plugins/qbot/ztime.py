@@ -29,6 +29,8 @@ def stamp_to_time(timestamp):
 def str_to_time(time_str):
     time_datetime = parser.parse(time_str)
     return time_datetime
+def time_delta(time_in,delta):
+    return time_in+timedelta(days=delta)
 def get_timebased_rand(n,rand_gap):
     """
     基于当前时间获取[0, n]内的随机整数，间隔一段时间变一次

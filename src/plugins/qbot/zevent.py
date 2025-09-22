@@ -312,17 +312,18 @@ async def f_single(bot,event):
         emoji_data =  MessageSegment.image(emoji_url)
         await _single.send(emoji_data)
 
-    last_btl_info=None
-    for item in dmc.last_request_btllist: 
-        # if (abs(int(item['MapType']))<=1):
-        last_btl_info=item
-    if (last_btl_info): # 存在至少一局
-        last_btl_roleid=dmc.last_request_roleid
-        btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
-        # snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
-        if (btl_info):
-            snd_msg=btl_info
-            await _single.send(snd_msg)
+    if (sgl_info[3] and sgl_info[3][0]==0): # 访问的是当天数据
+        last_btl_info=None
+        for item in dmc.last_request_btllist: 
+            # if (abs(int(item['MapType']))<=1):
+            last_btl_info=item
+        if (last_btl_info): # 存在至少一局
+            last_btl_roleid=dmc.last_request_roleid
+            btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
+            # snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
+            if (btl_info):
+                snd_msg=btl_info
+                await _single.send(snd_msg)
 
     try:
         for poked in sgl_info[1]:
@@ -428,7 +429,7 @@ async def dump_today():
     dump_date=time_sul().strftime("%Y-%m-%d") # 因为提早了5分钟，所以时间就是在导出的日期
     log_message("DUMPBEGIN "+dump_date+".json")
     try:
-        gameinfo = [wzry_data(key,userlist[key],os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json")) for key in userlist] # dump -- 每个人
+        gameinfo = [wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json")) for key in userlist] # dump -- 每个人
     except Exception as e:
         await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
         await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message="今日数据导出错误 "+str(e))

@@ -41,24 +41,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
                         if (detail["MapType"]==1):
                             return detail["StarAfterGame"]
         return -1
-    def get_peak_alter_list(today_details):
-        peak_alter_list=[]
-        detail_dup=[]
-        for detail in today_details:
-            if (detail["MapType"]!=-1): continue
-            detail_dup.append({"PeakBefore":detail["PeakGradeBeforeGame"],"PeakAfter":detail["PeakGradeAfterGame"],"used":False})
-        for item_a in detail_dup:
-            if (item_a["used"]): continue
-            item_a["used"]=True
-            PeakBefore=item_a["PeakBefore"]
-            PeakAfter=item_a["PeakAfter"]
-            for item_b in detail_dup:
-                if (item_b["used"]): continue
-                if (item_b["PeakBefore"]==PeakAfter): 
-                    PeakAfter=item_b["PeakAfter"]
-                    item_b["used"]=True
-            peak_alter_list.append([PeakBefore,PeakAfter])
-        return peak_alter_list
+
     from .zapi import wzry_api
     from .ztime import time_r
     from .ztime import time_sul
@@ -70,14 +53,9 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     userid=userlist[realname]
     roleid=roleidlist[realname]
 
-    if (savepath==None): savepath=""
+    res=wzry_api(userid=userid,roleid=roleid)
 
-    try:
-        res=wzry_api(userid=userid,roleid=roleid)
-    except Exception as e:
-        raise Exception(str(e))
-
-    if (savepath!=""):
+    if (savepath):
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
         writerl(savepath,res)
     roleInfo=[roles for roles in res["profile"]["roleList"] if int(roles["roleId"])==roleid][0]
@@ -160,7 +138,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
         # except Exception as e:
         #     log_message(str(e))
-        peakUp=get_peak_alter_list(today_details)
+        peakUp=get_peak_alter_list(details=today_details,processed=False)
         gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if not any(zerograde in game['mapName'] for zerograde in {"1V1","3V3"})]
         today_btl_aver = round(sum((gamegrades)) / len(gamegrades),3) if gamegrades else 0
         today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
@@ -177,7 +155,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
                     "can_be_watched":res["btlist"]["gaming"]["gameTypeCanBeWatch"],\
         }
 
-    return {"id":id,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
+    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
 
 def ai_parser(user_query,msg_type,network=False):
     from .zapi import ai_api,ark_api
@@ -290,7 +268,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     gameinfo=[]
     for key in userlist:
         try:
-            game_data=wzry_data(key)
+            game_data=wzry_data(realname=key) # 忽略或许出现的局部错误
             gameinfo.append(game_data)
         except Exception as e:
             continue
@@ -306,8 +284,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     # sorted_btl=sorted(gameinfo, key=lambda item: ((item['total_num']-dmc.infolast[item['key']]['total_num']) if item['btl_aver']==fin else (len(item['details']))) ,reverse=True)
     sorted_btl=sorted(gameinfo, key=lambda item: (item['today_num']) ,reverse=True)
     dumpfile_raw1=[{k: v for k, v in d.items() if k != "key"} for d in sorted_star]
-    dumpfile=[{k: v for k, v in d.items() if k != "id"} for d in dumpfile_raw1]
-    writerl(filepath,dumpfile)
+    writerl(filepath,dumpfile_raw1)
     snd_msg+=str(time_r().strftime("%Y-%m-%d %H:%M"))+"\n"
     if (not gameinfo or sorted_btl[0]['today_num']==0): 
         snd_msg+="\n今日还没有战绩哦"
@@ -346,24 +323,41 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
         snd_msg+="\n"
         snd_msg+=website_link+"\n\n"
         if ("$" not in rcv_msg): snd_msg+=ai_parser([snd_msg],"rnk")
-        return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick}]
+        return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick}]   
 
 def single_process(rcv_msg):
+    def extract_history_query(s):
+        import re
+        if ("昨天" in s or "昨日" in s): return [1,[1]]
+        if ("前天" in s): return [1,[2]]
+        int_int_match = re.search(r'(\d+)-(\d+)$', s)
+        if int_int_match:
+            return [2,[int(int_int_match.group(1)),int(int_int_match.group(2))]]
+        int_match = re.search(r'(\d+)$', s)
+        if int_match:
+            return [1,[int(int_match.group(1))]]
+        
+        return [0,[]]
+
     from .zfunc import ai_parser
     from .zfunc import wzry_data
     from .zfunc import Analyses
     from .ztime import time_r
     from .ztime import time_sul
     from .ztime import time_r_delta
+    from .ztime import time_delta
+    from .ztime import str_to_time
     from .zfunc import create_website
     from .zfile import readerl
     from .zfile import copyfile
+    from .zfile import file_exist
 
     snd_msg=""
     pokename=[]
     gameinfo=[]
     ai_feedback=True
     exist_battle=True
+    history_query=[]
     if ("$" in rcv_msg): ai_feedback=False
 
     matching_name=extract_name(rcv_msg)
@@ -377,17 +371,45 @@ def single_process(rcv_msg):
     else:
         filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
         website_filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
-        if any(datewords in rcv_msg for datewords in {"昨天","昨日","前天"}):
-            traceback_cnt=1 if ("昨天" in rcv_msg or "昨日" in rcv_msg) else 2
+        history_query=extract_history_query(rcv_msg)
+        if (history_query[0]==1): # 追溯过去某一天
+            traceback_cnt=history_query[1][0]
             traceback_date=str(time_r_delta(traceback_cnt).strftime("%Y-%m-%d"))
             exhibit_date_woyear=str(time_r_delta(traceback_cnt).strftime("%m-%d"))
+            rough_filepath=os.path.join("history",traceback_date+".json")
+            if (not file_exist(rough_filepath)): traceback_date=str(record_begin_date)
             rough_filepath=os.path.join("history",traceback_date+".json")
             histories=readerl(rough_filepath)
             gameinfo=[history for history in histories if (history["id"]==userlist[matching_name])][0]
             
+            if ("roleid" not in gameinfo): gameinfo["roleid"]=str(roleidlist[gameinfo["key"]])
+            if ("visible" not in gameinfo): gameinfo["visible"]=True
+            
             detail_filepath=os.path.join("history","personal",traceback_date,str(userlist[matching_name])+".json")
-            copyfile(detail_filepath,website_filepath)
-
+            try:
+                copyfile(detail_filepath,website_filepath)
+            except Exception as e:
+                exhibit_date_woyear+=" 链接失效"
+        elif (history_query[0]==2): # 追溯时间段
+            traceback_from=history_query[1][0]
+            traceback_to=history_query[1][1]
+            if (traceback_from<traceback_to): traceback_to,traceback_from=traceback_from,traceback_to
+            traceback_date_from=time_r_delta(traceback_from)
+            traceback_date_to=time_r_delta(traceback_to)
+            traceback_date_from_path=os.path.join("history",traceback_date_from.strftime('%Y-%m-%d')+".json")
+            if (not file_exist(traceback_date_from_path)): traceback_date_from=str_to_time(record_begin_date)
+            
+            exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")}"
+            gameinfo_raw=[]
+            
+            scan_date=traceback_date_from
+            while(scan_date<=traceback_date_to):
+                rough_filepath=os.path.join("history",scan_date.strftime('%Y-%m-%d')+".json")
+                if (file_exist(rough_filepath)):
+                    histories=readerl(rough_filepath)
+                    gameinfo_raw.append([history for history in histories if (history["id"]==userlist[matching_name])][0])
+                scan_date=time_delta(scan_date,1)
+            gameinfo=merge_crossday_gamedata(gameinfo_raw)
         else:
             gameinfo=wzry_data(matching_name,website_filepath)
         dmc.last_request_btllist=gameinfo['details']
@@ -434,7 +456,7 @@ def single_process(rcv_msg):
         ai_process_gameinfo={k: v for k, v in gameinfo.items() if k not in {"id","key","total_num","up_tournal","up_peak","star"}}
         if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),rcv_msg],"single_player")+"\n"
 
-    return [snd_msg,pokename,exist_battle]
+    return [snd_msg,pokename,exist_battle,history_query]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
     from .zfunc import Analyses
 
@@ -728,6 +750,28 @@ def extract_url_params(url):
     params = parse_qs(parsed_url.query)
     # 将值从列表转换为单个值（如果参数只有一个值）
     return {key: value[0] if len(value) == 1 else value for key, value in params.items()}
+def get_peak_alter_list(details,processed):
+    peak_alter_list=[]
+    detail_dup=[]
+    if (not processed):
+        for detail in details:
+            if (detail["MapType"]!=-1): continue
+            detail_dup.append({"PeakBefore":detail["PeakGradeBeforeGame"],"PeakAfter":detail["PeakGradeAfterGame"],"used":False})
+    else:
+        for detail in details:
+            detail_dup.append({"PeakBefore":detail[0],"PeakAfter":detail[1],"used":False})
+    for item_a in detail_dup:
+        if (item_a["used"]): continue
+        item_a["used"]=True
+        PeakBefore=item_a["PeakBefore"]
+        PeakAfter=item_a["PeakAfter"]
+        for item_b in detail_dup:
+            if (item_b["used"]): continue
+            if (item_b["PeakBefore"]==PeakAfter): 
+                PeakAfter=item_b["PeakAfter"]
+                item_b["used"]=True
+        peak_alter_list.append([PeakBefore,PeakAfter])
+    return peak_alter_list
 def extract_name(origin_text):
     matching_name=None
     for realname,nicknames in nameref.items():
@@ -736,8 +780,47 @@ def extract_name(origin_text):
                 matching_name=realname
                 break
         if (matching_name): break
-    if (not matching_name): matching_name=ai_parser([rcv_msg],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
+    if (not matching_name): matching_name=ai_parser([origin_text],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
     return matching_name
+def merge_crossday_gamedata(gamedata):
+    if (not gamedata): return {}
+    res=gamedata[-1]
+    res["date"]=f"cross_day"
+    res["gaming_info"]={}
+    res["btl_aver"]=0
+    if ("roleid" not in res): res["roleid"]=str(roleidlist[res["key"]])
+    for daydata in gamedata[-2::-1]:
+        res["today_num"]+=daydata["today_num"]
+        res["up_tourna"]+=daydata["up_tourna"]
+        res["up_peak"]+=daydata["up_peak"]
+        for mapname,mapcnt in daydata["map_cnt"].items():
+            if (mapname not in res["map_cnt"]):
+                res["map_cnt"][mapname]=[0,0]
+            res["map_cnt"][mapname][0]+=mapcnt[0]
+            res["map_cnt"][mapname][1]+=mapcnt[1]
+        for peakdiff in daydata.get("peak_up",[]):
+            res["peak_up"].append(peakdiff)
+        res["star_up"]+=daydata["star_up"]
+        for detail in daydata["details"]:
+            res["details"].append(detail)
+    combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
+    res["peak_up"]=combined_up_peak
+    combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
+    res["peak_up"]=combined_up_peak
+    official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official(btl["MapName"])]
+    res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
+    res["btl_aver"]=round(res["btl_aver"],1)
+
+    return res
+def check_btl_official(btlname):
+    import re
+
+    btlname=str.lower(btlname)
+    if re.search(r'1v1|2v2', btlname):
+        return False
+    if re.search(r'排位|巅峰|战队', btlname):
+        return True
+    return False
 # 配置定时任务
 async def scheduler_func():
     scheduler = BackgroundScheduler(timezone='Asia/Shanghai')

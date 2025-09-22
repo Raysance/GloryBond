@@ -109,13 +109,18 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
         case "heropower":
             url=heropower_url
             data=heropower_data
-    # print(userid,roleid)
-    response = requests.post(url, headers=headers, json=data)
-    # print(response.text)
-    return response.json().get("data",{})
+    retry_time=3
+    while(retry_time):
+        response = requests.post(url, headers=headers, json=data)
+        # print(response.text)
+        res=response.json().get("data",{})
+        if res: break
+        retry_time-=1
+    if (not retry_time): raise Exception(str("王者荣耀数据源错误"))
+    return res
 
 @sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=1, period=2)  # 每2秒最多调用1次 #太快返回不了
+@limits(calls=1, period=1)  # 每2秒最多调用1次 #太快返回不了
 def wzry_api(userid,roleid):
     log_message("VISIT: wzry_api "+str(f"{userid} {roleid}"))
     btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
@@ -142,7 +147,7 @@ def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
             ],
             stream=False,
             temperature=temperature
-        ).
+        )
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     return response.choices[0].message.content
