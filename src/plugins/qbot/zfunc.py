@@ -357,6 +357,7 @@ def single_process(rcv_msg):
     gameinfo=[]
     ai_feedback=True
     exist_battle=True
+    show_map_cnt_total=False
     history_query=[]
     if ("$" in rcv_msg): ai_feedback=False
 
@@ -373,6 +374,8 @@ def single_process(rcv_msg):
         website_filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
         history_query=extract_history_query(rcv_msg)
         if (history_query[0]==1): # 追溯过去某一天
+            ai_feedback=False
+            show_map_cnt_total=True
             traceback_cnt=history_query[1][0]
             traceback_date=str(time_r_delta(traceback_cnt).strftime("%Y-%m-%d"))
             exhibit_date_woyear=str(time_r_delta(traceback_cnt).strftime("%m-%d"))
@@ -391,6 +394,8 @@ def single_process(rcv_msg):
             except Exception as e:
                 exhibit_date_woyear+=" 链接失效"
         elif (history_query[0]==2): # 追溯时间段
+            ai_feedback=False
+            show_map_cnt_total=True
             traceback_from=history_query[1][0]
             traceback_to=history_query[1][1]
             if (traceback_from<traceback_to): traceback_to,traceback_from=traceback_from,traceback_to
@@ -398,6 +403,8 @@ def single_process(rcv_msg):
             traceback_date_to=time_r_delta(traceback_to)
             traceback_date_from_path=os.path.join("history",traceback_date_from.strftime('%Y-%m-%d')+".json")
             if (not file_exist(traceback_date_from_path)): traceback_date_from=str_to_time(record_begin_date)
+            traceback_date_to_path=os.path.join("history",traceback_date_to.strftime('%Y-%m-%d')+".json")
+            if (not file_exist(traceback_date_to_path)): traceback_date_to=str_to_time(record_begin_date)
             
             exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")}"
             gameinfo_raw=[]
@@ -416,7 +423,7 @@ def single_process(rcv_msg):
         dmc.last_request_roleid=gameinfo['roleid']
         website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single")
 
-        win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]}" 
+        win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
                       for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
         expert_hero_info=Analyses.get_expert_hero(userlist[matching_name])
         if (matching_name not in expert_hero_info):
@@ -750,7 +757,7 @@ def extract_url_params(url):
     params = parse_qs(parsed_url.query)
     # 将值从列表转换为单个值（如果参数只有一个值）
     return {key: value[0] if len(value) == 1 else value for key, value in params.items()}
-def get_peak_alter_list(details,processed):
+def get_peak_alter_list(details,processed,reverse=1):
     peak_alter_list=[]
     detail_dup=[]
     if (not processed):
@@ -760,6 +767,7 @@ def get_peak_alter_list(details,processed):
     else:
         for detail in details:
             detail_dup.append({"PeakBefore":detail[0],"PeakAfter":detail[1],"used":False})
+    if (reverse==-1): detail_dup=detail_dup[::-1]
     for item_a in detail_dup:
         if (item_a["used"]): continue
         item_a["used"]=True
@@ -803,10 +811,14 @@ def merge_crossday_gamedata(gamedata):
         res["star_up"]+=daydata["star_up"]
         for detail in daydata["details"]:
             res["details"].append(detail)
-    combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
-    res["peak_up"]=combined_up_peak
-    combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
-    res["peak_up"]=combined_up_peak
+    if ("peak_up" in res):
+        combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
+        res["peak_up"]=combined_up_peak
+        combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True,reverse=-1)
+        res["peak_up"]=combined_up_peak
+    else:
+        res["peak_up"]=[]
+    if ("visible" not in res): res["visible"]=True
     official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official(btl["MapName"])]
     res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
     res["btl_aver"]=round(res["btl_aver"],1)
