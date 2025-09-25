@@ -27,6 +27,6 @@ with open(redis_path, 'r', encoding='utf-8') as file:
 globals().update(varia)
 
 dmc.redis_deamon= redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
-
+dmc.export_btldetail_lock=threading.Lock()
 if __name__=="__main__":
     pass

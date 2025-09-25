@@ -45,6 +45,8 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     from .zapi import wzry_api
     from .ztime import time_r
     from .ztime import time_sul
+    from .ztime import stamp_to_time
+    from .ztime import date_roleback
     from .zfile import writerl
     from .zfunc import extract_url_params
 
@@ -80,7 +82,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
     if(BtlVisible):
-        today_btl = [game for game in res['btlist']['list'] if (time_sul(parser.parse(game['gametime'])).date()==sul_time.date())]
+        today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==sul_time.date())]
         today_details=[{\
             'GameTime':game['gametime'],\
             'GameTime_Timestamp':int(game['dtEventTime']),\
@@ -154,7 +156,9 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
                     "win_rate_this_hero":res["btlist"]["gaming"]["winRate"],\
                     "can_be_watched":res["btlist"]["gaming"]["gameTypeCanBeWatch"],\
         }
-
+    # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
+    # export_btl_thread.start()
+    export_btldetail(today_details,roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
 
 def ai_parser(user_query,msg_type,network=False):
@@ -266,12 +270,14 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
     website_link=create_website(json.dumps({"filename":filename_hashed,"caller":caller,"time":now_time}),"all")
     gameinfo=[]
+    # dmc.export_btldetail_lock.lock()
     for key in userlist:
         try:
             game_data=wzry_data(realname=key) # 忽略或许出现的局部错误
             gameinfo.append(game_data)
         except Exception as e:
             continue
+    # dmc.export_btldetail_lock.release()
     if (not gameinfo):
         log_message(f"ERROR: 王者荣耀数据源错误")
         return
@@ -499,7 +505,7 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid):
     from .zfunc import create_website
     from .tools import html_to_pic
 
-    res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gamesvr=gameSvrId,relaysvr=relaySvrId,roleid=roleid,pvptype=pvptype)
+    res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
     if ('head' not in res or all(map5 not in res['head']['mapName'] for map5 in {"排位","巅峰","战队","王者峡谷"}) or any(mapnot5 in str.lower(res['head']['mapName']) for mapnot5 in {"1v1","2v2"})): return None,None
 
     my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
@@ -567,6 +573,20 @@ def heropower_process(rcv_msg):
         # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
         # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
     return ret_text
+def gradeanalyze_process(rcv_msg):
+    from .tools import gen_grade_chart
+    matching_name=extract_name(rcv_msg)
+
+    userid=userlist[matching_name]
+    data_path=os.path.join("history")
+    # pic_visit_path=f"http://{server_ip}/wzry_grade_chart/grade_chart.png"
+    # pic_save_path=os.path.join(nginx_path,"wzry_grade_chart")
+    pic_visit_path=f"/usr/local/nginx/html/wzry_grade_chart/grade_chart.png"
+    pic_save_path=f"/usr/local/nginx/html/wzry_grade_chart/"
+    # pic_save_path=os.path.join(nginx_path,"wzry_grade_chart")
+    analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
+    
+    return pic_visit_path,analyze_msg
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
     from .zfile import readerl
     from .zfile import writerl
@@ -828,11 +848,30 @@ def check_btl_official(btlname):
     import re
 
     btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2', btlname):
+    if re.search(r'1v1|2v2|3v3', btlname):
         return False
     if re.search(r'排位|巅峰|战队', btlname):
         return True
     return False
+def check_btl_official_with_matching(btlname):
+    import re
+
+    btlname=str.lower(btlname)
+    if re.search(r'1v1|2v2|3v3', btlname):
+        return False
+    if re.search(r'排位|巅峰|战队|匹配|王者峡谷', btlname):
+        return True
+    return False
+def export_btldetail(gameinfo,roleid):
+    from .zfile import writerl
+    from .zapi import wzry_get_official
+    from .zfile import file_exist
+    for btl in gameinfo:
+        savepath=os.path.join("history","battles",str(btl["GameSeq"])+".json")
+        if (file_exist(savepath) or not check_btl_official(btl["MapName"])): continue
+        res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
+        writerl(savepath,res)
+    return
 # 配置定时任务
 async def scheduler_func():
     scheduler = BackgroundScheduler(timezone='Asia/Shanghai')

@@ -7,7 +7,9 @@ from openai import OpenAI
 import requests
 from ratelimit import limits, sleep_and_retry
 
-def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr=-1,pvptype=-1):
+@sleep_and_retry    # 当达到限制时自动等待
+@limits(calls=3, period=1)
+def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1):
     roleid=str(roleid)
     userid=str(userid)
     btldetail_url = "https://kohcamp.qq.com/game/battledetail"
@@ -57,10 +59,10 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
 
     btldetail_data = {
         "recommendPrivacy": 0,
-        "gameSvr": gamesvr,
+        "gameSvr": gameSvrId,
         "gameSeq": gameseq,
         "targetRoleId": roleid,
-        "relaySvr": relaysvr,
+        "relaySvr": relaySvrId,
         "battleType": int(pvptype)
     }
     print(btldetail_data)
@@ -94,15 +96,12 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
         case "btldetail":
             url=btldetail_url
             data=btldetail_data
-            # headers["content-length"]="131"
         case "btlist":
             url=btlist_url
             data=btlist_data
-            # headers["content-length"]="133"
         case "profile":
             url=profile_url
             data=profile_data
-            # headers["content-length"]="122"
         case "season":
             url=season_url
             data=season_data
@@ -119,8 +118,6 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gamesvr=-1,relaysvr
     if (not retry_time): raise Exception(str("王者荣耀数据源错误"))
     return res
 
-@sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=1, period=1)  # 每2秒最多调用1次 #太快返回不了
 def wzry_api(userid,roleid):
     log_message("VISIT: wzry_api "+str(f"{userid} {roleid}"))
     btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)

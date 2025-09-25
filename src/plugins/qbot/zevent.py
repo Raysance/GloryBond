@@ -52,6 +52,7 @@ _single=on_keyword(set(single_keywords),rule=to_me(),priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=to_me(),priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=to_me(),priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=to_me(),priority=4, block=True)
+_gradeanalyze=on_keyword({"分析"},rule=to_me(),priority=4, block=True)
 # _benefit_view=on_keyword(set(btlview_keywords),rule=to_me(),priority=4, block=True)
 
 _tq=on_keyword({"tq",},rule=to_me(),priority=5, block=True)
@@ -286,6 +287,7 @@ async def f_single(bot,event):
     from .zfunc import get_emoji
     from .zfunc import get_emoji_url
     from .zfunc import btldetail_process # 附带解析最后一局
+    from .zfunc import check_btl_official_with_matching
 
     whether_emoji=(random.random()>0.2)
     userqid=event.get_user_id()
@@ -314,12 +316,16 @@ async def f_single(bot,event):
 
     if (sgl_info[3] and sgl_info[3][0]==0): # 访问的是当天数据
         last_btl_info=None
-        for item in dmc.last_request_btllist: 
-            # if (abs(int(item['MapType']))<=1):
-            last_btl_info=item
-        if (last_btl_info): # 存在至少一局
+        for item in dmc.last_request_btllist[::-1]: 
+            if (check_btl_official_with_matching(item["MapName"])):
+                last_btl_info=item
+                break
+        if (last_btl_info): # 存在至少一局合法赛
             last_btl_roleid=dmc.last_request_roleid
-            btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
+            try:
+                btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
+            except Exception as e:
+                pass
             # snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
             if (btl_info):
                 snd_msg=btl_info
@@ -366,6 +372,17 @@ async def f_heropower(bot,event):
     snd_msg=heropower_process(rcv_msg)
     
     await _heropower.send(snd_msg)
+@_gradeanalyze.handle()
+async def f_gradeanalyze(bot,event):
+    from .zfunc import gradeanalyze_process
+    from .zfunc import qid2nick
+
+    userqid=event.get_user_id()
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    
+    img_url,analyze_msg=gradeanalyze_process(rcv_msg)
+    print(img_url)
+    await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
 @_chat.handle()
 async def f_chat(bot,event):
     from .zfile import chats_loader
@@ -420,20 +437,25 @@ def load_yesterday(imple_type=0):# 程序重启/定时任务
         return
     return
 
+# @scheduler.scheduled_job("cron", hour=13, minute=53, second=5, id="dump_today") # 每日3:25定时导出当日数据（预留5分钟导出时间）
 @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute-5, second=00, id="dump_today") # 每日3:25定时导出当日数据（预留5分钟导出时间）
 async def dump_today():
     from .ztime import time_sul
     from .zfunc import wzry_data
     from .zfile import writerl
 
+    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
     dump_date=time_sul().strftime("%Y-%m-%d") # 因为提早了5分钟，所以时间就是在导出的日期
     log_message("DUMPBEGIN "+dump_date+".json")
-    try:
-        gameinfo = [wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json")) for key in userlist] # dump -- 每个人
-    except Exception as e:
-        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
-        await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message="今日数据导出错误 "+str(e))
-        return
+    gameinfo=[]
+    # dmc.export_btldetail_lock.lock()
+    for key in userlist:
+        try:    
+            gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json"))) # dump -- 每个人
+        except Exception as e:
+            await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=traceback.format_exc())
+            continue
+    # dmc.export_btldetail_lock.release()
     filename=os.path.join("history",dump_date+".json")
     writerl(filename,gameinfo)
     log_message("DUMPEND "+dump_date+".json")
@@ -446,13 +468,14 @@ async def notify_msg():
     # rank_query_delta=rank_query_now-dmc.rank_query_late
     # if (rank_query_delta and rank_query_delta.total_seconds()<=5*60):  # 上一次询问时间小于5分钟，就忽略排名推送
     #     return
+    
     log_message("NOTIFY"+str(datetime.date.today()))
     bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
     snd_msg="今日王者战报(每日23:30推送)：\n"
     try:
         snd_msg+=rnk_process(rcv_msg="",caller=None,show_zero=False,show_analyze=True)[0]
     except Exception as e:
-        await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=traceback.format_exc())
+        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
         return
     log_message("SEND: "+snd_msg)
     await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
