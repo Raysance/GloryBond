@@ -46,14 +46,8 @@ async def show_btlist(request:Request,key: str):
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail={"template": "404_all.html", "context": {"message": ""}}
-        )
-    if (not os.path.exists(os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json"))): 
-        raise HTTPException(
-            status_code=404,
-            detail={"template": "404_all.html", "context": {"message": ""}}
+        return templates.TemplateResponse(
+            "err_single.html",{"request": request,}
         )
     return templates.TemplateResponse(
         "AllBattleList.html",
@@ -70,9 +64,9 @@ async def show_btlist(request:Request,key: str):
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
     except Exception as e:
-        raise HTTPException(status_code=404, detail="file load error")
-    if (not os.path.exists(os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json"))): 
-        raise HTTPException(status_code=404, detail="file load error")
+        return templates.TemplateResponse(
+            "err_single.html",{"request": request,}
+        )
     return templates.TemplateResponse(
         "SingleBattleList.html",
         {
@@ -87,9 +81,9 @@ async def show_btldetail(request:Request,key: str):
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
     except Exception as e:
-        raise HTTPException(status_code=404, detail="file load error")
-    if (not os.path.exists(os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json"))): 
-        raise HTTPException(status_code=404, detail="file load error")
+        return templates.TemplateResponse(
+            "err_single.html",{"request": request,}
+        )
     return templates.TemplateResponse(
         "BattleDetail.html",
         {
