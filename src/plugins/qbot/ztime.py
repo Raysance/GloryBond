@@ -5,6 +5,8 @@ from . import zdynamic as dmc
 from datetime import timedelta
 from dateutil import parser
 
+import time
+
 def time_r(): # time_real
     time_real=datetime.datetime.now()
     return time_real
@@ -35,6 +37,14 @@ def str_to_time(time_str):
     return time_datetime
 def time_delta(time_in,delta):
     return time_in+timedelta(days=delta)
+def wait():
+    delay_second=random.uniform(3,5)
+    time.sleep(delay_second)
+def short_wait():
+    delay_second=random.uniform(0.5,1)
+    time.sleep(delay_second)
+def calc_gap(t1,t2):
+    return abs((t1-t2).total_seconds())
 def get_timebased_rand(n,rand_gap):
     """
     基于当前时间获取[0, n]内的随机整数，间隔一段时间变一次

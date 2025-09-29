@@ -65,7 +65,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         "relaySvr": relaySvrId,
         "battleType": int(pvptype)
     }
-    print(btldetail_data)
+    # print(btldetail_data)
     btlist_data = {
         "lastTime": 0,
         "recommendPrivacy": 0,
@@ -117,18 +117,6 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         retry_time-=1
     if (not retry_time): raise Exception(str("王者荣耀数据源错误"))
     return res
-
-def wzry_api(userid,roleid):
-    log_message("VISIT: wzry_api "+str(f"{userid} {roleid}"))
-    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
-    profile_data=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
-    # rnk_data
-    combined_data = {
-        "btlist": btlist_data,
-        "profile": profile_data
-    }
-    # print(combined_data)
-    return combined_data
 
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=1, period=1)  # 每1秒最多调用1次

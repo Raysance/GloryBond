@@ -15,8 +15,11 @@ from nonebot.adapters.onebot.v11 import Bot, Event, Message,MessageEvent,Message
 from nonebot.adapters.onebot.v11.event import PokeNotifyEvent
 from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command,on_regex,on_fullmatch
 
+async def judge_to_me(event)->bool:
+    return event.get_plaintext().startswith("#")
 async def judge_name(event)->bool:
     return "示例玩家41" not in event.get_plaintext()
+
 async def judge_super(event)->bool:
     return str(super_id)==str(event.get_user_id())
 async def judge_unsuper(event)->bool:
@@ -38,32 +41,32 @@ _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 
 _blocked=on_message(rule=to_me()&check_repair&judge_unsuper,priority=2, block=True)
 
-_show_code=on_keyword({"code"},rule=to_me(),priority=3, block=True)
-_empty_cache = on_keyword({"empty_cache"},rule=to_me(),priority=3, block=True)
-_show_cache = on_keyword({"show_cache"},rule=to_me(),priority=3, block=True)
-_forget_me=on_keyword({"清除记忆"},rule=to_me(),priority=3, block=True)
-_manual=on_keyword({"??","？？"},rule=to_me(),priority=3, block=True)
-_forever_mem=on_keyword({"记住"},rule=to_me(),priority=3, block=True)
-# _question=on_keyword({"谁","哪个人",},rule=to_me(),priority=3, block=True)
+_show_code=on_keyword({"code"},rule=judge_to_me,priority=3, block=True)
+_empty_cache = on_keyword({"empty_cache"},rule=judge_to_me,priority=3, block=True)
+_show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
+_forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
+_manual=on_keyword({"??","？？"},rule=judge_to_me,priority=3, block=True)
+_forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
 
 _atall=on_fullmatch(tuple(atall_keywords),priority=4, block=True)
-_rnk=on_keyword(set(rnk_keywords),rule=to_me(),priority=4, block=True)
-_single=on_keyword(set(single_keywords),rule=to_me(),priority=4, block=True)
-_btlview=on_keyword(set(btlview_keywords),rule=to_me(),priority=4, block=True)
-_btldetail=on_keyword(set(btldetail_keywords),rule=to_me(),priority=4, block=True)
-_heropower=on_keyword(set(heropower_keywords),rule=to_me(),priority=4, block=True)
-_gradeanalyze=on_keyword({"分析"},rule=to_me(),priority=4, block=True)
-# _benefit_view=on_keyword(set(btlview_keywords),rule=to_me(),priority=4, block=True)
+_rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=4, block=True)
+_single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
+_btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
+_btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
+_heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
+_gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
+_watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 
-_tq=on_keyword({"tq",},rule=to_me(),priority=5, block=True)
-# _hardworking=on_keyword({"卷","tsg","jxs"},rule=to_me()&judge_name,priority=5, block=True)
+_tq=on_keyword({"tq",},rule=judge_to_me,priority=5, block=True)
 
-_chat=on_message(rule=to_me(),priority=6, block=True)
+_chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
+    from .ztime import wait
     log_message("AT UNDER REPAIR")
+    wait()
     await _blocked.finish(Message(f"🤖暂时离线，{qid2nick(event.get_user_id())}请稍等。"))
 
 @_execute.handle()
@@ -137,31 +140,45 @@ async def f_group_poke(bot, event):
     from .zfunc import qid2nick
     from .zfunc import ai_parser
     from .zfunc import get_emoji_url
+    from .ztime import wait
+    from .zfile import file_exist
 
     if isinstance(event, PokeNotifyEvent):
         if event.target_id == event.self_id: 
             if (not dmc.repair):
-                group_id = event.group_id
-                user_id = event.user_id
-                userqid=event.get_user_id()
-                groupqid=event.group_id
-
-                send_type=(random.random()>0.3)
-                if send_type:
-                    snd_msg=ai_parser([qid2nick(userqid),str(datetime.datetime.now())],"poke")
+                if (dmc.RTMPStatus):
+                    res=dmc.RTMPListener.screenshot()
+                    wait()
+                    pic_path="/usr/local/nginx/html/wzry_btl_shot/"+str(dmc.RTMPPlayer)+".png"
+                    
+                    if (res and file_exist(pic_path)): snd_msg = MessageSegment.image(pic_path)
+                    else: snd_msg=MessageSegment.text("最快10秒ob一次")
+                    await _group_poke.send(snd_msg)
                 else:
-                    pic_index=random.randint(1,emoji_amount+1)
-                    emoji_url=get_emoji_url(pic_index)
-                    snd_msg = MessageSegment.image(emoji_url)
+                    user_id = event.user_id
+                    userqid=event.get_user_id()
+                    try:
+                        groupqid=event.group_id
+                    except Exception as e:
+                        groupqid=None
 
-                await _group_poke.send(snd_msg)
-                time.sleep(0.3)
-                await bot.group_poke(group_id=groupqid, user_id=userqid)
+                    send_type=(random.random()>0.3)
+                    if send_type:
+                        snd_msg=ai_parser([qid2nick(userqid),str(datetime.datetime.now())],"poke")
+                    else:
+                        pic_index=random.randint(1,emoji_amount+1)
+                        emoji_url=get_emoji_url(pic_index)
+                        snd_msg = MessageSegment.image(emoji_url)
+                        wait()
+                    await _group_poke.send(snd_msg)
+                    # time.sleep(0.3)
+                    # await bot.group_poke(group_id=groupqid, user_id=userqid)
             else:
                 await f_blocked(event)
                 
 @_empty_cache.handle()
 async def f_empty_cache(event): # 清空全局记录和用户(自己的)记录
+    from .ztime import short_wait
     log_message("CMD: EMPTY_CACHE")
     dmc.ai_memory.clear()
     userqid=event.get_user_id()
@@ -171,6 +188,7 @@ async def f_empty_cache(event): # 清空全局记录和用户(自己的)记录
             os.remove(file_path)
     except Exception as e:
         pass
+    short_wait()
     await _empty_cache.finish(Message("成功清空缓存"))
 
 @_show_cache.handle()
@@ -200,12 +218,13 @@ async def f_forget_me(event): # 清空用户记录和用户(自己的)记忆
 async def f_forever_mem(event):
     from .zfile import mem_dumper
     from .zfunc import qid2nick
-    
+    from .ztime import short_wait
     log_message("CMD: FOREVER")
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext()
     mem_dumper(userqid,rcv_msg)
     snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
+    short_wait()
     await _forever_mem.finish(Message("好的，我记住了哦："+snd_msg))
 
 @_manual.handle()
@@ -247,10 +266,10 @@ async def f_tq(event):
 async def f_atall(bot,event):
     from .zfunc import ai_parser
 
-    at_msg=""
-    for name,id in qid.items():
-        at_msg+=MessageSegment.at(str(id))
-    await _atall.send(at_msg)
+    # at_msg=""
+    # for name,id in qid.items():
+    #     at_msg+=MessageSegment.at(str(id))
+    # await _atall.send(at_msg)
     urge_msg=ai_parser([str(datetime.datetime.now()),str(namenick),today_news],"urge_game")
     await _atall.send(urge_msg)
     return
@@ -259,26 +278,36 @@ async def f_rnk(bot,event):
     from .zfunc import qid2nick
     from .zfunc import generate_greeting
     from .zfunc import rnk_process
+    from .ztime import short_wait
+    from .ztime import wait
     
     dmc.rank_query_late=datetime.datetime.now()
     rcv_msg=event.get_plaintext()
     debug="#" in rcv_msg
     log_message("VISIT: RANK_FUNCTION")
     userqid=event.get_user_id()
-    groupqid=event.group_id
+    try:
+        groupqid=event.group_id
+    except Exception as e:
+        groupqid=None
     snd_msg=qid2nick(userqid)+" "+generate_greeting()+"\n"
-    await bot.group_poke(group_id=groupqid, user_id=userqid)
+    if (groupqid):
+        short_wait()
+        await bot.group_poke(group_id=groupqid, user_id=userqid)
     try:
         rnk_info=rnk_process(rcv_msg=rcv_msg,caller=qid2nick(userqid),show_zero=False,show_analyze=True,debug=debug)
         snd_msg+=rnk_info[0]
     except Exception as e:
-        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
+        short_wait()
         await _rnk.send(str(e))
+        wait()
+        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
         return
     await _rnk.send(snd_msg)
-    for poked in rnk_info[1]:
-        if (poked!="" and poked in idname):
-            await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
+    # if (groupqid):
+    #     for poked in rnk_info[1]:
+    #         if (poked!="" and poked in idname):
+    #             await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
     return
 @_single.handle()
 async def f_single(bot,event):
@@ -288,19 +317,28 @@ async def f_single(bot,event):
     from .zfunc import get_emoji_url
     from .zfunc import btldetail_process # 附带解析最后一局
     from .zfunc import check_btl_official_with_matching
+    from .ztime import short_wait
+    from .ztime import wait
 
     whether_emoji=(random.random()>0.2)
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
-    groupqid=event.group_id
+    try:
+        groupqid=event.group_id
+    except Exception as e:
+        groupqid=None
     log_message("VISIT: SINGLEPLAYER_FUNCTION")
-    await bot.group_poke(group_id=groupqid, user_id=userqid)
+    if (groupqid):
+        short_wait()
+        await bot.group_poke(group_id=groupqid, user_id=userqid)
     try:
         sgl_info=single_process(rcv_msg)
     except Exception as e:
-        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
-        # await _single.send(traceback.format_exc())
+        short_wait()
         await _single.send(str(e))
+        wait()
+        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+        # await _single.send(traceback.format_exc())
         return
     await _single.send(sgl_info[0])
 
@@ -331,11 +369,9 @@ async def f_single(bot,event):
                 snd_msg=btl_info
                 await _single.send(snd_msg)
 
-    try:
-        for poked in sgl_info[1]:
-            await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
-    except Exception as e:
-        pass
+    # if (groupqid):
+    #     for poked in sgl_info[1]:
+    #         await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
         
     return
 @_btlview.handle()
@@ -382,7 +418,22 @@ async def f_gradeanalyze(bot,event):
     
     img_url,analyze_msg=gradeanalyze_process(rcv_msg)
     print(img_url)
-    await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
+    # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
+    await _gradeanalyze.send(MessageSegment.image(img_url))
+@_watchbattle.handle()
+async def f_watchbattle(bot,event):
+    from .zfunc import watchbattle_process
+    from .zfunc import qid2nick
+    from .zfile import file_exist
+
+    userqid=event.get_user_id()
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    
+    img_url,analyze_msg=watchbattle_process(rcv_msg)
+    print(img_url)
+    # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
+    if (file_exist(img_url)): await _gradeanalyze.send(MessageSegment.image(img_url))
+
 @_chat.handle()
 async def f_chat(bot,event):
     from .zfile import chats_loader
@@ -390,8 +441,20 @@ async def f_chat(bot,event):
     from .zfile import mem_loader
     from .zfunc import qid2nick
     from .zfunc import ai_parser
+    from .ztime import short_wait
+    from .ztime import wait
+    from .ztime import short_wait
+    
     userqid=event.get_user_id()
-    groupqid=event.group_id
+    
+    try:
+        groupqid=event.group_id
+    except Exception as e:
+        groupqid=None
+        
+    if (groupqid):
+        short_wait()
+        await bot.group_poke(group_id=groupqid, user_id=userqid)
     my_temp_msg=chats_loader(userqid)
     perp_msg=mem_loader(userqid)
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
@@ -407,13 +470,14 @@ async def f_chat(bot,event):
     try:
         snd_msg+=ai_parser([rcv_msg,my_temp_msg,perp_msg,qid2nick(userqid)],"chat",network)
     except Exception as e:
-        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
+        short_wait()
         await _rnk.send(str(e))
+        wait()
+        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
         return
     dmc.use_mem=ori_use_mem
     chats_dumper(userqid,rcv_msg,snd_msg)
     await _chat.send(snd_msg)
-    await bot.group_poke(group_id=groupqid, user_id=userqid)
     return
 
 
@@ -453,7 +517,7 @@ async def dump_today():
         try:    
             gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json"))) # dump -- 每个人
         except Exception as e:
-            await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=traceback.format_exc())
+            # await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=traceback.format_exc())
             continue
     # dmc.export_btldetail_lock.release()
     filename=os.path.join("history",dump_date+".json")
@@ -464,6 +528,8 @@ async def dump_today():
 @scheduler.scheduled_job("cron", hour=23, minute=30,second=00, id="notify_msg")
 async def notify_msg():
     from .zfunc import rnk_process
+    from .ztime import wait
+
     # rank_query_now=datetime.datetime.now()
     # rank_query_delta=rank_query_now-dmc.rank_query_late
     # if (rank_query_delta and rank_query_delta.total_seconds()<=5*60):  # 上一次询问时间小于5分钟，就忽略排名推送
@@ -475,7 +541,8 @@ async def notify_msg():
     try:
         snd_msg+=rnk_process(rcv_msg="",caller=None,show_zero=False,show_analyze=True)[0]
     except Exception as e:
-        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
+        wait()
+        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
         return
     log_message("SEND: "+snd_msg)
     await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
@@ -503,7 +570,7 @@ async def raise_question():
     snd_msg+=raise_question_invis_char
     if (snd_msg!="NONE"):
         log_message("SEND: "+snd_msg)
-        await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=snd_msg)
+        # await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=snd_msg)
 @scheduler.scheduled_job("cron", hour=7, minute=00,second=00, id="fetch_news")  # 每日7点获取当日新闻，并入提示词
 async def fetch_news():
     from .zapi import ark_api

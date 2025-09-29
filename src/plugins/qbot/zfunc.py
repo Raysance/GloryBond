@@ -42,7 +42,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
                             return detail["StarAfterGame"]
         return -1
 
-    from .zapi import wzry_api
+    from .zapi import wzry_get_official
     from .ztime import time_r
     from .ztime import time_sul
     from .ztime import stamp_to_time
@@ -54,8 +54,13 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     
     userid=userlist[realname]
     roleid=roleidlist[realname]
-
-    res=wzry_api(userid=userid,roleid=roleid)
+    
+    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
+    profile_data=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
+    res = {
+        "btlist": btlist_data,
+        "profile": profile_data
+    }
 
     if (savepath):
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
@@ -65,16 +70,17 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     rankInfo=[mods for mods in res["profile"]["head"]["mods"] if mods["modId"]==701][0]
     rankName=rankInfo["name"]
     rankStar=int(json.loads(rankInfo["param1"])["rankingStar"])
-    totalNum=[int(mods["content"]) for mods in res["profile"]["head"]["mods"] if mods["name"]=="总场次"][0]
+    # totalNum=[int(mods["content"]) for mods in res["profile"]["head"]["mods"] if mods["name"]=="总场次"][0]
+    totalNum=0
     starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
-    winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
+    # winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
     BtlVisible=not res["btlist"]["invisible"]
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
-    starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法
+    starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法强行填充
     peakUp=[]
-    today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法
+    today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法强行填充
     today_up_tourna=fin
     today_up_peak=fin
     today_btl_aver=fin # 今日平均评分
@@ -154,7 +160,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
                     "duration_minute":res["btlist"]["gaming"]["duration"],\
                     "battle_num_this_hero":res["btlist"]["gaming"]["gameNum"],\
                     "win_rate_this_hero":res["btlist"]["gaming"]["winRate"],\
-                    "can_be_watched":res["btlist"]["gaming"]["gameTypeCanBeWatch"],\
+                    "can_be_watched":res["btlist"]["gaming"]["canBeWatch"],\
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
@@ -284,10 +290,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     filename_export=os.path.join("history",today_sul_date+".json")
     writerl(filename_export,gameinfo)
     if (not show_zero): gameinfo=[item for item in gameinfo if item['today_num']!=0]
-    # if (not show_zero): gameinfo=[item for item in gameinfo if item['details']]
-    # sorted_star=sorted(gameinfo, key=lambda item: (item['star']-dmc.infolast[item['key']]['star']) ,reverse=True)
     sorted_star=sorted(gameinfo, key=lambda item: (item['star_up']) ,reverse=True)
-    # sorted_btl=sorted(gameinfo, key=lambda item: ((item['total_num']-dmc.infolast[item['key']]['total_num']) if item['btl_aver']==fin else (len(item['details']))) ,reverse=True)
     sorted_btl=sorted(gameinfo, key=lambda item: (item['today_num']) ,reverse=True)
     dumpfile_raw1=[{k: v for k, v in d.items() if k != "key"} for d in sorted_star]
     writerl(filepath,dumpfile_raw1)
@@ -318,7 +321,6 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
             snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff:+}\n"
 
         snd_msg+="\n--- 场次榜 ---\n"
-        # topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['total_num']-dmc.infolast[sorted_btl[0]['key']]['total_num']>0) else ""
         topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['today_num']>0) else ""
         if(sorted_btl[0]['today_num']>0): snd_msg+="今日场次最多👆："+sorted_btl[0]['nickname']+"\n"
 
@@ -357,6 +359,8 @@ def single_process(rcv_msg):
     from .zfile import readerl
     from .zfile import copyfile
     from .zfile import file_exist
+    from .ztime import wait
+    from .ztime import short_wait
 
     snd_msg=""
     pokename=[]
@@ -399,6 +403,7 @@ def single_process(rcv_msg):
                 copyfile(detail_filepath,website_filepath)
             except Exception as e:
                 exhibit_date_woyear+=" 链接失效"
+            wait()
         elif (history_query[0]==2): # 追溯时间段
             ai_feedback=False
             show_map_cnt_total=True
@@ -423,8 +428,10 @@ def single_process(rcv_msg):
                     gameinfo_raw.append([history for history in histories if (history["id"]==userlist[matching_name])][0])
                 scan_date=time_delta(scan_date,1)
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
+            wait()
         else:
             gameinfo=wzry_data(matching_name,website_filepath)
+            short_wait()
         dmc.last_request_btllist=gameinfo['details']
         dmc.last_request_roleid=gameinfo['roleid']
         website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single")
@@ -472,6 +479,7 @@ def single_process(rcv_msg):
     return [snd_msg,pokename,exist_battle,history_query]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
     from .zfunc import Analyses
+    from .ztime import wait
 
     snd_msg=" "
     if ("b" in rcv_msg):
@@ -498,12 +506,14 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
             double_player=[]
             for player in k: double_player.append(player)
             snd_msg+=f"{namenick[double_player[0]]}与{namenick[double_player[1]]}：{str(int(v))}\n"
+    wait()
     return snd_msg
 def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid):
     from .zapi import wzry_get_official
     from .zfile import writerl
     from .zfunc import create_website
     from .tools import html_to_pic
+    from .ztime import wait
 
     res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
     if ('head' not in res or all(map5 not in res['head']['mapName'] for map5 in {"排位","巅峰","战队","王者峡谷"}) or any(mapnot5 in str.lower(res['head']['mapName']) for mapnot5 in {"1v1","2v2"})): return None,None
@@ -552,10 +562,12 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid):
         f"{our_player_text}"
         f"{linkurl}"
     )
+    wait()
     return snd_message,""
     # return linkurl,picpath,det_message
 def heropower_process(rcv_msg):
     from .zapi import wzry_get_official
+    from .ztime import wait
 
     matching_name=extract_name(rcv_msg)
     if (matching_name=="name_error"): return None
@@ -572,21 +584,51 @@ def heropower_process(rcv_msg):
             pass
         # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
         # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
+    wait()
     return ret_text
 def gradeanalyze_process(rcv_msg):
     from .tools import gen_grade_chart
+    from .ztime import wait
+
     matching_name=extract_name(rcv_msg)
 
     userid=userlist[matching_name]
     data_path=os.path.join("history")
-    # pic_visit_path=f"http://{server_ip}/wzry_grade_chart/grade_chart.png"
-    # pic_save_path=os.path.join(nginx_path,"wzry_grade_chart")
     pic_visit_path=f"/usr/local/nginx/html/wzry_grade_chart/grade_chart.png"
     pic_save_path=f"/usr/local/nginx/html/wzry_grade_chart/"
-    # pic_save_path=os.path.join(nginx_path,"wzry_grade_chart")
     analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
     
+    wait()
     return pic_visit_path,analyze_msg
+def watchbattle_process(rcv_msg):
+    from .zapi import wzry_get_official
+    from .tools import gen_battle_shot
+    from .ztime import short_wait
+    from .ztime import wait
+
+    matching_name=extract_name(rcv_msg)
+    if (matching_name=="name_error"): return None,None
+    userid=userlist[matching_name]
+    roleid=roleidlist[matching_name]
+
+    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
+    if (not btlist_data["isGaming"]): return None,None
+    res=btlist_data["gaming"]
+    if (not res["canBeWatch"]): return None,None
+
+    battleId=res["battleId"]
+    mapName=res["mapName"]
+    duration=res["duration"]
+
+    save_path="/usr/local/nginx/html/wzry_btl_shot/"+str(roleid)+".png"
+    if(dmc.RTMPListener): dmc.RTMPListener.stop()
+    dmc.RTMPListener = gen_battle_shot.RTMPListener(dmc.streamurl,save_path=save_path,roleid=roleid)
+    dmc.RTMPListener.start()  # 开始后台监听
+
+    dmc.RTMPListener.screenshot()   # 截图一次
+    wait()
+    return save_path,None
+    
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
     from .zfile import readerl
     from .zfile import writerl
@@ -614,7 +656,6 @@ def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数�
                     gamedetails[playername].append(playerdetail)
     if (userid): gamedetails={k:v for k,v in gamedetails.items() if userid==userlist[k]}
     return gamedetails,duration
-
 class Analyses:
     @staticmethod
     def analyze_history(userid=None,start_date=None,end_date=None): # 仅返回排位赛
