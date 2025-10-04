@@ -92,7 +92,27 @@ async def show_btldetail(request:Request,key: str):
             "filename": os.path.join("wzry_history",text_content["filename"]+".json")
         }
     )
-
+# @app.get("/btlapi/btlperson", response_class=HTMLResponse)
+# async def api_btlperson(request:Request,userid: str,roleid: str):
+#     from ..NBot.src.plugins.qbot.zapi import wzry_get_official
+#     from ..NBot.
+#     from openai import OpenAI
+#     import requests
+#     from ratelimit import limits, sleep_and_retry
+#     try:
+#         text_content = json.loads(r.get(key).decode('utf-8'))
+#     except Exception as e:
+#         return templates.TemplateResponse(
+#             "err_single.html",{"request": request,}
+#         )
+#     return templates.TemplateResponse(
+#         "BattleDetail.html",
+#         {
+#             "request": request,
+#             # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
+#             "filename": os.path.join("wzry_history",text_content["filename"]+".json")
+#         }
+#     )
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
