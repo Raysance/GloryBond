@@ -579,7 +579,9 @@ def heropower_process(rcv_msg):
     ret_text=f"{namenick[matching_name]}的战力英雄\n"
     for hero in res['heroList']:
         try:
-            ret_text+=f"{hero['basicInfo']['title']}:   {hero['basicInfo']['heroFightPower']}\n   {hero['honorTitle']['region']['provinceName']}{hero['honorTitle']['region']['countyName']}  No.{hero['honorTitle']['rank']} \n"
+            region_name=hero['honorTitle']['desc']['full'].split("第")[0]
+            metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
+            ret_text+=f"{hero['basicInfo']['title']}:   {hero['basicInfo']['heroFightPower']}\n   {region_name}  No.{hero['honorTitle']['rank']} \n"
         except Exception as e:
             pass
         # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])

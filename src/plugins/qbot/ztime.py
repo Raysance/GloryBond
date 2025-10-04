@@ -28,7 +28,7 @@ def date_roleback(time_real=None): # time_stay_up_late 将凌晨对局算在前�
     return time_fake
 def date_sul(time_real=None): # time_stay_up_late 将凌晨对局算在前一天，以3:30为界，时间向前挪动(将3:30视作0:00)
     if (time_real==None):time_fake=time_sul()
-    date_fake = datetime.datetime.now().strftime("%Y-%m-%d")
+    date_fake = time_fake.strftime("%Y-%m-%d")
     return date_fake
 def stamp_to_time(timestamp):
     return datetime.datetime.fromtimestamp(timestamp)

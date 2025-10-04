@@ -162,7 +162,7 @@ async def f_group_poke(bot, event):
                     except Exception as e:
                         groupqid=None
 
-                    send_type=(random.random()>0.3)
+                    send_type=(random.random()>-1)
                     if send_type:
                         snd_msg=ai_parser([qid2nick(userqid),str(datetime.datetime.now())],"poke")
                     else:

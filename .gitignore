@@ -4,8 +4,6 @@
 # /history/*.json
 /history/personal/
 /history/battles/
-/history/personala/
-/history/battlesa/
 # /memory/*.json
 # /news/*.txt
 
