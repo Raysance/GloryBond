@@ -176,8 +176,10 @@
             }
             
             .battle-item:hover {
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
                 transform: translateY(-2px);
+                cursor: pointer;
+                background-color: rgba(255, 255, 255, 0.1);
             }
             
             .battle-item:last-child {
@@ -519,6 +521,195 @@
                     gap: 6px;
                 }
             }
+
+            /* 新功能提示对话框样式 */
+            .modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.6);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+                backdrop-filter: blur(5px);
+            }
+
+            .modal-overlay.show {
+                opacity: 1;
+                visibility: visible;
+            }
+
+            .modal-content {
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 20px;
+                padding: 0;
+                max-width: 480px;
+                width: 90%;
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+                transform: scale(0.7) translateY(50px);
+                transition: all 0.3s ease;
+            }
+
+            .modal-overlay.show .modal-content {
+                transform: scale(1) translateY(0);
+            }
+
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px 25px 15px;
+                border-bottom: 1px solid rgba(108, 155, 209, 0.2);
+            }
+
+            .modal-header h3 {
+                margin: 0;
+                color: var(--dark-color);
+                font-size: 1.4rem;
+                font-weight: 600;
+            }
+
+            .modal-close {
+                background: none;
+                border: none;
+                font-size: 24px;
+                color: #666;
+                cursor: pointer;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: all 0.2s ease;
+            }
+
+            .modal-close:hover {
+                background-color: rgba(108, 155, 209, 0.1);
+                color: var(--primary-color);
+            }
+
+            .modal-body {
+                padding: 25px;
+                text-align: center;
+            }
+
+            .tip-icon {
+                font-size: 3rem;
+                margin-bottom: 15px;
+                animation: bounce 2s infinite;
+            }
+
+            @keyframes bounce {
+                0%, 20%, 50%, 80%, 100% {
+                    transform: translateY(0);
+                }
+                40% {
+                    transform: translateY(-10px);
+                }
+                60% {
+                    transform: translateY(-5px);
+                }
+            }
+
+            .modal-body p {
+                color: var(--dark-color);
+                font-size: 1.1rem;
+                line-height: 1.6;
+                margin-bottom: 20px;
+            }
+
+            .tip-features {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+
+            .tip-item {
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                padding: 12px 16px;
+                background: rgba(108, 155, 209, 0.08);
+                border: 1px solid rgba(108, 155, 209, 0.15);
+                border-radius: 10px;
+                transition: all 0.2s ease;
+            }
+
+            .tip-item:hover {
+                background: rgba(108, 155, 209, 0.12);
+                transform: translateX(5px);
+            }
+
+            .tip-emoji {
+                font-size: 1.2rem;
+                margin-right: 12px;
+                width: 24px;
+                text-align: center;
+            }
+
+            .tip-item span:last-child {
+                color: var(--dark-color);
+                font-weight: 500;
+            }
+
+            .modal-footer {
+                padding: 15px 25px 25px;
+                text-align: center;
+            }
+
+            .modal-btn {
+                background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 25px;
+                font-size: 1rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(108, 155, 209, 0.3);
+            }
+
+            .modal-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(108, 155, 209, 0.4);
+            }
+
+            .modal-btn:active {
+                transform: translateY(0);
+            }
+
+            @media (max-width: 480px) {
+                .modal-content {
+                    width: 95%;
+                    margin: 10px;
+                }
+                
+                .modal-header, .modal-body, .modal-footer {
+                    padding-left: 20px;
+                    padding-right: 20px;
+                }
+                
+                .tip-features {
+                    gap: 10px;
+                }
+                
+                .tip-item {
+                    padding: 10px 12px;
+                }
+            }
         </style>
     </head>
     <body>
@@ -611,15 +802,98 @@
             </div>
         </div>
 
+        <!-- 新功能提示对话框 -->
+        <div id="featureTipModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🎉 新功能提示</h3>
+                    <button class="modal-close" onclick="closeFeatureTip()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="tip-icon">
+                        👆
+                    </div>
+                    <p>现在可以<strong>点击任意对局卡片</strong>来查看详细的对局数据分析！</p>
+                    <div class="tip-features">
+                        <div class="tip-item">
+                            <span class="tip-emoji">📊</span>
+                            <span>查看详细数据面板</span>
+                        </div>
+                        <div class="tip-item">
+                            <span class="tip-emoji">🏆</span>
+                            <span>分析对局表现</span>
+                        </div>
+                        <div class="tip-item">
+                            <span class="tip-emoji">📈</span>
+                            <span>查看经济发育情况</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn" onclick="closeFeatureTip()">我知道了</button>
+                </div>
+            </div>
+        </div>
+
         <script>
             // 用于存储所有比赛数据和当前筛选
             let allBattles = [];
             let currentMapFilter = '全部';
+            let profileData = null; // 添加全局变量存储profile数据
 
             // 页面加载完成后执行
             document.addEventListener('DOMContentLoaded', function() {
                 const filename = '{{filename}}';
                 loadGameData(filename);
+                
+                // 检查是否首次访问，如果是则显示新功能提示
+                checkFirstVisit();
+            });
+            
+            // 检查首次访问并显示新功能提示
+            function checkFirstVisit() {
+                const hasSeenUpdatesTip_20251006_singlelist = localStorage.getItem('hasSeenUpdatesTip_20251006_singlelist');
+                if (!hasSeenUpdatesTip_20251006_singlelist|hasSeenUpdatesTip_20251006_singlelist<2) {
+                    // 延迟显示，确保页面加载完成
+                    setTimeout(showFeatureTip, 1000);
+                }
+            }
+            
+            // 显示新功能提示对话框
+            function showFeatureTip() {
+                const modal = document.getElementById('featureTipModal');
+                if (modal) {
+                    modal.classList.add('show');
+                }
+            }
+            
+            // 关闭新功能提示对话框
+            function closeFeatureTip() {
+                const modal = document.getElementById('featureTipModal');
+                if (modal) {
+                    const hasSeenUpdatesTip_20251006_singlelist = localStorage.getItem('hasSeenUpdatesTip_20251006_singlelist');
+                    modal.classList.remove('show');
+                    // 保存已查看状态，下次不再显示
+                    localStorage.setItem('hasSeenUpdatesTip_20251006_singlelist', Number(hasSeenUpdatesTip_20251006_singlelist)+1);
+                }
+            }
+            
+            // 点击遮罩层也可以关闭对话框
+            document.addEventListener('click', function(e) {
+                const modal = document.getElementById('featureTipModal');
+                if (e.target === modal) {
+                    closeFeatureTip();
+                }
+            });
+            
+            // ESC键关闭对话框
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const modal = document.getElementById('featureTipModal');
+                    if (modal && modal.classList.contains('show')) {
+                        closeFeatureTip();
+                    }
+                }
             });
             
             // 从服务器加载JSON数据
@@ -679,6 +953,7 @@
                     
                     // 更新玩家资料
                     if (data.profile) {
+                        profileData = data.profile; // 保存到全局变量
                         updatePlayerProfile(data.profile);
                     }
                     
@@ -701,6 +976,45 @@
             function hideLoading() {
                 document.getElementById('loadingMessage').style.display = 'none';
                 document.getElementById('errorMessage').style.display = 'none';
+            }
+            
+            // 处理卡片点击事件，跳转到战斗详情页面
+            function handleBattleCardClick(battle, profileData) {
+                try {
+                    // 从e.json数据中提取所需参数
+                    const gameSvr = battle.gameSvrId || '';
+                    const gameSeq = battle.gameSeq || '';
+                    const targetRoleId = profileData.targetRoleId || '';
+                    const relaySvr = battle.relaySvrId || '';
+                    const battleType = parseInt(battle.pvpType) || 0;
+                    
+                    // 调试日志
+                    console.log('战斗详情参数:', {
+                        gameSvr: gameSvr,
+                        gameSeq: gameSeq,
+                        targetRoleId: targetRoleId,
+                        relaySvr: relaySvr,
+                        battleType: battleType
+                    });
+                    
+                    // 构建URL参数
+                    const params = new URLSearchParams({
+                        gameSvr: gameSvr,
+                        gameSeq: gameSeq,
+                        targetRoleId: targetRoleId,
+                        relaySvr: relaySvr,
+                        battleType: battleType
+                    });
+                    
+                    // 构建完整URL并跳转
+                    const targetUrl = `/api-btldetail?${params.toString()}&key={{key}}`;
+                    console.log('跳转URL:', targetUrl);
+                    window.open(targetUrl, '_blank');
+                    
+                } catch (error) {
+                    console.error('跳转战斗详情失败:', error);
+                    alert('跳转失败，请稍后重试');
+                }
             }
             
             // 显示战绩隐藏信息
@@ -820,6 +1134,7 @@
                         const resultClass = gameResult === 1 ? 'win' : 'lose';
                         const bgClass = gameResult === 1 ? 'win-bg' : 'lose-bg';
                         battleItem.className = `battle-item ${bgClass}`;
+                        battleItem.style.cursor = 'pointer'; // 添加鼠标指针样式
                         const resultText = gameResult === 1 ? '胜利' : '失败';
                         
                         const killcnt = parseInt(battle.killcnt) || 0;
@@ -928,6 +1243,11 @@
                                 </div>
                             </div>
                         `;
+                        
+                        // 添加点击事件处理
+                        battleItem.addEventListener('click', function() {
+                            handleBattleCardClick(battle, profileData);
+                        });
                         
                         battleItemsContainer.appendChild(battleItem);
                         // 统计数据

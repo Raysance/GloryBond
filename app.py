@@ -9,6 +9,12 @@ import json
 import sys
 import logging
 import datetime
+import secrets
+import yaml
+import time
+
+from utils import wzry_get_official
+from utils import writerl,file_exist,retry_until_true
 
 # 引入变量
 variables_to_import = ["userlist","idname"]
@@ -24,6 +30,7 @@ redis_path=str(os.environ.get('REDIS_CONF'))
 with open(redis_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 globals().update(varia)
+
 # 初始化fastapi与redis
 app = FastAPI()
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
@@ -31,7 +38,7 @@ r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PAS
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
-        "404_all.html",
+        "err_expired.html",
         {"request": request},
         status_code=404
     )
@@ -47,7 +54,7 @@ async def show_btlist(request:Request,key: str):
         text_content = json.loads(r.get(key).decode('utf-8'))
     except Exception as e:
         return templates.TemplateResponse(
-            "err_single.html",{"request": request,}
+            "err_expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
         "AllBattleList.html",
@@ -59,20 +66,21 @@ async def show_btlist(request:Request,key: str):
         }
     )
 @app.get("/btlperson", response_class=HTMLResponse)
-async def show_btlist(request:Request,key: str):
+async def show_btlperson(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
     except Exception as e:
         return templates.TemplateResponse(
-            "err_single.html",{"request": request,}
+            "err_expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
         "SingleBattleList.html",
         {
             "request": request,
             # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json")
+            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "key": key,
         }
     )
 @app.get("/btldetail", response_class=HTMLResponse)
@@ -82,37 +90,71 @@ async def show_btldetail(request:Request,key: str):
         text_content = json.loads(r.get(key).decode('utf-8'))
     except Exception as e:
         return templates.TemplateResponse(
-            "err_single.html",{"request": request,}
+            "err_expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
         "BattleDetail.html",
         {
             "request": request,
             # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json")
+            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "key": key,
         }
     )
-# @app.get("/btlapi/btlperson", response_class=HTMLResponse)
-# async def api_btlperson(request:Request,userid: str,roleid: str):
-#     from ..NBot.src.plugins.qbot.zapi import wzry_get_official
-#     from ..NBot.
-#     from openai import OpenAI
-#     import requests
-#     from ratelimit import limits, sleep_and_retry
-#     try:
-#         text_content = json.loads(r.get(key).decode('utf-8'))
-#     except Exception as e:
-#         return templates.TemplateResponse(
-#             "err_single.html",{"request": request,}
-#         )
-#     return templates.TemplateResponse(
-#         "BattleDetail.html",
-#         {
-#             "request": request,
-#             # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
-#             "filename": os.path.join("wzry_history",text_content["filename"]+".json")
-#         }
-#     )
+@app.get("/api-btlperson", response_class=HTMLResponse)
+async def api_btlperson(request:Request,userid: str,roleid: str,key:str):
+    if (not r.exists(key)):
+        return templates.TemplateResponse(
+            "err_illegal.html",{"request": request,"message":"key失效"}
+        )
+    try:
+        profile_res=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
+        btlist_res=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
+    except Exception as e:
+        return templates.TemplateResponse(
+            "err_illegal.html",{"request": request,"message":"网络错误或id错误"}
+        )
+    res={"btlist":btlist_res,"profile":profile_res}
+    file_name=secrets.token_hex(8)+".json"
+    save_path=os.path.join(nginx_path,"wzry_history", file_name)
+    writerl(save_path,res)
+    retry_until_true(file_exist,timeout=1,file_path=save_path)
+    print(res,save_path)
+    return templates.TemplateResponse(
+        "SingleBattleList.html",
+        {
+            "request": request,
+            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
+            "filename": os.path.join("wzry_history",file_name),
+            "key":key,
+        }
+    )
+@app.get("/api-btldetail", response_class=HTMLResponse)
+async def api_btlperson(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
+    if (not r.exists(key)):
+        return templates.TemplateResponse(
+            "err_illegal.html",{"request": request,"message":"key失效"}
+        )
+    try:
+        res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
+    except Exception as e:
+        return templates.TemplateResponse(
+            "err_illegal.html",{"request": request,"message":"网络错误或id错误"}
+        )
+    file_name=secrets.token_hex(8)+".json"
+    save_path=os.path.join(nginx_path,"wzry_history", file_name)
+    writerl(save_path,res)
+    time.sleep(0.2)
+    # retry_until_true(file_exist,timeout=1,file_path=save_path)
+    return templates.TemplateResponse(
+        "BattleDetail.html",
+        {
+            "request": request,
+            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
+            "filename": os.path.join("wzry_history",file_name),
+            "key":key,
+        }
+    )
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

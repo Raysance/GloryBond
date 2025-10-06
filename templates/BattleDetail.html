@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>战局详情-示例玩家52守卫🤖</title>
     <style>
+        :root {
+            --primary-color: #6c9bd1;
+            --secondary-color: #4fc3f7;
+            --dark-color: #2c3e50;
+            --light-color: #f8f9fa;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --accent-color: #6c757d;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -142,6 +152,26 @@
             min-height: 75px;
             display: flex;
             align-items: stretch;
+            cursor: pointer;
+        }
+
+        .player-card:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+
+        .player-card::before {
+            content: "👆";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        .player-card:hover::before {
+            opacity: 0.6;
         }
 
         /* MVP卡片光彩效果 */
@@ -683,6 +713,195 @@
                 height: 20px;
             }
         }
+
+        /* 新功能提示对话框样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 0;
+            max-width: 480px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            transform: scale(0.7) translateY(50px);
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 25px 15px;
+            border-bottom: 1px solid rgba(108, 155, 209, 0.2);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: var(--dark-color);
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #666;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background-color: rgba(108, 155, 209, 0.1);
+            color: var(--primary-color);
+        }
+
+        .modal-body {
+            padding: 25px;
+            text-align: center;
+        }
+
+        .tip-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .modal-body p {
+            color: var(--dark-color);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .tip-features {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .tip-item {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 12px 16px;
+            background: rgba(108, 155, 209, 0.08);
+            border: 1px solid rgba(108, 155, 209, 0.15);
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .tip-item:hover {
+            background: rgba(108, 155, 209, 0.12);
+            transform: translateX(5px);
+        }
+
+        .tip-emoji {
+            font-size: 1.2rem;
+            margin-right: 12px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .tip-item span:last-child {
+            color: var(--dark-color);
+            font-weight: 500;
+        }
+
+        .modal-footer {
+            padding: 15px 25px 25px;
+            text-align: center;
+        }
+
+        .modal-btn {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(108, 155, 209, 0.3);
+        }
+
+        .modal-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 155, 209, 0.4);
+        }
+
+        .modal-btn:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 480px) {
+            .modal-content {
+                width: 95%;
+                margin: 10px;
+            }
+            
+            .modal-header, .modal-body, .modal-footer {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+            
+            .tip-features {
+                gap: 10px;
+            }
+            
+            .tip-item {
+                padding: 10px 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -720,6 +939,9 @@
                 }
                 
                 renderBattleDashboard();
+                
+                // 检查首次访问并显示新功能提示
+                checkFirstVisit();
             } catch (error) {
                 showError(`加载战局数据失败: ${error.message}`);
             }
@@ -1260,7 +1482,12 @@
                 }).join('');
 
                 return `
-                    <div class="player-card ${isMvp ? 'mvp-highlight' : ''}" data-skin-url="${skinBg}" data-card-index="${index}">
+                    <div class="player-card ${isMvp ? 'mvp-highlight' : ''}" 
+                         data-skin-url="${skinBg}" 
+                         data-card-index="${index}"
+                         data-user-id="${basicInfo.userId || ''}"
+                         data-role-id="${basicInfo.roleId || ''}"
+                         data-role-name="${basicInfo.roleName || ''}">
                         <div class="player-main">
                             <img src="${heroIcon}" 
                                  alt="${heroName}" 
@@ -1328,6 +1555,71 @@
                         document.head.appendChild(style);
                     }
                 });
+
+                // 添加点击事件监听器
+                cards.forEach((card) => {
+                    const handleCardClick = function() {
+                        const userId = this.getAttribute('data-user-id');
+                        const roleId = this.getAttribute('data-role-id');
+                        const roleName = this.getAttribute('data-role-name');
+                        
+                        console.log('点击玩家卡片:', { userId, roleId, roleName });
+                        
+                        // 检查roleId是否为0或空或无效值
+                        if (!roleId || 
+                            roleId === '0' || 
+                            roleId === '' || 
+                            roleId === 'null' || 
+                            roleId === 'undefined' ||
+                            roleId.trim() === '') {
+                            alert(`玩家 ${roleName || '未知玩家'} 营地未注册`);
+                            return;
+                        }
+                        
+                        // 检查userId是否有效
+                        if (!userId || userId === '' || userId === 'null' || userId === 'undefined') {
+                            alert(`玩家 ${roleName || '未知玩家'} 用户信息无效，无法查看详情`);
+                            return;
+                        }
+                        
+                        // 跳转到指定URL
+                        const targetUrl = `/api-btlperson?userid=${userId}&roleid=${roleId}&key={{key}}`;
+                        console.log('准备跳转到:', targetUrl);
+                        window.open(targetUrl, '_blank');
+                    };
+                    
+                    // 同时添加点击和触摸事件支持移动端
+                    card.addEventListener('click', handleCardClick);
+                    
+                    // 移动端触摸事件处理 - 区分拖动和点击
+                    let touchStartX, touchStartY, touchStartTime;
+                    
+                    card.addEventListener('touchstart', function(e) {
+                        const touch = e.touches[0];
+                        touchStartX = touch.clientX;
+                        touchStartY = touch.clientY;
+                        touchStartTime = Date.now();
+                    });
+                    
+                    card.addEventListener('touchend', function(e) {
+                        e.preventDefault(); // 防止双重触发
+                        
+                        const touch = e.changedTouches[0];
+                        const touchEndX = touch.clientX;
+                        const touchEndY = touch.clientY;
+                        const touchEndTime = Date.now();
+                        
+                        // 计算触摸移动距离和时间
+                        const moveDistanceX = Math.abs(touchEndX - touchStartX);
+                        const moveDistanceY = Math.abs(touchEndY - touchStartY);
+                        const touchDuration = touchEndTime - touchStartTime;
+                        
+                        // 如果移动距离小于15px且触摸时间小于500ms，认为是点击而不是拖动
+                        if (moveDistanceX < 15 && moveDistanceY < 15 && touchDuration < 500) {
+                            handleCardClick.call(this);
+                        }
+                    });
+                });
             }, 100);
         }
 
@@ -1362,10 +1654,86 @@
             console.log('当前背景样式:', body.style.background);
         }
 
+        // 检查首次访问并显示新功能提示
+        function checkFirstVisit() {
+            const hasSeenUpdatesTip_20251006_battledetail = localStorage.getItem('hasSeenUpdatesTip_20251006_battledetail');
+            if (!hasSeenUpdatesTip_20251006_battledetail || hasSeenUpdatesTip_20251006_battledetail < 2) {
+                // 延迟显示，确保页面渲染完成
+                setTimeout(showFeatureTip, 1500);
+            }
+        }
+        
+        // 显示新功能提示对话框
+        function showFeatureTip() {
+            const modal = document.getElementById('featureTipModal');
+            if (modal) {
+                modal.classList.add('show');
+            }
+        }
+        
+        // 关闭新功能提示对话框
+        function closeFeatureTip() {
+            const modal = document.getElementById('featureTipModal');
+            if (modal) {
+                const hasSeenUpdatesTip_20251006_battledetail = localStorage.getItem('hasSeenUpdatesTip_20251006_battledetail');
+                modal.classList.remove('show');
+                // 保存已查看状态，下次不再显示
+                localStorage.setItem('hasSeenUpdatesTip_20251006_battledetail', Number(hasSeenUpdatesTip_20251006_battledetail || 0) + 1);
+            }
+        }
+        
+        // 点击遮罩层也可以关闭对话框
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('featureTipModal');
+            if (e.target === modal) {
+                closeFeatureTip();
+            }
+        });
+        
+        // ESC键关闭对话框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('featureTipModal');
+                if (modal && modal.classList.contains('show')) {
+                    closeFeatureTip();
+                }
+            }
+        });
+
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             loadBattleData();
         });
     </script>
+
+    <!-- 新功能提示对话框 -->
+    <div id="featureTipModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3> 新功能提示</h3>
+                <button class="modal-close" onclick="closeFeatureTip()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tip-icon">
+                    👁️
+                </div>
+                <p>点击<strong>右下角切换按钮</strong>来调整战局显示模式！</p>
+                <p>点击<strong>玩家卡片</strong>来查看相应玩家的战绩！</p>
+                <div class="tip-features">
+                    <div class="tip-item">
+                        <span class="tip-emoji">👁️</span>
+                        <span>显示数据与皮肤/只显示数据/只显示皮肤</span>
+                    </div>
+                    <div class="tip-item">
+                        <span class="tip-emoji">🔒</span>
+                        <span>点击玩家卡片查看个人详情</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn" onclick="closeFeatureTip()">我知道了</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
