@@ -13,6 +13,7 @@ import datetime
 import secrets
 import yaml
 import time
+from redis import ConnectionPool
 
 from utils import wzry_get_official
 from utils import writerl,file_exist,retry_until_true
@@ -36,7 +37,8 @@ globals().update(varia)
 app = FastAPI()
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
 r_liked_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_BTL,password=REDIS_PASSWORD)
-
+share_pool=ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_POOL,password=REDIS_PASSWORD)
+r_share_pool=redis.Redis(connection_pool=share_pool)
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
@@ -151,6 +153,11 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",file_name),
             "key":key,
+            "gameSeq",gameSeq,
+            "gameSvr":gameSvr,
+            "relaySvr":relaySvr,
+            "targetRoleId":targetRoleId,
+            "battleType":battleType,
         }
     )
 @app.get("/like-btldetail", response_class=HTMLResponse)
@@ -164,20 +171,64 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
                 "error_code": "LIKE_FAILED"
             }
         )
+    happen_time=int(time.time())
     if (r_liked_btl.exists(gameSeq)):
+        result=r_liked_btl.delete(gameSeq) 
+        success_data={
+            "success": True,
+            "message": "取消收藏成功",
+            "data": {
+                "battle_id": gameSeq,
+                "timestamp": happen_time
+            }
+        }
+    else:
+        r_liked_btl.set(gameSeq,happen_time)
+        success_data={
+            "success": True,
+            "message": "收藏成功",
+            "data": {
+                "battle_id": gameSeq,
+                "timestamp": happen_time
+            }
+        }
+    return JSONResponse(success_data)
+@app.get("/share-btldetail", response_class=HTMLResponse)
+async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
+    if (not r.exists(key)):
         raise HTTPException(
             status_code=400,
             detail={
                 "success": False,
-                "message": f"已经收藏过该比赛",
+                "message": f"key失效",
                 "error_code": "LIKE_FAILED"
             }
         )
+    params={
+        "gameSvrId":gameSvr,
+        "gameseq":gameSeq,
+        "roleid":targetRoleId,
+        "relaySvrId":relaySvr,
+        "pvptype":battleType
+    }
+    try:
+        json_params = json.dumps(params)
+        result = r_share_pool.lpush("Shared_queue", json_params)
+        current_length = r_share_pool.llen("Shared_queue")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "message": "数据库操作失败",
+                "error_code": "DB_OPERATION_ERROR"
+            }
+        )
+    
     happen_time=int(time.time())
-    r_liked_btl.set(gameSeq,happen_time)
     success_data={
         "success": True,
-        "message": "收藏成功",
+        "message": "分享成功",
         "data": {
             "battle_id": gameSeq,
             "timestamp": happen_time
