@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
+
 import redis
 import os
 import json
@@ -34,6 +35,7 @@ globals().update(varia)
 # 初始化fastapi与redis
 app = FastAPI()
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
+r_liked_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_BTL,password=REDIS_PASSWORD)
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
@@ -101,8 +103,8 @@ async def show_btldetail(request:Request,key: str):
             "key": key,
         }
     )
-@app.get("/api-btlperson", response_class=HTMLResponse)
-async def api_btlperson(request:Request,userid: str,roleid: str,key:str):
+@app.get("/jump-btlperson", response_class=HTMLResponse)
+async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
     if (not r.exists(key)):
         return templates.TemplateResponse(
             "err_illegal.html",{"request": request,"message":"key失效"}
@@ -118,8 +120,6 @@ async def api_btlperson(request:Request,userid: str,roleid: str,key:str):
     file_name=secrets.token_hex(8)+".json"
     save_path=os.path.join(nginx_path,"wzry_history", file_name)
     writerl(save_path,res)
-    retry_until_true(file_exist,timeout=1,file_path=save_path)
-    print(res,save_path)
     return templates.TemplateResponse(
         "SingleBattleList.html",
         {
@@ -129,8 +129,8 @@ async def api_btlperson(request:Request,userid: str,roleid: str,key:str):
             "key":key,
         }
     )
-@app.get("/api-btldetail", response_class=HTMLResponse)
-async def api_btlperson(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
+@app.get("/jump-btldetail", response_class=HTMLResponse)
+async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
     if (not r.exists(key)):
         return templates.TemplateResponse(
             "err_illegal.html",{"request": request,"message":"key失效"}
@@ -144,8 +144,6 @@ async def api_btlperson(request:Request,gameSvr: str,gameSeq: str,targetRoleId: 
     file_name=secrets.token_hex(8)+".json"
     save_path=os.path.join(nginx_path,"wzry_history", file_name)
     writerl(save_path,res)
-    time.sleep(0.2)
-    # retry_until_true(file_exist,timeout=1,file_path=save_path)
     return templates.TemplateResponse(
         "BattleDetail.html",
         {
@@ -155,6 +153,37 @@ async def api_btlperson(request:Request,gameSvr: str,gameSeq: str,targetRoleId: 
             "key":key,
         }
     )
+@app.get("/like-btldetail", response_class=HTMLResponse)
+async def like_btldetail(request:Request,gameSeq: str,key:str):
+    if (not r.exists(key)):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "message": f"key失效",
+                "error_code": "LIKE_FAILED"
+            }
+        )
+    if (r_liked_btl.exists(gameSeq)):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "message": f"已经收藏过该比赛",
+                "error_code": "LIKE_FAILED"
+            }
+        )
+    happen_time=int(time.time())
+    r_liked_btl.set(gameSeq,happen_time)
+    success_data={
+        "success": True,
+        "message": "收藏成功",
+        "data": {
+            "battle_id": gameSeq,
+            "timestamp": happen_time
+        }
+    }
+    return JSONResponse(success_data)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
