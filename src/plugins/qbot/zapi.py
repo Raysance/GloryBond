@@ -17,7 +17,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
     profile_url = "https://kohcamp.qq.com/game/koh/profile"
     season_url = "https://kohcamp.qq.com/game/curseasonpage"
     heropower_url = "https://kohcamp.qq.com/game/profile/herolist"
-
+    allhero_url= "https://ssl.kohsocialapp.qq.com/play/h5getherolist"
     headers = {
         "Host": "kohcamp.qq.com",
         "istrpcrequest": "true",
@@ -92,6 +92,34 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         "targetUserId":userid,
         "targetRoleId":roleid
     }
+    allhero_data = {
+        'recommendPrivacy': 0,
+        'uniqueRoleId': roleid,
+        'cChannelId': 10035044,
+        'cClientVersionCode': 2047937708,
+        'cClientVersionName': '9.104.0903',
+        'cCurrentGameId': 20001,
+        'cGameId': 20001,
+        'cGzip': 1,
+        'cIsArm64': 'true',
+        'cRand': 1760970708548,
+        'cSupportArm64': 'true',
+        'cSystem': 'android',
+        'cSystemVersionCode': 32,
+        'cSystemVersionName': '12',
+        'cpuHardware': 'HONOR',
+        'encodeParam': confs["wzry"]["encodeparam"],
+        'gameAreaId': 1,
+        'gameId': 20001,
+        'gameOpenId': confs["wzry"]["gameopenid"],
+        'gameRoleId': confs["wzry"]["roleid"],
+        'gameServerId': 1533,
+        'gameUserSex': 1,
+        'openId': confs["wzry"]["openid"],
+        'tinkerId': confs["wzry"]["tinkerid"],
+        'token': confs["wzry"]["token"],
+        'userId': confs["wzry"]["userid"]
+    }
     match reqtype:
         case "btldetail":
             url=btldetail_url
@@ -108,6 +136,10 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         case "heropower":
             url=heropower_url
             data=heropower_data
+        case "allhero":
+            url=allhero_url
+            data=allhero_data
+
     retry_time=3
     while(retry_time):
         response = requests.post(url, headers=headers, json=data)

@@ -10,12 +10,13 @@ from nonebot_plugin_apscheduler import scheduler
 from nonebot.rule import to_me
 from nonebot.adapters import Message
 from nonebot.params import CommandArg
-from nonebot.adapters import MessageTemplate
 from nonebot.adapters.onebot.v11 import Bot, Event, Message,MessageEvent,MessageSegment
+from nonebot.adapters import MessageTemplate
 from nonebot.adapters.onebot.v11.event import PokeNotifyEvent
 from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command,on_regex,on_fullmatch
 
 async def judge_to_me(event)->bool:
+    # return event.get_plaintext().startswith("#") or "group_id" not in event
     return event.get_plaintext().startswith("#")
 async def judge_name(event)->bool:
     return "示例玩家41" not in event.get_plaintext()
@@ -54,6 +55,8 @@ _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
+# _allhero=on_keyword(set(allhero_keywords),rule=judge_to_me,priority=4, block=True)
+_showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 
@@ -140,9 +143,13 @@ async def f_group_poke(bot, event):
     from .zfunc import qid2nick
     from .zfunc import ai_parser
     from .zfunc import get_emoji_url
+    from .zfunc import coplayer_process
     from .ztime import wait
+    from .ztime import time_r
+    from .ztime import str_to_time
+    from .ztime import calc_gap
     from .zfile import file_exist
-
+    
     if isinstance(event, PokeNotifyEvent):
         if event.target_id == event.self_id: 
             if (not dmc.repair):
@@ -154,6 +161,10 @@ async def f_group_poke(bot, event):
                     if (res and file_exist(pic_path)): snd_msg = MessageSegment.image(pic_path)
                     else: snd_msg=MessageSegment.text("最快10秒ob一次")
                     await _group_poke.send(snd_msg)
+                elif (dmc.LastBtlMsgStatus and calc_gap(time_r(),str_to_time(dmc.LastBtlMsgTime))<600):
+                    snd_msg=coplayer_process("")
+                    await _group_poke.send(snd_msg)
+                    
                 else:
                     user_id = event.user_id
                     userqid=event.get_user_id()
@@ -273,6 +284,11 @@ async def f_atall(bot,event):
     urge_msg=ai_parser([str(datetime.datetime.now()),str(namenick),today_news],"urge_game")
     await _atall.send(urge_msg)
     return
+@_showonline.handle()
+async def f_showonline(bot,event):
+    from .zfunc import online_process
+    snd_msg=online_process()
+    await _showonline.send(snd_msg)
 @_rnk.handle()
 async def f_rnk(bot,event):
     from .zfunc import qid2nick
@@ -360,13 +376,12 @@ async def f_single(bot,event):
                 break
         if (last_btl_info): # 存在至少一局合法赛
             last_btl_roleid=dmc.last_request_roleid
-            try:
-                btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid)
-            except Exception as e:
-                pass
-            # snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
+            # try:
+            btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid,gen_image=True)
+            # except Exception as e:
+            #     pass
             if (btl_info):
-                snd_msg=btl_info
+                snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
                 await _single.send(snd_msg)
 
     # if (groupqid):
@@ -408,6 +423,17 @@ async def f_heropower(bot,event):
     snd_msg=heropower_process(rcv_msg)
     
     await _heropower.send(snd_msg)
+# @_allhero.handle()
+# async def f_allhero(bot,event):
+#     from .zfunc import allhero_process
+#     from .zfunc import qid2nick
+
+#     userqid=event.get_user_id()
+#     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    
+#     snd_msg=allhero_process(rcv_msg)
+    
+#     await _allhero.send(snd_msg)
 @_gradeanalyze.handle()
 async def f_gradeanalyze(bot,event):
     from .zfunc import gradeanalyze_process
@@ -417,7 +443,7 @@ async def f_gradeanalyze(bot,event):
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
     
     img_url,analyze_msg=gradeanalyze_process(rcv_msg)
-    print(img_url)
+    # print(img_url)
     # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
     await _gradeanalyze.send(MessageSegment.image(img_url))
 @_watchbattle.handle()
@@ -430,7 +456,7 @@ async def f_watchbattle(bot,event):
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
     
     img_url,analyze_msg=watchbattle_process(rcv_msg)
-    print(img_url)
+    # print(img_url)
     # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
     if (file_exist(img_url)): await _gradeanalyze.send(MessageSegment.image(img_url))
 
@@ -501,14 +527,14 @@ def load_yesterday(imple_type=0):# 程序重启/定时任务
         return
     return
 
-# @scheduler.scheduled_job("cron", hour=13, minute=53, second=5, id="dump_today") # 每日3:25定时导出当日数据（预留5分钟导出时间）
+# @scheduler.scheduled_job("cron", hour=17, minute=24, second=10, id="dump_today") # 每日3:25定时导出当日数据（预留5分钟导出时间）
 @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute-5, second=00, id="dump_today") # 每日3:25定时导出当日数据（预留5分钟导出时间）
 async def dump_today():
     from .ztime import time_sul
     from .zfunc import wzry_data
     from .zfile import writerl
 
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    # bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
     dump_date=time_sul().strftime("%Y-%m-%d") # 因为提早了5分钟，所以时间就是在导出的日期
     log_message("DUMPBEGIN "+dump_date+".json")
     gameinfo=[]
@@ -530,11 +556,6 @@ async def notify_msg():
     from .zfunc import rnk_process
     from .ztime import wait
 
-    # rank_query_now=datetime.datetime.now()
-    # rank_query_delta=rank_query_now-dmc.rank_query_late
-    # if (rank_query_delta and rank_query_delta.total_seconds()<=5*60):  # 上一次询问时间小于5分钟，就忽略排名推送
-    #     return
-    
     log_message("NOTIFY"+str(datetime.date.today()))
     bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
     snd_msg="今日王者战报(每日23:30推送)：\n"
@@ -561,16 +582,16 @@ async def check_festival():
         snd_msg="来自🤖的节日祝福：\n"+snd_msg
         log_message("SEND: "+snd_msg)
         await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
-@scheduler.scheduled_job("cron",hour=23,minute=6,second=16,id="raise_question")
-async def raise_question():
-    from .zfunc import ai_parser
-    log_message("RAISE_QUESTION")
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
-    snd_msg=ai_parser([],"raise_question")
-    snd_msg+=raise_question_invis_char
-    if (snd_msg!="NONE"):
-        log_message("SEND: "+snd_msg)
-        # await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=snd_msg)
+# @scheduler.scheduled_job("cron",hour=23,minute=6,second=16,id="raise_question")
+# async def raise_question():
+#     from .zfunc import ai_parser
+#     log_message("RAISE_QUESTION")
+#     bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+#     snd_msg=ai_parser([],"raise_question")
+#     snd_msg+=raise_question_invis_char
+#     if (snd_msg!="NONE"):
+#         log_message("SEND: "+snd_msg)
+#         # await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=snd_msg)
 @scheduler.scheduled_job("cron", hour=7, minute=00,second=00, id="fetch_news")  # 每日7点获取当日新闻，并入提示词
 async def fetch_news():
     from .zapi import ark_api
@@ -590,7 +611,7 @@ async def fetch_news():
     else:
         today_news = ark_api(fetch_news_pmpt)
         writera(file_path,today_news)
-        print(file_path,today_news)
+        # print(file_path,today_news)
     return None
 
 def init_fetch_news():
@@ -611,5 +632,27 @@ def init_fetch_news():
     else:
         today_news = ark_api(fetch_news_pmpt)
         writera(file_path,today_news)
-        print(file_path,today_news)
+        # print(file_path,today_news)
     return None
+
+# # 在插件启动时启动后台任务
+# @scheduler.scheduled_job("interval", seconds=10, id="web_shared_processor")
+# async def run_web_shared_btls_processor():
+#     await web_shared_btls_processor()
+# async def web_shared_btls_processor():
+#     from .zfunc import btldetail_process
+#     from .ztime import wait
+
+#     result=redis_deamon_share_btl.brpop("Shared_queue",timeout=3)
+#     if (not result): return
+#     _,params_json=result
+#     params=json.loads(params_json)
+#     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True)
+#     if (not btl_msg): return 
+#     snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+#     bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+#     # await bot.send_private_msg(user_id=super_id, message=snd_msg)
+#     await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
+#     return 
+    
+# # async def send_event(snd_msg):

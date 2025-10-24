@@ -35,6 +35,8 @@ def stamp_to_time(timestamp):
 def str_to_time(time_str):
     time_datetime = parser.parse(time_str)
     return time_datetime
+def time_to_str(time_datetime, format_str="%Y-%m-%d %H:%M:%S"):
+    return time_datetime.strftime(format_str)
 def time_delta(time_in,delta):
     return time_in+timedelta(days=delta)
 def wait():
