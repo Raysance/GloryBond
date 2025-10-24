@@ -56,6 +56,8 @@ async def show_btlist(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
+        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
+        if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
             "err_expired.html",{"request": request,}
@@ -74,6 +76,8 @@ async def show_btlperson(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
+        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
+        if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
             "err_expired.html",{"request": request,}
@@ -92,6 +96,8 @@ async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content = json.loads(r.get(key).decode('utf-8'))
+        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
+        if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
             "err_expired.html",{"request": request,}
@@ -116,7 +122,7 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
         btlist_res=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     except Exception as e:
         return templates.TemplateResponse(
-            "err_illegal.html",{"request": request,"message":"网络错误或id错误"}
+            "err_illegal.html",{"request": request,"message":"网络参数错误"}
         )
     res={"btlist":btlist_res,"profile":profile_res}
     file_name=secrets.token_hex(8)+".json"
@@ -153,7 +159,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",file_name),
             "key":key,
-            "gameSeq",gameSeq,
+            "gameSeq":gameSeq,
             "gameSvr":gameSvr,
             "relaySvr":relaySvr,
             "targetRoleId":targetRoleId,

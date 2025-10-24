@@ -251,6 +251,125 @@
                 fill: currentColor;
                 transition: all 0.3s ease;
             }
+
+            .floating-back-btn {
+                position: fixed;
+                top: 24px;
+                left: 24px;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+                border: none;
+                cursor: pointer;
+                box-shadow: 0 4px 20px rgba(250, 128, 114, 0.35);
+                transition: all 0.3s ease;
+                z-index: 1100;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .floating-back-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
+            }
+
+            .floating-back-btn:active {
+                transform: translateY(0);
+            }
+
+            .floating-back-btn svg {
+                width: 24px;
+                height: 24px;
+                fill: white;
+                transition: transform 0.3s ease;
+            }
+
+            .floating-back-btn.loading {
+                cursor: wait;
+                opacity: 0.75;
+            }
+
+            .floating-back-btn.loading svg {
+                transform: translateX(-2px);
+            }
+
+            .battle-item.battle-loading {
+                cursor: wait;
+                opacity: 0.78;
+            }
+
+            .battle-item.battle-loading::after {
+                content: "⏳";
+                position: absolute;
+                top: 10px;
+                left: 12px;
+                font-size: 18px;
+                color: rgba(0,0,0,0.5);
+            }
+
+            .modal-overlay[data-loading="true"] {
+                cursor: wait;
+            }
+
+            .modal-overlay[data-loading="true"] a,
+            .modal-overlay a.modal-link-disabled {
+                pointer-events: none;
+                cursor: wait;
+                opacity: 0.65;
+                text-decoration: none;
+            }
+
+            .modal-link-loading-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(255, 255, 255, 0.65);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 15000;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.25s ease;
+            }
+
+            .modal-link-loading-overlay.show {
+                opacity: 1;
+                pointer-events: all;
+            }
+
+            .modal-link-loading-content {
+                background: rgba(255, 255, 255, 0.95);
+                padding: 24px 36px;
+                border-radius: 16px;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+                color: var(--dark-color);
+                font-weight: 600;
+                min-width: 220px;
+            }
+
+            .modal-link-loading-spinner {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                border: 4px solid rgba(108, 155, 209, 0.25);
+                border-top-color: var(--primary-color);
+                animation: modal-link-spin 0.8s linear infinite;
+            }
+
+            @keyframes modal-link-spin {
+                from {
+                    transform: rotate(0deg);
+                }
+                to {
+                    transform: rotate(360deg);
+                }
+            }
             
             .battle-item.win-bg {
                 background: linear-gradient(to right, transparent 0%, transparent 50%, rgba(40, 167, 69, 0.4) 100%);
@@ -449,6 +568,18 @@
                 .share-btn svg {
                     width: 14px;
                     height: 14px;
+                }
+
+                .floating-back-btn {
+                    top: 14px;
+                    left: 14px;
+                    width: 48px;
+                    height: 48px;
+                }
+
+                .floating-back-btn svg {
+                    width: 20px;
+                    height: 20px;
                 }
             }
             
@@ -912,6 +1043,19 @@
             </div>
         </div>
 
+        <button id="backFloatingBtn" class="floating-back-btn" type="button" title="返回上一页" aria-label="返回上一页">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path>
+            </svg>
+        </button>
+
+        <div id="modalLinkLoadingOverlay" class="modal-link-loading-overlay" aria-hidden="true" role="alert" aria-live="assertive">
+            <div class="modal-link-loading-content">
+                <div class="modal-link-loading-spinner" role="presentation"></div>
+                <div class="modal-link-loading-text">正在跳转，请稍候...</div>
+            </div>
+        </div>
+
         <!-- 新功能提示对话框 -->
         <div id="featureTipModal" class="modal-overlay">
             <div class="modal-content">
@@ -951,44 +1095,274 @@
             let allBattles = [];
             let currentMapFilter = '全部';
             let profileData = null; // 添加全局变量存储profile数据
+            const modalLinkTimers = new WeakMap();
+            const battleCardLoadingTimers = new WeakMap();
+
+            function setupBackButton() {
+                const backBtn = document.getElementById('backFloatingBtn');
+                if (!backBtn) {
+                    return;
+                }
+
+                const navigateBack = () => {
+                    if (backBtn.dataset.busy === 'true') {
+                        return;
+                    }
+
+                    backBtn.dataset.busy = 'true';
+                    backBtn.classList.add('loading');
+
+                    if (window.history.length > 1) {
+                        window.history.back();
+                    } else if (document.referrer) {
+                        window.location.href = document.referrer;
+                    } else {
+                        window.location.href = '/';
+                    }
+
+                    setTimeout(() => {
+                        delete backBtn.dataset.busy;
+                        backBtn.classList.remove('loading');
+                    }, 1200);
+                };
+
+                backBtn.addEventListener('click', navigateBack);
+                backBtn.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigateBack();
+                    }
+                });
+            }
+
+            function showModalLinkLoading(message = '正在跳转，请稍候...') {
+                const overlay = document.getElementById('modalLinkLoadingOverlay');
+                if (!overlay) {
+                    return;
+                }
+
+                const textElement = overlay.querySelector('.modal-link-loading-text');
+                if (textElement) {
+                    textElement.textContent = message;
+                }
+
+                overlay.classList.add('show');
+                overlay.setAttribute('aria-hidden', 'false');
+            }
+
+            function hideModalLinkLoading() {
+                const overlay = document.getElementById('modalLinkLoadingOverlay');
+                if (!overlay) {
+                    return;
+                }
+
+                overlay.classList.remove('show');
+                overlay.setAttribute('aria-hidden', 'true');
+            }
+
+            function resetModalLink(link) {
+                if (!link) {
+                    return;
+                }
+
+                const timerId = modalLinkTimers.get(link);
+                if (timerId) {
+                    clearTimeout(timerId);
+                    modalLinkTimers.delete(link);
+                }
+
+                delete link.dataset.loading;
+                link.classList.remove('modal-link-disabled');
+                link.removeAttribute('aria-disabled');
+            }
+
+            function releaseModalLoadingState(modal) {
+                if (!modal) {
+                    return;
+                }
+
+                delete modal.dataset.loading;
+                modal.querySelectorAll('a[href]').forEach((anchor) => {
+                    resetModalLink(anchor);
+                });
+            }
+
+            function markBattleCardLoading(card) {
+                if (!card) {
+                    return;
+                }
+
+                const existingTimer = battleCardLoadingTimers.get(card);
+                if (existingTimer) {
+                    clearTimeout(existingTimer);
+                }
+
+                card.dataset.loading = 'true';
+                card.classList.add('battle-loading');
+                card.style.pointerEvents = 'none';
+
+                const timerId = setTimeout(() => {
+                    hideModalLinkLoading();
+                    releaseBattleCardLoading(card);
+                }, 12000);
+
+                battleCardLoadingTimers.set(card, timerId);
+            }
+
+            function releaseBattleCardLoading(card) {
+                if (!card) {
+                    return;
+                }
+
+                const timerId = battleCardLoadingTimers.get(card);
+                if (timerId) {
+                    clearTimeout(timerId);
+                    battleCardLoadingTimers.delete(card);
+                }
+
+                delete card.dataset.loading;
+                card.classList.remove('battle-loading');
+                card.style.removeProperty('pointer-events');
+            }
+
+            document.addEventListener('click', function(event) {
+                const link = event.target.closest('.modal-overlay a[href]');
+                if (!link) {
+                    return;
+                }
+
+                const href = link.getAttribute('href');
+                if (!href || href.trim() === '' || href.startsWith('javascript:')) {
+                    return;
+                }
+
+                const modal = link.closest('.modal-overlay');
+                if (link.dataset.loading === 'true' || (modal && modal.dataset.loading === 'true')) {
+                    event.preventDefault();
+                    return;
+                }
+
+                event.preventDefault();
+
+                const loadingText = link.getAttribute('data-loading-text') || '正在跳转，请稍候...';
+                showModalLinkLoading(loadingText);
+
+                link.dataset.loading = 'true';
+                link.classList.add('modal-link-disabled');
+                link.setAttribute('aria-disabled', 'true');
+                link.blur();
+
+                if (modal) {
+                    modal.dataset.loading = 'true';
+                }
+
+                const target = (link.getAttribute('target') || '').toLowerCase();
+                const rel = (link.getAttribute('rel') || '').toLowerCase();
+
+                const performNavigation = () => {
+                    if (target && target !== '_self') {
+                        const relValue = rel.includes('noopener') ? rel : (rel ? rel + ' noopener' : 'noopener');
+                        link.setAttribute('rel', relValue.trim());
+                        const opened = window.open(href, target);
+
+                        if (!opened) {
+                            hideModalLinkLoading();
+                            resetModalLink(link);
+                            if (modal) {
+                                releaseModalLoadingState(modal);
+                            }
+                            return;
+                        }
+
+                        setTimeout(() => {
+                            hideModalLinkLoading();
+                            resetModalLink(link);
+                            if (modal) {
+                                releaseModalLoadingState(modal);
+                            }
+                        }, 800);
+                    } else {
+                        window.location.assign(href);
+                    }
+                };
+
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(performNavigation);
+                });
+
+                const timerId = setTimeout(() => {
+                    hideModalLinkLoading();
+                    resetModalLink(link);
+                    if (modal) {
+                        releaseModalLoadingState(modal);
+                    }
+                }, 12000);
+
+                modalLinkTimers.set(link, timerId);
+            }, true);
+
+            window.addEventListener('pageshow', () => {
+                hideModalLinkLoading();
+                document.querySelectorAll('.modal-overlay[data-loading="true"]').forEach((modal) => {
+                    releaseModalLoadingState(modal);
+                });
+                document.querySelectorAll('.battle-item[data-loading="true"]').forEach((card) => {
+                    releaseBattleCardLoading(card);
+                });
+            });
+
+            window.addEventListener('pagehide', () => {
+                hideModalLinkLoading();
+                document.querySelectorAll('.modal-overlay[data-loading="true"]').forEach((modal) => {
+                    releaseModalLoadingState(modal);
+                });
+                document.querySelectorAll('.battle-item[data-loading="true"]').forEach((card) => {
+                    releaseBattleCardLoading(card);
+                });
+            });
 
             // 页面加载完成后执行
             document.addEventListener('DOMContentLoaded', function() {
+                setupBackButton();
                 const filename = '{{filename}}';
                 loadGameData(filename);
-                
+
                 // 检查是否首次访问，如果是则显示新功能提示
                 checkFirstVisit();
             });
-            
+
             // 检查首次访问并显示新功能提示
             function checkFirstVisit() {
                 const hasSeenUpdatesTip_20251006 = localStorage.getItem('hasSeenUpdatesTip_20251006');
-                if (!hasSeenUpdatesTip_20251006|hasSeenUpdatesTip_20251006<2) {
+                if (!hasSeenUpdatesTip_20251006 || hasSeenUpdatesTip_20251006 < 2) {
                     // 延迟显示，确保页面加载完成
                     setTimeout(showFeatureTip, 1000);
                 }
             }
-            
+
             // 显示新功能提示对话框
             function showFeatureTip() {
                 const modal = document.getElementById('featureTipModal');
                 if (modal) {
+                    releaseModalLoadingState(modal);
+                    hideModalLinkLoading();
                     modal.classList.add('show');
                 }
             }
-            
+
             // 关闭新功能提示对话框
             function closeFeatureTip() {
                 const modal = document.getElementById('featureTipModal');
                 if (modal) {
                     const hasSeenUpdatesTip_20251006 = localStorage.getItem('hasSeenUpdatesTip_20251006');
+                    releaseModalLoadingState(modal);
+                    hideModalLinkLoading();
                     modal.classList.remove('show');
                     // 保存已查看状态，下次不再显示
                     localStorage.setItem('hasSeenUpdatesTip_20251006', Number(hasSeenUpdatesTip_20251006)+1);
                 }
             }
-            
+
             // 点击遮罩层也可以关闭对话框
             document.addEventListener('click', function(e) {
                 const modal = document.getElementById('featureTipModal');
@@ -1090,8 +1464,23 @@
             }
             
             // 处理卡片点击事件，跳转到战斗详情页面
-            function handleBattleCardClick(battle, profileData) {
+            function handleBattleCardClick(battle, profileData, cardElement) {
                 try {
+                    if (cardElement) {
+                        if (cardElement.dataset.loading === 'true') {
+                            return;
+                        }
+                        const loadingText = cardElement.getAttribute('data-loading-text') || '正在打开战局详情...';
+                        showModalLinkLoading(loadingText);
+                        markBattleCardLoading(cardElement);
+                    } else {
+                        showModalLinkLoading();
+                    }
+
+                    if (!profileData) {
+                        throw new Error('缺少玩家资料');
+                    }
+
                     // 从e.json数据中提取所需参数
                     const gameSvr = battle.gameSvrId || '';
                     const gameSeq = battle.gameSeq || '';
@@ -1121,11 +1510,39 @@
                     // 构建完整URL并跳转
                     const targetUrl = `/jump-btldetail?${params.toString()}`;
                     console.log('跳转URL:', targetUrl);
-                    window.open(targetUrl, '_blank');
+                    const newTab = window.open(targetUrl, '_blank');
+
+                    if (!newTab) {
+                        hideModalLinkLoading();
+                        if (cardElement) {
+                            releaseBattleCardLoading(cardElement);
+                        }
+                        if (typeof showToast === 'function') {
+                            showToast('弹窗被浏览器阻止，请允许打开新窗口查看详情', 'warning');
+                        } else {
+                            alert('弹窗被浏览器阻止，请允许打开新窗口查看详情');
+                        }
+                        return;
+                    }
+
+                    setTimeout(() => {
+                        hideModalLinkLoading();
+                        if (cardElement) {
+                            releaseBattleCardLoading(cardElement);
+                        }
+                    }, 1200);
                     
                 } catch (error) {
                     console.error('跳转战斗详情失败:', error);
-                    alert('跳转失败，请稍后重试');
+                    hideModalLinkLoading();
+                    if (cardElement) {
+                        releaseBattleCardLoading(cardElement);
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast('跳转失败，请稍后重试', 'error');
+                    } else {
+                        alert('跳转失败，请稍后重试');
+                    }
                 }
             }
             
@@ -1774,7 +2191,7 @@
                                 e.target.closest('.share-btn')) {
                                 return;
                             }
-                            handleBattleCardClick(battle, profileData);
+                            handleBattleCardClick(battle, profileData, this);
                         });
                         
                         // 添加收藏按钮事件处理
