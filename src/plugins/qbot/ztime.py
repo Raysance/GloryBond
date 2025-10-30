@@ -47,6 +47,8 @@ def short_wait():
     time.sleep(delay_second)
 def calc_gap(t1,t2):
     return abs((t1-t2).total_seconds())
+def add_second(src,det):
+    return src+timedelta(seconds=det)
 def get_timebased_rand(n,rand_gap):
     """
     基于当前时间获取[0, n]内的随机整数，间隔一段时间变一次

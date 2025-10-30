@@ -149,6 +149,7 @@ async def f_group_poke(bot, event):
     from .ztime import str_to_time
     from .ztime import calc_gap
     from .zfile import file_exist
+    from .ztime import add_second
     
     if isinstance(event, PokeNotifyEvent):
         if event.target_id == event.self_id: 
@@ -161,10 +162,17 @@ async def f_group_poke(bot, event):
                     if (res and file_exist(pic_path)): snd_msg = MessageSegment.image(pic_path)
                     else: snd_msg=MessageSegment.text("最快10秒ob一次")
                     await _group_poke.send(snd_msg)
-                elif (dmc.LastBtlMsgStatus and calc_gap(time_r(),str_to_time(dmc.LastBtlMsgTime))<600):
-                    snd_msg=coplayer_process("")
+                    return
+                elif (dmc.LastBtlMsgStatus and calc_gap(time_r(),dmc.LastBtlMsgTime)<600):
+                    dmc.LastBtlMsgStatus=False
+                    dmc.LastBtlMsgCoolDownTime=add_second(time_r(),30)
+                    ret_msg=coplayer_process("") or "获取失败"
+                    txt_msg,pic_path=ret_msg
+                    snd_msg=MessageSegment.text(txt_msg)+MessageSegment.image(pic_path)
                     await _group_poke.send(snd_msg)
-                    
+                    return
+                elif (time_r()<dmc.LastBtlMsgCoolDownTime):# 若两条戳一戳时间较近，防止误触发戳一戳消息，直接屏蔽
+                    return
                 else:
                     user_id = event.user_id
                     userqid=event.get_user_id()
@@ -182,10 +190,12 @@ async def f_group_poke(bot, event):
                         snd_msg = MessageSegment.image(emoji_url)
                         wait()
                     await _group_poke.send(snd_msg)
+                    return
                     # time.sleep(0.3)
                     # await bot.group_poke(group_id=groupqid, user_id=userqid)
             else:
                 await f_blocked(event)
+                return
                 
 @_empty_cache.handle()
 async def f_empty_cache(event): # 清空全局记录和用户(自己的)记录
@@ -296,11 +306,15 @@ async def f_rnk(bot,event):
     from .zfunc import rnk_process
     from .ztime import short_wait
     from .ztime import wait
+    from .ztime import time_r
+    from .ztime import calc_gap
     
     dmc.rank_query_late=datetime.datetime.now()
     rcv_msg=event.get_plaintext()
     debug="#" in rcv_msg
     log_message("VISIT: RANK_FUNCTION")
+    # if (calc_gap(time_r(),dmc.LastAllRequestTime)<180): return # 防止重复冗余请求
+    # dmc.LastAllRequestTime=time_r()
     userqid=event.get_user_id()
     try:
         groupqid=event.group_id
@@ -356,8 +370,10 @@ async def f_single(bot,event):
         await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
         # await _single.send(traceback.format_exc())
         return
+    if (not sgl_info): return
+        
     await _single.send(sgl_info[0])
-
+    
     whether_emoji=False
     if (whether_emoji):
         emoji_random=random.random()
@@ -376,10 +392,15 @@ async def f_single(bot,event):
                 break
         if (last_btl_info): # 存在至少一局合法赛
             last_btl_roleid=dmc.last_request_roleid
-            # try:
-            btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid,gen_image=True)
-            # except Exception as e:
-            #     pass
+            try:
+                btl_info,picpath=btldetail_process(**last_btl_info['Params'],roleid=last_btl_roleid,gen_image=True)
+            except Exception as e:
+                short_wait()
+                await _single.send(str(e))
+                wait()
+                await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+                # await _single.send(traceback.format_exc())
+                return
             if (btl_info):
                 snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
                 await _single.send(snd_msg)

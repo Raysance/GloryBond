@@ -28,6 +28,8 @@ globals().update(varia)
 
 dmc.redis_deamon= redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
 dmc.export_btldetail_lock=threading.Lock()
+dmc.LastBtlMsgTime=str_to_time("2025-01-01 00:00:00")
+dmc.LastBtlMsgCoolDownTime=str_to_time("2025-01-01 00:00:00")
 # web_shared_btls_processor()
 if __name__=="__main__":
     pass

@@ -141,13 +141,16 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
             data=allhero_data
 
     retry_time=3
+    error_msg=""
     while(retry_time):
         response = requests.post(url, headers=headers, json=data)
         # print(response.text)
+        # print(headers,data)
         res=response.json().get("data",{})
+        error_msg=response.json().get("returnMsg","")
         if res: break
         retry_time-=1
-    if (not retry_time): raise Exception(str("王者荣耀数据源错误"))
+    if (not retry_time): raise Exception(str("HOK: "+error_msg))
     return res
 
 @sleep_and_retry    # 当达到限制时自动等待

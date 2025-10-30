@@ -166,7 +166,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
-    export_btldetail(today_details,roleid)
+    # export_btldetail(today_details,roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
 
 def ai_parser(user_query,msg_type,network=False):
@@ -390,6 +390,9 @@ def single_process(rcv_msg):
     from .zfile import file_exist
     from .ztime import wait
     from .ztime import short_wait
+    from .ztime import time_r
+    from .ztime import calc_gap
+    from .ztime import add_second
 
     snd_msg=""
     pokename=[]
@@ -401,6 +404,9 @@ def single_process(rcv_msg):
     if ("$" in rcv_msg): ai_feedback=False
 
     matching_name=extract_name(rcv_msg)
+
+    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<60): return None# 防止重复冗余请求
+    dmc.LastSingleRequestTime[matching_name]=time_r()
 
     today_date=str(time_r().strftime("%Y-%m-%d"))
     exhibit_date_woyear=str(time_sul().strftime("%m-%d"))
@@ -462,7 +468,7 @@ def single_process(rcv_msg):
             gameinfo=wzry_data(matching_name,website_filepath)
             dmc.last_request_btllist=gameinfo['details']
             dmc.last_request_roleid=gameinfo['roleid']
-            dmc.LastBtlMsgTime=time_to_str(time_r())
+            dmc.LastBtlMsgTime=time_r()
             dmc.LastBtlMsgStatus=True
             short_wait()
         website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single")
@@ -544,7 +550,6 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     from .zfile import writerl
     from .zfunc import create_website
     from .zfunc import check_btl_official_with_matching
-    from .tools import html_to_pic
     from .ztime import wait
     from .tools import gen_battle_res
 
@@ -605,7 +610,8 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
             f"{team_contribute_text}"
             f"\n{res['head']['mapName']} {res['head']['heroName']}: {res['head']['killCnt']}/{res['head']['deadCnt']}/{res['head']['assistCnt']} {res['head']['gradeGame']}\n"
             f"{our_player_text}"
-            f"{linkurl}"
+            f"{linkurl}\n\n"
+            f"戳一戳 来评估两方实力"
         )
     return snd_message,picpath
     # return linkurl,picpath,det_message
@@ -701,12 +707,161 @@ def watchbattle_process(rcv_msg):
 def coplayer_process(rcv_msg):
     from .zapi import wzry_get_official
     from .zfunc import check_btl_official_with_matching
+    from .tools.gen_coplayer_analyses import CoPlayerProcess
+    gen_inst=CoPlayerProcess()
+    def sigmoid(x):
+        return 1/(1+math.exp(-x))
+    def get_level(detail_list,is_my_side):
+        auth_cnt=0      # 授权人数统计
+        ret_level=0     # 返回值
+        req_error=[]
+        for player in detail_list:
+            # 对于该队伍中的一个玩家
+            winNum=10        # 当前英雄输局数
+            loseNum=10       # 当前英雄胜局数
+            avgScore=9      # 当前英雄平均评分
+            winRate=0.5     # 当前英雄胜率
+            starNum=50      # 总星数
+            peakScore=1200  # 巅峰分数
+            PowerNum=70000  # 总战斗力
+            TotalCnt=1000   # 总场次
+            MVPCnt=100      # 总MVP场次
+            heroPower=1000
+            rankName="未知段位"
+            rankStar=0
+            heroTag=""
 
-    res=wzry_get_official(reqtype="btldetail",**dmc.last_btl_info['Params'],roleid=dmc.last_btl_roleid)
-    if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None,None
-    my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
+            is_auth=player["basicInfo"]["isGameAuth"] # 营地授权与否
+            roleid=player["basicInfo"]["roleId"]
+            userid=player["basicInfo"]["userId"]
+            nickname=player["basicInfo"]["roleName"]
+            heroBehavior=player["heroBehavior"]
+            heroName=player["battleRecords"]["usedHero"]["heroName"]
+            heroAvatar=player["battleRecords"]["usedHero"]["heroIcon"]
+            player_avatar_url=""
+            if (is_auth):
+                auth_cnt+=1
+                winNum=heroBehavior["winNum"]
+                loseNum=heroBehavior["loseNum"]
+                avgScore=float(heroBehavior["avgScore"])
+                winRate=float(heroBehavior["winRate"].strip('%')) / 100
+                heroPower=player["battleStats"]["fightPower"]
+                try:
+                    profile_res=wzry_get_official(reqtype="profile",roleid=roleid,userid=userid)
+                except Exception as e:
+                    req_error.append(str(e))
+                    continue
+                heropower_res=None
+                try:
+                    heropower_res=wzry_get_official(reqtype="heropower",roleid=roleid,userid=userid)
+                except Exception as e:
+                    req_error.append(str(e))
 
-    # for 
+                RoleInfo = (roles[0] if (roles := [role for role in profile_res["roleList"] if role["roleId"] == roleid]) else None)
+                rankInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 701]) else None)
+                peakInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 702]) else None)
+                Powerinfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 304]) else None)
+                TotalNumInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 401]) else None)
+                MVPInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 408]) else None)
+                player_avatar_url=RoleInfo.get("roleIcon","")
+                if (rankInfo):
+                    rankName=rankInfo["name"]
+                    rankStar=int(json.loads(rankInfo["param1"])["rankingStar"])
+                    starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
+                if (peakInfo): peakScore=int(peakInfo["content"]) or 1200
+                if (Powerinfo): PowerNum=int(Powerinfo["content"])
+                if (TotalNumInfo): TotalCnt=int(TotalNumInfo["content"])
+                if (MVPInfo): MVPCnt=int(MVPInfo["content"])
+
+                if (heropower_res):
+                    for hero in heropower_res['heroList']:
+                        try:
+                            if (hero['basicInfo']['title']==heroName):
+                                region_name=hero['honorTitle']['desc']['full'].split("第")[0]
+                                metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
+                                heroTag=f"{region_name}  No.{hero['honorTitle']['rank']} \n"
+                                break
+                        except Exception as e:
+                            pass
+            MVPRate=min(MVPCnt/TotalCnt,1)                         # MVP率
+            HeroShowCnt=loseNum+winNum                      # 该玩家此英雄的出场局数
+            auth_coeff=1 if is_auth else 0.6                # 为未授权加一个折扣
+            equiv_star=(starNum-25)+(peakScore-1200)/15.0   # 巅峰分与星数折算成一个综合星级
+            if (equiv_star<=0): equiv_star=1                # 星级下界
+            single_level = (
+                pow(equiv_star, 0.3)                        # equiv_star        星级和巅峰分计算得的等价星级     0.3
+                * pow(sigmoid(MVPRate), 4)                  # MVPRate           MVP率                          4
+                * pow((PowerNum / 10000), 0.85)             # PowerNum          战斗力                         0.85
+                * pow(avgScore, 1)                          # avgScore          该英雄历史场次平均评分           1
+                * pow(sigmoid(HeroShowCnt / 10), 1.3)       # HeroShowCnt       该英雄历史场次数                 1.3
+                * pow(sigmoid(heroPower/10000), 2)         # heroPower         该英雄当前战力                   2
+                * auth_coeff                                # auth_coeff        营地未授权的折扣系数             1
+            )
+            # 指标1.5倍的等价条件
+            # 王者0星 巅峰1200分 -> 王者50星 巅峰1600分
+            # MVP率 30% -> 56%
+            # 战斗力 50000 -> 80000
+            # 本局使用英雄的平均评分 8分 -> 12分
+            # 本局使用英雄的总场次 10场 -> 300场
+            # 本局使用的英雄的战力 1000 -> 6000 -> 13000
+
+            # 生成图表中
+            # 卡片右上角红色角标：营地未授权
+            # 玩家卡片背景色：红色，低于所有玩家历史平均水平；绿色，高于所有玩家历史平均水平；颜色越深，差值越大
+            # 底韵值：以该局最高玩家为100%计算
+            ret_level+=single_level
+            gen_inst.add_player(
+                nickname=nickname,
+                is_auth=is_auth,
+                is_my_side=is_my_side,
+                winNum=winNum,
+                loseNum=loseNum,
+                avgScore=avgScore,
+                winRate=winRate,
+                avatarUrl=player_avatar_url,
+                starNum=starNum,
+                peakScore=peakScore,
+                PowerNum=PowerNum,
+                TotalCnt=TotalCnt,
+                MVPCnt=MVPCnt,
+                rankName=rankName,
+                rankStar=rankStar,
+                single_level=single_level,
+                HeroAvatar=heroAvatar,
+                HeroPower=heroPower,
+                HeroTag=heroTag
+            )
+        return ret_level,auth_cnt,req_error
+
+    last_btl_info=None
+    for item in dmc.last_request_btllist[::-1]: 
+        if (check_btl_official_with_matching(item["MapName"])):
+            last_btl_info=item
+            break
+    if (not last_btl_info): return None
+    res=wzry_get_official(reqtype="btldetail",**last_btl_info['Params'],roleid=dmc.last_request_roleid)
+    if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None
+    my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
+    op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
+
+    my_side_total_level,my_side_auth_cnt,my_side_req_error=get_level(my_side_detail,1)
+    op_side_total_level,op_side_auth_cnt,op_side_req_error=get_level(op_side_detail,0)
+
+    delta_level=my_side_total_level-op_side_total_level
+
+    # req_err_msg=""
+    # for i in my_side_req_error:
+    #     req_err_msg.append()
+    snd_msg=(
+        f"实力天平倾斜度：{round(delta_level,2)}\n"
+        f"我方底蕴：{round(my_side_total_level,2)}\n"
+        f"对方底蕴：{round(op_side_total_level,2)}\n"
+        f"{server_domain}/rcalc"
+    )
+    save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
+    out_path, ok = gen_inst.gen(save_path)
+    return snd_msg,save_path
+            
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
     from .zfile import readerl
     from .zfile import writerl
