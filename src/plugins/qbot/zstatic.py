@@ -42,4 +42,8 @@ with open('config.yaml', 'r') as file:
 # 引入程序静态变量
 with open('variables_static.json', 'r', encoding='utf-8') as file:
     varia = json.load(file)
+for heroid,heroname in varia["HeroList"].items():
+    varia["HeroNames"].append(heroname)
+for heroid,heroname in varia["HeroName_replacements"].items():
+    varia["HeroNames"].append(heroname)
 globals().update(varia)

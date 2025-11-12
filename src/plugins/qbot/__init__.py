@@ -25,7 +25,6 @@ redis_path=str(os.environ.get('REDIS_CONF'))
 with open(redis_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 globals().update(varia)
-
 dmc.redis_deamon= redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
 dmc.export_btldetail_lock=threading.Lock()
 dmc.LastBtlMsgTime=str_to_time("2025-01-01 00:00:00")

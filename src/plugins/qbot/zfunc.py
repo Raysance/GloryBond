@@ -638,9 +638,45 @@ def heropower_process(rcv_msg):
         # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
     wait()
     return ret_text
-def allhero_process(rcv_msg):
+def herostatistics_process(rcv_msg):
     from .zapi import wzry_get_official
     from .ztime import wait
+
+    matching_name=extract_name(rcv_msg)
+    if (matching_name=="name_error"): return None
+    userid=userlist[matching_name]
+    roleid=roleidlist[matching_name]
+    heroid,heroname=extract_heroname(rcv_msg)
+
+    res=wzry_get_official(reqtype="herostatistics",userid=userid,roleid=roleid,heroid=heroid)
+    # print(res)
+    ret_text=""
+    total_cnt=int(res["heroInfo"]["winNum"])+int(res["heroInfo"]["failNum"])
+    win_rate=(int(res["heroInfo"]["winNum"])/total_cnt) if total_cnt else 0
+    month_cnt=len(res["zjList"])
+    month_mvp=int(res["heroInfo"]["mvpCount"])
+    month_mvp_rate=(int(res["heroInfo"]["mvpCount"])/month_cnt) if month_cnt else 0
+    month_medal=(int(res["heroInfo"]["goldCount"])+int(res["heroInfo"]["silverCount"])+int(res["heroInfo"]["bestCount"]))
+    month_medal_rate=(month_medal/month_cnt) if month_cnt else 0
+    heropower=res["powerData"][-1]["value"]
+    month_heropower_incre=res["powerData"][-1]["value"]-res["powerData"][0]["value"]
+    medal_infos=""
+    if (res["medalList"]):
+        for medal_info in res["medalList"]:
+            medal_infos+=f"{medal_info["UserMedalInfo"]}\n"
+    ret_text+=(
+        f"{namenick[matching_name]}的{heroname}：\n"
+        f"当前战力：{heropower}\n"
+        f"{medal_infos}\n"
+        f"总场次：{total_cnt}, 总胜率：{round(win_rate * 100, 2)}%\n\n"
+        f"近一月:\n  战力变化：{month_heropower_incre:+d}\n"
+        # f"  MVP率：{round(month_mvp_rate*100,2)}%，牌率：{round(month_medal_rate*100,2)}%"
+        f"  MVP：{month_mvp}，牌数：{month_medal}"
+    )
+    return ret_text
+def allhero_process(rcv_msg):
+    from .zapi import wzry_get_official
+    from .ztime import waitx
 
     matching_name=extract_name(rcv_msg)
     if (matching_name=="name_error"): return None
@@ -726,6 +762,7 @@ def coplayer_process(rcv_msg):
             PowerNum=70000  # 总战斗力
             TotalCnt=1000   # 总场次
             MVPCnt=100      # 总MVP场次
+            MVPRate=0.1
             heroPower=1000
             rankName="未知段位"
             rankStar=0
@@ -763,7 +800,8 @@ def coplayer_process(rcv_msg):
                 Powerinfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 304]) else None)
                 TotalNumInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 401]) else None)
                 MVPInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 408]) else None)
-                player_avatar_url=RoleInfo.get("roleIcon","")
+                if (RoleInfo):
+                    player_avatar_url=RoleInfo.get("roleIcon","")
                 if (rankInfo):
                     rankName=rankInfo["name"]
                     rankStar=int(json.loads(rankInfo["param1"])["rankingStar"])
@@ -772,7 +810,8 @@ def coplayer_process(rcv_msg):
                 if (Powerinfo): PowerNum=int(Powerinfo["content"])
                 if (TotalNumInfo): TotalCnt=int(TotalNumInfo["content"])
                 if (MVPInfo): MVPCnt=int(MVPInfo["content"])
-
+                if (TotalNumInfo and MVPInfo): MVPRate=MVPCnt/TotalCnt
+                else: MVPRate=0.2
                 if (heropower_res):
                     for hero in heropower_res['heroList']:
                         try:
@@ -783,7 +822,6 @@ def coplayer_process(rcv_msg):
                                 break
                         except Exception as e:
                             pass
-            MVPRate=min(MVPCnt/TotalCnt,1)                         # MVP率
             HeroShowCnt=loseNum+winNum                      # 该玩家此英雄的出场局数
             auth_coeff=1 if is_auth else 0.6                # 为未授权加一个折扣
             equiv_star=(starNum-25)+(peakScore-1200)/15.0   # 巅峰分与星数折算成一个综合星级
@@ -794,7 +832,7 @@ def coplayer_process(rcv_msg):
                 * pow((PowerNum / 10000), 0.85)             # PowerNum          战斗力                         0.85
                 * pow(avgScore, 1)                          # avgScore          该英雄历史场次平均评分           1
                 * pow(sigmoid(HeroShowCnt / 10), 1.3)       # HeroShowCnt       该英雄历史场次数                 1.3
-                * pow(sigmoid(heroPower/10000), 2)         # heroPower         该英雄当前战力                   2
+                * pow(sigmoid(heroPower/10000), 2)          # heroPower         该英雄当前战力                   2
                 * auth_coeff                                # auth_coeff        营地未授权的折扣系数             1
             )
             # 指标1.5倍的等价条件
@@ -823,7 +861,7 @@ def coplayer_process(rcv_msg):
                 peakScore=peakScore,
                 PowerNum=PowerNum,
                 TotalCnt=TotalCnt,
-                MVPCnt=MVPCnt,
+                MVPCnt=TotalCnt*MVPRate,
                 rankName=rankName,
                 rankStar=rankStar,
                 single_level=single_level,
@@ -1144,6 +1182,14 @@ def export_btldetail(gameinfo,roleid):
         res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
         writerl(savepath,res)
     return
+def extract_heroname(msg):
+    for heroid,heroname in HeroList.items():
+        if (heroname in msg):
+            return heroid,heroname
+    for heroid,heroname in HeroName_replacements.items():
+        if (heroname in msg):
+            return heroid,HeroList[heroid]
+    return None
 # 配置定时任务
 async def scheduler_func():
     scheduler = BackgroundScheduler(timezone='Asia/Shanghai')

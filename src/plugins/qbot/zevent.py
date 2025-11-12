@@ -14,13 +14,18 @@ from nonebot.adapters.onebot.v11 import Bot, Event, Message,MessageEvent,Message
 from nonebot.adapters import MessageTemplate
 from nonebot.adapters.onebot.v11.event import PokeNotifyEvent
 from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command,on_regex,on_fullmatch
+from nonebot.rule import Rule
 
 async def judge_to_me(event)->bool:
     # return event.get_plaintext().startswith("#") or "group_id" not in event
     return event.get_plaintext().startswith("#")
 async def judge_name(event)->bool:
     return "示例玩家41" not in event.get_plaintext()
-
+async def judge_herostatistics_query(event)->bool:
+    rcv_msg=event.get_plaintext()
+    if ("的" not in rcv_msg): return False
+    if (len(rcv_msg)>=10): return False
+    return True
 async def judge_super(event)->bool:
     return str(super_id)==str(event.get_user_id())
 async def judge_unsuper(event)->bool:
@@ -40,7 +45,7 @@ _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 
-_blocked=on_message(rule=to_me()&check_repair&judge_unsuper,priority=2, block=True)
+_blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
 
 _show_code=on_keyword({"code"},rule=judge_to_me,priority=3, block=True)
 _empty_cache = on_keyword({"empty_cache"},rule=judge_to_me,priority=3, block=True)
@@ -55,6 +60,7 @@ _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
+_herostatistics=on_keyword(set(HeroNames),rule=Rule(judge_to_me,judge_herostatistics_query),priority=4, block=True)
 # _allhero=on_keyword(set(allhero_keywords),rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
@@ -444,6 +450,18 @@ async def f_heropower(bot,event):
     snd_msg=heropower_process(rcv_msg)
     
     await _heropower.send(snd_msg)
+@_herostatistics.handle()
+async def f_herostatistics(bot,event):
+    from .zfunc import herostatistics_process
+    from .zfunc import qid2nick
+
+    userqid=event.get_user_id()
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    
+    snd_msg=herostatistics_process(rcv_msg)
+    
+    await _heropower.send(snd_msg)
+
 # @_allhero.handle()
 # async def f_allhero(bot,event):
 #     from .zfunc import allhero_process

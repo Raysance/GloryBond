@@ -9,7 +9,7 @@ from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=3, period=1)
-def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1):
+def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1):
     roleid=str(roleid)
     userid=str(userid)
     btldetail_url = "https://kohcamp.qq.com/game/battledetail"
@@ -18,6 +18,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
     season_url = "https://kohcamp.qq.com/game/curseasonpage"
     heropower_url = "https://kohcamp.qq.com/game/profile/herolist"
     allhero_url= "https://ssl.kohsocialapp.qq.com/play/h5getherolist"
+    herostatistics_url="https://kohcamp.qq.com/gametoolbox/hero/record/pagedetails"
     headers = {
         "Host": "kohcamp.qq.com",
         "istrpcrequest": "true",
@@ -120,6 +121,14 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         'token': confs["wzry"]["token"],
         'userId': confs["wzry"]["userid"]
     }
+    herostatistics_data={
+        "recommendPrivacy": 0,
+        "toOpenid": confs["wzry"]["openid"],
+        "roleId": roleid,
+        "roleName": "",
+        "heroid": heroid,
+        "h5Get": 1
+    }
     match reqtype:
         case "btldetail":
             url=btldetail_url
@@ -139,7 +148,9 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         case "allhero":
             url=allhero_url
             data=allhero_data
-
+        case "herostatistics":
+            url=herostatistics_url
+            data=herostatistics_data
     retry_time=3
     error_msg=""
     while(retry_time):
