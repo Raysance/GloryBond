@@ -516,7 +516,7 @@ def single_process(rcv_msg):
     return [snd_msg,pokename,exist_battle,history_query]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
     from .zfunc import Analyses
-    from .ztime import wait
+    from .ztime import short_wait
 
     snd_msg=" "
     if ("b" in rcv_msg):
@@ -543,7 +543,7 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
             double_player=[]
             for player in k: double_player.append(player)
             snd_msg+=f"{namenick[double_player[0]]}与{namenick[double_player[1]]}：{str(int(v))}\n"
-    wait()
+    short_wait()
     return snd_msg
 def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False):
     from .zapi import wzry_get_official
@@ -617,7 +617,7 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     # return linkurl,picpath,det_message
 def heropower_process(rcv_msg):
     from .zapi import wzry_get_official
-    from .ztime import wait
+    from .ztime import short_wait
 
     matching_name=extract_name(rcv_msg)
     if (matching_name=="name_error"): return None
@@ -636,11 +636,11 @@ def heropower_process(rcv_msg):
             pass
         # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
         # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
-    wait()
+    short_wait()
     return ret_text
 def herostatistics_process(rcv_msg):
     from .zapi import wzry_get_official
-    from .ztime import wait
+    from .ztime import short_wait
 
     matching_name=extract_name(rcv_msg)
     if (matching_name=="name_error"): return None
@@ -673,6 +673,7 @@ def herostatistics_process(rcv_msg):
         # f"  MVP率：{round(month_mvp_rate*100,2)}%，牌率：{round(month_medal_rate*100,2)}%"
         f"  MVP：{month_mvp}，牌数：{month_medal}"
     )
+    short_wait()
     return ret_text
 def allhero_process(rcv_msg):
     from .zapi import wzry_get_official
@@ -1077,7 +1078,7 @@ def get_emoji(txt):
     res=int(ai_api(pmpt,temperature=2))
     return res
 def get_emoji_url(index):
-    emoji_url=f"http://{server_ip}/doraemon_emojis/{index}.jpg"
+    emoji_url=f"http://{server_domain}/doraemon_emojis/{index}.jpg"
     return emoji_url
 def extract_url_params(url):
     from urllib.parse import urlparse, parse_qs
@@ -1183,13 +1184,27 @@ def export_btldetail(gameinfo,roleid):
         writerl(savepath,res)
     return
 def extract_heroname(msg):
+    
+    if ("轮椅" in msg):
+        heroid=-1
+        while(True):
+            heroid = random.choice(list(HeroList))
+            heroname=HeroList[heroid]
+            if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元射","艾琳"]):break
+        return heroid,heroname
+    if ("下水道" in msg):
+        heroid=-2
+        while(True):
+            heroid = random.choice(list(HeroList))
+            heroname=HeroList[heroid]
+            if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真"]):break
+        return heroid,heroname
     for heroid,heroname in HeroList.items():
         if (heroname in msg):
             return heroid,heroname
     for heroid,heroname in HeroName_replacements.items():
         if (heroname in msg):
             return heroid,HeroList[heroid]
-    return None
 # 配置定时任务
 async def scheduler_func():
     scheduler = BackgroundScheduler(timezone='Asia/Shanghai')

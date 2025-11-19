@@ -8,8 +8,8 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=3, period=1)
-def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1):
+@limits(calls=4, period=1)
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1):
     roleid=str(roleid)
     userid=str(userid)
     btldetail_url = "https://kohcamp.qq.com/game/battledetail"

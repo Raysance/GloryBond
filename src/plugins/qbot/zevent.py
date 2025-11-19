@@ -142,7 +142,7 @@ async def f_repair(bot,event):
 @_show_code.handle()
 async def f_show_code(bot,event):
     await _show_code.send(Message("QQBot code(在浏览器中打开)：👇"))
-    await _show_code.send(Message(server_ip)+"/pycode/")
+    await _show_code.send(Message(server_domain)+"/pycode/")
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
@@ -257,7 +257,7 @@ async def f_forever_mem(event):
 @_manual.handle()
 async def f_manual(event):
     log_message("CMD: MANUAL")
-    manual_url=f"http://{server_ip}/botmanual/manual.png"
+    manual_url=f"http://{server_domain}/botmanual/manual.png"
     data =  MessageSegment.text("👇机器人的使用指南\n")+MessageSegment.image(manual_url)
     await _manual.finish(data)
 
