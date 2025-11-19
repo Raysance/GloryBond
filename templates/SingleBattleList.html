@@ -1470,7 +1470,7 @@
                         if (cardElement.dataset.loading === 'true') {
                             return;
                         }
-                        const loadingText = cardElement.getAttribute('data-loading-text') || '正在打开战局详情...';
+                        const loadingText = cardElement.getAttribute('data-loading-text') || '获取数据中...';
                         showModalLinkLoading(loadingText);
                         markBattleCardLoading(cardElement);
                     } else {
@@ -2386,4 +2386,5 @@
             }
         </script>
     </body>
+    {% include 'footer_github.html' %}
     </html>

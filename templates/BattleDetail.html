@@ -1982,7 +1982,7 @@
                             return;
                         }
 
-                        const loadingText = this.getAttribute('data-loading-text') || '正在打开玩家战绩...';
+                        const loadingText = this.getAttribute('data-loading-text') || '获取数据中...';
                         showModalLinkLoading(loadingText);
                         markPlayerCardLoading(this);
                         
@@ -2442,4 +2442,5 @@
         </div>
     </div>
 </body>
+{% include 'footer_github.html' %}
 </html>
