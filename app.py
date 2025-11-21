@@ -13,7 +13,6 @@ import datetime
 import secrets
 import yaml
 import time
-from redis import ConnectionPool
 
 from utils import wzry_get_official
 from utils import writerl,file_exist,retry_until_true
@@ -35,10 +34,10 @@ globals().update(varia)
 
 # 初始化fastapi与redis
 app = FastAPI()
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
-r_liked_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_BTL,password=REDIS_PASSWORD)
-share_pool=ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_POOL,password=REDIS_PASSWORD)
-r_share_pool=redis.Redis(connection_pool=share_pool)
+r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
+r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
+r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
@@ -55,7 +54,7 @@ async def show_btlist(request:Request,key: str):
     # )
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r.get(key).decode('utf-8'))
+        text_content = json.loads(r_com.get(key).decode('utf-8'))
         local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
@@ -75,7 +74,7 @@ async def show_btlist(request:Request,key: str):
 async def show_btlperson(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r.get(key).decode('utf-8'))
+        text_content = json.loads(r_com.get(key).decode('utf-8'))
         local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
@@ -95,7 +94,7 @@ async def show_btlperson(request:Request,key: str):
 async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r.get(key).decode('utf-8'))
+        text_content = json.loads(r_com.get(key).decode('utf-8'))
         local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
@@ -113,7 +112,7 @@ async def show_btldetail(request:Request,key: str):
     )
 @app.get("/jump-btlperson", response_class=HTMLResponse)
 async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
-    if (not r.exists(key)):
+    if (not r_com.exists(key)):
         return templates.TemplateResponse(
             "err_illegal.html",{"request": request,"message":"key失效"}
         )
@@ -139,7 +138,7 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
     )
 @app.get("/jump-btldetail", response_class=HTMLResponse)
 async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not r.exists(key)):
+    if (not r_com.exists(key)):
         return templates.TemplateResponse(
             "err_illegal.html",{"request": request,"message":"key失效"}
         )
@@ -168,7 +167,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
     )
 @app.get("/like-btldetail", response_class=HTMLResponse)
 async def like_btldetail(request:Request,gameSeq: str,key:str):
-    if (not r.exists(key)):
+    if (not r_com.exists(key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -178,8 +177,8 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
             }
         )
     happen_time=int(time.time())
-    if (r_liked_btl.exists(gameSeq)):
-        result=r_liked_btl.delete(gameSeq) 
+    if (r_liked_set.exists(gameSeq)):
+        result=r_liked_set.delete(gameSeq) 
         success_data={
             "success": True,
             "message": "取消收藏成功",
@@ -189,7 +188,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
             }
         }
     else:
-        r_liked_btl.set(gameSeq,happen_time)
+        r_liked_set.set(gameSeq,happen_time)
         success_data={
             "success": True,
             "message": "收藏成功",
@@ -201,7 +200,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
     return JSONResponse(success_data)
 @app.get("/share-btldetail", response_class=HTMLResponse)
 async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not r.exists(key)):
+    if (not r_com.exists(key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -219,8 +218,7 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     }
     try:
         json_params = json.dumps(params)
-        result = r_share_pool.lpush("Shared_queue", json_params)
-        current_length = r_share_pool.llen("Shared_queue")
+        result = r_share_queue.lpush("Shared_queue", json_params)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -235,6 +233,47 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     success_data={
         "success": True,
         "message": "分享成功",
+        "data": {
+            "battle_id": gameSeq,
+            "timestamp": happen_time
+        }
+    }
+    return JSONResponse(success_data)
+@app.get("/analyze-btldetail", response_class=HTMLResponse)
+async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
+    if (not r_com.exists(key)):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "message": f"key失效",
+                "error_code": "LIKE_FAILED"
+            }
+        )
+    params={
+        "gameSvrId":gameSvr,
+        "gameseq":gameSeq,
+        "roleid":targetRoleId,
+        "relaySvrId":relaySvr,
+        "pvptype":battleType
+    }
+    try:
+        json_params = json.dumps(params)
+        result = r_analyze_queue.lpush("Analyze_queue", json_params)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "message": "数据库操作失败",
+                "error_code": "DB_OPERATION_ERROR"
+            }
+        )
+    
+    happen_time=int(time.time())
+    success_data={
+        "success": True,
+        "message": "分析底蕴中",
         "data": {
             "battle_id": gameSeq,
             "timestamp": happen_time
