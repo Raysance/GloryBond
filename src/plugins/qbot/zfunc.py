@@ -3,7 +3,6 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 
-import time
 import hashlib
 import secrets
 import redis
@@ -401,11 +400,12 @@ def single_process(rcv_msg):
     exist_battle=True
     show_map_cnt_total=False
     history_query=[]
+    last_official_btl_params=None
     if ("$" in rcv_msg): ai_feedback=False
 
     matching_name=extract_name(rcv_msg)
 
-    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<60): return None# 防止重复冗余请求
+    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<60): return None # 防止重复冗余请求
     dmc.LastSingleRequestTime[matching_name]=time_r()
 
     today_date=str(time_r().strftime("%Y-%m-%d"))
@@ -442,6 +442,7 @@ def single_process(rcv_msg):
         elif (history_query[0]==2): # 追溯时间段
             ai_feedback=False
             show_map_cnt_total=True
+            lost_info_date=[]
             traceback_from=history_query[1][0]
             traceback_to=history_query[1][1]
             if (traceback_from<traceback_to): traceback_to,traceback_from=traceback_from,traceback_to
@@ -452,7 +453,6 @@ def single_process(rcv_msg):
             traceback_date_to_path=os.path.join("history",traceback_date_to.strftime('%Y-%m-%d')+".json")
             if (not file_exist(traceback_date_to_path)): traceback_date_to=str_to_time(record_begin_date)
             
-            exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")}"
             gameinfo_raw=[]
             
             scan_date=traceback_date_from
@@ -460,16 +460,28 @@ def single_process(rcv_msg):
                 rough_filepath=os.path.join("history",scan_date.strftime('%Y-%m-%d')+".json")
                 if (file_exist(rough_filepath)):
                     histories=readerl(rough_filepath)
-                    gameinfo_raw.append([history for history in histories if (history["id"]==userlist[matching_name])][0])
+                    matching_history = next((history for history in histories if history["id"] == userlist[matching_name]), None)
+                    if matching_history is not None:
+                        gameinfo_raw.append(matching_history)
+                    else:
+                        lost_info_date.append(scan_date.strftime('%m-%d'))
                 scan_date=time_delta(scan_date,1)
+            lost_info_msg=f"(Lost {" ".join(lost_info_date)})" if lost_info_date else ""
+            exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")} {lost_info_msg}"
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
             wait()
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
-            dmc.last_request_btllist=gameinfo['details']
-            dmc.last_request_roleid=gameinfo['roleid']
-            dmc.LastBtlMsgTime=time_r()
-            dmc.LastBtlMsgStatus=True
+            if (gameinfo['details']):
+                for item in gameinfo['details'][::-1]: 
+                    if (check_btl_official_with_matching(item["MapName"])):
+                        last_official_btl_params=item["Params"]
+                        break
+                if (last_official_btl_params):
+                    dmc.LastBtlParams=last_official_btl_params
+                    dmc.LastBtlRoleId=roleidlist[matching_name]
+                    dmc.LastBtlMsgTime=time_to_str(time_r())
+                    dmc.LastBtlMsgStatus=True
             short_wait()
         website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single")
 
@@ -510,10 +522,10 @@ def single_process(rcv_msg):
             ai_feedback=False
             exist_battle=False
         pokename.append(gameinfo['nickname'])
-        ai_process_gameinfo={k: v for k, v in gameinfo.items() if k not in {"id","key","total_num","up_tournal","up_peak","star"}}
+        ai_process_gameinfo={k: v for k, v in gameinfo.items() if k in {"details"}}
         if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),rcv_msg],"single_player")+"\n"
 
-    return [snd_msg,pokename,exist_battle,history_query]
+    return [snd_msg,pokename,exist_battle,last_official_btl_params,roleidlist[matching_name]]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
     from .zfunc import Analyses
     from .ztime import short_wait
@@ -545,7 +557,7 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
             snd_msg+=f"{namenick[double_player[0]]}与{namenick[double_player[1]]}：{str(int(v))}\n"
     short_wait()
     return snd_msg
-def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False):
+def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False):
     from .zapi import wzry_get_official
     from .zfile import writerl
     from .zfunc import create_website
@@ -597,9 +609,9 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     else:
         wait()
     snd_message=""
-    if (show_profile):
+    if (from_web):
         snd_message+=(
-            f"--战绩来自网页分享--\n"
+            f"==网页分享的战局==\n"
             f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
             f"{res['head']['roleName']} {res['head']['matchDesc']} {team_contribute_text}\n"
             f"{linkurl}"
@@ -741,7 +753,7 @@ def watchbattle_process(rcv_msg):
     dmc.RTMPListener.screenshot()   # 截图一次
     wait()
     return save_path,None
-def coplayer_process(rcv_msg):
+def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=False):
     from .zapi import wzry_get_official
     from .zfunc import check_btl_official_with_matching
     from .tools.gen_coplayer_analyses import CoPlayerProcess
@@ -872,13 +884,8 @@ def coplayer_process(rcv_msg):
             )
         return ret_level,auth_cnt,req_error
 
-    last_btl_info=None
-    for item in dmc.last_request_btllist[::-1]: 
-        if (check_btl_official_with_matching(item["MapName"])):
-            last_btl_info=item
-            break
-    if (not last_btl_info): return None
-    res=wzry_get_official(reqtype="btldetail",**last_btl_info['Params'],roleid=dmc.last_request_roleid)
+
+    res=wzry_get_official(reqtype="btldetail",gameSvrId=gameSvrId, relaySvrId=relaySvrId, gameseq=gameseq, pvptype=pvptype,roleid=roleid)
     if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None
     my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
@@ -897,6 +904,7 @@ def coplayer_process(rcv_msg):
         f"对方底蕴：{round(op_side_total_level,2)}\n"
         f"{server_domain}/rcalc"
     )
+    if (from_web): snd_msg+="\n==网页分享的战局=="
     save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
     out_path, ok = gen_inst.gen(save_path)
     return snd_msg,save_path
@@ -1205,7 +1213,3 @@ def extract_heroname(msg):
     for heroid,heroname in HeroName_replacements.items():
         if (heroname in msg):
             return heroid,HeroList[heroid]
-# 配置定时任务
-async def scheduler_func():
-    scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
-    await scheduler.start()

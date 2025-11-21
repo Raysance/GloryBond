@@ -5,7 +5,6 @@ from . import zdynamic as dmc
 from datetime import timedelta
 from dateutil import parser
 
-import time
 
 def time_r(): # time_real
     time_real=datetime.datetime.now()
