@@ -12,3 +12,4 @@ redis_deamon_liked_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_
 redis_deamon_share_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 redis_deamon_analyze_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 MessageQueue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_MESSAGE_QUEUE)
+TodayHeroPool=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_TODAY_HERO_POOL)

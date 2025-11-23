@@ -1,0 +1,303 @@
+{
+  "skillList1": [
+    {
+      "skillId": 14800,
+      "heroId": 148,
+      "heroTitle": "姜子牙",
+      "title": "封神",
+      "icon": "8387.36b04ba5788331d2dc6489853956a605",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "若姜子牙对目标造成伤害后目标在3秒内死亡，目标会为自己提供1~3个经验光球，可提升自身经验。</br>姜子牙到达15级时会恢复封神之力，获得一次性技能<span style=\"color:#f7b400\">【赐封神力】</span>，并突破等级上限至25级，每次升级可获得20点法术攻击。</br>使用【赐封神力】选定一名队友对其封神，灌注1200经验，并使其也突破等级上限，且有概率获取经验光球。<span style=\"color:#f7b400\">若姜子牙在本局为辅助</span>，还会为根据该队友的职业提供额外封神效果。坦克：每级50生命值。法师：每级7法强。刺客：每级2移速。射手：每级2%攻速。战士：每级25生命和1移速。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "a1467b6h9xu",
+      "gameLabelList": [
+        {
+          "text": "经验",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "封神",
+          "bgColor": "#ffce49"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 14830,
+      "heroId": 148,
+      "heroTitle": "姜子牙",
+      "title": "神力封印",
+      "icon": "12850.41b947e96a4e1dfa20fe9556db044b83",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 8,
+      "loss": 40,
+      "desc": "姜子牙使用封神法杖对范围内的敌人进行神力封印，造成70<span style=\"color:#f264ff\">(+16%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，随后每0.4秒持续造成70<span style=\"color:#f264ff\">(+14%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，共造成7次伤害。封印期间的敌人将逐渐减少移速、物理和法术防御，最多将会减少<span style=\"color:#0dafeb\">30%移速、10%物理和法术防御</span>。技能命中后为自己提供<span style=\"color:#30b13a\">30%衰减移速</span>，持续1秒。",
+      "skillData1": "基础伤害|70|84|98|112|126|140",
+      "skillData2": "降低防御|10%|12%|14%|16%|18%|20%",
+      "skillData3": "降低移速|30%|36%|42%|48%|54%|60%",
+      "skillData4": "持续伤害|70|84|98|112|126|140",
+      "heroVideo": "r1467bl7o8b",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "弱化",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 14820,
+      "heroId": 148,
+      "heroTitle": "姜子牙",
+      "title": "打神之罚",
+      "icon": "11023.cc9eb669edd1b1b806730923e2e87708",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 11,
+      "loss": 55,
+      "desc": "姜子牙对妄为者施以神罚，释放法阵对范围内敌人造成3次伤害，每次造成60<span style=\"color:#f264ff\">(+12%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，短暂延迟后法阵爆炸，再造成300<span style=\"color:#f264ff\">(+70%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">0.75秒击飞</span>。",
+      "skillData1": "基础伤害|60|72|84|96|108|120",
+      "skillData2": "爆炸伤害|300|360|420|480|540|600",
+      "skillData3": "冷却时间|11|10.4|9.8|9.2|8.6|8",
+      "skillData4": "",
+      "heroVideo": "f1467krqob0",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 14812,
+      "heroId": 148,
+      "heroTitle": "姜子牙",
+      "title": "天人法则",
+      "icon": "10847.7457bf007e03fed5f9b36e4540c1c413",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 12,
+      "loss": 70,
+      "desc": "姜子牙朝指定方向聚集天地力量，向前方发射三道冲击波，前两道冲击波每道造成120<span style=\"color:#f264ff\">(+20%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，最后一道造成560<span style=\"color:#f264ff\">(+80%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。</br>姜子牙达到15级恢复封神之力后，【天人法则】<span style=\"color:#f7b400\">有20%的概率可以进入【天人形态】，移动释放冲击波</span>（每次升级还会再提升20%进入天人形态的概率）。</br>蓄力最多持续2秒，移动或使用三技能第二段会立刻释放冲击波，蓄力时间会影响冲击波的攻击距离，最远可达1800距离。冲击波可对路径上的建筑造成10%伤害。",
+      "skillData1": "前两道伤害|120|180|240",
+      "skillData2": "第三道伤害|560|840|1120",
+      "skillData3": "冷却时间|12|11|10",
+      "skillData4": "",
+      "heroVideo": "e1467hoxdeh",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 148,
+      "showRate": "0.6915",
+      "winRate": "0.5522",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 148,
+      "showRate": "0.1719",
+      "winRate": "0.5537",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 148,
+      "showRate": "0.036",
+      "winRate": "0.5615",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 5,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 5,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}

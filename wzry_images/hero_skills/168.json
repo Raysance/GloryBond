@@ -1,0 +1,307 @@
+{
+  "skillList1": [
+    {
+      "skillId": 16800,
+      "heroId": 168,
+      "heroTitle": "牛魔",
+      "title": "强力援护",
+      "icon": "0.3f1fe71b798ba6fb7d0b6261599c57d9",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "当牛魔附近800范围内有友方英雄时，牛魔和范围内血量最少的友方英雄会获得110点物理和法术防御。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "i14699rf6zc",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 16810,
+      "heroId": 168,
+      "heroTitle": "牛魔",
+      "title": "咆哮之斧",
+      "icon": "0.6714010053faebe2f29ef39b63386f6e",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 6,
+      "loss": 45,
+      "desc": "牛魔以大斧横劈，对范围内的敌人造成450<span style=\"color:#ff6600\">(+110%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>。同时<span style=\"color:#0dafeb\">标记</span>命中的英雄，持续4秒，持续时间结束后，造成40<span style=\"color:#ff6600\">(+20%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，标记英雄每次受到普通攻击会叠加一层，至多12层，每层印记额外提供20<span style=\"color:#ff6600\">(+10%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，印记每达到4、8、12层时，伤害会额外增加40<span style=\"color:#ff6600\">(+20%<span style=\"color: #ff6600;\">物理攻击</span>)</span>。",
+      "skillData1": "基础伤害|450|550|650|750|850|950",
+      "skillData2": "印记伤害|40|44|48|52|56|60",
+      "skillData3": "每层伤害|20|22|24|26|28|30",
+      "skillData4": "额外伤害|40|44|48|52|56|60",
+      "heroVideo": "t1469xh4iae",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "标记",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "冷却时间|6|5.8|5.6|5.4|5.2|5",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": "冷却时间|6|5.8|5.6|5.4|5.2|5"
+    },
+    {
+      "skillId": 16820,
+      "heroId": 168,
+      "heroTitle": "牛魔",
+      "title": "横行霸道",
+      "icon": "0.8bd44057d0c25dc6311ab647e9b25477",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 10,
+      "loss": 80,
+      "desc": "牛魔朝指定方向冲锋，对路径上的敌人造成450<span style=\"color:#ff6600\">(+90%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并<span style=\"color:#0dafeb\">击飞0.75秒</span>，敌人落地后会受到<span style=\"color:#0dafeb\">极限减速</span>，持续1秒。",
+      "skillData1": "基础伤害|450|530|610|690|770|850",
+      "skillData2": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "l1469oon68w",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 16830,
+      "heroId": 168,
+      "heroTitle": "牛魔",
+      "title": "山崩地裂",
+      "icon": "0.38d04c3170a9fe2edad58cf91e37a78e",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 40,
+      "loss": 110,
+      "desc": "牛魔短暂蓄力后劈开大地，对范围内敌人造成700<span style=\"color:#ff6600\">(+180%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并将其<span style=\"color:#0dafeb\">击飞1秒</span>并立即打断目标施法。</br>被劈开的大地将被撕裂5秒，对处于其中的敌人每0.5秒造成100<span style=\"color:#ff6600\">(+25%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并减少其<span style=\"color:#0dafeb\">30%移速</span>。",
+      "skillData1": "基础伤害|700|1050|1400",
+      "skillData2": "冷却时间|40|35|30",
+      "skillData3": "持续伤害|100|150|200",
+      "skillData4": "减少移速|30%|45%|60%",
+      "heroVideo": "j146965hb6a",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 168,
+      "showRate": "0.9414",
+      "winRate": "0.5515",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 168,
+      "showRate": "0.0046",
+      "winRate": "0.5548",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 168,
+      "showRate": "0.0042",
+      "winRate": "0.5592",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 6,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1510,
+          "num": 4,
+          "iId": 1273,
+          "iRuneId": 1510,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:无双",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+0.7%|暴击效果+3.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1510.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}

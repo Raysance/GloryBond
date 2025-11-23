@@ -6,6 +6,8 @@
 /history/battles/
 # /memory/*.json
 # /news/*.txt
+/wzry_images/skins/
+/herorank/
 
 .env
 config.yaml

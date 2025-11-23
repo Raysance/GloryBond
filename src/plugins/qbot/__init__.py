@@ -34,6 +34,6 @@ logging.basicConfig(
 # 加载昨日数据
 load_yesterday(1)
 init_fetch_news()
-
+init_fetch_heroranklist()
 if __name__=="__main__":
     pass

@@ -1,0 +1,307 @@
+{
+  "skillList1": [
+    {
+      "skillId": 13400,
+      "heroId": 134,
+      "heroTitle": "达摩",
+      "title": "真言·心经",
+      "icon": "0.fb29850299378e8e18f7e4bf31762636",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "达摩释放技能获得真言护体，增加32点物理防御和32点法术防御，持续5秒，最多叠加3层。</br>达摩释放一、三技能后获得1次强化普攻(若命中目标再额外获得1次)，强普额外造成28<span style=\"color:#ff6600\">(+30%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，并对目标造成<span style=\"color:#0dafeb\">15%减速</span>效果，持续2秒。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "t1469zp3r3n",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 13410,
+      "heroId": 134,
+      "heroTitle": "达摩",
+      "title": "真言·无相",
+      "icon": "0.ecaad319277f6911e21fc61b9b04c00f",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 2,
+      "loss": 35,
+      "desc": "达摩冲刺挥出冲拳，对路径上的敌人造成150<span style=\"color:#ff6600\">(+100%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并<span style=\"color:#0dafeb\">击飞目标0.5秒</span>。</br>每10秒可准备1次【真言·无相】，最多可以储备2次。</br><span style=\"color:#f7b400\">大招成功将敌人击退至墙体后，8秒内下一次【真言·无相】变成向指定方向飞踢，并附带目标<span style=\"color:#30b13a\">15%已损<span style=\"color: #30B13A;\">生命值</span></span>的物理伤害。</span>",
+      "skillData1": "基础伤害|150|180|210|240|270|300",
+      "skillData2": "存储间隔|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "冷却时间|2|1.9|1.8|1.7|1.6|1.5",
+      "skillData4": "",
+      "heroVideo": "a1469mtc6ia",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 13420,
+      "heroId": 134,
+      "heroTitle": "达摩",
+      "title": "真言·明王",
+      "icon": "0.0cb8eff2b9edd87ddee9877e6ee951f8",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 10,
+      "loss": 45,
+      "desc": "达摩每秒快速打出5拳，持续4秒，一共20拳。每一拳造成65<span style=\"color:#ff6600\">物理伤害</span>(对非英雄单位额外造成50%伤害)，并附带目标<span style=\"color:#30b13a\">0.35%<span style=\"color: #30B13A;\">生命值</span></span>(每100点<span style=\"color:#ff6600\">额外<span style=\"color: #ff6600;\">物理攻击</span></span>提升0.25%)的<span style=\"color:#ff6600\">物理伤害</span>，回复70<span style=\"color:#30b13a\">(+3%额外<span style=\"color: #30B13A;\">生命值</span>)</span>点生命。释放期间可以用左轮盘改变技能方向。</br><span style=\"color:#f7b400\">释放期间自动打出强化普攻，朝附近敌人挥出重拳，效果与被动强普一致。</span></br>仅命中非英雄单位时回复效果减半。</br>主动取消施放，根据施法时长执行50%~100%的冷却。",
+      "skillData1": "基础伤害|65|78|91|104|117|130",
+      "skillData2": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "回复生命|70|84|98|112|126|140",
+      "skillData4": "",
+      "heroVideo": "x14694jhvfd",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 13430,
+      "heroId": 134,
+      "heroTitle": "达摩",
+      "title": "真言·普渡",
+      "icon": "0.56e77391d4ef9e4a48bf26a30a3c7283",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 50,
+      "loss": 90,
+      "desc": "达摩向前挥出超强一拳，对范围内敌人造成200<span style=\"color:#ff6600\">(+100%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>和<span style=\"color:#0dafeb\">击退</span>。</br>如果被击退的敌人碰撞到墙体将会再次受到200<span style=\"color:#ff6600\">(+100%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并<span style=\"color:#0dafeb\">晕眩1秒</span>。",
+      "skillData1": "基础伤害|200|300|400",
+      "skillData2": "冷却时间|50|45|40",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "f1469j1qwh3",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 134,
+      "showRate": "0.8166",
+      "winRate": "0.5317",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 134,
+      "showRate": "0.0796",
+      "winRate": "0.5257",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 9,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1519,
+          "num": 1,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 134,
+      "showRate": "0.0233",
+      "winRate": "0.542",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}

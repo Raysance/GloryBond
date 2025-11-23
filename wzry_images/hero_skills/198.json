@@ -1,0 +1,348 @@
+{
+  "skillList1": [
+    {
+      "skillId": 19800,
+      "heroId": 198,
+      "heroTitle": "梦奇",
+      "title": "食梦",
+      "icon": "0.34bccb08f772e5a67bef7bc2e76531eb",
+      "type": "被动",
+      "label": "物理",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "梦奇释放技能会获得质量，每10点质量增加6点物理攻击、8点物理和法术防御。梦奇在战斗/非战斗状态下每秒消耗5/15点质量。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "w1142edrcny",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 19810,
+      "heroId": 198,
+      "heroTitle": "梦奇",
+      "title": "梦境萦绕",
+      "icon": "0.e95695868c7af807a24a74001842c609",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 6,
+      "loss": 0,
+      "desc": "梦奇操纵梦力获得175<span style=\"color:#ff6600\">(+150%<span style=\"color: #ff6600;\">物理攻击</span>)</span>点<span style=\"color:#30b13a\">护盾</span>，持续4秒，对周围敌人造成250<span style=\"color:#ff6600\">(+60%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，并增加30点质量。</br>梦奇普攻命中敌人可减少【梦境萦绕】0.5~1秒冷却时间。",
+      "skillData1": "基础伤害|250|300|350|400|450|500",
+      "skillData2": "护盾抵免|175|210|245|280|315|350",
+      "skillData3": "减少冷却|0.5|0.6|0.7|0.8|0.9|1",
+      "skillData4": "",
+      "heroVideo": "p11426udrir",
+      "gameLabelList": [
+        {
+          "text": "护盾",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "冷却",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 19821,
+      "heroId": 198,
+      "heroTitle": "梦奇",
+      "title": "梦力泡泡",
+      "icon": "0.72e6af80ff735829362f43515bcedffc",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 10,
+      "loss": 0,
+      "desc": "梦奇扔出一个梦力泡沫，并增加<span style=\"color:#30b13a\">30%移速</span>，持续2秒。泡泡首次回到身边时，梦奇会将其再次击向附近敌人。</br>梦力泡泡对路径上的敌人造成130<span style=\"color:#f264ff\">(+20%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">减速效果</span>(每25点物理攻击提升1%减速)，持续2秒，减速效果最多叠加4层。</br>梦奇回收梦力泡泡后获得30点质量，泡泡变成梦力爆弹，扔出后对命中的敌人造成100<span style=\"color:#f264ff\">(+24%<span style=\"color: #F264FF;\">法术攻击</span>)</span>~550<span style=\"color:#f264ff\">(+132%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。</br>梦力泡泡飞行时间越久，爆弹伤害越高，积蓄5.5秒可达到最高伤害。",
+      "skillData1": "基础伤害|130|152|174|196|218|240",
+      "skillData2": "爆弹伤害|100|128|156|184|212|240",
+      "skillData3": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData4": "",
+      "heroVideo": "j1142vhiy1w",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 19835,
+      "heroId": 198,
+      "heroTitle": "梦奇",
+      "title": "梦境环游",
+      "icon": "0.4ae0fa3472b9ab461da337a5bd4e29e9",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 40,
+      "loss": 0,
+      "desc": "梦奇进行一次梦境环游，对路径上的敌人造成150<span style=\"color:#ff6600\">(+30%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">(+30%<span style=\"color: #F264FF;\">法术攻击</span>)</span>点<span style=\"color:#f264ff\">法术伤害</span>，环游期间持续获得质量。开始环游时获得短暂霸体，环游停止时对周围敌人造成150<span style=\"color:#ff6600\">(+30%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">(+30%<span style=\"color: #F264FF;\">法术攻击</span>)</span>点<span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">0.75秒击飞</span>。</br>再次使用该技能可以立即停止环游。",
+      "skillData1": "基础伤害|150|225|300",
+      "skillData2": "击飞伤害|150|225|300",
+      "skillData3": "冷却时间|40|35|30",
+      "skillData4": "",
+      "heroVideo": "o1142nkanrv",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 198,
+      "showRate": "0.2474",
+      "winRate": "0.5696",
+      "runeList": [
+        {
+          "runeId": 1520,
+          "num": 10,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2504,
+          "num": 2,
+          "iId": 1196,
+          "iRuneId": 2504,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:夺萃",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2504.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 8,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 198,
+      "showRate": "0.1038",
+      "winRate": "0.6041",
+      "runeList": [
+        {
+          "runeId": 1505,
+          "num": 2,
+          "iId": 1272,
+          "iRuneId": 1505,
+          "szCate": "攻击|吸血",
+          "szTitle": "5级铭文:纷争",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2.5|物理吸血+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1505.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 8,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2504,
+          "num": 3,
+          "iId": 1196,
+          "iRuneId": 2504,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:夺萃",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2504.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 7,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 198,
+      "showRate": "0.0997",
+      "winRate": "0.5372",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 7,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 3,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    }
+  ]
+}

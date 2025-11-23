@@ -205,7 +205,8 @@ def ai_parser(user_query,msg_type,network=False):
             whole_query = user_query[0]
         case "urge_game":
             whole_query = urge_game_pmpt[0] + user_query[0] + urge_game_pmpt[1] + user_query[1] + urge_game_pmpt[2] + user_query[2] + urge_game_pmpt[3]
-
+        case "skill_advantage":
+            whole_query = skill_advantage_pmpt[0] + skill_advantage_pmpt[1] + user_query[0] + skill_advantage_pmpt[2] + user_query[1] +  skill_advantage_pmpt[3] + user_query[2] + skill_advantage_pmpt[4] + user_query[3] + skill_advantage_pmpt[5] + user_query[4]
     ai_back=""
     if (not network):
         ai_back=ai_api(whole_query)
@@ -221,11 +222,11 @@ def create_website(contents,sitetype):
     hash_key = hashlib.sha256(secrets.token_hex(16).encode()).hexdigest()[:16]
     dmc.redis_deamon.set(hash_key, contents, ex=REDIS_TEXT_EXPIRE_SECONDS)
     if (sitetype=="all"):
-        url=f"https://{server_domain}/btlist?key={hash_key}"
+        url=f"https://{confs["WebService"]["server_domain"]}/btlist?key={hash_key}"
     elif (sitetype=="single"):
-        url=f"https://{server_domain}/btlperson?key={hash_key}"
+        url=f"https://{confs["WebService"]["server_domain"]}/btlperson?key={hash_key}"
     elif (sitetype=="btldetail"):
-        url=f"https://{server_domain}/btldetail?key={hash_key}"
+        url=f"https://{confs["WebService"]["server_domain"]}/btldetail?key={hash_key}"
     else:
         url=f""
     return url
@@ -237,6 +238,12 @@ def qid2nick(userqid):
         return namenick[matching_nickname[0]]
     else:
         return ""
+def qid2realname(userqid):
+    matching_name = [key for key, val in qid.items() if str(val) == userqid]
+    if (matching_name):
+        return matching_name[0]
+    else:
+        return None
 
 def generate_greeting():
     from .ztime import time_r
@@ -663,8 +670,12 @@ def herostatistics_process(rcv_msg):
     res=wzry_get_official(reqtype="herostatistics",userid=userid,roleid=roleid,heroid=heroid)
     # print(res)
     ret_text=""
-    total_cnt=int(res["heroInfo"]["winNum"])+int(res["heroInfo"]["failNum"])
-    win_rate=(int(res["heroInfo"]["winNum"])/total_cnt) if total_cnt else 0
+    winNum=res["heroInfo"]["winNum"]
+    failNum=res["heroInfo"]["failNum"]
+    winNum=int(winNum) if winNum else 0
+    failNum=int(failNum) if failNum else 0
+    total_cnt=winNum+failNum
+    win_rate=(winNum/total_cnt) if total_cnt else 0
     month_cnt=len(res["zjList"])
     month_mvp=int(res["heroInfo"]["mvpCount"])
     month_mvp_rate=(int(res["heroInfo"]["mvpCount"])/month_cnt) if month_cnt else 0
@@ -685,8 +696,116 @@ def herostatistics_process(rcv_msg):
         # f"  MVP率：{round(month_mvp_rate*100,2)}%，牌率：{round(month_medal_rate*100,2)}%"
         f"  MVP：{month_mvp}，牌数：{month_medal}"
     )
-    short_wait()
+    
     return ret_text
+def todayhero_process(realname,ignore_limit=False,ai_comment=True):
+    from .ztime import short_wait
+    from .zfunc import herostatistics_process
+    def get_hero_name(realname,hero_name_candidates):
+        from .ztime import time_r,time_r_delta
+        from .zfunc import fetch_history
+        # 40% 随机
+        # 40% 最近
+        # 20% 榜单
+        hero_selected_way=random.random()
+        hero_name=""
+        selected_info={"way":"","details":[]}
+        if (hero_selected_way<0):
+            hero_name = random.choice(hero_name_candidates)
+            selected_info["way"]="RANDOM"
+            selected_info["details"]=[]
+        elif (hero_selected_way<0):
+            current_time=time_r()
+            trace_back_time=time_r_delta(delta=5)
+            game_details,_=fetch_history(userid=userlist[realname],start_date=trace_back_time,end_date=current_time)
+            game_details=game_details[realname]
+            recent_hero_name_candidates=set()
+            for game_detail in game_details:
+                if (game_detail["HeroName"] in hero_name_candidates):
+                    recent_hero_name_candidates.add(game_detail["HeroName"])
+            hero_name = random.choice(list(recent_hero_name_candidates))
+            selected_info["way"]="RECENT"
+            for game_detail in game_details:
+                if (game_detail["HeroName"]==hero_name):
+                    selected_info["details"].append({"MapName":game_detail["MapName"],"GameGrade":game_detail["GameGrade"]})
+        elif (hero_selected_way<1):
+            # print(dmc.herorank)
+            rankId_candidate=list(dmc.herorank.keys())
+            rankId=random.choice(rankId_candidate)
+            rankTitle=dmc.herorank[rankId]["title"]
+            hero_name=""
+            while(hero_name not in hero_name_candidates):
+                rankIndex=random.randint(0,10)
+                hero_name=dmc.herorank[rankId]["list"][rankIndex]["heroInfo"]["heroName"]
+            hero_rankinfo=dmc.herorank[rankId]["list"][rankIndex]
+            selected_info["way"]="HERORANK"
+            selected_info["details"].append({})
+            valid_data_type={"banRate":"被ban率","showRate":"出场率","winRate":"胜率","killNum":"场均击杀数","output":"场均输出","mvp":"MVP率","goldPlay":"金牌率"}
+            for k,v in hero_rankinfo.items():
+                if (k in valid_data_type and v!=0):
+                    selected_info["details"][0][valid_data_type[k]]=v
+        return hero_name,selected_info
+    def get_rand_hero_skin(realname):
+        skin_folder_path=os.path.join("wzry_images","skins")
+        hero_names = [d for d in os.listdir(skin_folder_path) 
+              if os.path.isdir(os.path.join(skin_folder_path, d))]
+        hero_name,selected_info=get_hero_name(realname,hero_names)
+        # hero_name = random.choice(hero_names)
+        hero_path = os.path.join(skin_folder_path, hero_name)
+        
+        skin_files = [f for f in os.listdir(hero_path) 
+                if os.path.isfile(os.path.join(hero_path, f))]
+        
+        skin_file = random.choice(skin_files)
+        skin_name=os.path.splitext(skin_file)[0]
+        pic_path = os.path.abspath(os.path.join(os.getcwd(),hero_path, skin_file))
+        return hero_name, skin_name,pic_path,selected_info
+    def get_hero_skin(realname,ignore_limit):
+        import redis
+        from .ztime import time_r
+        current_date = time_r().strftime("%Y-%m-%d")
+        if (ignore_limit): hero_info_str=None
+        else: hero_info_str = dmc.TodayHeroPool.get(realname)
+        if (hero_info_str):
+            hero_info = json.loads(hero_info_str)
+            stored_date = hero_info.get("date")
+            if stored_date == current_date:
+                return hero_info.get("heroname"),hero_info.get("skinname"),hero_info.get("picpath"),hero_info.get("selectinfo")
+            else:
+                pass
+        hero_name, skin_name,pic_path,selected_info=get_rand_hero_skin(realname)
+        new_data = {
+            "date": current_date,
+            "heroname": hero_name,
+            "skinname": skin_name,
+            "picpath":pic_path,
+            "selectinfo":selected_info
+        }
+        dmc.TodayHeroPool.set(realname, json.dumps(new_data))
+        return hero_name, skin_name,pic_path,selected_info
+    def get_hero_skills(heroid):
+        from .zfile import readerl
+        from .ztime import wait
+        all_skills=[]
+        
+        skill_raw=readerl(os.path.join('wzry_images','hero_skills',heroid+".json"))
+        for skill in skill_raw["skillList1"]:
+            all_skills.append(skill["desc"])
+        return all_skills
+
+    hero_name,skin_name,pic_path,selected_info=get_hero_skin(realname,ignore_limit=ignore_limit)
+    heroid=[heroid_ for heroid_,heroname_ in HeroList.items() if heroname_==hero_name][0]
+
+    hero_skills=get_hero_skills(heroid)
+    hero_statistics=herostatistics_process(f"{realname} {hero_name}")
+    dmc.use_mem=False
+    if (ai_comment): play_reason=ai_parser(msg_type="skill_advantage",user_query=[hero_name,namenick[realname],str(hero_skills),str(selected_info),hero_statistics])
+    else: play_reason=str(selected_info)
+    dmc.use_mem=True
+    short_wait()
+    former_msg=f"{namenick[realname]}的今日英雄：{hero_name}"
+    latter_msg=play_reason
+    return former_msg,latter_msg,pic_path
 def allhero_process(rcv_msg):
     from .zapi import wzry_get_official
     from .ztime import waitx
@@ -902,7 +1021,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
         f"实力天平倾斜度：{round(delta_level,2)}\n"
         f"我方底蕴：{round(my_side_total_level,2)}\n"
         f"对方底蕴：{round(op_side_total_level,2)}\n"
-        f"{server_domain}/rcalc"
+        f"{confs["WebService"]["server_domain"]}/rcalc"
     )
     if (from_web): snd_msg+="\n==网页分享的战局=="
     save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
@@ -1086,7 +1205,7 @@ def get_emoji(txt):
     res=int(ai_api(pmpt,temperature=2))
     return res
 def get_emoji_url(index):
-    emoji_url=f"http://{server_domain}/doraemon_emojis/{index}.jpg"
+    emoji_url=f"http://{confs["WebService"]["server_domain"]}/doraemon_emojis/{index}.jpg"
     return emoji_url
 def extract_url_params(url):
     from urllib.parse import urlparse, parse_qs

@@ -1,0 +1,296 @@
+{
+  "skillList1": [
+    {
+      "skillId": 15600,
+      "heroId": 156,
+      "heroTitle": "张良",
+      "title": "言灵·咒令",
+      "icon": "0.51281b377df36ed9be0604937659522c",
+      "type": "被动",
+      "label": "真实",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "张良对敌人造成两次普攻或技能伤害的时间间隔若小于1.5秒，则此间隔时间被视为“连续攻击状态”，该状态每积累满1.2秒，会使该敌人额外承受100<span style=\"color:#f264ff\">(+50%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#7c7c7c\">真实伤害</span>。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "b0894l1wpg0",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#d9d9d9"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 15610,
+      "heroId": 156,
+      "heroTitle": "张良",
+      "title": "言灵·壁垒",
+      "icon": "0.716dce1e0087cfe9651020b62b522b82",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 11,
+      "loss": 55,
+      "desc": "张良召唤法术壁垒，敌人触碰壁垒将受到360<span style=\"color:#f264ff\">(+75%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>、<span style=\"color:#0dafeb\">0.75秒晕眩</span>和之后<span style=\"color:#0dafeb\">0.5秒25%减速</span>，并撞碎这块壁垒。</br>重复触碰壁垒的敌人承受的伤害衰减50%，不再承受晕眩效果，但会承受1.25秒25%减速效果。",
+      "skillData1": "基础伤害|360|432|504|576|648|720",
+      "skillData2": "冷却时间|11|10.6|10.2|9.8|9.4|9",
+      "skillData3": "降低移速|25%|30%|35%|40%|45%|50%",
+      "skillData4": "",
+      "heroVideo": "l08948e4ovp",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 15620,
+      "heroId": 156,
+      "heroTitle": "张良",
+      "title": "言灵·命数",
+      "icon": "0.f6756179e7d324682513772863cea84c",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 2,
+      "loss": 55,
+      "desc": "张良召唤侵蚀法阵，法阵每0.5秒对踏入其中的敌人之一造成110<span style=\"color:#f264ff\">(+24%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。</br>同时最多存在2个法阵(法阵对小兵野怪额外造成50%伤害)。法阵每12秒存储一次(受到减CD属性影响)，最多存储3次，每个法阵持续5.5秒。张良在法阵中提升60点移速。法阵可提供视野。",
+      "skillData1": "基础伤害|110|132|154|176|198|220",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "b08945qtb64",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "视野",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 15630,
+      "heroId": 156,
+      "heroTitle": "张良",
+      "title": "言灵·操纵",
+      "icon": "0.a880cc01e00fa44c060497ac72a8a627",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 50,
+      "loss": 130,
+      "desc": "张良以言灵之术抓住一名敌方英雄，持续2.2秒，期间每0.5秒造成100<span style=\"color:#f264ff\">(+18%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，并<span style=\"color:#f7b400\">持续压制对方</span>。</br>技能完整释放后，还会在目标身下生成一个法术区域，对踏进其中的敌人造成240<span style=\"color:#f264ff\">(+30%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">0.75秒晕眩</span>。",
+      "skillData1": "基础伤害|100|150|200",
+      "skillData2": "冷却时间|50|45|40",
+      "skillData3": "二段伤害|240|300|360",
+      "skillData4": "",
+      "heroVideo": "a0894aejbeb",
+      "gameLabelList": [
+        {
+          "text": "压制",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 156,
+      "showRate": "0.3129",
+      "winRate": "0.5497",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 156,
+      "showRate": "0.2992",
+      "winRate": "0.5499",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 156,
+      "showRate": "0.2576",
+      "winRate": "0.5587",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    }
+  ]
+}

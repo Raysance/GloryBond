@@ -1,0 +1,364 @@
+{
+  "skillList1": [
+    {
+      "skillId": 51400,
+      "heroId": 514,
+      "heroTitle": "亚连",
+      "title": "剑啸",
+      "icon": "0.bf126658ad2ef6ccd113a7105a2cd9a8",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "亚连普攻速度极快，每次会使用双剑赤影和守心攻击两次，造成22<span style=\"color:#ff6600\">(+30%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#f264ff\">法术伤害</span>和22<span style=\"color:#ff6600\">(+30%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#ff6600\">物理伤害</span>，第一次攻击会追踪目标，第三次攻击会同时挥动双剑，造成33<span style=\"color:#ff6600\">(+45%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#7c7c7c\">真实伤害</span>，之后会进入较长的攻击间隔。普攻和技能命中敌方英雄时积攒怒气，最大提高自身40%物理穿透、法术穿透以及<span style=\"color:#f7b400\">20%免伤</span>，怒气积累满时一次性回复200<span style=\"color:#30b13a\">(+3%额外<span style=\"color: #30B13A;\">生命值</span>生命)</span>（血量越低回复越高，最高额外获得3倍回复），冷却8秒。</br>亚连的物理吸血享受75%效果，并作用于法术和真实伤害。亚连普攻只造成60%的法球效果。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "a1400x97j01",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "减伤",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#d9d9d9"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51411,
+      "heroId": 514,
+      "heroTitle": "亚连",
+      "title": "流星斩",
+      "icon": "0.9fcc284125da54d737ce9bfd33004427",
+      "type": "主动",
+      "label": "",
+      "coolDown": 5,
+      "loss": 0,
+      "desc": "亚连发起上挑，对前方目标造成85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和两次85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并<span style=\"color:#0dafeb\">击飞正前方目标0.75秒</span>，然后根据自身印记数进行追加攻击</br>一层：追加一次85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和一次85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span></br>二层：扩大击飞范围，额外再追加一次85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和一次85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，可以缓慢移动释放</br>三层：扩大击飞范围，额外再追加85<span style=\"color:#ff6600\">(+37%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#7c7c7c\">真实伤害</span>和170<span style=\"color:#ff6600\">(+75%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#7c7c7c\">真实伤害</span>，<span style=\"color:#f7b400\">可以缓慢移动释放并获得霸体</span>。</br>印记层数可通过普攻和三技能命中获取。流星斩可以触发50%普攻法球效果并可暴击吸血",
+      "skillData1": "冷却时间|5|4.8|4.6|4.4|4.2|4",
+      "skillData2": "基础伤害|85|102|119|136|153|170",
+      "skillData3": "最后一击伤害|170|204|238|272|306|340",
+      "skillData4": "",
+      "heroVideo": "m1400anlzvg",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#d9d9d9"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51420,
+      "heroId": 514,
+      "heroTitle": "亚连",
+      "title": "逐月闪",
+      "icon": "0.db1859ba4c5d28c4cb26ace737430489",
+      "type": "主动",
+      "label": "",
+      "coolDown": 2,
+      "loss": 0,
+      "desc": "亚连朝指定方向突进，对路径上的敌人造成100<span style=\"color:#ff6600\">(+25%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#ff6600\">物理伤害</span>和100<span style=\"color:#ff6600\">(+25%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#f264ff\">法术伤害</span>并减少<span style=\"color:#0dafeb\">15%移速</span>，持续1.5秒，并使得亚连获得10%移速，持续3秒，下3次普攻获得额外40%攻速。</br>每10秒可准备1次【逐月闪】(受冷却影响)，最多可储备2次【逐月闪】。",
+      "skillData1": "基础伤害|100|120|140|160|180|200",
+      "skillData2": "攻速加成|40%|48%|56%|64%|72%|80%",
+      "skillData3": "增加移速|10%|12%|14%|16%|18%|20%",
+      "skillData4": "降低移速|15%|18%|21%|24%|27%|30%",
+      "heroVideo": "e1400ldvi3v",
+      "gameLabelList": [
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51430,
+      "heroId": 514,
+      "heroTitle": "亚连",
+      "title": "落日斩",
+      "icon": "0.c831292da6085add53a391dc8d5e9a21",
+      "type": "主动",
+      "label": "",
+      "coolDown": 45,
+      "loss": 0,
+      "desc": "亚连选定目标英雄跃向天空，<span style=\"color:#f7b400\">不可选中</span>，持续1.5秒，期间可以移动，随后猛击大地对敌方英雄造成175<span style=\"color:#ff6600\">(+45%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#ff6600\">物理伤害</span>和175<span style=\"color:#ff6600\">(+45%<span style=\"color: #ff6600;\">物理攻击</span>)</span>的<span style=\"color:#f264ff\">法术伤害</span>，越靠近亚连受到的伤害越高，最多提高100%。每命中一个敌方英雄，亚连都会获得印记层数和怒气。</br>亚连会基于选取目标阵营来造成相应的效果，下落时为友方目标/自身增加640+8%额外<span style=\"color: #30B13A;\">生命值</span>护盾，每额外命中一个敌方英雄护盾值提高1/3。",
+      "skillData1": "冷却时间|45|40|35",
+      "skillData2": "物理伤害|175|250|325",
+      "skillData3": "法术伤害|0|0|0",
+      "skillData4": "护盾|640|960|1280",
+      "heroVideo": "i1400g5iquf",
+      "gameLabelList": [
+        {
+          "text": "免疫",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "护盾",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 514,
+      "showRate": "0.313",
+      "winRate": "0.5499",
+      "runeList": [
+        {
+          "runeId": 1503,
+          "num": 4,
+          "iId": 1270,
+          "iRuneId": 1503,
+          "szCate": "攻击",
+          "szTitle": "5级铭文:传承",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+3.2",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1503.png"
+        },
+        {
+          "runeId": 1512,
+          "num": 6,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 9,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 1,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 514,
+      "showRate": "0.1699",
+      "winRate": "0.5657",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 514,
+      "showRate": "0.1271",
+      "winRate": "0.551",
+      "runeList": [
+        {
+          "runeId": 1503,
+          "num": 6,
+          "iId": 1270,
+          "iRuneId": 1503,
+          "szCate": "攻击",
+          "szTitle": "5级铭文:传承",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+3.2",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1503.png"
+        },
+        {
+          "runeId": 1512,
+          "num": 4,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 9,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 1,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    }
+  ]
+}

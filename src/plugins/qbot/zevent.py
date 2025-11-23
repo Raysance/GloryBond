@@ -23,9 +23,9 @@ async def judge_herostatistics_query(event)->bool:
     if (len(rcv_msg)>=10): return False
     return True
 async def judge_super(event)->bool:
-    return str(super_id)==str(event.get_user_id())
+    return str(confs["QQBot"]["super_qid"])==str(event.get_user_id())
 async def judge_unsuper(event)->bool:
-    return str(super_id)!=str(event.get_user_id())
+    return str(confs["QQBot"]["super_qid"])!=str(event.get_user_id())
 async def check_repair(event)->bool:
     return dmc.repair
 async def check_btl_request(event)->bool:
@@ -57,6 +57,7 @@ _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=Tru
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
 _herostatistics=on_keyword(set(HeroNames),rule=Rule(judge_to_me,judge_herostatistics_query),priority=4, block=True)
+_todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
 # _allhero=on_keyword(set(allhero_keywords),rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
@@ -107,10 +108,10 @@ async def f_test(event):
 @_forward.handle()
 async def f_forward(bot,event):
     log_message("FORWARD")
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     snd_msg=event.get_plaintext().replace("##f","")
     log_message("SEND: "+snd_msg)
-    await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 @_pure_chat.handle()
 async def f_pure_chat(bot,event):
     from .zfunc import ai_parser
@@ -175,7 +176,7 @@ async def f_group_poke(bot, event):
                         short_wait()
                         await _group_poke.send(str(e))
                         wait()
-                        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+                        await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
                         return
                     txt_msg,pic_path=ret_msg
                     snd_msg=MessageSegment.text(txt_msg)+MessageSegment.image(pic_path)
@@ -287,7 +288,7 @@ async def f_atall(bot,event):
     # for name,id in qid.items():
     #     at_msg+=MessageSegment.at(str(id))
     # await _atall.send(at_msg)
-    urge_msg=ai_parser([str(datetime.datetime.now()),str(namenick),today_news],"urge_game")
+    urge_msg=ai_parser([str(datetime.datetime.now()),str(namenick),dmc.today_news],"urge_game")
     await _atall.send(urge_msg)
     return
 @_showonline.handle()
@@ -327,7 +328,7 @@ async def f_rnk(bot,event):
         short_wait()
         await _rnk.send(str(e))
         wait()
-        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+        await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
         return
     await _rnk.send(snd_msg)
     # if (groupqid):
@@ -363,7 +364,7 @@ async def f_single(bot,event):
         short_wait()
         await _single.send(str(e))
         wait()
-        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+        await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
         # await _single.send(traceback.format_exc())
         return
     if (not sgl_info): return
@@ -387,7 +388,7 @@ async def f_single(bot,event):
             short_wait()
             await _single.send(str(e))
             wait()
-            await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+            await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
             # await _single.send(traceback.format_exc())
             return
         if (btl_info):
@@ -437,14 +438,33 @@ async def f_heropower(bot,event):
 async def f_herostatistics(bot,event):
     from .zfunc import herostatistics_process
     from .zfunc import qid2nick
-
+    from .ztime import short_wait
+    
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
     
     snd_msg=herostatistics_process(rcv_msg)
-    
+    short_wait()
     await _heropower.send(snd_msg)
+@_todayhero.handle()
+async def f_todayhero(bot,event):
+    from .zfunc import qid2realname
+    from .zfunc import todayhero_process
 
+    userqid=event.get_user_id()
+    realname=qid2realname(userqid)
+    rcv_msg=event.get_plaintext()
+    if ("的" in rcv_msg): snd_msg="只能查询自己的今日英雄"
+    else:
+        ai_comment=False if ("$" in rcv_msg) else True
+        ignore_limit=True if ("%" in rcv_msg) else False
+        hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
+        snd_msg=MessageSegment.text(hero_msg)+MessageSegment.image(pic_path)+MessageSegment.text(play_reason)
+
+    await _todayhero.send(snd_msg)
+
+    # await _todayhero.send(today_news)
+    
 # @_allhero.handle()
 # async def f_allhero(bot,event):
 #     from .zfunc import allhero_process
@@ -521,7 +541,7 @@ async def f_chat(bot,event):
         short_wait()
         await _rnk.send(str(e))
         wait()
-        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+        await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
         return
     dmc.use_mem=ori_use_mem
     chats_dumper(userqid,rcv_msg,snd_msg)
@@ -544,8 +564,6 @@ def load_yesterday(imple_type=0):# 程序重启/定时任务
             for key,value in item.items():
                 dmc.infolast[item['key']][key]=value
     except Exception as e:
-        # await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=traceback.format_exc())
-        # await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message="昨日数据导入错误 "+str(e))
         return
     return
 
@@ -556,7 +574,7 @@ async def dump_today():
     from .zfunc import wzry_data
     from .zfile import writerl
 
-    # bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    # bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     dump_date=time_sul().strftime("%Y-%m-%d") # 因为提早了5分钟，所以时间就是在导出的日期
     log_message("DUMPBEGIN "+dump_date+".json")
     gameinfo=[]
@@ -565,7 +583,7 @@ async def dump_today():
         try:    
             gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json"))) # dump -- 每个人
         except Exception as e:
-            # await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=traceback.format_exc())
+            # await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=traceback.format_exc())
             continue
     # dmc.export_btldetail_lock.release()
     filename=os.path.join("history",dump_date+".json")
@@ -579,20 +597,20 @@ async def notify_msg():
     from .ztime import wait
 
     log_message("NOTIFY"+str(datetime.date.today()))
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     snd_msg="今日王者战报(每日23:30推送)：\n"
     try:
         snd_msg+=rnk_process(rcv_msg="",caller=None,show_zero=False,show_analyze=True)[0]
     except Exception as e:
         wait()
-        await bot.send_private_msg(user_id=super_id, message=traceback.format_exc())
+        await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
         return
     log_message("SEND: "+snd_msg)
-    await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 # @scheduler.scheduled_job("cron", hour=10, minute=2,second=50, id="test_msg")
 # async def test_msg():
-#     bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
-#     await bot.send_private_msg(user_id=super_id, message="Test OK.")
+#     bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
+#     await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message="Test OK.")
 # @scheduler.scheduled_job("cron", hour=9, minute=00,second=00, id="check_festival") # 每日9:00推送节日祝福
 async def check_festival():
     from .ztime import time_r
@@ -600,24 +618,14 @@ async def check_festival():
     
     log_message("FESTIVAL")
     snd_msg=""
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     today_date=time_r().strftime("%m-%d")
     ai_back=ai_parser([today_date],"festival")
     snd_msg=ai_back
     if (snd_msg!="NONE"):
         snd_msg="来自🤖的节日祝福：\n"+snd_msg
         log_message("SEND: "+snd_msg)
-        await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
-# @scheduler.scheduled_job("cron",hour=23,minute=6,second=16,id="raise_question")
-# async def raise_question():
-#     from .zfunc import ai_parser
-#     log_message("RAISE_QUESTION")
-#     bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
-#     snd_msg=ai_parser([],"raise_question")
-#     snd_msg+=raise_question_invis_char
-#     if (snd_msg!="NONE"):
-#         log_message("SEND: "+snd_msg)
-#         # await bot.send_group_msg(group_id=confs["QQBot"]["group_num"], message=snd_msg)
+        await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 @scheduler.scheduled_job("cron", hour=7, minute=00,second=00, id="fetch_news")  # 每日7点获取当日新闻，并入提示词
 async def fetch_news():
     from .zapi import ark_api
@@ -626,17 +634,16 @@ async def fetch_news():
     from .zfile import readera
     from .zfile import writera
     log_message("FETCH_NEWS")
-    global today_news
-    
+
     current_date = date_r()
     news_dir = "news"
     file_path = os.path.join(news_dir, f"{current_date}.txt")
     
     if file_exist(file_path):
-        today_news=readera(file_path)
+        dmc.today_news=readera(file_path)
     else:
-        today_news = ark_api(fetch_news_pmpt)
-        writera(file_path,today_news)
+        dmc.today_news = ark_api(fetch_news_pmpt)
+        writera(file_path,dmc.today_news)
         # print(file_path,today_news)
     return None
 
@@ -647,20 +654,36 @@ def init_fetch_news():
     from .zfile import readera
     from .zfile import writera
     log_message("FETCH_NEWS")
-    global today_news
     
     current_date = date_r()
     news_dir = "news"
     file_path = os.path.join(news_dir, f"{current_date}.txt")
     
     if file_exist(file_path):
-        today_news=readera(file_path)
+        dmc.today_news=readera(file_path)
     else:
-        today_news = ark_api(fetch_news_pmpt)
-        writera(file_path,today_news)
-        # print(file_path,today_news)
+        dmc.today_news = ark_api(fetch_news_pmpt)
+        writera(file_path,dmc.today_news)
     return None
-
+def init_fetch_heroranklist():
+    from .zapi import wzry_get_official
+    from .ztime import date_r
+    from .zfile import file_exist
+    from .zfile import readerl
+    from .zfile import writerl
+    
+    current_date = date_r()
+    herorank_dir = "herorank"
+    file_path = os.path.join(herorank_dir, f"{current_date}.json")
+    
+    if file_exist(file_path):
+        dmc.herorank=readerl(file_path)
+    else:
+        for _,rankId in hero_ranklist_rankids.items():
+            dmc.herorank[rankId]=wzry_get_official(reqtype="heroranklist",rankId=rankId,rankSegment=4)
+        writerl(file_path,dmc.herorank)
+    
+    return None
 @scheduler.scheduled_job("interval", seconds=3, id="web_shared_processor")
 async def run_web_shared_btls_processor():
     from .zfunc import btldetail_process
@@ -668,14 +691,14 @@ async def run_web_shared_btls_processor():
 
     result=dmc.redis_deamon_share_btl.rpop("Shared_queue")
     if (not result): return
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     params_json=result
     params=json.loads(params_json)
 
     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True)
     snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    # await bot.send_private_msg(user_id=super_id, message=snd_msg)
-    await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
+    # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 
     return 
 @scheduler.scheduled_job("interval", seconds=3, id="web_analyze_processor")
@@ -686,25 +709,25 @@ async def run_web_analyze_btls_processor():
 
     result = dmc.redis_deamon_analyze_btl.rpop("Analyze_queue")
     if (not result): return
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     params_json=result
     params=json.loads(params_json)
 
     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True,from_web=True)
     snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    await bot.send_private_msg(user_id=super_id, message=snd_msg)
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 
     btl_msg,pic_path=coplayer_process(**params,from_web=True)
     snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    # await bot.send_private_msg(user_id=super_id, message=snd_msg)
-    await bot.send_group_msg(group_id=confs["QQBot"]["main_num"], message=snd_msg)
-    
+    # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+
     return 
 @scheduler.scheduled_job("interval", seconds=5, id="message_sender")
 async def message_sender():
     result = dmc.MessageQueue.rpop("MessageQueue")
     if (not result): return
-    bot = nonebot.get_bot(confs["QQBot"]["qq_num"])
+    bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     msg_str=result
     msg_json=json.loads(msg_str)
     msg_type=msg_json.get("type",None)
@@ -719,12 +742,12 @@ def add_msg(form,content):
     result=None
     msg_jsons=[]
     if (form=="group"):
-        msg_jsons.append({"type":"group","toid":confs["QQBot"]["main_num"],"content":content})
+        msg_jsons.append({"type":"group","toid":confs["QQBot"]["group_qid"],"content":content})
     if (form=="superid"):
-        msg_jsons.append({"type":"private","toid":super_id,"content":content})
+        msg_jsons.append({"type":"private","toid":confs["QQBot"]["super_qid"],"content":content})
     if (form=="error"):
-        msg_jsons.append({"type":"group","toid":confs["QQBot"]["main_num"],"content":content[0]})
-        msg_jsons.append({"type":"private","toid":super_id,"content":content[1]})
+        msg_jsons.append({"type":"group","toid":confs["QQBot"]["group_qid"],"content":content[0]})
+        msg_jsons.append({"type":"private","toid":confs["QQBot"]["super_qid"],"content":content[1]})
     for msg_json in msg_jsons:
         result = dmc.MessageQueue.lpush("MessageQueue", json.dumps(msg_jsons))
     return result
