@@ -90,6 +90,26 @@ async def show_btlperson(request:Request,key: str):
             "key": key,
         }
     )
+@app.get("/btlperiod", response_class=HTMLResponse)
+async def show_btlperiod(request:Request,key: str):
+    today_date=datetime.datetime.now().strftime("%Y-%m-%d")
+    try:
+        text_content = json.loads(r_com.get(key).decode('utf-8'))
+        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
+        if (not file_exist(local_path)): raise Exception("File not exists.")
+    except Exception as e:
+        return templates.TemplateResponse(
+            "err_expired.html",{"request": request,}
+        )
+    return templates.TemplateResponse(
+        "SinglePeriodBattleList.html",
+        {
+            "request": request,
+            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
+            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "key": key,
+        }
+    )
 @app.get("/btldetail", response_class=HTMLResponse)
 async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
