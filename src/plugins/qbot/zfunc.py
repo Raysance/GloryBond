@@ -8,6 +8,7 @@ import secrets
 import redis
 from wcwidth import wcswidth
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def wzry_data(realname,savepath=None): # 单人的战绩parser
     def get_star_today_most_recent(today_details):
@@ -183,7 +184,7 @@ def ai_parser(user_query,msg_type,network=False):
             if dmc.use_mem:
                 whole_query += "这是之前的对话中用户的请求和你的回答：（" + "".join(dmc.ai_memory) + "）这是这次的请求，优先级最高，优先考虑（" + whole_query + "）" + chat_pmpt
         case "rnk":
-            whole_query += remind_news_pmpt + today_news + rnk_pmpt + user_query[0]
+            whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
         case "single_parser":
             whole_query += name_pmpt[0] + str(nameref) + name_pmpt[1]+ user_query[0] + name_pmpt[2]
         case "single_player":
@@ -223,70 +224,63 @@ def create_website(contents,sitetype):
     dmc.redis_deamon.set(hash_key, contents, ex=REDIS_TEXT_EXPIRE_SECONDS)
     if (sitetype=="all"):
         url=f"https://{confs["WebService"]["server_domain"]}/btlist?key={hash_key}"
-    elif (sitetype=="single"):
+    elif (sitetype=="single_oneday"):
         url=f"https://{confs["WebService"]["server_domain"]}/btlperson?key={hash_key}"
+    elif (sitetype=="single_period"):
+        url=f"https://{confs["WebService"]["server_domain"]}/btlperiod?key={hash_key}"
     elif (sitetype=="btldetail"):
         url=f"https://{confs["WebService"]["server_domain"]}/btldetail?key={hash_key}"
     else:
         url=f""
     return url
 
-
-def qid2nick(userqid):
-    matching_nickname = [key for key, val in qid.items() if str(val) == userqid]
-    if (matching_nickname and matching_nickname[0] in namenick):
-        return namenick[matching_nickname[0]]
-    else:
-        return ""
-def qid2realname(userqid):
-    matching_name = [key for key, val in qid.items() if str(val) == userqid]
-    if (matching_name):
-        return matching_name[0]
-    else:
-        return None
-
-def generate_greeting():
-    from .ztime import time_r
-    current_time = time_r()
-    current_hour = current_time.hour
-    if 5 <= current_hour < 12:
-        greeting = "早上好"
-    elif 12 <= current_hour < 14:
-        greeting = "中午好"
-    elif 14 <= current_hour < 18:
-        greeting = "下午好"
-    elif 18 <= current_hour < 23:
-        greeting = "晚上好"
-    else:  # 23:00 - 5:00
-        greeting = "这么晚还不睡吗"
-    return greeting
-
 def online_process():
     from .zapi import wzry_get_official
 
-    snd_msg=""
-    people_msg=""
-    online_cnt=0
-    for realname in userlist:
-        userid=userlist[realname]
-        roleid=roleidlist[realname]
+    def process_user(realname):
+        userid = userlist[realname]
+        roleid = roleidlist[realname]
+        
         try:
-            profile_res=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
+            profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
         except Exception as e:
-            pass
+            return {'online_cnt': 0, 'people_msg': ''}
+        
+        user_online_cnt = 0
+        user_people_msg = ''
+        
         for role_info in profile_res["roleList"]:
-            online=role_info["gameOnline"]
-            if (online):
-                btlist_res=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
-                online_cnt+=1
-                people_msg+=f"{role_info["roleName"]} {role_info["shortRoleJobName"]}\n"
-                if (btlist_res["isGaming"]):
-                    people_msg+=f"👀{btlist_res["gaming"]["mapName"]} {HeroList[str(btlist_res["gaming"]["heroId"])]} {btlist_res["gaming"]["duration"]}min\n"
-    if (online_cnt):
-        snd_msg=f"在线{online_cnt}人：\n"
-        snd_msg+=people_msg
+            online = role_info["gameOnline"]
+            if online:
+                btlist_res = wzry_get_official(reqtype="btlist", userid=userid, roleid=roleid)
+                user_online_cnt += 1
+                user_people_msg += f"{role_info['roleName']} {role_info['shortRoleJobName']}\n"
+                
+                if btlist_res["isGaming"]:
+                    user_people_msg += f"👀{btlist_res['gaming']['mapName']} {HeroList[str(btlist_res['gaming']['heroId'])]} {btlist_res['gaming']['duration']}min\n"
+        
+        return {'online_cnt': user_online_cnt, 'people_msg': user_people_msg}
+
+    snd_msg = ""
+    total_online_cnt = 0
+    total_people_msg = ""
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_user = {
+            executor.submit(process_user, realname): realname 
+            for realname in userlist
+        }
+        for future in as_completed(future_to_user):
+            result = future.result()
+            if result:
+                total_online_cnt += result['online_cnt']
+                total_people_msg += result['people_msg']
+    if total_online_cnt:
+        snd_msg = f"在线{total_online_cnt}人：\n"
+        snd_msg += total_people_msg
     else:
-        snd_msg="🐟🐟无人在线"
+        snd_msg = "🐟🐟无人在线"
+    
     return snd_msg
 def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=False):
     if (caller==None): caller=""
@@ -310,14 +304,21 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
     website_link=create_website(json.dumps({"filename":filename_hashed,"caller":caller,"time":now_time}),"all")
     gameinfo=[]
-    # dmc.export_btldetail_lock.lock()
-    for key in userlist:
+
+    def visit_wzry_data(key):
         try:
-            game_data=wzry_data(realname=key) # 忽略或许出现的局部错误
-            gameinfo.append(game_data)
+            game_data = wzry_data(realname=key)
+            return game_data
         except Exception as e:
-            continue
-    # dmc.export_btldetail_lock.release()
+            return None
+
+    gameinfo = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_key = {executor.submit(visit_wzry_data, key): key for key in userlist}
+        for future in as_completed(future_to_key):
+            result = future.result()
+            if result is not None:
+                gameinfo.append(result)
     if (not gameinfo):
         log_message(f"ERROR: 王者荣耀数据源错误")
         return
@@ -366,7 +367,6 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
         snd_msg+=website_link+"\n\n"
         if ("$" not in rcv_msg): snd_msg+=ai_parser([snd_msg],"rnk")
         return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick}]   
-
 def single_process(rcv_msg):
     def extract_history_query(s):
         import re
@@ -399,6 +399,7 @@ def single_process(rcv_msg):
     from .ztime import time_r
     from .ztime import calc_gap
     from .ztime import add_second
+    from .zfile import writerl
 
     snd_msg=""
     pokename=[]
@@ -412,7 +413,7 @@ def single_process(rcv_msg):
 
     matching_name=extract_name(rcv_msg)
 
-    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<60): return None # 防止重复冗余请求
+    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<30): return None # 防止重复冗余请求
     dmc.LastSingleRequestTime[matching_name]=time_r()
 
     today_date=str(time_r().strftime("%Y-%m-%d"))
@@ -445,6 +446,7 @@ def single_process(rcv_msg):
                 copyfile(detail_filepath,website_filepath)
             except Exception as e:
                 exhibit_date_woyear+=" 链接失效"
+            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_oneday")
             wait()
         elif (history_query[0]==2): # 追溯时间段
             ai_feedback=False
@@ -476,6 +478,8 @@ def single_process(rcv_msg):
             lost_info_msg=f"(Lost {" ".join(lost_info_date)})" if lost_info_date else ""
             exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")} {lost_info_msg}"
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
+            writerl(website_filepath,gameinfo_raw)
+            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_period")
             wait()
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
@@ -490,7 +494,7 @@ def single_process(rcv_msg):
                     dmc.LastBtlMsgTime=time_to_str(time_r())
                     dmc.LastBtlMsgStatus=True
             short_wait()
-        website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single")
+            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_oneday")
 
         win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
                       for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
@@ -529,8 +533,10 @@ def single_process(rcv_msg):
             ai_feedback=False
             exist_battle=False
         pokename.append(gameinfo['nickname'])
-        ai_process_gameinfo={k: v for k, v in gameinfo.items() if k in {"details"}}
-        if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),rcv_msg],"single_player")+"\n"
+        ai_process_gameinfo=[]
+        for detail in gameinfo['details']:
+            ai_process_gameinfo.append({k: v for k, v in detail.items() if k in {"GameTime","HeroName","MapName","StarAfterGame","PeakGradeAfterGame","PeakGradeBeforeGame","KillCnt","DeadCnt","AssistCnt","Result","GameGrade","Duration_Second","Others"}})
+        if (ai_feedback): snd_msg+=ai_parser([str(toon.encode(ai_process_gameinfo)),rcv_msg],"single_player")+"\n"
 
     return [snd_msg,pokename,exist_battle,last_official_btl_params,roleidlist[matching_name]]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
@@ -574,7 +580,6 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
 
     res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
     if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None,None
-    # print(res,gameSvrId,relaySvrId,gameseq,pvptype,roleid,gen_image)
     my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     my_team_total_money=0
     my_team_total_grade=0
@@ -633,7 +638,6 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
             f"戳一戳 来评估两方实力"
         )
     return snd_message,picpath
-    # return linkurl,picpath,det_message
 def heropower_process(rcv_msg):
     from .zapi import wzry_get_official
     from .ztime import short_wait
@@ -653,8 +657,6 @@ def heropower_process(rcv_msg):
             ret_text+=f"{hero['basicInfo']['title']}:   {hero['basicInfo']['heroFightPower']}\n   {region_name}  No.{hero['honorTitle']['rank']} \n"
         except Exception as e:
             pass
-        # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
-        # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
     short_wait()
     return ret_text
 def herostatistics_process(rcv_msg):
@@ -668,7 +670,6 @@ def herostatistics_process(rcv_msg):
     heroid,heroname=extract_heroname(rcv_msg)
 
     res=wzry_get_official(reqtype="herostatistics",userid=userid,roleid=roleid,heroid=heroid)
-    # print(res)
     ret_text=""
     winNum=res["heroInfo"]["winNum"]
     failNum=res["heroInfo"]["failNum"]
@@ -702,23 +703,30 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     from .ztime import short_wait
     from .zfunc import herostatistics_process
     def get_hero_name(realname,hero_name_candidates):
-        from .ztime import time_r,time_r_delta
+        from .ztime import time_r,time_delta
         from .zfunc import fetch_history
-        # 40% 随机
-        # 40% 最近
-        # 20% 榜单
+        # 5% 随机
+        # 65% 最近
+        # 30% 榜单
         hero_selected_way=random.random()
         hero_name=""
         selected_info={"way":"","details":[]}
-        if (hero_selected_way<0):
+        initial_time_to=time_r()
+        trace_back_time_to=initial_time_to
+        trace_back_time_from=time_delta(trace_back_time_to,-5)
+        game_details,_=fetch_history(userid=userlist[realname],start_date=trace_back_time_from,end_date=trace_back_time_to)
+        game_details=game_details[realname]
+        
+        if (realname in force_choice):
+            hero_name=force_choice[realname]
+            selected_info["way"]="RANDOM"
+            selected_info["details"]:[]
+            return hero_name,selected_info
+        if (hero_selected_way<0.05):
             hero_name = random.choice(hero_name_candidates)
             selected_info["way"]="RANDOM"
             selected_info["details"]=[]
-        elif (hero_selected_way<0):
-            current_time=time_r()
-            trace_back_time=time_r_delta(delta=5)
-            game_details,_=fetch_history(userid=userlist[realname],start_date=trace_back_time,end_date=current_time)
-            game_details=game_details[realname]
+        elif (hero_selected_way<0.7 and game_details):
             recent_hero_name_candidates=set()
             for game_detail in game_details:
                 if (game_detail["HeroName"] in hero_name_candidates):
@@ -740,7 +748,7 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
             hero_rankinfo=dmc.herorank[rankId]["list"][rankIndex]
             selected_info["way"]="HERORANK"
             selected_info["details"].append({})
-            valid_data_type={"banRate":"被ban率","showRate":"出场率","winRate":"胜率","killNum":"场均击杀数","output":"场均输出","mvp":"MVP率","goldPlay":"金牌率"}
+            valid_data_type={"banRate":"顶端排位被ban率","showRate":"顶端排位出场率","winRate":"顶端排位胜率","killNum":"顶端排位场均击杀数","output":"顶端排位场均输出","mvp":"顶端排位MVP率","goldPlay":"顶端排位金牌率"}
             for k,v in hero_rankinfo.items():
                 if (k in valid_data_type and v!=0):
                     selected_info["details"][0][valid_data_type[k]]=v
@@ -1027,7 +1035,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
     out_path, ok = gen_inst.gen(save_path)
     return snd_msg,save_path
-            
+
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
     from .zfile import readerl
     from .zfile import writerl
@@ -1192,6 +1200,33 @@ class Analyses:
         # print(player_intersection)
         return player_intersection
 
+def generate_greeting():
+    from .ztime import time_r
+    current_time = time_r()
+    current_hour = current_time.hour
+    if 5 <= current_hour < 12:
+        greeting = "早上好"
+    elif 12 <= current_hour < 14:
+        greeting = "中午好"
+    elif 14 <= current_hour < 18:
+        greeting = "下午好"
+    elif 18 <= current_hour < 23:
+        greeting = "晚上好"
+    else:  # 23:00 - 5:00
+        greeting = "这么晚还不睡吗"
+    return greeting
+def qid2nick(userqid):
+    matching_nickname = [key for key, val in qid.items() if str(val) == userqid]
+    if (matching_nickname and matching_nickname[0] in namenick):
+        return namenick[matching_nickname[0]]
+    else:
+        return ""
+def qid2realname(userqid):
+    matching_name = [key for key, val in qid.items() if str(val) == userqid]
+    if (matching_name):
+        return matching_name[0]
+    else:
+        return None
 def get_emoji(txt):
     from .zapi import ai_api
     from .zfile import readerl
@@ -1251,7 +1286,6 @@ def extract_name(origin_text):
 def merge_crossday_gamedata(gamedata):
     if (not gamedata): return {}
     res=gamedata[-1]
-    res["date"]=f"cross_day"
     res["gaming_info"]={}
     res["btl_aver"]=0
     if ("roleid" not in res): res["roleid"]=str(roleidlist[res["key"]])
@@ -1317,14 +1351,14 @@ def extract_heroname(msg):
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=HeroList[heroid]
-            if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元射","艾琳"]):break
+            if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元射","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
     if ("下水道" in msg):
         heroid=-2
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=HeroList[heroid]
-            if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真"]):break
+            if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
         return heroid,heroname
     for heroid,heroname in HeroList.items():
         if (heroname in msg):

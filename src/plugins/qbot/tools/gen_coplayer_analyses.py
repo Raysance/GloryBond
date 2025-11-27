@@ -7,6 +7,7 @@ import io
 import urllib.request
 from datetime import datetime
 from typing import List, Optional, Tuple, Iterable, cast
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps  # type: ignore
@@ -254,6 +255,45 @@ def _load_avatar_to_circle(src: Optional[str], diameter: int):
     return None
 
 
+def _batch_load_avatars(sources: List[Tuple[int, Optional[str]]], diameter: int) -> dict:
+    """并行批量加载头像，返回 {index: image} 字典。
+    
+    Args:
+        sources: [(index, url_or_path), ...] 列表
+        diameter: 圆形头像直径
+    
+    Returns:
+        {index: PIL.Image} 字典，加载失败的条目不包含在结果中
+    """
+    results = {}
+    
+    def load_single(idx, src):
+        img = _load_avatar_to_circle(src, diameter)
+        if img is not None:
+            return (idx, img)
+        return None
+    
+    # 过滤掉空源
+    valid_sources = [(idx, src) for idx, src in sources if src]
+    
+    if not valid_sources:
+        return results
+    
+    # 使用线程池并行加载
+    with ThreadPoolExecutor(max_workers=min(10, len(valid_sources))) as executor:
+        futures = {executor.submit(load_single, idx, src): (idx, src) for idx, src in valid_sources}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    idx, img = result
+                    results[idx] = img
+            except Exception:
+                pass
+    
+    return results
+
+
 def _load_hero_icon(url_or_path: Optional[str], size: Tuple[int, int]):
     """加载英雄头像图标，优先按自定义本地路径规则读取；失败则按常规 URL/本地读取。
     返回 RGBA 图像或 None。
@@ -290,6 +330,45 @@ def _load_hero_icon(url_or_path: Optional[str], size: Tuple[int, int]):
     except Exception:
         return None
     return None
+
+
+def _batch_load_hero_icons(sources: List[Tuple[int, Optional[str]]], size: Tuple[int, int]) -> dict:
+    """并行批量加载英雄头像，返回 {index: image} 字典。
+    
+    Args:
+        sources: [(index, url_or_path), ...] 列表
+        size: 图标尺寸 (width, height)
+    
+    Returns:
+        {index: PIL.Image} 字典，加载失败的条目不包含在结果中
+    """
+    results = {}
+    
+    def load_single(idx, src):
+        img = _load_hero_icon(src, size)
+        if img is not None:
+            return (idx, img)
+        return None
+    
+    # 过滤掉空源
+    valid_sources = [(idx, src) for idx, src in sources if src]
+    
+    if not valid_sources:
+        return results
+    
+    # 使用线程池并行加载
+    with ThreadPoolExecutor(max_workers=min(10, len(valid_sources))) as executor:
+        futures = {executor.submit(load_single, idx, src): (idx, src) for idx, src in valid_sources}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    idx, img = result
+                    results[idx] = img
+            except Exception:
+                pass
+    
+    return results
 
 
 def _rounded_rect_crop_rgba(im, size: Tuple[int, int], radius: int):
@@ -479,6 +558,18 @@ def generate_player_strength_image(
             return lines
 
         def render_column(col_x: int, players_list: List[PlayerInfo]):
+            # 预加载所有头像和英雄图标（并行）
+            avatar_d = 88
+            small_d = 28
+            
+            # 收集所有需要加载的资源
+            hero_sources = [(idx, p.hero_avatar_url) for idx, p in enumerate(players_list)]
+            avatar_sources = [(idx, p.avatar_path if p.auth is not False else None) for idx, p in enumerate(players_list)]
+            
+            # 并行加载
+            hero_images = _batch_load_hero_icons(hero_sources, (avatar_d, avatar_d))
+            avatar_images = _batch_load_avatars(avatar_sources, small_d)
+            
             for idx, p in enumerate(players_list):
                 card_top = start_y + idx * (card_h + gap)
                 card_left = col_x + 24
@@ -501,11 +592,10 @@ def generate_player_strength_image(
                     draw.polygon([(rx, ty), (rx - sz, ty), (rx, ty + sz)], fill=ACCENT_RED)
 
                 # 左侧主图：英雄头像（圆角方形），占据原头像位置
-                avatar_d = 88
                 avatar_x = card_xy[0] + 24
                 # 略微上移左侧元素（头像与文本整体）
                 avatar_y = card_top + (card_h - avatar_d) // 2 - 8
-                hero_raw = _load_hero_icon(p.hero_avatar_url, (avatar_d, avatar_d))
+                hero_raw = hero_images.get(idx)
                 if hero_raw is not None:
                     hero_round = _rounded_rect_crop_rgba(hero_raw, (avatar_d, avatar_d), radius=14)
                     im.paste(hero_round, (avatar_x, avatar_y), mask=hero_round)
@@ -538,9 +628,8 @@ def generate_player_strength_image(
                 text_x = avatar_x + avatar_d + 20
                 text_y = avatar_y
                 # 在名字左侧放置小的玩家头像（圆形）；未授权不显示该玩家头像
-                small_d = 28
                 unauthorized = (p.auth is False)
-                small_av = None if unauthorized else _load_avatar_to_circle(p.avatar_path, small_d)
+                small_av = None if unauthorized else avatar_images.get(idx)
                 name_x = text_x
                 if small_av is not None:
                     small_y = text_y + max(0, (30 - small_d) // 2)
@@ -646,7 +735,7 @@ def generate_player_strength_image(
         else:
             render_column(left_col_x, other_list)
     # 页脚（底部居中）
-    foot = "Data from 示例玩家52守卫🤖"
+    foot = "Data from 笙煎守味🤖"
     foot_bbox = draw.textbbox((0, 0), foot, font=sub_font)
     foot_w = foot_bbox[2] - foot_bbox[0]
     _safe_text(

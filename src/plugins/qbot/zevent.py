@@ -20,7 +20,7 @@ async def judge_to_me(event)->bool:
 async def judge_herostatistics_query(event)->bool:
     rcv_msg=event.get_plaintext()
     if ("的" not in rcv_msg): return False
-    if (len(rcv_msg)>=10): return False
+    if (len(rcv_msg)>=12): return False
     return True
 async def judge_super(event)->bool:
     return str(confs["QQBot"]["super_qid"])==str(event.get_user_id())
@@ -458,12 +458,16 @@ async def f_todayhero(bot,event):
     else:
         ai_comment=False if ("$" in rcv_msg) else True
         ignore_limit=True if ("%" in rcv_msg) else False
+        appoint_realname=True if ("~" in rcv_msg) else False
+        if (appoint_realname):
+            from .zfunc import extract_name
+            matching_name=extract_name(rcv_msg)
+            if (matching_name!="name_error"): 
+                realname=matching_name
         hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
         snd_msg=MessageSegment.text(hero_msg)+MessageSegment.image(pic_path)+MessageSegment.text(play_reason)
 
     await _todayhero.send(snd_msg)
-
-    # await _todayhero.send(today_news)
     
 # @_allhero.handle()
 # async def f_allhero(bot,event):
@@ -644,7 +648,6 @@ async def fetch_news():
     else:
         dmc.today_news = ark_api(fetch_news_pmpt)
         writera(file_path,dmc.today_news)
-        # print(file_path,today_news)
     return None
 
 def init_fetch_news():

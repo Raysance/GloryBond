@@ -652,7 +652,7 @@ class BattleUIGenerator:
             
             # 绘制底部信息
             draw.text((self.width // 2 - 100, current_y + 20), 
-                     'Data from 示例玩家52守卫🤖', 
+                     'Data from 笙煎守味🤖', 
                      fill=(150, 150, 150, 255), font=self.fonts['small'])
             
             # 保存图片
