@@ -8,8 +8,9 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=20, period=1)
+@limits(calls=10, period=1)
 def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1):
+    import time
     roleid=str(roleid)
     userid=str(userid)
     btldetail_url = "https://kohcamp.qq.com/game/battledetail"
@@ -173,7 +174,7 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         case "heroranklist":
             url=heroranklist_url
             data=heroranklist_data
-    retry_time=3
+    retry_time=5
     error_msg=""
     while(retry_time):
         response = requests.post(url, headers=headers, json=data)
@@ -182,6 +183,7 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         res=response.json().get("data",{})
         error_msg=response.json().get("returnMsg","")
         if res: break
+        time.sleep(0.5)
         retry_time-=1
     if (not retry_time): raise Exception(str("HOK: "+error_msg))
     return res

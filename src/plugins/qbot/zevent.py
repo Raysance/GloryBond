@@ -577,6 +577,7 @@ async def dump_today():
     from .ztime import time_sul
     from .zfunc import wzry_data
     from .zfile import writerl
+    import time
 
     # bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
     dump_date=time_sul().strftime("%Y-%m-%d") # 因为提早了5分钟，所以时间就是在导出的日期
@@ -584,8 +585,9 @@ async def dump_today():
     gameinfo=[]
     # dmc.export_btldetail_lock.lock()
     for key in userlist:
-        try:    
+        try:
             gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json"))) # dump -- 每个人
+            time.sleep(0.3)
         except Exception as e:
             # await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=traceback.format_exc())
             continue

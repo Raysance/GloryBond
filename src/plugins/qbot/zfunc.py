@@ -244,26 +244,43 @@ def online_process():
         try:
             profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
         except Exception as e:
-            return {'online_cnt': 0, 'people_msg': ''}
+            return {'online_cnt': 0, 'battle_info': None, 'nickname': ''}
         
         user_online_cnt = 0
-        user_people_msg = ''
+        user_battle_info = None
+        user_nickname = ''
         
         for role_info in profile_res["roleList"]:
             online = role_info["gameOnline"]
             if online:
+                if not user_nickname:
+                    user_nickname = role_info['roleName']
                 btlist_res = wzry_get_official(reqtype="btlist", userid=userid, roleid=roleid)
                 user_online_cnt += 1
-                user_people_msg += f"{role_info['roleName']} {role_info['shortRoleJobName']}\n"
                 
                 if btlist_res["isGaming"]:
-                    user_people_msg += f"👀{btlist_res['gaming']['mapName']} {HeroList[str(btlist_res['gaming']['heroId'])]} {btlist_res['gaming']['duration']}min\n"
+                    user_battle_info = {
+                        'battleId': btlist_res['gaming'].get('battleId', ''),
+                        'job': role_info['shortRoleJobName'],
+                        'mapName': btlist_res['gaming']['mapName'],
+                        'heroName': HeroList[str(btlist_res['gaming']['heroId'])],
+                        'duration': btlist_res['gaming']['duration']
+                    }
+                else:
+                    user_battle_info = {
+                        'battleId': None,
+                        'job': role_info['shortRoleJobName'],
+                        'mapName': None,
+                        'heroName': None,
+                        'duration': None
+                    }
         
-        return {'online_cnt': user_online_cnt, 'people_msg': user_people_msg}
+        return {'online_cnt': user_online_cnt, 'battle_info': user_battle_info, 'nickname': user_nickname}
 
     snd_msg = ""
     total_online_cnt = 0
-    total_people_msg = ""
+    battle_groups = {}  # 按战局ID分组: {battleId: [玩家信息]}
+    idle_users = []  # 在线但不在游戏中的玩家
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_user = {
@@ -271,13 +288,50 @@ def online_process():
             for realname in userlist
         }
         for future in as_completed(future_to_user):
+            realname = future_to_user[future]
             result = future.result()
-            if result:
+            if result and result['online_cnt'] > 0:
                 total_online_cnt += result['online_cnt']
-                total_people_msg += result['people_msg']
+                battle_info = result['battle_info']
+                
+                if battle_info and battle_info['battleId']:
+                    # 有对战号，加入对应战局组
+                    battle_id = battle_info['battleId']
+                    if battle_id not in battle_groups:
+                        battle_groups[battle_id] = []
+                    battle_groups[battle_id].append({
+                        'name': result['nickname'],
+                        'info': battle_info
+                    })
+                elif battle_info:
+                    # 在线但不在游戏中
+                    idle_users.append({
+                        'name': result['nickname'],
+                        'job': battle_info['job']
+                    })
+    
     if total_online_cnt:
-        snd_msg = f"在线{total_online_cnt}人：\n"
-        snd_msg += total_people_msg
+        snd_msg = f"在线 {total_online_cnt} 人\n"
+        snd_msg += "─────────────\n"
+        
+        if battle_groups:
+            for battle_id, players in battle_groups.items():
+                map_name = players[0]['info']['mapName']
+                duration = players[0]['info']['duration']
+                snd_msg += f"🎮 {map_name}  {duration}min\n"
+                
+                for player in players:
+                    snd_msg += f"   • {player['name']} {player['info']['job']}  {player['info']['heroName']}\n"
+                
+                snd_msg += "\n"
+        
+        if idle_users:
+            if battle_groups:
+                snd_msg += "─────────────\n"
+            for user in idle_users:
+                snd_msg += f"💤 {user['name']}  {user['job']}\n"
+        
+        snd_msg = snd_msg.rstrip('\n')
     else:
         snd_msg = "🐟🐟无人在线"
     
@@ -650,11 +704,14 @@ def heropower_process(rcv_msg):
     res=wzry_get_official(reqtype="heropower",userid=userid,roleid=roleid)
     # print(res)
     ret_text=f"{namenick[matching_name]}的战力英雄\n"
+    ret_text+=f"─────────────\n"
     for hero in res['heroList']:
         try:
             region_name=hero['honorTitle']['desc']['full'].split("第")[0]
             metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
-            ret_text+=f"{hero['basicInfo']['title']}:   {hero['basicInfo']['heroFightPower']}\n   {region_name}  No.{hero['honorTitle']['rank']} \n"
+            ret_text+=f"【{hero['basicInfo']['title']}】"
+            ret_text+=f" {hero['basicInfo']['heroFightPower']}\n"
+            ret_text+=f" {region_name}  第 {hero['honorTitle']['rank']} 名\n\n"
         except Exception as e:
             pass
     short_wait()
@@ -705,9 +762,9 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     def get_hero_name(realname,hero_name_candidates):
         from .ztime import time_r,time_delta
         from .zfunc import fetch_history
-        # 5% 随机
-        # 65% 最近
-        # 30% 榜单
+        # 45% 随机
+        # 35% 最近
+        # 20% 榜单
         hero_selected_way=random.random()
         hero_name=""
         selected_info={"way":"","details":[]}
@@ -716,13 +773,12 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
         trace_back_time_from=time_delta(trace_back_time_to,-5)
         game_details,_=fetch_history(userid=userlist[realname],start_date=trace_back_time_from,end_date=trace_back_time_to)
         game_details=game_details[realname]
-        
         if (realname in force_choice):
             hero_name=force_choice[realname]
             selected_info["way"]="RANDOM"
             selected_info["details"]:[]
             return hero_name,selected_info
-        if (hero_selected_way<0.05):
+        if (hero_selected_way<0.35):
             hero_name = random.choice(hero_name_candidates)
             selected_info["way"]="RANDOM"
             selected_info["details"]=[]
@@ -790,6 +846,26 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
             "selectinfo":selected_info
         }
         dmc.TodayHeroPool.set(realname, json.dumps(new_data))
+        
+        history_key = f"hero_history:{realname}"
+        history_entry = {
+            "date": current_date,
+            "heroname": hero_name,
+            "skinname": skin_name,
+            "selectinfo": selected_info
+        }
+        
+        history_list = dmc.TodayHeroPool.lrange(history_key, 0, -1)
+        date_found = False
+        for i, entry_str in enumerate(history_list):
+            entry = json.loads(entry_str)
+            if entry.get("date") == current_date:
+                dmc.TodayHeroPool.lset(history_key, i, json.dumps(history_entry))
+                date_found = True
+                break
+        if not date_found:
+            dmc.TodayHeroPool.rpush(history_key, json.dumps(history_entry))
+        
         return hero_name, skin_name,pic_path,selected_info
     def get_hero_skills(heroid):
         from .zfile import readerl
@@ -887,7 +963,30 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     gen_inst=CoPlayerProcess()
     def sigmoid(x):
         return 1/(1+math.exp(-x))
-    def get_level(detail_list,is_my_side):
+    
+    def fetch_player_data(player):
+        roleid = player["basicInfo"]["roleId"]
+        userid = player["basicInfo"]["userId"]
+        is_auth = player["basicInfo"]["isGameAuth"]
+        result = {
+            'player': player,
+            'profile_res': None,
+            'heropower_res': None,
+            'errors': []
+        }
+        if not is_auth:
+            return result
+        try:
+            result['profile_res'] = wzry_get_official(reqtype="profile", roleid=roleid, userid=userid)
+        except Exception as e:
+            result['errors'].append(str(e))
+        try:
+            result['heropower_res'] = wzry_get_official(reqtype="heropower", roleid=roleid, userid=userid)
+        except Exception as e:
+            result['errors'].append(str(e))
+        return result
+    
+    def get_level(detail_list, is_my_side, player_data_cache):
         auth_cnt=0      # 授权人数统计
         ret_level=0     # 返回值
         req_error=[]
@@ -923,16 +1022,16 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                 avgScore=float(heroBehavior["avgScore"])
                 winRate=float(heroBehavior["winRate"].strip('%')) / 100
                 heroPower=player["battleStats"]["fightPower"]
-                try:
-                    profile_res=wzry_get_official(reqtype="profile",roleid=roleid,userid=userid)
-                except Exception as e:
-                    req_error.append(str(e))
+                
+                # 从缓存中获取预先并行获取的数据
+                player_key = (roleid, userid)
+                cached_data = player_data_cache.get(player_key, {})
+                profile_res = cached_data.get('profile_res')
+                heropower_res = cached_data.get('heropower_res')
+                req_error.extend(cached_data.get('errors', []))
+                
+                if profile_res is None:
                     continue
-                heropower_res=None
-                try:
-                    heropower_res=wzry_get_official(reqtype="heropower",roleid=roleid,userid=userid)
-                except Exception as e:
-                    req_error.append(str(e))
 
                 RoleInfo = (roles[0] if (roles := [role for role in profile_res["roleList"] if role["roleId"] == roleid]) else None)
                 rankInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 701]) else None)
@@ -987,7 +1086,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
             # 卡片右上角红色角标：营地未授权
             # 玩家卡片背景色：红色，低于所有玩家历史平均水平；绿色，高于所有玩家历史平均水平；颜色越深，差值越大
             # 底韵值：以该局最高玩家为100%计算
-            ret_level+=single_level
+            if (is_auth): ret_level+=single_level
             gen_inst.add_player(
                 nickname=nickname,
                 is_auth=is_auth,
@@ -1009,6 +1108,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                 HeroPower=heroPower,
                 HeroTag=heroTag
             )
+        ret_level=ret_level*(5/auth_cnt) if (auth_cnt) else 0
         return ret_level,auth_cnt,req_error
 
 
@@ -1017,8 +1117,29 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
 
-    my_side_total_level,my_side_auth_cnt,my_side_req_error=get_level(my_side_detail,1)
-    op_side_total_level,op_side_auth_cnt,op_side_req_error=get_level(op_side_detail,0)
+    # 并行获取所有玩家的数据
+    all_players = my_side_detail + op_side_detail
+    player_data_cache = {}
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_player = {executor.submit(fetch_player_data, player): player for player in all_players}
+        for future in as_completed(future_to_player):
+            try:
+                result = future.result()
+                player = result['player']
+                roleid = player["basicInfo"]["roleId"]
+                userid = player["basicInfo"]["userId"]
+                player_key = (roleid, userid)
+                player_data_cache[player_key] = {
+                    'profile_res': result['profile_res'],
+                    'heropower_res': result['heropower_res'],
+                    'errors': result['errors']
+                }
+            except Exception as e:
+                pass  # 错误已在fetch_player_data中处理
+
+    my_side_total_level,my_side_auth_cnt,my_side_req_error=get_level(my_side_detail,1,player_data_cache)
+    op_side_total_level,op_side_auth_cnt,op_side_req_error=get_level(op_side_detail,0,player_data_cache)
 
     delta_level=my_side_total_level-op_side_total_level
 
@@ -1026,9 +1147,9 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     # for i in my_side_req_error:
     #     req_err_msg.append()
     snd_msg=(
-        f"实力天平倾斜度：{round(delta_level,2)}\n"
-        f"我方底蕴：{round(my_side_total_level,2)}\n"
-        f"对方底蕴：{round(op_side_total_level,2)}\n"
+        f"实力天平倾斜度：{round(delta_level,2) if op_side_total_level else "unknown"}\n"
+        f"我方底蕴：{round(my_side_total_level,2) if my_side_total_level else "unknown"}\n"
+        f"对方底蕴：{round(op_side_total_level,2) if op_side_total_level else "unknown"}\n"
         f"{confs["WebService"]["server_domain"]}/rcalc"
     )
     if (from_web): snd_msg+="\n==网页分享的战局=="

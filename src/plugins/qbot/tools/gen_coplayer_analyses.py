@@ -577,15 +577,24 @@ def generate_player_strength_image(
                 card_xy = (card_left, card_top, card_right, card_top + card_h)
 
                 # 计算评分与卡片背景着色（降低色彩强度，更加简洁）
-                score = _calc_display_score(p)
-                dev = score - avg_score_all
-                t = abs(dev) / max_abs_dev
-                tint_factor = 0.08 + 0.16 * t  # 0.08..0.24 更克制
-                base_color = ACCENT_GREEN if dev >= 0 else ACCENT_RED
-                fill_color = _blend_with_white(base_color, tint_factor)
+                # 未授权检查
+                unauthorized = (p.auth is False)
+                
+                if unauthorized:
+                    # 未授权：使用灰色背景
+                    fill_color = (240, 243, 248)
+                else:
+                    # 授权：根据评分着色
+                    score = _calc_display_score(p)
+                    dev = score - avg_score_all
+                    t = abs(dev) / max_abs_dev
+                    tint_factor = 0.08 + 0.16 * t  # 0.08..0.24 更克制
+                    base_color = ACCENT_GREEN if dev >= 0 else ACCENT_RED
+                    fill_color = _blend_with_white(base_color, tint_factor)
+                
                 _rounded_rectangle(draw, card_xy, radius=18, fill=fill_color, outline=BORDER, width=1)
                 # 未授权：右上角三角角标（无文字）
-                if p.auth is False:
+                if unauthorized:
                     rx = card_xy[2]
                     ty = card_xy[1]
                     sz = 32
@@ -628,7 +637,6 @@ def generate_player_strength_image(
                 text_x = avatar_x + avatar_d + 20
                 text_y = avatar_y
                 # 在名字左侧放置小的玩家头像（圆形）；未授权不显示该玩家头像
-                unauthorized = (p.auth is False)
                 small_av = None if unauthorized else avatar_images.get(idx)
                 name_x = text_x
                 if small_av is not None:
@@ -665,8 +673,8 @@ def generate_player_strength_image(
                 if (p.power is not None) and not unauthorized:
                     _safe_text(draw, (text_x, chip_y + 56), f"战力{p.power}", small_font, TEXT_SECONDARY)
 
-                # single_level 百分比条（位于战力行之下）
-                if p.single_level is not None and max_single_level > 0:
+                # single_level 百分比条（位于战力行之下）- 未授权则不渲染
+                if p.single_level is not None and max_single_level > 0 and not unauthorized:
                     bar_left = text_x
                     # 预留到右侧竖条区域的左边缘
                     right_x_end = card_xy[2] - 24
@@ -690,41 +698,42 @@ def generate_player_strength_image(
                     lbl = "历史实力"
                     _safe_text(draw, (bar_left, bar_top - 18), lbl, small_font, TEXT_SECONDARY)
 
-                # 右侧竖状条（胜率 / 场次 / MVP率）
-                right_x_end = card_xy[2] - 24
-                total_matches = p.derived_matches() or 0
-                mvp_rate = p.derived_mvp_rate() or 0.0
-                wr = p.normalized_win_rate() or 0.0
+                # 右侧竖状条（胜率 / 场次 / MVP率）- 未授权则不渲染
+                if not unauthorized:
+                    right_x_end = card_xy[2] - 24
+                    total_matches = p.derived_matches() or 0
+                    mvp_rate = p.derived_mvp_rate() or 0.0
+                    wr = p.normalized_win_rate() or 0.0
 
-                v_area_left = right_x_end - right_col_w
-                v_top = card_top + 26
-                v_bottom = card_top + card_h - 44
-                v_h = max(40, v_bottom - v_top)
-                bar_w_v = 22  # 加宽竖条以匹配更高的卡片
-                gap_v = 40  # 增大条形间距
-                tot_w = 3 * bar_w_v + 2 * gap_v
-                start_x = v_area_left + (right_col_w - tot_w) // 2
+                    v_area_left = right_x_end - right_col_w
+                    v_top = card_top + 26
+                    v_bottom = card_top + card_h - 44
+                    v_h = max(40, v_bottom - v_top)
+                    bar_w_v = 22  # 加宽竖条以匹配更高的卡片
+                    gap_v = 40  # 增大条形间距
+                    tot_w = 3 * bar_w_v + 2 * gap_v
+                    start_x = v_area_left + (right_col_w - tot_w) // 2
 
-                # 英雄战力条替换原“英雄胜率”位置；显示值为原始战力，条高按本图最大战力归一
-                hero_pow_val = p.hero_power if p.hero_power is not None else 0
-                hero_pow_ratio = min(1.0, max(0.0, float(hero_pow_val) / float(max_hero_power)))
-                items = [
-                    ("英雄\n战力", hero_pow_ratio, ACCENT, str(hero_pow_val if hero_pow_val > 0 else "-")),
-                    ("英雄\n场次", min(1.0, max(0.0, total_matches / max_total_matches)), ACCENT, str(total_matches)),
-                    ("总MVP率", mvp_rate, (255, 158, 27), _format_percent(mvp_rate)),
-                ]
-                for i, (lab, ratio, color, txt) in enumerate(items):
-                    x0 = start_x + i * (bar_w_v + gap_v)
-                    _rounded_rectangle(draw, (x0, v_top, x0 + bar_w_v, v_top + v_h), radius=9, fill=(240, 243, 248))
-                    h = int(v_h * ratio)
-                    y_fill = v_top + v_h - h
-                    _rounded_rectangle(draw, (x0, y_fill, x0 + bar_w_v, v_top + v_h), radius=9, fill=color)
-                    lab_bbox = draw.textbbox((0, 0), lab, font=small_font)
-                    _safe_text(draw, (x0 + (bar_w_v - (lab_bbox[2]-lab_bbox[0]))//2, v_top + v_h + 4), lab, small_font, TEXT_SECONDARY)
-                    val_bbox = draw.textbbox((0, 0), txt, font=small_font)
-                    # 数值固定在条形最上方（轨道顶部上方），而非有色填充顶部
-                    vy = v_top - (val_bbox[3] - val_bbox[1]) - 4
-                    _safe_text(draw, (x0 + (bar_w_v - (val_bbox[2]-val_bbox[0]))//2, vy), txt, small_font, TEXT_PRIMARY)
+                    # 英雄战力条替换原"英雄胜率"位置；显示值为原始战力，条高按本图最大战力归一
+                    hero_pow_val = p.hero_power if p.hero_power is not None else 0
+                    hero_pow_ratio = min(1.0, max(0.0, float(hero_pow_val) / float(max_hero_power)))
+                    items = [
+                        ("英雄\n战力", hero_pow_ratio, ACCENT, str(hero_pow_val if hero_pow_val > 0 else "-")),
+                        ("英雄\n场次", min(1.0, max(0.0, total_matches / max_total_matches)), ACCENT, str(total_matches)),
+                        ("总MVP率", mvp_rate, (255, 158, 27), _format_percent(mvp_rate)),
+                    ]
+                    for i, (lab, ratio, color, txt) in enumerate(items):
+                        x0 = start_x + i * (bar_w_v + gap_v)
+                        _rounded_rectangle(draw, (x0, v_top, x0 + bar_w_v, v_top + v_h), radius=9, fill=(240, 243, 248))
+                        h = int(v_h * ratio)
+                        y_fill = v_top + v_h - h
+                        _rounded_rectangle(draw, (x0, y_fill, x0 + bar_w_v, v_top + v_h), radius=9, fill=color)
+                        lab_bbox = draw.textbbox((0, 0), lab, font=small_font)
+                        _safe_text(draw, (x0 + (bar_w_v - (lab_bbox[2]-lab_bbox[0]))//2, v_top + v_h + 4), lab, small_font, TEXT_SECONDARY)
+                        val_bbox = draw.textbbox((0, 0), txt, font=small_font)
+                        # 数值固定在条形最上方（轨道顶部上方），而非有色填充顶部
+                        vy = v_top - (val_bbox[3] - val_bbox[1]) - 4
+                        _safe_text(draw, (x0 + (bar_w_v - (val_bbox[2]-val_bbox[0]))//2, vy), txt, small_font, TEXT_PRIMARY)
 
                 # 去除卡片右下角的战力信息（已在姓名下方展示）
 
