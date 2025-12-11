@@ -700,8 +700,10 @@ async def run_web_shared_btls_processor():
     params_json=result
     params=json.loads(params_json)
 
+    snd_msg =   "───来自网页分享───\n\n"
     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True)
-    snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    snd_msg += "\n\n───来自网页分享───"
     # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
     await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 
@@ -718,16 +720,20 @@ async def run_web_analyze_btls_processor():
     params_json=result
     params=json.loads(params_json)
 
+    snd_msg =  "───来自网页分享───\n\n"
     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True,from_web=True)
-    snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+
+    snd_msg += "\n\n"
 
     btl_msg,pic_path=coplayer_process(**params,from_web=True)
-    snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
-    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    snd_msg += "\n\n───来自网页分享───"
 
-    return 
+    # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
+
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+    return
 @scheduler.scheduled_job("interval", seconds=5, id="message_sender")
 async def message_sender():
     result = dmc.MessageQueue.rpop("MessageQueue")

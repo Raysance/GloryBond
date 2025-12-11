@@ -639,13 +639,18 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     my_team_total_grade=0
     my_money=0
     my_grade=0
+    am_i_assist=False
     for single_info in my_team_detail:
         my_team_total_money+=int(single_info['battleStats']['money'])
         my_team_total_grade+=float(single_info['battleStats']['gradeGame'])
         if (single_info['basicInfo']['userId']==res['head']['userId']):
             my_money=int(single_info['battleStats']['money'])
             my_grade=float(single_info['battleStats']['gradeGame'])
+            for equipments in single_info['battleRecords']['finalEquips']:
+                if (any(keyword in equipments['equipName'] for keyword in {"学识宝石","近卫","极影"})):
+                    am_i_assist=True
     team_contribute_factor=(5 * my_grade / my_team_total_grade) * pow((5 * my_money / my_team_total_money), -0.5)
+    if (am_i_assist): team_contribute_factor*=0.9
     team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
     my_userid=res['head']['userId']
     our_player_infos_suf=[]
@@ -677,9 +682,8 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     snd_message=""
     if (from_web):
         snd_message+=(
-            f"==网页分享的战局==\n"
             f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
-            f"{res['head']['roleName']} {res['head']['matchDesc']} {team_contribute_text}\n"
+            f"{res['head']['roleName']} {res['head']['heroName']} {team_contribute_text}\n"
             f"{linkurl}"
         )
     else:
@@ -778,11 +782,11 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
             selected_info["way"]="RANDOM"
             selected_info["details"]:[]
             return hero_name,selected_info
-        if (hero_selected_way<0.35):
+        if (hero_selected_way<0.45):
             hero_name = random.choice(hero_name_candidates)
             selected_info["way"]="RANDOM"
             selected_info["details"]=[]
-        elif (hero_selected_way<0.7 and game_details):
+        elif (hero_selected_way<0.8 and game_details):
             recent_hero_name_candidates=set()
             for game_detail in game_details:
                 if (game_detail["HeroName"] in hero_name_candidates):
@@ -1152,7 +1156,6 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
         f"对方底蕴：{round(op_side_total_level,2) if op_side_total_level else "unknown"}\n"
         f"{confs["WebService"]["server_domain"]}/rcalc"
     )
-    if (from_web): snd_msg+="\n==网页分享的战局=="
     save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
     out_path, ok = gen_inst.gen(save_path)
     return snd_msg,save_path
