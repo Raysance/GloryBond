@@ -29,6 +29,7 @@ class PlayerInfo:
     hero_avatar_url: Optional[str] = None  # 英雄头像 URL/本地路径
     hero_power: Optional[int] = None       # 当前英雄战力
     hero_tag: Optional[str] = None         # 当前英雄标（文本）
+    max_hero_tag: Optional[str] = None     # 最大/突出英雄标（用于在头像上方显示）
 
     # 关键对战指标（与官方数据字段对齐）
     win_rate: Optional[float] = None  # 0~1 或 0~100（heroBehavior.winRate）
@@ -98,6 +99,7 @@ class CoPlayerProcess:
         HeroAvatar: Optional[str] = None,
         HeroPower: Optional[int] = None,
         HeroTag: Optional[str] = None,
+        MaxHeroTag: Optional[str] = None,
         starNum: Optional[int] = None,
         peakScore: Optional[int] = None,
         PowerNum: Optional[int] = None,
@@ -146,6 +148,7 @@ class CoPlayerProcess:
                 hero_avatar_url=HeroAvatar,
                 hero_power=HeroPower,
                 hero_tag=HeroTag,
+                max_hero_tag=MaxHeroTag,
                 side='my' if is_my_side else 'op',
             )
         )
@@ -614,6 +617,23 @@ def generate_player_strength_image(
                     # 放一个英雄字样首字母占位
                     _safe_text(draw, (avatar_x + 28, avatar_y + 30), "H", _try_load_font(28, True), ACCENT)
 
+                # 最大英雄标（显示在英雄头像上方，从卡片顶部开始）
+                if getattr(p, 'max_hero_tag', None):
+                    top_font = _try_load_font(18)
+                    max_tag_width = card_right - avatar_x
+                    max_tag_lines = _wrap_text_local(str(p.max_hero_tag), top_font, max_tag_width)
+                    # 从卡片顶部 + 8px 开始放置，每行 20px
+                    line_h_top = 20
+                    avail_top_h = avatar_y - (card_top + 8)
+                    max_top_lines = max(0, min(len(max_tag_lines), avail_top_h // line_h_top))
+                    if max_top_lines > 0:
+                        lines_to_draw = max_tag_lines[:max_top_lines]
+                        for i, t in enumerate(lines_to_draw):
+                            # 从卡片顶部 8px 处逐行向下放置
+                            ty = card_top + 12 + i * line_h_top
+                            tx = avatar_x
+                            _safe_text(draw, (tx, ty), t, top_font, TEXT_SECONDARY)
+
                 # 英雄标（位于英雄头像正下方，自动换行）
                 small_font = _try_load_font(18)
                 if getattr(p, 'hero_tag', None):
@@ -668,10 +688,10 @@ def generate_player_strength_image(
 
                 # 行2：巅峰（未授权隐藏）
                 if (p.peak_score is not None) and not unauthorized:
-                    _safe_text(draw, (text_x, chip_y + 28), f"巅峰{p.peak_score}", small_font, TEXT_SECONDARY)
-                # 行3：战力（紧跟巅峰之下）
+                    _safe_text(draw, (text_x, chip_y + 28), f"巅峰 {p.peak_score}", small_font, TEXT_SECONDARY)
+                # 行3：战斗力（紧跟巅峰之下）
                 if (p.power is not None) and not unauthorized:
-                    _safe_text(draw, (text_x, chip_y + 56), f"战力{p.power}", small_font, TEXT_SECONDARY)
+                    _safe_text(draw, (text_x, chip_y + 56), f"战斗力 {p.power}", small_font, TEXT_SECONDARY)
 
                 # single_level 百分比条（位于战力行之下）- 未授权则不渲染
                 if p.single_level is not None and max_single_level > 0 and not unauthorized:

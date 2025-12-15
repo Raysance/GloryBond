@@ -464,7 +464,7 @@ def single_process(rcv_msg):
     history_query=[]
     last_official_btl_params=None
     if ("$" in rcv_msg): ai_feedback=False
-
+    # ai_feedback=False
     matching_name=extract_name(rcv_msg)
 
     if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<30): return None # 防止重复冗余请求
@@ -723,6 +723,7 @@ def heropower_process(rcv_msg):
 def herostatistics_process(rcv_msg):
     from .zapi import wzry_get_official
     from .ztime import short_wait
+    from .ztime import time_r, time_delta
 
     matching_name=extract_name(rcv_msg)
     if (matching_name=="name_error"): return None
@@ -730,36 +731,127 @@ def herostatistics_process(rcv_msg):
     roleid=roleidlist[matching_name]
     heroid,heroname=extract_heroname(rcv_msg)
 
-    res=wzry_get_official(reqtype="herostatistics",userid=userid,roleid=roleid,heroid=heroid)
-    ret_text=""
-    winNum=res["heroInfo"]["winNum"]
-    failNum=res["heroInfo"]["failNum"]
-    winNum=int(winNum) if winNum else 0
-    failNum=int(failNum) if failNum else 0
-    total_cnt=winNum+failNum
-    win_rate=(winNum/total_cnt) if total_cnt else 0
-    month_cnt=len(res["zjList"])
-    month_mvp=int(res["heroInfo"]["mvpCount"])
-    month_mvp_rate=(int(res["heroInfo"]["mvpCount"])/month_cnt) if month_cnt else 0
-    month_medal=(int(res["heroInfo"]["goldCount"])+int(res["heroInfo"]["silverCount"])+int(res["heroInfo"]["bestCount"]))
-    month_medal_rate=(month_medal/month_cnt) if month_cnt else 0
-    heropower=res["powerData"][-1]["value"]
-    month_heropower_incre=res["powerData"][-1]["value"]-res["powerData"][0]["value"]
-    medal_infos=""
-    if (res["medalList"]):
-        for medal_info in res["medalList"]:
-            medal_infos+=f"{medal_info["UserMedalInfo"]}\n"
-    ret_text+=(
-        f"{namenick[matching_name]}的{heroname}：\n"
-        f"当前战力：{heropower}\n"
-        f"{medal_infos}\n"
-        f"总场次：{total_cnt}, 总胜率：{round(win_rate * 100, 2)}%\n\n"
-        f"近一月:\n  战力变化：{month_heropower_incre:+d}\n"
-        # f"  MVP率：{round(month_mvp_rate*100,2)}%，牌率：{round(month_medal_rate*100,2)}%"
-        f"  MVP：{month_mvp}，牌数：{month_medal}"
-    )
+    res = wzry_get_official(reqtype="herostatistics", userid=userid, roleid=roleid, heroid=heroid)
+
+    # 提取核心数据
+    hero_info = res.get("heroInfo", {})
+    winNum = int(hero_info.get("winNum") or 0)
+    failNum = int(hero_info.get("failNum") or 0)
+    total_cnt = winNum + failNum
+    win_rate = (winNum / total_cnt) if total_cnt else 0
+
+    power_data = res.get("powerData") or []
+    heropower = power_data[-1]["value"] if power_data else 0
+    month_heropower_incre = (power_data[-1]["value"] - power_data[0]["value"]) if len(power_data) > 1 else 0
+
+    month_mvp = int(hero_info.get("mvpCount") or 0)
+    month_medal = int(hero_info.get("goldCount") or 0) + int(hero_info.get("silverCount") or 0) + int(hero_info.get("bestCount") or 0)
+
+    # 获取本地历史数据（用于详细统计）
+    end_date = time_r()
+    start_date = time_delta(end_date, -30)
+    history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
+    games = history.get(matching_name, []) if history else []
+    hero_games = [g for g in games if g.get('HeroName') == heroname]
+
+    # 组装简洁输出
+    lines = []
+    lines.append(f"{namenick[matching_name]}的{heroname}")
+    lines.append("━━━━━━━━━━━")
+    lines.append(f"战力  {heropower}  ({month_heropower_incre:+d})")
+    lines.append(f"总战绩  {winNum}胜{failNum}负  胜率{round(win_rate*100,1)}%")
     
-    return ret_text
+    if hero_games:
+        total_games_h = len(hero_games)
+        wins_h = sum(1 for g in hero_games if g.get('Result') == '胜利')
+        win_rate_h = (wins_h / total_games_h) if total_games_h else 0
+        avg_grade_h = sum(float(g.get('GameGrade', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
+        mvp_h = sum(1 for g in hero_games if 'MVP' in (g.get('Others') or ''))
+        avg_kill_h = sum(int(g.get('KillCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
+        avg_dead_h = sum(int(g.get('DeadCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
+        avg_assist_h = sum(int(g.get('AssistCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
+        
+        lines.append("")
+        lines.append("近30日表现")
+        lines.append(f"{total_games_h}场  胜率{round(win_rate_h*100,1)}%  均分{round(avg_grade_h,1)}")
+        lines.append(f"MVP×{mvp_h}  牌子×{month_medal}  KDA {round(avg_kill_h,1)}/{round(avg_dead_h,1)}/{round(avg_assist_h,1)}")
+    else:
+        lines.append("")
+        lines.append("近30日无对局记录")
+
+    # 添加成就牌（如果有特殊成就才显示）
+    medal_list = res.get("medalList") or []
+    if medal_list and len(medal_list) > 0:
+        lines.append("")
+        lines.append("成就")
+        for medal_info in medal_list[:3]:  # 最多显示3个
+            info = medal_info.get("UserMedalInfo") if isinstance(medal_info, dict) else str(medal_info)
+            if info:
+                lines.append(f"  · {info}")
+
+    return "\n".join(lines)
+
+
+def recentgame_process(rcv_msg):
+    """基于本地 history 文件，做近30天的综合多维度分析，返回字符串。
+    参数 rcv_msg 用于提取用户名（与 herostatistics_process 保持一致的解析逻辑）。
+    """
+    matching_name = extract_name(rcv_msg)
+    if (matching_name == "name_error"): return None
+    userid = userlist[matching_name]
+    # time window
+    try:
+        from .ztime import time_r, time_delta
+        end_date = time_r()
+        start_date = time_delta(end_date, -30)
+        history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
+        games = history.get(matching_name, []) if history else []
+        if not games:
+            return f"未在本地 history 文件中找到 {namenick[matching_name]} 近30天的战绩。"
+
+        total_games = len(games)
+        wins = sum(1 for g in games if g.get('Result') == '胜利')
+        win_rate_recent = (wins / total_games) if total_games else 0
+        avg_grade = sum(float(g.get('GameGrade', 0)) for g in games) / total_games if total_games else 0
+        avg_kill = sum(int(g.get('KillCnt', 0)) for g in games) / total_games if total_games else 0
+        avg_dead = sum(int(g.get('DeadCnt', 0)) for g in games) / total_games if total_games else 0
+        avg_assist = sum(int(g.get('AssistCnt', 0)) for g in games) / total_games if total_games else 0
+        mvp_cnt = sum(1 for g in games if 'MVP' in (g.get('Others') or ''))
+        # 按英雄聚合
+        hero_stats = {}
+        for g in games:
+            hn = g.get('HeroName', '未知')
+            if hn not in hero_stats:
+                hero_stats[hn] = {'count': 0, 'wins': 0, 'grades': [], 'mvp': 0}
+            hero_stats[hn]['count'] += 1
+            if g.get('Result') == '胜利':
+                hero_stats[hn]['wins'] += 1
+            try:
+                hero_stats[hn]['grades'].append(float(g.get('GameGrade', 0)))
+            except:
+                pass
+            if 'MVP' in (g.get('Others') or ''):
+                hero_stats[hn]['mvp'] += 1
+
+        # 组装文本
+        txt = f"{namenick[matching_name]} 近30天综合战绩分析：\n"
+        txt += f"  场次：{total_games}，胜率：{round(win_rate_recent*100,2)}%，MVP：{mvp_cnt}，平均评分：{round(avg_grade,2)}\n"
+        txt += f"  场均 K/D/A：{round(avg_kill,2)}/{round(avg_dead,2)}/{round(avg_assist,2)}\n"
+        sorted_heroes = sorted(hero_stats.items(), key=lambda x: x[1]['count'], reverse=True)
+        txt += "  热门英雄：\n"
+        for hn, info in sorted_heroes[:8]:
+            cnt = info['count']
+            wins_h = info['wins']
+            winr_h = (wins_h / cnt) if cnt else 0
+            avgg = (sum(info['grades']) / len(info['grades'])) if info['grades'] else 0
+            txt += f"    {hn}：{cnt}局，胜率{round(winr_h*100,2)}%，平均分{round(avgg,2)}，MVP{info['mvp']}\n"
+        return txt
+    except Exception as e:
+        try:
+            log_message(f"recentgame_process error: {e}")
+        except:
+            pass
+        return None
 def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     from .ztime import short_wait
     from .zfunc import herostatistics_process
@@ -964,7 +1056,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     from .zapi import wzry_get_official
     from .zfunc import check_btl_official_with_matching
     from .tools.gen_coplayer_analyses import CoPlayerProcess
-    gen_inst=CoPlayerProcess()
+
     def sigmoid(x):
         return 1/(1+math.exp(-x))
     
@@ -976,6 +1068,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
             'player': player,
             'profile_res': None,
             'heropower_res': None,
+            'recentbtl_res': None,
             'errors': []
         }
         if not is_auth:
@@ -988,6 +1081,10 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
             result['heropower_res'] = wzry_get_official(reqtype="heropower", roleid=roleid, userid=userid)
         except Exception as e:
             result['errors'].append(str(e))
+        try:
+            result['recentbtl_res'] = wzry_get_official(reqtype="btlist_url", roleid=roleid, userid=userid)
+        except Exception as e:
+            result['errors'].append(str(e))
         return result
     
     def get_level(detail_list, is_my_side, player_data_cache):
@@ -998,7 +1095,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
             # 对于该队伍中的一个玩家
             winNum=10        # 当前英雄输局数
             loseNum=10       # 当前英雄胜局数
-            avgScore=9      # 当前英雄平均评分
+            avgScore=8      # 当前英雄平均评分
             winRate=0.5     # 当前英雄胜率
             starNum=50      # 总星数
             peakScore=1200  # 巅峰分数
@@ -1009,7 +1106,13 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
             heroPower=1000
             rankName="未知段位"
             rankStar=0
+            RecentWinRate=0.55
+            RecentAvgScore=8
+            BetterHeroPowerList=[]
+            BetterHeroPower=1
             heroTag=""
+            MaxHeroPower=-1
+            MaxHeroTag=""
 
             is_auth=player["basicInfo"]["isGameAuth"] # 营地授权与否
             roleid=player["basicInfo"]["roleId"]
@@ -1032,9 +1135,10 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                 cached_data = player_data_cache.get(player_key, {})
                 profile_res = cached_data.get('profile_res')
                 heropower_res = cached_data.get('heropower_res')
+                recentbtl_res = cached_data.get('recentbtl_res')
                 req_error.extend(cached_data.get('errors', []))
                 
-                if profile_res is None:
+                if not profile_res:
                     continue
 
                 RoleInfo = (roles[0] if (roles := [role for role in profile_res["roleList"] if role["roleId"] == roleid]) else None)
@@ -1061,35 +1165,56 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                             if (hero['basicInfo']['title']==heroName):
                                 region_name=hero['honorTitle']['desc']['full'].split("第")[0]
                                 metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
-                                heroTag=f"{region_name}  No.{hero['honorTitle']['rank']} \n"
-                                break
+                                heroTag=f"{region_name}\n No.{hero['honorTitle']['rank']} \n"
                         except Exception as e:
                             pass
+                        if (hero['basicInfo']['heroFightPower']>=heroPower):
+                            BetterHeroPowerList.append(hero['basicInfo']['heroFightPower'])
+                        if (hero['basicInfo']['heroFightPower']>MaxHeroPower):
+                            if ('honorTitle' in hero and hero['honorTitle']):
+                                MaxHeroPower=hero['basicInfo']['heroFightPower']
+                                region_name=hero['honorTitle']['desc']['full'].split("第")[0]
+                                metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
+                                MaxHeroTag=f"Top {MaxHeroPower}\n{region_name}第{hero['honorTitle']['rank']}{hero['basicInfo']['title']}"
+                if (recentbtl_res and recentbtl_res["list"]):
+                    official_btls=[]
+                    for btl in recentbtl_res["list"]:
+                        if (check_btl_official(btl["mapName"])):
+                            official_btls.append({"result":btl["gameresult"]==1,"grade":float(btl["gradeGame"])})
+                    if (len(official_btls)>=10):
+                        RecentWinRate=sum(1 for btl in official_btls if (btl["gameresult"]))/len(official_btls)
+                    RecentAvgScore=sum(btl["gradeGame"] for btl in official_btls)/len(official_btls)
+            BetterHeroPower=heroPower
+            if (BetterHeroPowerList):
+                BetterHeroPowerList=BetterHeroPowerList[:3]
+                BetterHeroPower=sum(BetterHeroPowerList)/len(BetterHeroPowerList)
             HeroShowCnt=loseNum+winNum                      # 该玩家此英雄的出场局数
-            auth_coeff=1 if is_auth else 0.6                # 为未授权加一个折扣
             equiv_star=(starNum-25)+(peakScore-1200)/15.0   # 巅峰分与星数折算成一个综合星级
             if (equiv_star<=0): equiv_star=1                # 星级下界
             single_level = (
-                pow(equiv_star, 0.3)                        # equiv_star        星级和巅峰分计算得的等价星级     0.3
-                * pow(sigmoid(MVPRate), 4)                  # MVPRate           MVP率                          4
-                * pow((PowerNum / 10000), 0.85)             # PowerNum          战斗力                         0.85
-                * pow(avgScore, 1)                          # avgScore          该英雄历史场次平均评分           1
-                * pow(sigmoid(HeroShowCnt / 10), 1.3)       # HeroShowCnt       该英雄历史场次数                 1.3
-                * pow(sigmoid(heroPower/10000), 2)          # heroPower         该英雄当前战力                   2
-                * auth_coeff                                # auth_coeff        营地未授权的折扣系数             1
+                1
+                * pow(equiv_star, 0.3)                                          # equiv_star        星级和巅峰分计算得的等价星级                                0.3
+                * pow(sigmoid(MVPRate), 4)                                      # MVPRate           MVP率                                                       4
+                * pow((PowerNum / 10000), 0.85)                                 # PowerNum          战斗力                                                      0.85
+                * pow((avgScore + RecentAvgScore) / 2, 1)                       # avgScore          该英雄历史场次平均评分 + 近期场次平均评分                       1
+                * pow(sigmoid(HeroShowCnt / 10), 1.3)                           # HeroShowCnt       该英雄历史场次数                                            1.3
+                * pow(sigmoid((heroPower + BetterHeroPower) / 2 / 10000), 2)    # heroPower         该英雄当前战力 + 更高战力英雄的战力平均值(最多取更高的3个)          2
+                * pow(math.max(RecentWinRate / 0.5, 1), 2)
             )
             # 指标1.5倍的等价条件
             # 王者0星 巅峰1200分 -> 王者50星 巅峰1600分
             # MVP率 30% -> 56%
             # 战斗力 50000 -> 80000
-            # 本局使用英雄的平均评分 8分 -> 12分
+            # 本局使用英雄与近期场次的平均评分 8分 -> 12分
             # 本局使用英雄的总场次 10场 -> 300场
-            # 本局使用的英雄的战力 1000 -> 6000 -> 13000
+            # 本局使用英雄与高战力英雄的战力 1000 -> 6000 -> 13000
+
+            # 高战力英雄的取法： 比该局所选英雄战力高的英雄中 取前3名
 
             # 生成图表中
             # 卡片右上角红色角标：营地未授权
             # 玩家卡片背景色：红色，低于所有玩家历史平均水平；绿色，高于所有玩家历史平均水平；颜色越深，差值越大
-            # 底韵值：以该局最高玩家为100%计算
+            # 底蕴值：以该局最高玩家为100%计算
             if (is_auth): ret_level+=single_level
             gen_inst.add_player(
                 nickname=nickname,
@@ -1110,17 +1235,20 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                 single_level=single_level,
                 HeroAvatar=heroAvatar,
                 HeroPower=heroPower,
-                HeroTag=heroTag
+                HeroTag=heroTag,
+                MaxHeroTag=MaxHeroTag,
             )
         ret_level=ret_level*(5/auth_cnt) if (auth_cnt) else 0
         return ret_level,auth_cnt,req_error
 
-
+    gen_inst=CoPlayerProcess()
     res=wzry_get_official(reqtype="btldetail",gameSvrId=gameSvrId, relaySvrId=relaySvrId, gameseq=gameseq, pvptype=pvptype,roleid=roleid)
     if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None
+    gameres=res['head']['gameResult']
     my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
-
+    # my_side_detail=[my_side_detail[0]]
+    # op_side_detail=[op_side_detail[0]]
     # 并行获取所有玩家的数据
     all_players = my_side_detail + op_side_detail
     player_data_cache = {}
@@ -1136,20 +1264,32 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                 player_key = (roleid, userid)
                 player_data_cache[player_key] = {
                     'profile_res': result['profile_res'],
+                    'recentbtl_res': result['recentbtl_res'],
                     'heropower_res': result['heropower_res'],
                     'errors': result['errors']
                 }
             except Exception as e:
-                pass  # 错误已在fetch_player_data中处理
+                pass
 
     my_side_total_level,my_side_auth_cnt,my_side_req_error=get_level(my_side_detail,1,player_data_cache)
     op_side_total_level,op_side_auth_cnt,op_side_req_error=get_level(op_side_detail,0,player_data_cache)
 
     delta_level=my_side_total_level-op_side_total_level
 
-    # req_err_msg=""
-    # for i in my_side_req_error:
-    #     req_err_msg.append()
+    if (op_side_total_level and my_side_total_level):
+        record = {
+            'game_res': gameres,
+            'my_side_total_level': my_side_total_level,
+            'op_side_total_level': op_side_total_level,
+            'gameSvrId': gameSvrId,
+            'relaySvrId': relaySvrId,
+            'gameseq': gameseq,
+            'pvptype': pvptype,
+            'roleid': roleid,
+        }
+        redis_client = dmc.BtlAnalyzeEvaluatorPool
+        redis_client.rpush('records', json.dumps(record, ensure_ascii=False))
+
     snd_msg=(
         f"实力天平倾斜度：{round(delta_level,2) if op_side_total_level else "unknown"}\n"
         f"我方底蕴：{round(my_side_total_level,2) if my_side_total_level else "unknown"}\n"
@@ -1158,6 +1298,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     )
     save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
     out_path, ok = gen_inst.gen(save_path)
+
     return snd_msg,save_path
 
 def fetch_history(userid=None,start_date=None,end_date=None): # 所有历史数据
@@ -1287,16 +1428,16 @@ class Analyses:
 
         for playerid,details in history_info.items():
             for detail in details:
-                if ('1V1' in detail['MapName']): continue
-                detail['GameGrade']=float(detail['GameGrade'])
-                if (detail['GameGrade']<lowest_grade):
-                    lowest_grade=detail['GameGrade']
-                    lowest_player=playerid
-                    lowest_hero=detail['HeroName']
-                if (detail['GameGrade']>highest_grade):
-                    highest_grade=detail['GameGrade']
-                    highest_player=playerid
-                    highest_hero=detail['HeroName']
+                if (check_btl_official_with_matching(detail['MapName'])):
+                    detail['GameGrade']=float(detail['GameGrade'])
+                    if (detail['GameGrade']<lowest_grade):
+                        lowest_grade=detail['GameGrade']
+                        lowest_player=playerid
+                        lowest_hero=detail['HeroName']
+                    if (detail['GameGrade']>highest_grade):
+                        highest_grade=detail['GameGrade']
+                        highest_player=playerid
+                        highest_hero=detail['HeroName']
         # print([lowest_grade,highest_grade,lowest_player,highest_player,lowest_hero,highest_hero])
         return [round(lowest_grade,1),round(highest_grade,1),lowest_player,highest_player,lowest_hero,highest_hero]
 

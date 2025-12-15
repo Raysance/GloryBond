@@ -188,8 +188,8 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
     if (not retry_time): raise Exception(str("HOK: "+error_msg))
     return res
 
-@sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=1, period=1)  # 每1秒最多调用1次
+@sleep_and_retry
+@limits(calls=100, period=1)
 def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
     log_message("VISIT: ai_api_common")
     try:
@@ -201,7 +201,8 @@ def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
                 {"role": "user", "content": user_query},
             ],
             stream=False,
-            temperature=temperature
+            temperature=temperature,
+            timeout=20   # 20秒超时
         )
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
