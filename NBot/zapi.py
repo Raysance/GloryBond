@@ -8,8 +8,9 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=4, period=1)
-def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1):
+@limits(calls=10, period=1)
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1):
+    import time
     roleid=str(roleid)
     userid=str(userid)
     headers = {
@@ -122,6 +123,24 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         "heroid": heroid,
         "h5Get": 1
     }
+    heroranklist_data={
+        "recommendPrivacy": 0,
+        "bottomTab": "",
+        "apiVersion": 1,
+        "rankId": rankId,
+        "segment": rankSegment,
+        "position": 0
+        # 热度榜 0
+        # 输出榜 7
+        # MVP榜 13
+        # 金牌榜 14
+
+        # Segment
+        # 所有段位 1
+        # 巅峰1350+ 3
+        # 顶端排位 4
+        # 赛事 5
+    }
     match reqtype:
         case "btldetail":
             url=btldetail_url
@@ -144,7 +163,10 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         case "herostatistics":
             url=herostatistics_url
             data=herostatistics_data
-    retry_time=3
+        case "heroranklist":
+            url=heroranklist_url
+            data=heroranklist_data
+    retry_time=5
     error_msg=""
     while(retry_time):
         response = requests.post(url, headers=headers, json=data)
@@ -153,12 +175,13 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         res=response.json().get("data",{})
         error_msg=response.json().get("returnMsg","")
         if res: break
+        time.sleep(0.5)
         retry_time-=1
     if (not retry_time): raise Exception(str("HOK: "+error_msg))
     return res
 
-@sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=1, period=1)  # 每1秒最多调用1次
+@sleep_and_retry
+@limits(calls=100, period=1)
 def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
     log_message("VISIT: ai_api_common")
     try:
@@ -170,10 +193,12 @@ def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
                 {"role": "user", "content": user_query},
             ],
             stream=False,
-            temperature=temperature
+            temperature=temperature,
+            timeout=20   # 20秒超时
         )
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
+    random.seed(int(time.time() * 1000) % 1000000 + os.getpid())
     return response.choices[0].message.content
 def ai_function(user_query):
     log_message("VISIT: ai_api_function_call")

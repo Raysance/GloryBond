@@ -1,5 +1,7 @@
+from .config import Config
+from nonebot.plugin import PluginMetadata
+from nonebot import get_plugin_config
 
-import threading
 import redis
 
 from .zutil import * # 引入通用库
@@ -13,22 +15,25 @@ from .zfunc import * # 辅助函数
 from .zscheduler import * # 定时事件
 from .ztime import * # 时间获取
 
-# 加载昨日数据
-load_yesterday(1) 
-init_fetch_news()
-# 启动定时任务 
-scheduler_thread = threading.Thread(target=scheduler_func)
-scheduler_thread.daemon = True
-scheduler_thread.start()
+# NONEBOT配置 
+__plugin_meta__ = PluginMetadata(
+    name="Qbot",
+    description="QQ Bot for Honor of Kings: Track Stats & Interactive Engagement.",
+    usage="Application",
+    config=Config,
+)
+config = get_plugin_config(Config)
 
-redis_path=str(os.environ.get('REDIS_CONF'))
-with open(redis_path, 'r', encoding='utf-8') as file:
-    varia = json.load(file)
-globals().update(varia)
-dmc.redis_deamon= redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB,password=REDIS_PASSWORD)
-dmc.export_btldetail_lock=threading.Lock()
-dmc.LastBtlMsgTime=str_to_time("2025-01-01 00:00:00")
-dmc.LastBtlMsgCoolDownTime=str_to_time("2025-01-01 00:00:00")
-# web_shared_btls_processor()
+# logging配置
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(), logging.FileHandler("QBOT.log")]
+)
+
+# 加载昨日数据
+load_yesterday(1)
+init_fetch_news()
+init_fetch_heroranklist()
 if __name__=="__main__":
     pass

@@ -7,6 +7,7 @@ import io
 import urllib.request
 from datetime import datetime
 from typing import List, Optional, Tuple, Iterable, cast
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps  # type: ignore
@@ -28,6 +29,7 @@ class PlayerInfo:
     hero_avatar_url: Optional[str] = None  # 英雄头像 URL/本地路径
     hero_power: Optional[int] = None       # 当前英雄战力
     hero_tag: Optional[str] = None         # 当前英雄标（文本）
+    max_hero_tag: Optional[str] = None     # 最大/突出英雄标（用于在头像上方显示）
 
     # 关键对战指标（与官方数据字段对齐）
     win_rate: Optional[float] = None  # 0~1 或 0~100（heroBehavior.winRate）
@@ -97,6 +99,7 @@ class CoPlayerProcess:
         HeroAvatar: Optional[str] = None,
         HeroPower: Optional[int] = None,
         HeroTag: Optional[str] = None,
+        MaxHeroTag: Optional[str] = None,
         starNum: Optional[int] = None,
         peakScore: Optional[int] = None,
         PowerNum: Optional[int] = None,
@@ -145,6 +148,7 @@ class CoPlayerProcess:
                 hero_avatar_url=HeroAvatar,
                 hero_power=HeroPower,
                 hero_tag=HeroTag,
+                max_hero_tag=MaxHeroTag,
                 side='my' if is_my_side else 'op',
             )
         )
@@ -254,6 +258,45 @@ def _load_avatar_to_circle(src: Optional[str], diameter: int):
     return None
 
 
+def _batch_load_avatars(sources: List[Tuple[int, Optional[str]]], diameter: int) -> dict:
+    """并行批量加载头像，返回 {index: image} 字典。
+    
+    Args:
+        sources: [(index, url_or_path), ...] 列表
+        diameter: 圆形头像直径
+    
+    Returns:
+        {index: PIL.Image} 字典，加载失败的条目不包含在结果中
+    """
+    results = {}
+    
+    def load_single(idx, src):
+        img = _load_avatar_to_circle(src, diameter)
+        if img is not None:
+            return (idx, img)
+        return None
+    
+    # 过滤掉空源
+    valid_sources = [(idx, src) for idx, src in sources if src]
+    
+    if not valid_sources:
+        return results
+    
+    # 使用线程池并行加载
+    with ThreadPoolExecutor(max_workers=min(10, len(valid_sources))) as executor:
+        futures = {executor.submit(load_single, idx, src): (idx, src) for idx, src in valid_sources}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    idx, img = result
+                    results[idx] = img
+            except Exception:
+                pass
+    
+    return results
+
+
 def _load_hero_icon(url_or_path: Optional[str], size: Tuple[int, int]):
     """加载英雄头像图标，优先按自定义本地路径规则读取；失败则按常规 URL/本地读取。
     返回 RGBA 图像或 None。
@@ -290,6 +333,45 @@ def _load_hero_icon(url_or_path: Optional[str], size: Tuple[int, int]):
     except Exception:
         return None
     return None
+
+
+def _batch_load_hero_icons(sources: List[Tuple[int, Optional[str]]], size: Tuple[int, int]) -> dict:
+    """并行批量加载英雄头像，返回 {index: image} 字典。
+    
+    Args:
+        sources: [(index, url_or_path), ...] 列表
+        size: 图标尺寸 (width, height)
+    
+    Returns:
+        {index: PIL.Image} 字典，加载失败的条目不包含在结果中
+    """
+    results = {}
+    
+    def load_single(idx, src):
+        img = _load_hero_icon(src, size)
+        if img is not None:
+            return (idx, img)
+        return None
+    
+    # 过滤掉空源
+    valid_sources = [(idx, src) for idx, src in sources if src]
+    
+    if not valid_sources:
+        return results
+    
+    # 使用线程池并行加载
+    with ThreadPoolExecutor(max_workers=min(10, len(valid_sources))) as executor:
+        futures = {executor.submit(load_single, idx, src): (idx, src) for idx, src in valid_sources}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    idx, img = result
+                    results[idx] = img
+            except Exception:
+                pass
+    
+    return results
 
 
 def _rounded_rect_crop_rgba(im, size: Tuple[int, int], radius: int):
@@ -479,6 +561,18 @@ def generate_player_strength_image(
             return lines
 
         def render_column(col_x: int, players_list: List[PlayerInfo]):
+            # 预加载所有头像和英雄图标（并行）
+            avatar_d = 88
+            small_d = 28
+            
+            # 收集所有需要加载的资源
+            hero_sources = [(idx, p.hero_avatar_url) for idx, p in enumerate(players_list)]
+            avatar_sources = [(idx, p.avatar_path if p.auth is not False else None) for idx, p in enumerate(players_list)]
+            
+            # 并行加载
+            hero_images = _batch_load_hero_icons(hero_sources, (avatar_d, avatar_d))
+            avatar_images = _batch_load_avatars(avatar_sources, small_d)
+            
             for idx, p in enumerate(players_list):
                 card_top = start_y + idx * (card_h + gap)
                 card_left = col_x + 24
@@ -486,26 +580,34 @@ def generate_player_strength_image(
                 card_xy = (card_left, card_top, card_right, card_top + card_h)
 
                 # 计算评分与卡片背景着色（降低色彩强度，更加简洁）
-                score = _calc_display_score(p)
-                dev = score - avg_score_all
-                t = abs(dev) / max_abs_dev
-                tint_factor = 0.08 + 0.16 * t  # 0.08..0.24 更克制
-                base_color = ACCENT_GREEN if dev >= 0 else ACCENT_RED
-                fill_color = _blend_with_white(base_color, tint_factor)
+                # 未授权检查
+                unauthorized = (p.auth is False)
+                
+                if unauthorized:
+                    # 未授权：使用灰色背景
+                    fill_color = (240, 243, 248)
+                else:
+                    # 授权：根据评分着色
+                    score = _calc_display_score(p)
+                    dev = score - avg_score_all
+                    t = abs(dev) / max_abs_dev
+                    tint_factor = 0.08 + 0.16 * t  # 0.08..0.24 更克制
+                    base_color = ACCENT_GREEN if dev >= 0 else ACCENT_RED
+                    fill_color = _blend_with_white(base_color, tint_factor)
+                
                 _rounded_rectangle(draw, card_xy, radius=18, fill=fill_color, outline=BORDER, width=1)
                 # 未授权：右上角三角角标（无文字）
-                if p.auth is False:
+                if unauthorized:
                     rx = card_xy[2]
                     ty = card_xy[1]
                     sz = 32
                     draw.polygon([(rx, ty), (rx - sz, ty), (rx, ty + sz)], fill=ACCENT_RED)
 
                 # 左侧主图：英雄头像（圆角方形），占据原头像位置
-                avatar_d = 88
                 avatar_x = card_xy[0] + 24
                 # 略微上移左侧元素（头像与文本整体）
                 avatar_y = card_top + (card_h - avatar_d) // 2 - 8
-                hero_raw = _load_hero_icon(p.hero_avatar_url, (avatar_d, avatar_d))
+                hero_raw = hero_images.get(idx)
                 if hero_raw is not None:
                     hero_round = _rounded_rect_crop_rgba(hero_raw, (avatar_d, avatar_d), radius=14)
                     im.paste(hero_round, (avatar_x, avatar_y), mask=hero_round)
@@ -514,6 +616,23 @@ def generate_player_strength_image(
                     _rounded_rectangle(draw, (avatar_x, avatar_y, avatar_x + avatar_d, avatar_y + avatar_d), radius=14, fill=(238, 241, 248))
                     # 放一个英雄字样首字母占位
                     _safe_text(draw, (avatar_x + 28, avatar_y + 30), "H", _try_load_font(28, True), ACCENT)
+
+                # 最大英雄标（显示在英雄头像上方，从卡片顶部开始）
+                if getattr(p, 'max_hero_tag', None):
+                    top_font = _try_load_font(18)
+                    max_tag_width = card_right - avatar_x
+                    max_tag_lines = _wrap_text_local(str(p.max_hero_tag), top_font, max_tag_width)
+                    # 从卡片顶部 + 8px 开始放置，每行 20px
+                    line_h_top = 20
+                    avail_top_h = avatar_y - (card_top + 8)
+                    max_top_lines = max(0, min(len(max_tag_lines), avail_top_h // line_h_top))
+                    if max_top_lines > 0:
+                        lines_to_draw = max_tag_lines[:max_top_lines]
+                        for i, t in enumerate(lines_to_draw):
+                            # 从卡片顶部 8px 处逐行向下放置
+                            ty = card_top + 12 + i * line_h_top
+                            tx = avatar_x
+                            _safe_text(draw, (tx, ty), t, top_font, TEXT_SECONDARY)
 
                 # 英雄标（位于英雄头像正下方，自动换行）
                 small_font = _try_load_font(18)
@@ -538,9 +657,7 @@ def generate_player_strength_image(
                 text_x = avatar_x + avatar_d + 20
                 text_y = avatar_y
                 # 在名字左侧放置小的玩家头像（圆形）；未授权不显示该玩家头像
-                small_d = 28
-                unauthorized = (p.auth is False)
-                small_av = None if unauthorized else _load_avatar_to_circle(p.avatar_path, small_d)
+                small_av = None if unauthorized else avatar_images.get(idx)
                 name_x = text_x
                 if small_av is not None:
                     small_y = text_y + max(0, (30 - small_d) // 2)
@@ -571,13 +688,13 @@ def generate_player_strength_image(
 
                 # 行2：巅峰（未授权隐藏）
                 if (p.peak_score is not None) and not unauthorized:
-                    _safe_text(draw, (text_x, chip_y + 28), f"巅峰{p.peak_score}", small_font, TEXT_SECONDARY)
-                # 行3：战力（紧跟巅峰之下）
+                    _safe_text(draw, (text_x, chip_y + 28), f"巅峰 {p.peak_score}", small_font, TEXT_SECONDARY)
+                # 行3：战斗力（紧跟巅峰之下）
                 if (p.power is not None) and not unauthorized:
-                    _safe_text(draw, (text_x, chip_y + 56), f"战力{p.power}", small_font, TEXT_SECONDARY)
+                    _safe_text(draw, (text_x, chip_y + 56), f"战斗力 {p.power}", small_font, TEXT_SECONDARY)
 
-                # single_level 百分比条（位于战力行之下）
-                if p.single_level is not None and max_single_level > 0:
+                # single_level 百分比条（位于战力行之下）- 未授权则不渲染
+                if p.single_level is not None and max_single_level > 0 and not unauthorized:
                     bar_left = text_x
                     # 预留到右侧竖条区域的左边缘
                     right_x_end = card_xy[2] - 24
@@ -601,41 +718,42 @@ def generate_player_strength_image(
                     lbl = "历史实力"
                     _safe_text(draw, (bar_left, bar_top - 18), lbl, small_font, TEXT_SECONDARY)
 
-                # 右侧竖状条（胜率 / 场次 / MVP率）
-                right_x_end = card_xy[2] - 24
-                total_matches = p.derived_matches() or 0
-                mvp_rate = p.derived_mvp_rate() or 0.0
-                wr = p.normalized_win_rate() or 0.0
+                # 右侧竖状条（胜率 / 场次 / MVP率）- 未授权则不渲染
+                if not unauthorized:
+                    right_x_end = card_xy[2] - 24
+                    total_matches = p.derived_matches() or 0
+                    mvp_rate = p.derived_mvp_rate() or 0.0
+                    wr = p.normalized_win_rate() or 0.0
 
-                v_area_left = right_x_end - right_col_w
-                v_top = card_top + 26
-                v_bottom = card_top + card_h - 44
-                v_h = max(40, v_bottom - v_top)
-                bar_w_v = 22  # 加宽竖条以匹配更高的卡片
-                gap_v = 40  # 增大条形间距
-                tot_w = 3 * bar_w_v + 2 * gap_v
-                start_x = v_area_left + (right_col_w - tot_w) // 2
+                    v_area_left = right_x_end - right_col_w
+                    v_top = card_top + 26
+                    v_bottom = card_top + card_h - 44
+                    v_h = max(40, v_bottom - v_top)
+                    bar_w_v = 22  # 加宽竖条以匹配更高的卡片
+                    gap_v = 40  # 增大条形间距
+                    tot_w = 3 * bar_w_v + 2 * gap_v
+                    start_x = v_area_left + (right_col_w - tot_w) // 2
 
-                # 英雄战力条替换原“英雄胜率”位置；显示值为原始战力，条高按本图最大战力归一
-                hero_pow_val = p.hero_power if p.hero_power is not None else 0
-                hero_pow_ratio = min(1.0, max(0.0, float(hero_pow_val) / float(max_hero_power)))
-                items = [
-                    ("英雄\n战力", hero_pow_ratio, ACCENT, str(hero_pow_val if hero_pow_val > 0 else "-")),
-                    ("英雄\n场次", min(1.0, max(0.0, total_matches / max_total_matches)), ACCENT, str(total_matches)),
-                    ("总MVP率", mvp_rate, (255, 158, 27), _format_percent(mvp_rate)),
-                ]
-                for i, (lab, ratio, color, txt) in enumerate(items):
-                    x0 = start_x + i * (bar_w_v + gap_v)
-                    _rounded_rectangle(draw, (x0, v_top, x0 + bar_w_v, v_top + v_h), radius=9, fill=(240, 243, 248))
-                    h = int(v_h * ratio)
-                    y_fill = v_top + v_h - h
-                    _rounded_rectangle(draw, (x0, y_fill, x0 + bar_w_v, v_top + v_h), radius=9, fill=color)
-                    lab_bbox = draw.textbbox((0, 0), lab, font=small_font)
-                    _safe_text(draw, (x0 + (bar_w_v - (lab_bbox[2]-lab_bbox[0]))//2, v_top + v_h + 4), lab, small_font, TEXT_SECONDARY)
-                    val_bbox = draw.textbbox((0, 0), txt, font=small_font)
-                    # 数值固定在条形最上方（轨道顶部上方），而非有色填充顶部
-                    vy = v_top - (val_bbox[3] - val_bbox[1]) - 4
-                    _safe_text(draw, (x0 + (bar_w_v - (val_bbox[2]-val_bbox[0]))//2, vy), txt, small_font, TEXT_PRIMARY)
+                    # 英雄战力条替换原"英雄胜率"位置；显示值为原始战力，条高按本图最大战力归一
+                    hero_pow_val = p.hero_power if p.hero_power is not None else 0
+                    hero_pow_ratio = min(1.0, max(0.0, float(hero_pow_val) / float(max_hero_power)))
+                    items = [
+                        ("英雄\n战力", hero_pow_ratio, ACCENT, str(hero_pow_val if hero_pow_val > 0 else "-")),
+                        ("英雄\n场次", min(1.0, max(0.0, total_matches / max_total_matches)), ACCENT, str(total_matches)),
+                        ("总MVP率", mvp_rate, (255, 158, 27), _format_percent(mvp_rate)),
+                    ]
+                    for i, (lab, ratio, color, txt) in enumerate(items):
+                        x0 = start_x + i * (bar_w_v + gap_v)
+                        _rounded_rectangle(draw, (x0, v_top, x0 + bar_w_v, v_top + v_h), radius=9, fill=(240, 243, 248))
+                        h = int(v_h * ratio)
+                        y_fill = v_top + v_h - h
+                        _rounded_rectangle(draw, (x0, y_fill, x0 + bar_w_v, v_top + v_h), radius=9, fill=color)
+                        lab_bbox = draw.textbbox((0, 0), lab, font=small_font)
+                        _safe_text(draw, (x0 + (bar_w_v - (lab_bbox[2]-lab_bbox[0]))//2, v_top + v_h + 4), lab, small_font, TEXT_SECONDARY)
+                        val_bbox = draw.textbbox((0, 0), txt, font=small_font)
+                        # 数值固定在条形最上方（轨道顶部上方），而非有色填充顶部
+                        vy = v_top - (val_bbox[3] - val_bbox[1]) - 4
+                        _safe_text(draw, (x0 + (bar_w_v - (val_bbox[2]-val_bbox[0]))//2, vy), txt, small_font, TEXT_PRIMARY)
 
                 # 去除卡片右下角的战力信息（已在姓名下方展示）
 
@@ -646,7 +764,7 @@ def generate_player_strength_image(
         else:
             render_column(left_col_x, other_list)
     # 页脚（底部居中）
-    foot = "Data from 示例玩家52守卫🤖"
+    foot = "Data from 笙煎守味🤖"
     foot_bbox = draw.textbbox((0, 0), foot, font=sub_font)
     foot_w = foot_bbox[2] - foot_bbox[0]
     _safe_text(

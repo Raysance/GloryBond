@@ -18,10 +18,41 @@ require("nonebot_plugin_apscheduler")
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
 async def judge_herostatistics_query(event)->bool:
-    rcv_msg=event.get_plaintext()
-    if ("的" not in rcv_msg): return False
-    if (len(rcv_msg)>=12): return False
-    return True
+    from .zfunc import qid2nick
+    from .ztime import wait
+    
+    userqid=event.get_user_id()
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    if not (rcv_msg.startswith("#") or rcv_msg.startswith("＃")):
+        return False
+    raw = rcv_msg.lstrip("#＃").strip()
+
+    if "的" not in raw:
+        return False
+    left, right = raw.split("的", 1)
+    left = left.strip()
+    right = right.strip()
+    if not left or not right:
+        return False
+
+    left_ok = False
+    if left == "群u":
+        left_ok = True
+    else:
+        for k, v in nameref.items():
+            if left in v:
+                left_ok = True
+                break
+    right_ok = False
+    if right == "英雄":
+        right_ok = True
+    else:
+        if right in list(HeroList.values()):
+            right_ok = True
+        if right in list(HeroName_replacements.values()):
+            right_ok = True
+
+    return left_ok and right_ok
 async def judge_super(event)->bool:
     return str(confs["QQBot"]["super_qid"])==str(event.get_user_id())
 async def judge_unsuper(event)->bool:
@@ -56,7 +87,7 @@ _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
-_herostatistics=on_keyword(set(HeroNames),rule=Rule(judge_to_me,judge_herostatistics_query),priority=4, block=True)
+_herostatistics=on_message(rule=Rule(judge_herostatistics_query),priority=4, block=True)
 _todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
 # _allhero=on_keyword(set(allhero_keywords),rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
@@ -436,20 +467,46 @@ async def f_heropower(bot,event):
     await _heropower.send(snd_msg)
 @_herostatistics.handle()
 async def f_herostatistics(bot,event):
-    from .zfunc import herostatistics_process
-    from .zfunc import qid2nick
+    from .zfunc import (
+        single_player_single_hero_process,
+        single_player_mult_hero_process,
+        mult_player_mult_hero_process,
+        mult_player_single_hero_process,
+        extract_name,
+        extract_heroname,
+        qid2nick,
+    )
     from .ztime import short_wait
-    
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
-    
-    snd_msg=herostatistics_process(rcv_msg)
+
+    userqid = event.get_user_id()
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+
+    player_plural=False
+    hero_plural=False
+    if ("群u" in rcv_msg): player_plural=True
+    else: matching_name = extract_name(rcv_msg)
+    if ("英雄" in rcv_msg): hero_plural=True
+    else: heroid, heroname = extract_heroname(rcv_msg)
+
+    try:
+        if (not player_plural and not hero_plural):
+            snd_msg = single_player_single_hero_process(matching_name, heroid, heroname)
+        elif (not player_plural and hero_plural):
+            snd_msg = single_player_mult_hero_process(matching_name)
+        elif (player_plural and not hero_plural):
+            snd_msg = mult_player_single_hero_process(heroid,heroname)
+        else:
+            snd_msg = mult_player_mult_hero_process()
+    except Exception as e:
+        snd_msg = str(e)
+
     short_wait()
-    await _heropower.send(snd_msg)
+    await _herostatistics.send(snd_msg)
 @_todayhero.handle()
 async def f_todayhero(bot,event):
     from .zfunc import qid2realname
     from .zfunc import todayhero_process
+    from .ztime import short_wait,wait
 
     userqid=event.get_user_id()
     realname=qid2realname(userqid)
@@ -464,7 +521,14 @@ async def f_todayhero(bot,event):
             matching_name=extract_name(rcv_msg)
             if (matching_name!="name_error"): 
                 realname=matching_name
-        hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
+        try:
+            hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
+        except Exception as e:
+            short_wait()
+            await _todayhero.send(str(e))
+            wait()
+            await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
+            return
         snd_msg=MessageSegment.text(hero_msg)+MessageSegment.image(pic_path)+MessageSegment.text(play_reason)
 
     await _todayhero.send(snd_msg)
@@ -700,8 +764,10 @@ async def run_web_shared_btls_processor():
     params_json=result
     params=json.loads(params_json)
 
+    snd_msg =   "───来自网页分享───\n\n"
     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True)
-    snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    snd_msg += "\n\n───来自网页分享───"
     # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
     await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
 
@@ -718,16 +784,20 @@ async def run_web_analyze_btls_processor():
     params_json=result
     params=json.loads(params_json)
 
+    snd_msg =  "───来自网页分享───\n\n"
     btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True,from_web=True)
-    snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+
+    snd_msg += "\n\n"
 
     btl_msg,pic_path=coplayer_process(**params,from_web=True)
-    snd_msg = MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
-    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    snd_msg += "\n\n───来自网页分享───"
 
-    return 
+    # await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=snd_msg)
+
+    await bot.send_group_msg(group_id=confs["QQBot"]["group_qid"], message=snd_msg)
+    return
 @scheduler.scheduled_job("interval", seconds=5, id="message_sender")
 async def message_sender():
     result = dmc.MessageQueue.rpop("MessageQueue")
