@@ -19,7 +19,8 @@ async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
 async def judge_herostatistics_query(event)->bool:
     from .zfunc import qid2nick
-    
+    from .ztime import wait
+    from .zfunc import extract_name,extract_heroname
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
     if not (rcv_msg.startswith("#") or rcv_msg.startswith("＃")):
@@ -37,19 +38,13 @@ async def judge_herostatistics_query(event)->bool:
     left_ok = False
     if left == "群u":
         left_ok = True
-    else:
-        for k, v in nameref.items():
-            if left in v:
-                left_ok = True
-                break
+    elif extract_name(left,precise=True):
+        left_ok = True
     right_ok = False
     if right == "英雄":
         right_ok = True
-    else:
-        if right in list(HeroList.values()):
-            right_ok = True
-        if right in list(HeroName_replacements.values()):
-            right_ok = True
+    elif extract_heroname(right,precise=True):
+        right_ok = True
 
     return left_ok and right_ok
 async def judge_super(event)->bool:
@@ -88,7 +83,6 @@ _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
 _herostatistics=on_message(rule=Rule(judge_herostatistics_query),priority=4, block=True)
 _todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
-# _allhero=on_keyword(set(allhero_keywords),rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
@@ -146,6 +140,9 @@ async def f_forward(bot,event):
 async def f_pure_chat(bot,event):
     from .zfunc import ai_parser
     rcv_msg=event.get_plaintext()
+    for k in sorted(common_expr.keys(), key=len, reverse=True):
+        rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
+
     snd_msg=""
     try:
         snd_msg+=ai_parser([rcv_msg],"pure_chat")
@@ -505,6 +502,7 @@ async def f_herostatistics(bot,event):
 async def f_todayhero(bot,event):
     from .zfunc import qid2realname
     from .zfunc import todayhero_process
+    from .ztime import short_wait,wait
 
     userqid=event.get_user_id()
     realname=qid2realname(userqid)
@@ -519,7 +517,14 @@ async def f_todayhero(bot,event):
             matching_name=extract_name(rcv_msg)
             if (matching_name!="name_error"): 
                 realname=matching_name
-        hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
+        try:
+            hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
+        except Exception as e:
+            short_wait()
+            await _todayhero.send(str(e))
+            wait()
+            await bot.send_private_msg(user_id=confs["QQBot"]["super_qid"], message=traceback.format_exc())
+            return
         snd_msg=MessageSegment.text(hero_msg)+MessageSegment.image(pic_path)+MessageSegment.text(play_reason)
 
     await _todayhero.send(snd_msg)
@@ -706,7 +711,26 @@ async def fetch_news():
         dmc.today_news = ark_api(fetch_news_pmpt)
         writera(file_path,dmc.today_news)
     return None
-
+@scheduler.scheduled_job("cron", hour=7, minute=30,second=00, id="fetch_herorank")
+async def fetch_herorank():
+    from .zapi import wzry_get_official
+    from .ztime import date_r
+    from .zfile import file_exist
+    from .zfile import readerl
+    from .zfile import writerl
+    
+    current_date = date_r()
+    herorank_dir = "herorank"
+    file_path = os.path.join(herorank_dir, f"{current_date}.json")
+    
+    if file_exist(file_path):
+        dmc.herorank=readerl(file_path)
+    else:
+        for _,rankId in hero_ranklist_rankids.items():
+            dmc.herorank[rankId]=wzry_get_official(reqtype="heroranklist",rankId=rankId,rankSegment=4)
+        writerl(file_path,dmc.herorank)
+    
+    return None
 def init_fetch_news():
     from .zapi import ark_api
     from .ztime import date_r

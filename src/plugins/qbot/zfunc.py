@@ -10,6 +10,11 @@ from wcwidth import wcswidth
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+def _to_pinyin(s):
+    from pypinyin import lazy_pinyin
+    
+    return "".join(lazy_pinyin(str(s))).lower()
+
 def wzry_data(realname,savepath=None): # 单人的战绩parser
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
@@ -209,14 +214,23 @@ def ai_parser(user_query,msg_type,network=False):
         case "skill_advantage":
             whole_query = skill_advantage_pmpt[0] + skill_advantage_pmpt[1] + user_query[0] + skill_advantage_pmpt[2] + user_query[1] +  skill_advantage_pmpt[3] + user_query[2] + skill_advantage_pmpt[4] + user_query[3] + skill_advantage_pmpt[5] + user_query[4]
     ai_back=""
+    ai_status=True
     if (not network):
-        ai_back=ai_api(whole_query)
+        try:
+            ai_back=ai_api(whole_query)
+        except Exception as e:
+            ai_status=False
+            ai_back=str(e)
     else:
-        whole_query=ark_chat_pmpt+whole_query
-        ai_back=ark_api(whole_query)
+        try:
+            whole_query=ark_chat_pmpt+whole_query
+            ai_back=ark_api(whole_query)
+        except Exception as e:
+            ai_status=False
+            ai_back=str(e)
 
-    if (dmc.use_mem):
-        dmc.ai_memory.append("问："+";".join(user_query)+"。答："+ai_back+";") # 只储存user本身的提问，不附加自带提示词
+    if (dmc.use_mem and ai_status):
+        dmc.ai_memory.append("问："+";".join(user_query)+"。答："+";") # 只储存user本身的提问，不附加自带提示词
     return ai_back
 
 def create_website(contents,sitetype):
@@ -533,7 +547,7 @@ def single_process(rcv_msg):
             exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")} {lost_info_msg}"
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
             writerl(website_filepath,gameinfo_raw)
-            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_period")
+            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")}),"single_period")
             wait()
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
@@ -605,23 +619,38 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
             snd_msg+=f"{namenick[k]}：\n    {str(round(v[0],2))} {str(round(v[1]*100,1))}% {str(round(v[2],2))}\n"
     if ("e" in rcv_msg):
         extreme_data=Analyses.get_extreme_data(time_gap=time_gap)
-        snd_msg+="\n"
         snd_msg+=f"近{time_gap}天最高最低评分：\n"
         snd_msg+="      ↑"+namenick[extreme_data[3]]+"的"+extreme_data[5]+"："+str(round(extreme_data[1],3))+"分\n"
         snd_msg+="      ↓"+namenick[extreme_data[2]]+"的"+extreme_data[4]+"："+str(round(extreme_data[0],3))+"分\n"
-    if ("h" in rcv_msg):
+    if ("k" in rcv_msg):
         expert_hero=Analyses.get_expert_hero(time_gap=time_gap)
-        snd_msg+="\n"
         for k,v in expert_hero.items():
             snd_msg+=f"{namenick[k]}的最拿手英雄：{list(v[0].keys())[0]},拿手程度：{str(round(list(v[0].values())[0],3))}\n"
         snd_msg+="\n"
     if ("i" in rcv_msg):
         intersection_data=Analyses.get_intersection_data(time_gap=time_gap)
-        snd_msg+="\n"
         for k,v in intersection_data.items():
             double_player=[]
             for player in k: double_player.append(player)
             snd_msg+=f"{namenick[double_player[0]]}与{namenick[double_player[1]]}：{str(int(v))}\n"
+    if ("h" in rcv_msg):
+        hero_overview = Analyses.get_hero_benefit_data(time_gap=30)
+        hero_min, hero_max, min_val, max_val, hero_stats = hero_overview
+        snd_msg+=f"英雄受益受害（近30日）：\n"
+        if hero_stats:
+            snd_msg+=f"  受益：{hero_min} ({min_val})\n"
+            snd_msg+=f"  受害：{hero_max} ({max_val})\n"
+            snd_msg+=line_delim
+            snd_msg+="\n  受益榜（Top 6）：\n"
+            # hero_stats 已按 metric 升序排列（越小越受益）
+            for hn, vals in list(hero_stats.items())[:6]:
+                snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
+            snd_msg+=line_delim
+            snd_msg+="\n  受害榜（Top 6）：\n"
+            for hn, vals in list(hero_stats.items())[-6:][::-1]:
+                snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
+        else:
+            snd_msg+="  无数据。\n"
     short_wait()
     return snd_msg
 def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False):
@@ -754,7 +783,7 @@ def single_player_single_hero_process(username,heroid,heroname):
 
     # 组装简洁输出
     lines = []
-    lines.append(f"【统计信息】\n{namenick[username]}的{heroname}")
+    lines.append(f"【统计信息】 {namenick[username]}的{heroname}")
     lines.append(line_delim)
     lines.append(f"战力  {heropower}  ({month_heropower_incre:+d})")
     lines.append(f"总战绩  {winNum}胜{failNum}负  胜率{round(win_rate*100,1)}%")
@@ -857,7 +886,7 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
 
     # 可读摘要
     lines = []
-    lines.append(f"【统计信息】\n{namenick[username]}的英雄汇总 \n（近 {days} 天，共 {total_games} 场）")
+    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（近 {days} 天，共 {total_games} 场）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
@@ -930,7 +959,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
     top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
 
     lines = []
-    lines.append(f"【统计信息】\n群u的英雄汇总\n（近 {days} 天，共 {total_games_all} 场）")
+    lines.append(f"【统计信息】 群u的英雄汇总\n（近 {days} 天，共 {total_games_all} 场）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
@@ -1022,7 +1051,7 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
 
     # 组装输出
     lines = []
-    lines.append(f"【统计信息】\n群u的{hero_name}\n（近 {days} 天）")
+    lines.append(f"【统计信息】 群u的{hero_name}\n（近 {days} 天）")
     lines.append(line_delim)
     lines.append(f"总场次：{total_games}    参战玩家数：{len(per_player)}")
     lines.append(f"总胜率：{round(overall_winrate*100,1)}%    均分：{round(overall_avg_grade,2)}\n K/D/A：{round(overall_k,2)}/{round(overall_d,2)}/{round(overall_a,2)}")
@@ -1241,7 +1270,7 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     heroid=[heroid_ for heroid_,heroname_ in HeroList.items() if heroname_==hero_name][0]
 
     hero_skills=get_hero_skills(heroid)
-    hero_statistics=single_player_single_hero_process(f"{realname} {hero_name}")
+    hero_statistics=single_player_single_hero_process(realname,heroid,hero_name)
     dmc.use_mem=False
     if (ai_comment): play_reason=ai_parser(msg_type="skill_advantage",user_query=[hero_name,namenick[realname],str(hero_skills),str(selected_info),hero_statistics])
     else: play_reason=str(selected_info)
@@ -1656,6 +1685,62 @@ class Analyses:
         return [user_low_grade_winrate_ratio,user_high_grade_winrate_ratio,round(low_grade_winrate_ratio,3),round(high_grade_winrate_ratio,3),player_benefit]
     
     @staticmethod
+    def get_hero_benefit_data(time_gap=analyze_time_gap):
+        """按英雄聚合分析（与 get_benefit_data 对玩家的分析类似）
+        - time_gap: 向前统计天数
+        返回格式：[hero_min_metric, hero_max_metric, round(min_val,3), round(max_val,3), hero_stats]
+        hero_stats 为 dict: {hero: [metric, win_rate, avg_grade, total_count]}
+        metric 计算方式与玩家端一致： avg_grade^2 / exp(win_rate)
+        值越大表示该英雄在统计期内总体上“受害”（评分高但胜率偏低），值越小表示更“受益”。
+        """
+        from .ztime import time_r
+        from .ztime import time_r_delta
+
+        end_date = time_r()
+        start_date = time_r_delta(time_gap)
+        analyzed_infos = Analyses.analyze_history(userid=None, start_date=start_date, end_date=end_date)
+
+        hero_acc = {}  # hero -> {'count':, 'wins':, 'grades':[]}
+        for player, info in analyzed_infos.items():
+            for hero, hinfo in info.get('hero_info', {}).items():
+                cnt = hinfo[1]
+                wins = hinfo[0]
+                grades = hinfo[2]
+                entry = hero_acc.setdefault(hero, {'count': 0, 'wins': 0, 'grades': []})
+                entry['count'] += cnt
+                entry['wins'] += wins
+                entry['grades'].extend(grades)
+
+        # 只统计出场超过 3 场的英雄
+        hero_acc = {h: acc for h, acc in hero_acc.items() if acc['count'] > 3}
+        if not hero_acc:
+            return ["", "", 0, 0, {}]
+
+        hero_stats = {}
+        min_metric = float('inf')
+        max_metric = float('-inf')
+        hero_min = ""
+        hero_max = ""
+
+        for hero, acc in hero_acc.items():
+            total = acc['count']
+            win_rate = (acc['wins'] / total) if total else 0
+            all_grades = acc['grades']
+            avg_grade = (sum(all_grades) / len(all_grades)) if all_grades else 0
+            metric = pow(avg_grade, 2) / math.exp(win_rate) if total else 0
+            hero_stats[hero] = [metric, win_rate, avg_grade, total]
+            if metric < min_metric:
+                min_metric = metric
+                hero_min = hero
+            if metric > max_metric:
+                max_metric = metric
+                hero_max = hero
+
+        # 按 metric 排序（升序）
+        hero_stats = dict(sorted(hero_stats.items(), key=lambda item: item[1][0]))
+        return [hero_min, hero_max, round(min_metric, 3), round(max_metric, 3), hero_stats]
+    
+    @staticmethod
     def get_expert_hero(userid=None,time_gap=analyze_time_gap):
         from .ztime import time_r
         from .ztime import time_r_delta
@@ -1805,15 +1890,21 @@ def get_peak_alter_list(details,processed,reverse=1):
                 item_b["used"]=True
         peak_alter_list.append([PeakBefore,PeakAfter])
     return peak_alter_list
-def extract_name(origin_text):
+def extract_name(origin_text,precise=False):
+    def contain(x,y,p):
+        y_norm = str(y).lower().replace(' ', '')
+        if (p):
+            return x == y or _to_pinyin(x) == y_norm
+        else:
+            return (x in y) or (_to_pinyin(x) in y_norm)
     matching_name=None
     for realname,nicknames in nameref.items():
         for nickname in nicknames:
-            if (nickname in origin_text):
+            if contain(nickname,origin_text,precise):
                 matching_name=realname
                 break
         if (matching_name): break
-    if (not matching_name): matching_name=ai_parser([origin_text],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
+    # if (not matching_name): matching_name=ai_parser([origin_text],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
     return matching_name
 def merge_crossday_gamedata(gamedata):
     if (not gamedata): return {}
@@ -1876,16 +1967,21 @@ def export_btldetail(gameinfo,roleid):
         res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
         writerl(savepath,res)
     return
-def extract_heroname(msg):
-    
-    if ("轮椅" in msg):
+def extract_heroname(origin_text,precise=False):
+    def contain(x,y,p):
+        y_norm = str(y).lower().replace(' ', '')
+        if (p):
+            return _to_pinyin(x) == _to_pinyin(y_norm)
+        else:
+            return _to_pinyin(x) in _to_pinyin(y_norm)
+    if contain("轮椅",origin_text,precise):
         heroid=-1
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=HeroList[heroid]
             if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元射","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
-    if ("下水道" in msg):
+    if contain("下水道",origin_text,precise):
         heroid=-2
         while(True):
             heroid = random.choice(list(HeroList))
@@ -1893,8 +1989,9 @@ def extract_heroname(msg):
             if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
         return heroid,heroname
     for heroid,heroname in HeroList.items():
-        if (heroname in msg):
+        if contain(heroname,origin_text,precise):
             return heroid,heroname
     for heroid,heroname in HeroName_replacements.items():
-        if (heroname in msg):
+        if contain(heroname,origin_text,precise):
             return heroid,HeroList[heroid]
+    return None
