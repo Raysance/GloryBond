@@ -462,8 +462,6 @@ def single_process(rcv_msg):
     from .zfile import readerl
     from .zfile import copyfile
     from .zfile import file_exist
-    from .ztime import wait
-    from .ztime import short_wait
     from .ztime import time_r
     from .ztime import calc_gap
     from .ztime import add_second
@@ -515,7 +513,6 @@ def single_process(rcv_msg):
             except Exception as e:
                 exhibit_date_woyear+=" 链接失效"
             website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_oneday")
-            wait()
         elif (history_query[0]==2): # 追溯时间段
             ai_feedback=False
             show_map_cnt_total=True
@@ -548,7 +545,6 @@ def single_process(rcv_msg):
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
             writerl(website_filepath,gameinfo_raw)
             website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")}),"single_period")
-            wait()
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
             if (gameinfo['details']):
@@ -561,7 +557,6 @@ def single_process(rcv_msg):
                     dmc.LastBtlRoleId=roleidlist[matching_name]
                     dmc.LastBtlMsgTime=time_to_str(time_r())
                     dmc.LastBtlMsgStatus=True
-            short_wait()
             website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_oneday")
 
         win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
@@ -651,7 +646,6 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
                 snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
         else:
             snd_msg+="  无数据。\n"
-    short_wait()
     return snd_msg
 def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False):
     from .zapi import wzry_get_official
@@ -706,8 +700,6 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     if (gen_image):
         picpath=os.path.join(nginx_path,"wzry_history","exhibit.png")
         gen_battle_res.generate_battle_ui_image(json_output_path,picpath)
-    else:
-        wait()
     snd_message=""
     if (from_web):
         snd_message+=(
@@ -747,13 +739,12 @@ def heropower_process(rcv_msg):
             ret_text+=f" {region_name}  第 {hero['honorTitle']['rank']} 名\n\n"
         except Exception as e:
             pass
-    short_wait()
     return ret_text
 # 单一玩家、单一英雄
-def single_player_single_hero_process(username,heroid,heroname):
+def single_player_single_hero_process(username,heroid,heroname,this_season=True):
     from .zapi import wzry_get_official
     from .ztime import short_wait
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta,str_to_time
 
     userid=userlist[username]
     roleid=roleidlist[username]
@@ -776,7 +767,12 @@ def single_player_single_hero_process(username,heroid,heroname):
 
     # 获取本地历史数据（用于详细统计）
     end_date = time_r()
-    start_date = time_delta(end_date, -30)
+    if(this_season): 
+        start_date = str_to_time("2025-09-25")
+        TimeLim="本赛季(20250925-now)"
+    else: 
+        start_date = time_delta(end_date, -30)
+        TimeLim="近30日"
     history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
     games = history.get(username, []) if history else []
     hero_games = [g for g in games if g.get('HeroName') == heroname]
@@ -799,12 +795,12 @@ def single_player_single_hero_process(username,heroid,heroname):
         avg_assist_h = sum(int(g.get('AssistCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
         
         lines.append(line_delim)
-        lines.append("近30日表现")
+        lines.append(f"{TimeLim}表现")
         lines.append(f"{total_games_h}场  胜率{round(win_rate_h*100,1)}%  均分{round(avg_grade_h,1)}")
         lines.append(f"MVP×{mvp_h}  牌子×{month_medal}  KDA {round(avg_kill_h,1)}/{round(avg_dead_h,1)}/{round(avg_assist_h,1)}")
     else:
         lines.append(line_delim)
-        lines.append("近30日无对局记录")
+        lines.append(f"{TimeLim}无对局记录")
 
     # 添加成就牌（如果有特殊成就才显示）
     medal_list = res.get("medalList") or []
@@ -1275,7 +1271,6 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     if (ai_comment): play_reason=ai_parser(msg_type="skill_advantage",user_query=[hero_name,namenick[realname],str(hero_skills),str(selected_info),hero_statistics])
     else: play_reason=str(selected_info)
     dmc.use_mem=True
-    short_wait()
     former_msg=f"{namenick[realname]}的今日英雄：{hero_name}"
     latter_msg=play_reason
     return former_msg,latter_msg,pic_path
@@ -1302,7 +1297,6 @@ def allhero_process(rcv_msg):
         #     pass
         # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
         # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
-    wait()
     return ret_text
 def gradeanalyze_process(rcv_msg):
     from .tools import gen_grade_chart
@@ -1316,7 +1310,6 @@ def gradeanalyze_process(rcv_msg):
     pic_save_path=f"/usr/local/nginx/html/wzry_grade_chart/"
     analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
     
-    wait()
     return pic_visit_path,analyze_msg
 def watchbattle_process(rcv_msg):
     from .zapi import wzry_get_official
@@ -1344,7 +1337,6 @@ def watchbattle_process(rcv_msg):
     dmc.RTMPListener.start()  # 开始后台监听
 
     dmc.RTMPListener.screenshot()   # 截图一次
-    wait()
     return save_path,None
 def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=False):
     from .zapi import wzry_get_official
@@ -1890,22 +1882,13 @@ def get_peak_alter_list(details,processed,reverse=1):
                 item_b["used"]=True
         peak_alter_list.append([PeakBefore,PeakAfter])
     return peak_alter_list
-def extract_name(origin_text,precise=False):
-    def contain(x,y,p):
-        y_norm = str(y).lower().replace(' ', '')
-        if (p):
-            return x == y or _to_pinyin(x) == y_norm
-        else:
-            return (x in y) or (_to_pinyin(x) in y_norm)
-    matching_name=None
-    for realname,nicknames in nameref.items():
-        for nickname in nicknames:
-            if contain(nickname,origin_text,precise):
-                matching_name=realname
-                break
-        if (matching_name): break
-    # if (not matching_name): matching_name=ai_parser([origin_text],"single_parser") # 返回人员与日期字典格式 格式为{name:date,name:date,...}
-    return matching_name
+def extract_name(from_text,precise=False):
+    for is_origin in [True,False]:
+        for realname,nicknames in nameref.items():
+            for nickname in nicknames:
+                if txt_contain(nickname,from_text,precise,is_origin):
+                    return realname
+    return "name_error"
 def merge_crossday_gamedata(gamedata):
     if (not gamedata): return {}
     res=gamedata[-1]
@@ -1968,30 +1951,37 @@ def export_btldetail(gameinfo,roleid):
         writerl(savepath,res)
     return
 def extract_heroname(origin_text,precise=False):
-    def contain(x,y,p):
-        y_norm = str(y).lower().replace(' ', '')
-        if (p):
-            return _to_pinyin(x) == _to_pinyin(y_norm)
-        else:
-            return _to_pinyin(x) in _to_pinyin(y_norm)
-    if contain("轮椅",origin_text,precise):
+    if txt_contain("轮椅",origin_text,precise,True):
         heroid=-1
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=HeroList[heroid]
             if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元射","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
-    if contain("下水道",origin_text,precise):
+    if txt_contain("下水道",origin_text,precise,True):
         heroid=-2
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=HeroList[heroid]
             if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
         return heroid,heroname
-    for heroid,heroname in HeroList.items():
-        if contain(heroname,origin_text,precise):
-            return heroid,heroname
-    for heroid,heroname in HeroName_replacements.items():
-        if contain(heroname,origin_text,precise):
-            return heroid,HeroList[heroid]
+    for is_origin in [True,False]:
+        for heroid,heroname in HeroList.items():
+            if txt_contain(heroname,origin_text,precise,is_origin):
+                return heroid,heroname
+        for heroid,heroname in HeroName_replacements.items():
+            if txt_contain(heroname,origin_text,precise,is_origin):
+                return heroid,HeroList[heroid]
     return None
+def txt_contain(x,y,p,ori):
+    if (ori):
+        if (p):
+            return x == y
+        else:
+            return x in y
+    else:
+        y_norm = str(y).lower().replace(' ', '')
+        if (p):
+            return _to_pinyin(x) == _to_pinyin(y_norm)
+        else:
+            return _to_pinyin(x) in _to_pinyin(y_norm)
