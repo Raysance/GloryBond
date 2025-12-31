@@ -720,18 +720,16 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
             f"戳一戳 来评估两方实力"
         )
     return snd_message,picpath
-def heropower_process(rcv_msg):
+def heropower_process(realname):
     from .zapi import wzry_get_official
     from .ztime import short_wait
 
-    matching_name=extract_name(rcv_msg)
-    if (matching_name=="name_error"): return None
-    userid=userlist[matching_name]
-    roleid=roleidlist[matching_name]
+    userid=userlist[realname]
+    roleid=roleidlist[realname]
 
     res=wzry_get_official(reqtype="heropower",userid=userid,roleid=roleid)
     # print(res)
-    ret_text=f"{namenick[matching_name]}的战力英雄\n"
+    ret_text=f"{namenick[realname]}的战力英雄\n"
     ret_text+=f"─────────────\n"
     for hero in res['heroList']:
         try:
@@ -1084,20 +1082,18 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
     return "\n".join(lines)
 
 
-def recentgame_process(rcv_msg):
+def recentgame_process(realname):
     """基于本地 history 文件，做近30天的综合多维度分析，返回字符串。
-    参数 rcv_msg 用于提取用户名（与 single_player_single_hero_process 保持一致的解析逻辑）。
+    参数 realname 用于指定用户名。
     """
-    matching_name = extract_name(rcv_msg)
-    if (matching_name == "name_error"): return None
-    userid = userlist[matching_name]
+    userid = userlist[realname]
     # time window
     try:
         from .ztime import time_r, time_delta
         end_date = time_r()
         start_date = time_delta(end_date, -30)
         history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-        games = history.get(matching_name, []) if history else []
+        games = history.get(realname, []) if history else []
         if not games:
             return f"未在本地 history 文件中找到 {namenick[matching_name]} 近30天的战绩。"
 
@@ -1278,17 +1274,15 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     latter_msg=play_reason
     return former_msg,latter_msg,pic_path
 
-def allhero_process(rcv_msg):
+def allhero_process(realname):
     from .zapi import wzry_get_official
     from .ztime import waitx
 
-    matching_name=extract_name(rcv_msg)
-    if (matching_name=="name_error"): return None
-    userid=userlist[matching_name]
-    roleid=roleidlist[matching_name]
+    userid=userlist[realname]
+    roleid=roleidlist[realname]
 
     res=wzry_get_official(reqtype="allhero",userid=userid,roleid=roleid)
-    ret_text=f"{namenick[matching_name]}的拿手英雄\n"
+    ret_text=f"{namenick[realname]}的拿手英雄\n"
     hero_cnt=0
     for hero in res['heroList']:
         if (hero_cnt>5): break
@@ -1301,29 +1295,25 @@ def allhero_process(rcv_msg):
         # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
         # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
     return ret_text
-def gradeanalyze_process(rcv_msg):
+def gradeanalyze_process(realname):
     from .tools import gen_grade_chart
     from .ztime import wait
 
-    matching_name=extract_name(rcv_msg)
-
-    userid=userlist[matching_name]
+    userid=userlist[realname]
     data_path=os.path.join("history")
     pic_visit_path=f"/usr/local/nginx/html/wzry_grade_chart/grade_chart.png"
     pic_save_path=f"/usr/local/nginx/html/wzry_grade_chart/"
     analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
     
     return pic_visit_path,analyze_msg
-def watchbattle_process(rcv_msg):
+def watchbattle_process(realname):
     from .zapi import wzry_get_official
     from .tools import gen_battle_shot
     from .ztime import short_wait
     from .ztime import wait
 
-    matching_name=extract_name(rcv_msg)
-    if (matching_name=="name_error"): return None,None
-    userid=userlist[matching_name]
-    roleid=roleidlist[matching_name]
+    userid=userlist[realname]
+    roleid=roleidlist[realname]
 
     btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     if (not btlist_data["isGaming"]): return None,None

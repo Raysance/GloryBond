@@ -14,3 +14,4 @@ redis_deamon_analyze_btl = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDI
 MessageQueue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_MESSAGE_QUEUE)
 TodayHeroPool=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_TODAY_HERO_POOL)
 BtlAnalyzeEvaluatorPool=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_BTL_ANALYZE_EVALUATOR_POOL)
+redis_deamon_diy_code = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_DIY_CODE)

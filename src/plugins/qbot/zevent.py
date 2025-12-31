@@ -52,6 +52,17 @@ async def judge_herostatistics_query(event)->bool:
         right_ok = True
 
     return left_ok and right_ok
+
+def get_validated_name(event):
+    from .zfunc import qid2nick, extract_name
+    userqid = event.get_user_id()
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+    matching_name = extract_name(rcv_msg)
+    if matching_name == "name_error":
+        add_msg("未找到该用户，请检查名字是否正确", event=event)
+        return None
+    return matching_name
+
 async def judge_super(event)->bool:
     return str(confs["QQBot"]["super_qid"])==str(event.get_user_id())
 async def judge_unsuper(event)->bool:
@@ -440,12 +451,11 @@ async def f_btldetail(bot,event):
 @_heropower.handle()
 async def f_heropower(bot,event):
     from .zfunc import heropower_process
-    from .zfunc import qid2nick
-
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
     
-    snd_msg=heropower_process(rcv_msg)
+    matching_name = get_validated_name(event)
+    if not matching_name: return
+
+    snd_msg=heropower_process(matching_name)
     
     add_msg(snd_msg, event=event)
 @_herostatistics.handle()
@@ -502,10 +512,9 @@ async def f_todayhero(bot,event):
         ignore_limit=True if ("%" in rcv_msg) else False
         appoint_realname=True if ("~" in rcv_msg) else False
         if (appoint_realname):
-            from .zfunc import extract_name
-            matching_name=extract_name(rcv_msg)
-            if (matching_name!="name_error"): 
-                realname=matching_name
+            matching_name = get_validated_name(event)
+            if not matching_name: return
+            realname = matching_name
         try:
             hero_msg,play_reason,pic_path=todayhero_process(realname,ignore_limit,ai_comment)
         except Exception as e:
@@ -530,25 +539,23 @@ async def f_todayhero(bot,event):
 @_gradeanalyze.handle()
 async def f_gradeanalyze(bot,event):
     from .zfunc import gradeanalyze_process
-    from .zfunc import qid2nick
 
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
-    
-    img_url,analyze_msg=gradeanalyze_process(rcv_msg)
+    matching_name = get_validated_name(event)
+    if not matching_name: return
+
+    img_url,analyze_msg=gradeanalyze_process(matching_name)
     # print(img_url)
     # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
     add_msg(MessageSegment.image(img_url), event=event)
 @_watchbattle.handle()
 async def f_watchbattle(bot,event):
     from .zfunc import watchbattle_process
-    from .zfunc import qid2nick
     from .zfile import file_exist
 
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
-    
-    img_url,analyze_msg=watchbattle_process(rcv_msg)
+    matching_name = get_validated_name(event)
+    if not matching_name: return
+
+    img_url,analyze_msg=watchbattle_process(matching_name)
     # print(img_url)
     # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
     if (file_exist(img_url)):
@@ -593,3 +600,22 @@ async def f_chat(bot,event):
     chats_dumper(userqid,rcv_msg,snd_msg)
     add_msg(snd_msg, event=event)
     return
+
+async def judge_diy(event) -> bool:
+    return event.get_plaintext().startswith("#diy") or event.get_plaintext().startswith("＃diy")
+
+diy_matcher = on_message(rule=judge_diy, priority=10, block=True)
+
+@diy_matcher.handle()
+async def diy_handle(bot: Bot, event: Event):
+    from .zdiy import handle_diy_request
+    user_input = event.get_plaintext().replace("#diy", "").replace("＃diy", "").strip()
+    if not user_input:
+        await diy_matcher.finish("请输入具体需求，例如：#diy 获取我的战绩并发送")
+    
+    await diy_matcher.send("正在生成代码并执行，请稍候...")
+    try:
+        result = await asyncio.to_thread(handle_diy_request, event, user_input)
+        await diy_matcher.finish(str(result))
+    except Exception as e:
+        await diy_matcher.finish(f"Error: {str(e)}")
