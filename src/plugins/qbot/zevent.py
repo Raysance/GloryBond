@@ -2,7 +2,7 @@
 from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
-from .aux.message_sender import add_msg
+from .utils.message_sender import add_msg
 from . import zscheduler
 
 import nonebot
