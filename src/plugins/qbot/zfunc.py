@@ -178,6 +178,7 @@ def ai_parser(user_query,msg_type,network=False):
     from .zapi import ai_api,ark_api
     from .ztime import get_timebased_rand
 
+    ai_temperature=1.5
     style_templates_index=get_timebased_rand(len(pmpt_style_templates),30)
     style_template=pmpt_style_templates[style_templates_index]
     
@@ -192,6 +193,7 @@ def ai_parser(user_query,msg_type,network=False):
             whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
         case "single_parser":
             whole_query += name_pmpt[0] + str(nameref) + name_pmpt[1]+ user_query[0] + name_pmpt[2]
+            ai_temperature=2
         case "single_player":
             whole_query += single_pmpt1 + user_query[0] + single_pmpt2 + user_query[1]
         case "tq":
@@ -217,7 +219,7 @@ def ai_parser(user_query,msg_type,network=False):
     ai_status=True
     if (not network):
         try:
-            ai_back=ai_api(whole_query)
+            ai_back=ai_api(user_query=whole_query,temperature=ai_temperature)
         except Exception as e:
             ai_status=False
             ai_back=str(e)
@@ -255,10 +257,10 @@ def online_process():
         userid = userlist[realname]
         roleid = roleidlist[realname]
         
-        try:
-            profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
-        except Exception as e:
-            return {'online_cnt': 0, 'battle_info': None, 'nickname': ''}
+        profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
+        # except Exception as e:
+            # return {'online_cnt': 0, 'battle_info': None, 'nickname': ''}
+            
         
         user_online_cnt = 0
         user_battle_info = None
@@ -295,35 +297,36 @@ def online_process():
     total_online_cnt = 0
     battle_groups = {}  # 按战局ID分组: {battleId: [玩家信息]}
     idle_users = []  # 在线但不在游戏中的玩家
-
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_user = {
-            executor.submit(process_user, realname): realname 
-            for realname in userlist
-        }
-        for future in as_completed(future_to_user):
-            realname = future_to_user[future]
-            result = future.result()
-            if result and result['online_cnt'] > 0:
-                total_online_cnt += result['online_cnt']
-                battle_info = result['battle_info']
-                
-                if battle_info and battle_info['battleId']:
-                    # 有对战号，加入对应战局组
-                    battle_id = battle_info['battleId']
-                    if battle_id not in battle_groups:
-                        battle_groups[battle_id] = []
-                    battle_groups[battle_id].append({
-                        'name': result['nickname'],
-                        'info': battle_info
-                    })
-                elif battle_info:
-                    # 在线但不在游戏中
-                    idle_users.append({
-                        'name': result['nickname'],
-                        'job': battle_info['job']
-                    })
-    
+    try:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_user = {
+                executor.submit(process_user, realname): realname 
+                for realname in userlist
+            }
+            for future in as_completed(future_to_user):
+                realname = future_to_user[future]
+                result = future.result()
+                if result and result['online_cnt'] > 0:
+                    total_online_cnt += result['online_cnt']
+                    battle_info = result['battle_info']
+                    
+                    if battle_info and battle_info['battleId']:
+                        # 有对战号，加入对应战局组
+                        battle_id = battle_info['battleId']
+                        if battle_id not in battle_groups:
+                            battle_groups[battle_id] = []
+                        battle_groups[battle_id].append({
+                            'name': result['nickname'],
+                            'info': battle_info
+                        })
+                    elif battle_info:
+                        # 在线但不在游戏中
+                        idle_users.append({
+                            'name': result['nickname'],
+                            'job': battle_info['job']
+                        })
+    except Exception as e:
+        return str(e)
     if total_online_cnt:
         snd_msg = f"在线 {total_online_cnt} 人\n"
         snd_msg += "─────────────\n"
@@ -479,7 +482,7 @@ def single_process(rcv_msg):
     # ai_feedback=False
     matching_name=extract_name(rcv_msg)
 
-    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<30): return None # 防止重复冗余请求
+    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<5): return None # 防止重复冗余请求
     dmc.LastSingleRequestTime[matching_name]=time_r()
 
     today_date=str(time_r().strftime("%Y-%m-%d"))

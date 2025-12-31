@@ -185,12 +185,12 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         if res: break
         time.sleep(0.5)
         retry_time-=1
-    if (not retry_time): raise Exception(str("HOK: "+error_msg))
+    if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
     return res
 
 @sleep_and_retry
 @limits(calls=100, period=1)
-def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
+def ai_api(user_query,temperature): # deepseek官方模型-不联网
     log_message("VISIT: ai_api_common")
     try:
         client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
