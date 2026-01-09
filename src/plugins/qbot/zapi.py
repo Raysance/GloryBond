@@ -186,6 +186,11 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         time.sleep(0.5)
         retry_time-=1
     if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
+    # import os
+    # import json
+    # save_path = os.path.join("wzry_data_format", f"{reqtype}.json")
+    # with open(save_path, 'w', encoding='utf-8') as sf:
+    #     json.dump(res, sf, ensure_ascii=False, indent=2)
     return res
 
 @sleep_and_retry

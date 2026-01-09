@@ -171,9 +171,17 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
-    # export_btldetail(today_details,roleid)
+    export_btldetail(today_details,roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
+def export_past():
+    import json
+    import glob
 
+    directory = "history/"
+    result = {f: json.load(open(f, 'r', encoding='utf-8')) for f in glob.glob(f"{directory}/2026*.json")}
+    for k,v in result.items():
+        for player in v:
+            export_btldetail(player["details"],player["roleid"])
 def ai_parser(user_query,msg_type,network=False):
     from .zapi import ai_api,ark_api
     from .ztime import get_timebased_rand
@@ -602,7 +610,7 @@ def single_process(rcv_msg):
         ai_process_gameinfo=[]
         for detail in gameinfo['details']:
             ai_process_gameinfo.append({k: v for k, v in detail.items() if k in {"GameTime","HeroName","MapName","StarAfterGame","PeakGradeAfterGame","PeakGradeBeforeGame","KillCnt","DeadCnt","AssistCnt","Result","GameGrade","Duration_Second","Others"}})
-        if (ai_feedback): snd_msg+=ai_parser([str(toon.encode(ai_process_gameinfo)),rcv_msg],"single_player")+"\n"
+        if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),rcv_msg],"single_player")+"\n"
 
     return [snd_msg,pokename,exist_battle,last_official_btl_params,roleidlist[matching_name]]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
@@ -742,7 +750,7 @@ def heropower_process(realname):
             pass
     return ret_text
 # 单一玩家、单一英雄
-def single_player_single_hero_process(username,heroid,heroname,this_season=True):
+def single_player_single_hero_process(username,heroid,heroname,this_season=False):
     from .zapi import wzry_get_official
     from .ztime import short_wait
     from .ztime import time_r, time_delta,str_to_time
@@ -1437,7 +1445,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
                 if (TotalNumInfo): TotalCnt=int(TotalNumInfo["content"])
                 if (MVPInfo): MVPCnt=int(MVPInfo["content"])
                 if (TotalNumInfo and MVPInfo): MVPRate=MVPCnt/TotalCnt
-                else: MVPRate=0.2
+                else: MVPRate=0.25
                 if (heropower_res):
                     for hero in heropower_res['heroList']:
                         try:
@@ -1924,6 +1932,15 @@ def check_btl_official(btlname):
     if re.search(r'排位|巅峰|战队', btlname):
         return True
     return False
+def check_btl_official_only_rank(btlname):
+    import re
+
+    btlname=str.lower(btlname)
+    if re.search(r'1v1|2v2|3v3', btlname):
+        return False
+    if re.search(r'排位', btlname):
+        return True
+    return False
 def check_btl_official_with_matching(btlname):
     import re
 
@@ -1939,7 +1956,7 @@ def export_btldetail(gameinfo,roleid):
     from .zfile import file_exist
     for btl in gameinfo:
         savepath=os.path.join("history","battles",str(btl["GameSeq"])+".json")
-        if (file_exist(savepath) or not check_btl_official(btl["MapName"])): continue
+        if (file_exist(savepath) or not check_btl_official_with_matching(btl["MapName"])): continue
         res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
         writerl(savepath,res)
     return
@@ -1949,7 +1966,7 @@ def extract_heroname(origin_text,precise=False):
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=HeroList[heroid]
-            if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元射","艾琳","杨戬","盾山","张飞","云缨"]):break
+            if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元流之子(射手)","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
     if txt_contain("下水道",origin_text,precise,True):
         heroid=-2

@@ -581,6 +581,10 @@ async def f_chat(bot,event):
     my_temp_msg=chats_loader(userqid)
     perp_msg=mem_loader(userqid)
     rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    
+    for k in sorted(common_expr.keys(), key=len, reverse=True):
+        rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
+    
     rcv_msg+=" "+(str(event.reply.message) if event.reply else "")+" "
     snd_msg=""
     ori_use_mem=dmc.use_mem

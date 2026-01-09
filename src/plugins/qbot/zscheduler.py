@@ -38,7 +38,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 
 
 
-@scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+5, second=00, id="load_yesterday")
+@scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+10, second=00, id="load_yesterday")
 def load_yesterday(imple_type=0):
     from .ztime import time_sul
     from .zfile import readerl
@@ -59,19 +59,36 @@ def load_yesterday(imple_type=0):
 
 @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute-5, second=00, id="dump_today")
 async def dump_today():
+    return _dump_today_impl()
+# @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+5, second=00, id="dump_today_dupli")
+# async def dump_today_dupli():
+#     return _dump_today_impl()
+
+def _dump_today_impl():
     from .ztime import time_sul
     from .zfunc import wzry_data
     from .zfile import writerl
 
     dump_date=time_sul().strftime("%Y-%m-%d")
     log_message("DUMPBEGIN "+dump_date+".json")
+    retry_time=5
     gameinfo=[]
-    for key in userlist:
-        try:
-            gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json")))
-            time.sleep(0.3)
-        except Exception:
-            continue
+    while retry_time:
+        if (not gameinfo): visitfield=userlist
+        else: visitfield=dmc.DumpTodayFailedList
+        for key in visitfield:
+            try:
+                gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json")))
+                time.sleep(0.3)
+            except Exception:
+                dmc.DumpTodayFailedList.append(key)
+        if (not dmc.DumpTodayFailedList):
+            break
+        time.sleep(10)
+        retry_time-=1
+    if (not retry_time): 
+        add_msg("Dump failed for "+str(dmc.DumpTodayFailedList), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        dmc.DumpTodayFailedList=[]
     filename=os.path.join("history",dump_date+".json")
     writerl(filename,gameinfo)
     log_message("DUMPEND "+dump_date+".json")
@@ -179,24 +196,26 @@ async def run_web_analyze_btls_processor():
     from .ztime import wait
 
     result = dmc.redis_deamon_analyze_btl.rpop("Analyze_queue")
+    
     if (not result): return
-    params_json=result
-    params=json.loads(params_json)
+    result=json.loads(result)
+    game_params=result["game_params"]
+    print(game_params)
+    Special=result["Special"]
 
     snd_msg =  "───来自网页分享───\n\n"
-    btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True,from_web=True)
+    btl_msg,pic_path=btldetail_process(**game_params,gen_image=True,show_profile=True,from_web=True)
     snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
 
     snd_msg += "\n\n"
 
-    btl_msg,pic_path=coplayer_process(**params,from_web=True)
+    btl_msg,pic_path=coplayer_process(**game_params,from_web=True)
     snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
     snd_msg += "\n\n───来自网页分享───"
-
-    # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    # wait()
-    # wait()
-    # wait()
-    # wait()
-    add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+    
+    if (Special):
+        snd_msg = "Private Message\n" + snd_msg
+        add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    else:
+        add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
     return

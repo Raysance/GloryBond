@@ -1,0 +1,150 @@
+{
+  "heroList": [
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": {
+        "heroId": 0,
+        "rank": 0,
+        "type": 0,
+        "region": {
+          "provinceName": "",
+          "cityName": "",
+          "countyName": ""
+        },
+        "desc": {
+          "abbr": "",
+          "full": ""
+        }
+      }
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": {
+        "heroId": 0,
+        "rank": 0,
+        "type": 0,
+        "region": {
+          "provinceName": "",
+          "cityName": "",
+          "countyName": ""
+        },
+        "desc": {
+          "abbr": "",
+          "full": ""
+        }
+      }
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    }
+  ]
+}

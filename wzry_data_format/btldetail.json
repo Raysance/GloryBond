@@ -1,0 +1,3337 @@
+{
+  "head": {
+    "gameResult": false,
+    "acntCamp": 0,
+    "mapName": "",
+    "gradeGame": "",
+    "kda": "",
+    "labels": [
+      ""
+    ],
+    "killCnt": 0,
+    "deadCnt": 0,
+    "assistCnt": 0,
+    "roleId": "",
+    "roleIcon": "",
+    "roleName": "",
+    "bgImg": "",
+    "teamNum": 0,
+    "matchDesc": "",
+    "tips": "",
+    "userId": "",
+    "heroId": 0,
+    "heroName": "",
+    "playerId": "",
+    "is10v10": false
+  },
+  "battle": {
+    "gameType": 0,
+    "usedTime": 0,
+    "dtEventTime": "",
+    "mapName": "",
+    "startTime": ""
+  },
+  "redTeam": {
+    "acntCamp": 0,
+    "banHeros": [
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "pickHeros": [
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "killCnt": 0,
+    "deadCnt": 0,
+    "assistCnt": 0,
+    "money": 0,
+    "moneyTrend": [],
+    "towerCnt": 0,
+    "ldragon1": 0,
+    "ldragon2": 0,
+    "bdragon1": 0,
+    "bdragon2": 0,
+    "bdragon3": 0,
+    "gameResult": false,
+    "banCnt": 0
+  },
+  "blueTeam": {
+    "acntCamp": 0,
+    "banHeros": [
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "pickHeros": [
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 0,
+        "heroIcon": "",
+        "heroName": "",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "killCnt": 0,
+    "deadCnt": 0,
+    "assistCnt": 0,
+    "money": 0,
+    "moneyTrend": [],
+    "towerCnt": 0,
+    "ldragon1": 0,
+    "ldragon2": 0,
+    "bdragon1": 0,
+    "bdragon2": 0,
+    "bdragon3": 0,
+    "gameResult": false,
+    "banCnt": 0
+  },
+  "redRoles": [
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": null,
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          },
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "blueRoles": [
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          },
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "",
+        "roleName": "",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 0,
+        "serverId": 0,
+        "acntCamp": 0,
+        "userId": "",
+        "isMI": 0,
+        "isGameAuth": false,
+        "playerId": "",
+        "isMe": false,
+        "dimGender": 0
+      },
+      "heroBehavior": {
+        "winNum": 0,
+        "loseNum": 0,
+        "avgScore": "",
+        "winRate": ""
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 0,
+        "assistCnt": 0,
+        "money": 0,
+        "exp": 0,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "",
+        "sabcbattle": "",
+        "sabcgrow": "",
+        "sabcKDA": "",
+        "sabcsurvive": "",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "",
+        "totalHurtCnt": "",
+        "totalHeroHurtCnt": "",
+        "hurtTransRate": "",
+        "totalBehurtCnt": "",
+        "totalBeheroHurtCnt": "",
+        "behurtPerDeath": "",
+        "joinGamePercent": "",
+        "healCnt": "",
+        "ctrlTime": "",
+        "buildingDamage": "",
+        "monsterCoin": "",
+        "killSoldier": "",
+        "oldMasterMatchScore": 0,
+        "newMasterMatchScore": 0,
+        "disGradeLevelId": "",
+        "gradeLevelId": 0,
+        "fightPower": 0,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 0,
+        "kda": "",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 0,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 0,
+          "heroIcon": "",
+          "heroName": "",
+          "heroOriginSkin": "",
+          "extraAvatar": "",
+          "verticalIcon": "",
+          "heroPicUrl": "",
+          "skinIcon128128": ""
+        },
+        "usedSkin": {
+          "skinId": 0,
+          "skinIcon": "",
+          "skinName": "",
+          "skinIcon128128": ""
+        },
+        "position": 0,
+        "inBattleObjid": 0,
+        "finalEquips": [
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          },
+          {
+            "equipId": 0,
+            "equipIcon": "",
+            "equipName": ""
+          }
+        ],
+        "skill": {
+          "skillId": 0,
+          "skillIcon": "",
+          "skillName": ""
+        },
+        "highLight": [
+          {
+            "id": "",
+            "name": "",
+            "desc": "",
+            "icon": "",
+            "times": 0,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 0,
+        "teamFlag": 0,
+        "teamRealFlag": 0,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        },
+        {
+          "icon": "",
+          "desc": "",
+          "title": "",
+          "buttonText": "",
+          "jumpUrl": "",
+          "extInfo": [],
+          "type": 0,
+          "skinStatus": 0,
+          "contentID": ""
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "",
+          "icon": "",
+          "dataCounts": [
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "",
+              "name": "",
+              "dataHighlight": false,
+              "dataNote": "",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "jumpUrl": ""
+}
