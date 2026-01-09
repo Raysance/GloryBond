@@ -102,6 +102,7 @@ _todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
+_diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
@@ -561,6 +562,21 @@ async def f_watchbattle(bot,event):
     if (file_exist(img_url)):
         add_msg(MessageSegment.image(img_url), event=event)
 
+@_diycode.handle()
+async def f_diycode(bot: Bot, event: Event):
+    from .zdiy import handle_diy_request
+    user_input = event.get_plaintext().replace("#diy", "").replace("＃diy", "").strip()
+    if not user_input:
+        add_msg("请输入具体需求，例如：#diy 获取我的战绩并发送", event=event)
+        return
+    
+    add_msg("正在生成代码并执行，请稍候...", event=event)
+    try:
+        result = await asyncio.to_thread(handle_diy_request, event, user_input)
+        add_msg(str(result), event=event)
+    except Exception as e:
+        add_msg(f"Error: {str(e)}", event=event)
+
 @_chat.handle()
 async def f_chat(bot,event):
     from .zfile import chats_loader
@@ -600,22 +616,3 @@ async def f_chat(bot,event):
     chats_dumper(userqid,rcv_msg,snd_msg)
     add_msg(snd_msg, event=event)
     return
-
-async def judge_diy(event) -> bool:
-    return event.get_plaintext().startswith("#diy") or event.get_plaintext().startswith("＃diy")
-
-diy_matcher = on_message(rule=judge_diy, priority=10, block=True)
-
-@diy_matcher.handle()
-async def diy_handle(bot: Bot, event: Event):
-    from .zdiy import handle_diy_request
-    user_input = event.get_plaintext().replace("#diy", "").replace("＃diy", "").strip()
-    if not user_input:
-        await diy_matcher.finish("请输入具体需求，例如：#diy 获取我的战绩并发送")
-    
-    await diy_matcher.send("正在生成代码并执行，请稍候...")
-    try:
-        result = await asyncio.to_thread(handle_diy_request, event, user_input)
-        await diy_matcher.finish(str(result))
-    except Exception as e:
-        await diy_matcher.finish(f"Error: {str(e)}")

@@ -1,0 +1,124 @@
+{
+  "heroList": [
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 0,
+        "skilledLevel": 0,
+        "winNum": 0,
+        "failNum": 0,
+        "expireTime": "",
+        "playNum": 0,
+        "winRate": "",
+        "heroFightPower": 0,
+        "score": 0,
+        "title": "",
+        "alias": "",
+        "heroIcon": "",
+        "heroPic": "",
+        "heroBg": "",
+        "heroUrl": "",
+        "frequencyHeroUrl": "",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": ""
+      },
+      "honorTitle": null
+    }
+  ]
+}

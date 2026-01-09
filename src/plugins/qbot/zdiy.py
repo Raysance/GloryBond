@@ -20,33 +20,45 @@ def check_code_safety(code):
     except SyntaxError as e:
         return False, f"SyntaxError: {e}"
 
+    forbidden_imports = [
+        'os', 'subprocess', 'sys', 'shutil', 'pathlib', 'glob', 
+        'pickle', 'marshal', 'tempfile', 'builtins', 'io', 
+        'socket', 'requests', 'urllib', 'ftplib', 'poplib', 
+        'imaplib', 'smtplib', 'telnetlib'
+    ]
+    
+    forbidden_functions = [
+        'open', 'eval', 'exec', 'compile', '__import__', 
+        'input', 'exit', 'quit', 'help', 'globals', 'locals', 'vars',
+        'print' # 禁止print，强制使用add_msg
+    ]
+
     for node in ast.walk(tree):
-        if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
+        if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name in ['os', 'subprocess', 'sys', 'shutil']:
+                base_module = alias.name.split('.')[0]
+                if base_module in forbidden_imports:
                     return False, f"Forbidden import: {alias.name}"
+        if isinstance(node, ast.ImportFrom):
+            if node.module:
+                base_module = node.module.split('.')[0]
+                if base_module in forbidden_imports:
+                    return False, f"Forbidden import: {node.module}"
+                
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
-                if node.func.id in ['eval', 'exec', 'open']:
+                if node.func.id in forbidden_functions:
                     return False, f"Forbidden function call: {node.func.id}"
             elif isinstance(node.func, ast.Attribute):
-                if node.func.attr in ['system', 'popen', 'spawn']:
+                if node.func.attr in ['system', 'popen', 'spawn', 'write', 'read', 'open']:
                     return False, f"Forbidden attribute access: {node.func.attr}"
     return True, ""
 
 def generate_code_from_text(user_input):
-    # 尝试获取 prompt，如果未加载则使用默认值或重新读取
-    try:
-        pmpt = diy_code_pmpt
-    except NameError:
-        with open(os.path.join(os.path.dirname(__file__), 'variables_static.json'), 'r', encoding='utf-8') as f:
-            varia = json.load(f)
-            pmpt = varia.get("diy_code_pmpt", "")
-
     manual = get_api_manual()
-    prompt = pmpt + "\n\nAPI Manual:\n" + manual + "\n\nUser Request: " + user_input
+    prompt = diy_code_pmpt + "\n\nAPI Manual:\n" + manual + "\n\nUser Request: " + user_input
     
-    retry_count = 3
+    retry_count = 2
     last_error = ""
     
     for i in range(retry_count):

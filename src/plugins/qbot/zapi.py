@@ -186,6 +186,19 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         time.sleep(0.5)
         retry_time-=1
     if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
+    # 尝试将返回的数据保存为文件，文件名以 reqtype 命名，记录但不影响返回值
+    import os
+    import json
+    try:
+        save_dir = os.path.join(os.path.dirname(__file__),"wzry_data_format")
+        save_path = os.path.join(save_dir, f"{reqtype}.json")
+        with open(save_path, 'w', encoding='utf-8') as sf:
+            json.dump(res, sf, ensure_ascii=False, indent=2)
+    except Exception as e:
+        try:
+            log_message(f"wzry_get_official: failed to save {reqtype}.json: {e}")
+        except:
+            pass
     return res
 
 @sleep_and_retry
