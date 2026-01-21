@@ -306,7 +306,7 @@ def online_process():
     battle_groups = {}  # 按战局ID分组: {battleId: [玩家信息]}
     idle_users = []  # 在线但不在游戏中的玩家
     try:
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor:
             future_to_user = {
                 executor.submit(process_user, realname): realname 
                 for realname in userlist
@@ -392,7 +392,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
             return None
 
     gameinfo = []
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         future_to_key = {executor.submit(visit_wzry_data, key): key for key in userlist}
         for future in as_completed(future_to_key):
             result = future.result()
@@ -688,14 +688,16 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
     my_userid=res['head']['userId']
     our_player_infos_suf=[]
+    our_plyaer_info_userlist=userlist|extra_useridlist
+    out_player_info_namenicklist=namenick|extra_namenick
     for player in my_team_detail:
         user_id=player['basicInfo']['userId']
-        for our_player_name,our_player_id in userlist.items():
+        for our_player_name,our_player_id in our_plyaer_info_userlist.items():
             if (int(user_id)==int(our_player_id) and int(user_id)!=int(my_userid)):
                 our_player_infos_suf.append([our_player_name,player['battleStats']['gradeGame']])
                 break
             
-    our_player_infos=[[namenick[playername],playergrade] for playername,playergrade in our_player_infos_suf]
+    our_player_infos=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf]
     our_player_text=""
     if (our_player_infos):
         our_player_text="With: "
@@ -1530,7 +1532,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
 
     gen_inst=CoPlayerProcess()
     res=wzry_get_official(reqtype="btldetail",gameSvrId=gameSvrId, relaySvrId=relaySvrId, gameseq=gameseq, pvptype=pvptype,roleid=roleid)
-    if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None
+    if ('head' not in res): return None
     gameres=res['head']['gameResult']
     my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
@@ -1540,7 +1542,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
     all_players = my_side_detail + op_side_detail
     player_data_cache = {}
     
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         future_to_player = {executor.submit(fetch_player_data, player): player for player in all_players}
         for future in as_completed(future_to_player):
             try:

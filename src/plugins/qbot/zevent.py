@@ -59,7 +59,7 @@ def get_validated_name(event):
     rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
     matching_name = extract_name(rcv_msg)
     if matching_name == "name_error":
-        add_msg("未找到该用户，请检查名字是否正确", event=event)
+        add_msg("Name Not Found", event=event)
         return None
     return matching_name
 

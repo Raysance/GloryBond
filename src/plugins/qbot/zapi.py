@@ -8,7 +8,7 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=10, period=1)
+@limits(calls=1, period=1)
 def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1):
     import time
     roleid=str(roleid)
@@ -183,7 +183,10 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         res=response.json().get("data",{})
         error_msg=response.json().get("returnMsg","")
         if res: break
-        time.sleep(0.5)
+        if ("登录态失效" in error_msg or "操作频繁" in error_msg):
+            retry_time=0
+            break
+        time.sleep(2)
         retry_time-=1
     if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
     # import os

@@ -9,8 +9,8 @@
 /wzry_images/skins/
 /herorank/
 
-.env
-config.yaml
+# .env
+# config.yaml
 emojiref.json
 QBOT.log
 

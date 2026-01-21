@@ -71,7 +71,7 @@ def _dump_today_impl():
 
     dump_date=time_sul().strftime("%Y-%m-%d")
     log_message("DUMPBEGIN "+dump_date+".json")
-    retry_time=5
+    retry_time=3
     gameinfo=[]
     while retry_time:
         if (not gameinfo): visitfield=userlist
@@ -81,7 +81,8 @@ def _dump_today_impl():
                 gameinfo.append(wzry_data(realname=key,savepath=os.path.join("history", "personal", dump_date, str(userlist[key]) + ".json")))
                 time.sleep(0.3)
             except Exception:
-                dmc.DumpTodayFailedList.append(key)
+                if (key not in dmc.DumpTodayFailedList):
+                    dmc.DumpTodayFailedList.append(key)
         if (not dmc.DumpTodayFailedList):
             break
         time.sleep(10)
