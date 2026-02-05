@@ -545,16 +545,17 @@ def single_process(rcv_msg):
                 rough_filepath=os.path.join("history",scan_date.strftime('%Y-%m-%d')+".json")
                 if (file_exist(rough_filepath)):
                     histories=readerl(rough_filepath)
-                    matching_history = next((history for history in histories if history["id"] == userlist[matching_name]), None)
-                    if matching_history is not None:
+                    matching_history = next((history for history in histories if history["key"] == matching_name), None)
+                    if matching_history:
                         gameinfo_raw.append(matching_history)
                     else:
                         lost_info_date.append(scan_date.strftime('%m-%d'))
                 scan_date=time_delta(scan_date,1)
             lost_info_msg=f"(Lost {" ".join(lost_info_date)})" if lost_info_date else ""
             exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")} {lost_info_msg}"
-            gameinfo=merge_crossday_gamedata(gameinfo_raw)
             writerl(website_filepath,gameinfo_raw)
+            # 前后两句顺序不要改, merge_crossday_gamedata会修改可变字典gameinfo_raw
+            gameinfo=merge_crossday_gamedata(gameinfo_raw)
             website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")}),"single_period")
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
@@ -1920,7 +1921,7 @@ def merge_crossday_gamedata(gamedata):
     else:
         res["peak_up"]=[]
     if ("visible" not in res): res["visible"]=True
-    official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official(btl["MapName"])]
+    official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official_with_matching(btl["MapName"])]
     res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
     res["btl_aver"]=round(res["btl_aver"],1)
 
