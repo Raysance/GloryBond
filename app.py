@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query, Body
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
@@ -18,12 +18,15 @@ from utils import wzry_get_official
 from utils import writerl,file_exist,retry_until_true
 
 # 引入变量
-variables_to_import = ["userlist","idname"]
-with open("../NBot/variables_static.json", 'r', encoding='utf-8') as file:
+variables_to_import = ["idname", "userlist", "roleidlist", "qid", "namenick", "nameref", "extra_useridlist", "extra_roleidlist"]
+variables_file_path = "../NBot/variables_static.json"
+with open(variables_file_path, 'r', encoding='utf-8') as file:
     data = json.load(file)
 for var_name in variables_to_import:
     if var_name in data:
         globals()[var_name] = data[var_name]
+    else:
+        globals()[var_name] = {}
 templates = Jinja2Templates(directory="templates")
 # 引入Redis变量
 nginx_path=str(os.environ.get('NGINX_HTML'))
@@ -38,10 +41,13 @@ r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
+
+SECRET_KEY = "HOKCAMP123"
+
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
-        "err_expired.html",
+        "ErrorPages/expired.html",
         {"request": request},
         status_code=404
     )
@@ -59,10 +65,10 @@ async def show_btlist(request:Request,key: str):
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
-            "err_expired.html",{"request": request,}
+            "ErrorPages/expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
-        "AllBattleList.html",
+        "CommonPages/AllBattleList.html",
         {
             "request": request,
             "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
@@ -79,13 +85,12 @@ async def show_btlperson(request:Request,key: str):
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
-            "err_expired.html",{"request": request,}
+            "ErrorPages/expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
-        "SingleBattleList.html",
+        "CommonPages/SingleBattleList.html",
         {
             "request": request,
-            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
             "key": key,
         }
@@ -99,15 +104,16 @@ async def show_btlperiod(request:Request,key: str):
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
-            "err_expired.html",{"request": request,}
+            "ErrorPages/expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
-        "SinglePeriodBattleList.html",
+        "CommonPages/SinglePeriodBattleList.html",
         {
             "request": request,
-            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
             "key": key,
+            "DateFrom":text_content["DateFrom"],
+            "DateTo":text_content["DateTo"],
         }
     )
 @app.get("/btldetail", response_class=HTMLResponse)
@@ -119,63 +125,62 @@ async def show_btldetail(request:Request,key: str):
         if (not file_exist(local_path)): raise Exception("File not exists.")
     except Exception as e:
         return templates.TemplateResponse(
-            "err_expired.html",{"request": request,}
+            "ErrorPages/expired.html",{"request": request,}
         )
     return templates.TemplateResponse(
-        "BattleDetail.html",
+        "CommonPages/BattleDetail.html",
         {
             "request": request,
-            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
             "key": key,
         }
     )
+def check_key_valid(key):
+    return r_com.exists(key) or key==SECRET_KEY
 @app.get("/jump-btlperson", response_class=HTMLResponse)
 async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
-    if (not r_com.exists(key)):
+    if (not check_key_valid(key)):
         return templates.TemplateResponse(
-            "err_illegal.html",{"request": request,"message":"key失效"}
+            "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
     try:
         profile_res=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
         btlist_res=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     except Exception as e:
         return templates.TemplateResponse(
-            "err_illegal.html",{"request": request,"message":"网络参数错误"}
+            "ErrorPages/illegal.html",{"request": request,"message":"网络参数错误"}
         )
     res={"btlist":btlist_res,"profile":profile_res}
     file_name=secrets.token_hex(8)+".json"
     save_path=os.path.join(nginx_path,"wzry_history", file_name)
     writerl(save_path,res)
     return templates.TemplateResponse(
-        "SingleBattleList.html",
+        "CommonPages/SingleBattleList.html",
         {
             "request": request,
-            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",file_name),
             "key":key,
         }
     )
 @app.get("/jump-btldetail", response_class=HTMLResponse)
 async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not r_com.exists(key)):
+    if (not check_key_valid(key)):
         return templates.TemplateResponse(
-            "err_illegal.html",{"request": request,"message":"key失效"}
+            "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
     try:
         res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
     except Exception as e:
         return templates.TemplateResponse(
-            "err_illegal.html",{"request": request,"message":"网络错误或id错误"}
+            "ErrorPages/illegal.html",{"request": request,"message":"网络错误或id错误"}
         )
     file_name=secrets.token_hex(8)+".json"
     save_path=os.path.join(nginx_path,"wzry_history", file_name)
     writerl(save_path,res)
     return templates.TemplateResponse(
-        "BattleDetail.html",
+        "CommonPages/BattleDetail.html",
         {
             "request": request,
-            # "userfiles":{"a":os.path.join("wzry_history","ed5db8f34da0d8e8.json")},
             "filename": os.path.join("wzry_history",file_name),
             "key":key,
             "gameSeq":gameSeq,
@@ -187,7 +192,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
     )
 @app.get("/like-btldetail", response_class=HTMLResponse)
 async def like_btldetail(request:Request,gameSeq: str,key:str):
-    if (not r_com.exists(key)):
+    if (not check_key_valid(key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -220,7 +225,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
     return JSONResponse(success_data)
 @app.get("/share-btldetail", response_class=HTMLResponse)
 async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not r_com.exists(key)):
+    if (not check_key_valid(key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -260,8 +265,8 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     }
     return JSONResponse(success_data)
 @app.get("/analyze-btldetail", response_class=HTMLResponse)
-async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not r_com.exists(key)):
+async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str):
+    if (not check_key_valid(key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -270,12 +275,16 @@ async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRole
                 "error_code": "LIKE_FAILED"
             }
         )
-    params={
+    game_params={
         "gameSvrId":gameSvr,
         "gameseq":gameSeq,
         "roleid":targetRoleId,
         "relaySvrId":relaySvr,
         "pvptype":battleType
+    }
+    params={
+        "game_params":game_params,
+        "Special":Special
     }
     try:
         json_params = json.dumps(params)
@@ -300,6 +309,122 @@ async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRole
         }
     }
     return JSONResponse(success_data)
+
+
+
+@app.get("/admin/verify", response_class=JSONResponse)
+async def admin_verify(request: Request, pattern: str):
+    def parse_pattern(raw: str) -> list[int]:
+        try:
+            return [int(item) for item in raw.split(',') if item.strip()]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="pattern 参数不合法") from exc
+
+    VALID_PATTERN = [0, 1, 2, 5, 8]
+    if parse_pattern(pattern) != VALID_PATTERN:
+        return JSONResponse({"state": "failed","message": "认证失败","key":""})
+
+    else:
+        return {"state": "success","message":"认证成功","key": SECRET_KEY}
+        
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+async def admin_user_edit_page(request: Request, AdminKey: str):
+    if AdminKey != SECRET_KEY:
+        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+    return templates.TemplateResponse(
+        "AdminPages/DashBoard.html",
+        {
+            "request": request,
+            "AdminKey":AdminKey
+        }
+    )
+
+@app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)
+async def jump_admin_page(request: Request, AdminKey: str):
+    if (AdminKey!=SECRET_KEY):
+        return templates.TemplateResponse(
+            "ErrorPages/illegal.html",{"request": request,"message":"AdminKey失效"}
+        )
+    return templates.TemplateResponse(
+        "AdminPages/DirectNavigate.html",
+        {
+            "request": request,
+            "AdminKey":AdminKey,
+            "useridlist":{**userlist,**extra_useridlist},
+            "roleidlist":{**roleidlist,**extra_roleidlist}
+        }
+    )
+
+@app.get("/admin/funcs/user-edit", response_class=HTMLResponse)
+async def admin_user_edit_page(request: Request, AdminKey: str):
+    if AdminKey != SECRET_KEY:
+        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+    return templates.TemplateResponse(
+        "AdminPages/UserEdit.html",
+        {
+            "request": request,
+            "AdminKey":AdminKey
+        }
+    )
+@app.get("/admin/funcs/user-edit/fetch-user-info")
+async def fetch_user_info(request: Request, AdminKey: str = Query(...)):
+    if AdminKey != SECRET_KEY:
+        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+    return {
+        "userlist": userlist,
+        "roleidlist": roleidlist,
+        "qid": qid,
+        "namenick": namenick,
+        "nameref": nameref,
+        "extra_useridlist": extra_useridlist,
+        "extra_roleidlist": extra_roleidlist,
+    }
+
+@app.post("/admin/funcs/user-edit/submit-user-info")
+async def submit_user_info(request: Request, AdminKey: str = Query(...), changes: list = Body(...)):
+    if AdminKey != SECRET_KEY:
+        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+    try:
+        with open(variables_file_path, 'r', encoding='utf-8') as f:
+            full_data = json.load(f)
+        
+        for change in changes:
+            op = change.get('op')
+            ctype = change.get('type')
+            ckey = change.get('key')
+            cdata = change.get('data')
+
+            if ctype == 'main':
+                target_fields = ['userlist', 'roleidlist', 'qid', 'namenick', 'nameref']
+            else:
+                target_fields = ['extra_useridlist', 'extra_roleidlist']
+
+            if op in ['add', 'edit']:
+                for f_name in target_fields:
+                    if f_name not in full_data: full_data[f_name] = {}
+                    val = cdata.get(f_name)
+                    # 处理数值类型
+                    if f_name in ['userlist', 'roleidlist', 'qid', 'extra_useridlist', 'extra_roleidlist'] and val:
+                        try: val = int(val)
+                        except: pass
+                    full_data[f_name][ckey] = val
+            elif op == 'delete':
+                for f_name in target_fields:
+                    if f_name in full_data and ckey in full_data[f_name]:
+                        del full_data[f_name][ckey]
+
+        with open(variables_file_path, 'w', encoding='utf-8') as f:
+            json.dump(full_data, f, ensure_ascii=False, indent=2)
+        
+        # 同步更新到内存中的全局变量
+        for vn in variables_to_import:
+            if vn in full_data:
+                globals()[vn] = full_data[vn]
+                
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
