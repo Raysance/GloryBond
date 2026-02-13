@@ -12,7 +12,7 @@ from io import BytesIO
 import os
 from datetime import datetime
 import math
-
+from ..zstatic import *
 class BattleUIGenerator:
     def __init__(self):
         """初始化UI生成器"""
@@ -36,7 +36,11 @@ class BattleUIGenerator:
             'blue_team': '#3498db',
             'victory_bg': 'rgba(39, 174, 96, 0.15)',
             'defeat_bg': 'rgba(231, 76, 60, 0.15)',
-            'mvp_gold': '#f39c12'
+            'mvp_gold': '#f39c12',
+            'me_bg': '#fffefa',      # 极淡的暖色底
+            'me_accent': '#ff9800',  # 琥珀橙（侧边标识条）
+            'internal_bg': '#f7fcff',# 极淡的青色底
+            'internal_accent': '#03a9f4' # 淡蓝色（侧边标识条）
         }
         
         # 尝试加载字体
@@ -65,8 +69,16 @@ class BattleUIGenerator:
             'small': 14,
             'tiny': 12,
             'micro': 10,
-            'emoji': 16  # emoji专用字体
+            'emoji': 16
         }
+        
+        # 定义需要粗体的大小
+        bold_variants = ['large', 'medium', 'title']
+        
+        # 粗体字体候选路径 (回归simhei通过调大字体来模拟加粗)
+        bold_font_paths = [
+            '/usr/share/fonts/chinese/simhei.ttf',
+        ]
         
         # 首先尝试加载emoji字体
         emoji_font_loaded = False
@@ -75,36 +87,46 @@ class BattleUIGenerator:
                 if os.path.exists(emoji_font_path):
                     fonts['emoji'] = ImageFont.truetype(emoji_font_path, sizes['emoji'])
                     emoji_font_loaded = True
-                    print(f"✅ 成功加载emoji字体: {emoji_font_path}")
                     break
             except Exception as e:
                 continue
         
         if not emoji_font_loaded:
-            print("⚠️ 未找到emoji字体，将使用文本替代")
             fonts['emoji'] = None
         
-        # 加载普通字体
+        # 加载普通字体和粗体变体
         for size_name, size in sizes.items():
             if size_name == 'emoji':
-                continue  # emoji字体已经处理
+                continue
                 
             font_loaded = False
-            for font_path in font_paths:
+            for font_path in font_paths + ['C:/Windows/Fonts/simhei.ttf', 'C:/Windows/Fonts/arial.ttf']:
                 try:
                     if os.path.exists(font_path):
                         fonts[size_name] = ImageFont.truetype(font_path, size)
+                        # 如果需要粗体变体
+                        if size_name in bold_variants:
+                            bold_loaded = False
+                            for b_path in bold_font_paths:
+                                if os.path.exists(b_path):
+                                    # 针对黑体，字号加2以更清晰地区分普通文本
+                                    fonts[f"{size_name}_bold"] = ImageFont.truetype(b_path, size + 2)
+                                    bold_loaded = True
+                                    break
+                            if not bold_loaded:
+                                fonts[f"{size_name}_bold"] = fonts[size_name] # 降级为普通字体
                         font_loaded = True
                         break
                 except Exception as e:
                     continue
             
             if not font_loaded:
-                # 使用默认字体
                 try:
                     fonts[size_name] = ImageFont.load_default()
+                    if size_name in bold_variants:
+                        fonts[f"{size_name}_bold"] = fonts[size_name]
                 except:
-                    fonts[size_name] = ImageFont.load_default()
+                    pass
         
         return fonts
     
@@ -499,6 +521,19 @@ class BattleUIGenerator:
         
         return total_height
     
+    def _draw_vertical_gradient(self, draw, bbox, color):
+        """绘制垂直渐变条"""
+        x1, y1, x2, y2 = bbox
+        r, g, b = color[:3]
+        height = y2 - y1
+        for i in range(int(height)):
+            # 从原始颜色向更深的色调微调
+            ratio = i / height
+            # 营造一种从上往下稍微加深的感觉，显得更有质感
+            factor = 1.0 - (ratio * 0.2)
+            nr, ng, nb = int(r * factor), int(g * factor), int(b * factor)
+            draw.line([(x1, y1 + i), (x2, y1 + i)], fill=(nr, ng, nb, 255))
+
     def _draw_player_card(self, draw, img, player, x, y, width, team_totals):
         """绘制玩家卡片"""
         basic_info = player.get('basicInfo', {})
@@ -509,19 +544,46 @@ class BattleUIGenerator:
         
         is_mvp = battle_stats.get('mvp', False)
         
-        # MVP特殊效果
+        # 判断身份
+        is_me = basic_info.get('isMe', False)
+        is_internal = False
+        user_id = basic_info.get('userId')
+        role_id = basic_info.get('roleId')
+        
+        try:
+            # 根据全局变量字典 userlist 和 roleidlist 判断是否为内部用户（值匹配）
+            # 统一转为字符串进行比较，防止 JSON 中的字符串与全局变量中的整数不匹配
+            internal_users = [str(v) for v in list(userlist.values()) + list(extra_useridlist.values())]
+            internal_roles = [str(v) for v in list(roleidlist.values()) + list(extra_roleidlist.values())]
+            if (user_id and str(user_id) in internal_users) or (role_id and str(role_id) in internal_roles):
+                is_internal = True
+        except NameError:
+            pass
+
+        # 根据身份确定背景色和侧边标识色
+        # 优先级：MVP > 内部玩家
+        accent_color = None
+        bg_color = (250, 250, 250, 255) # 默认背景色
+        
+        # 如果是内部玩家（无论是否为本人），显示内部玩家的底色和侧边条
+        if is_internal:
+            bg_color = (*self._hex_to_rgb(self.colors['internal_bg']), 255)
+            accent_color = (*self._hex_to_rgb(self.colors['internal_accent']), 255)
+
         if is_mvp:
-            # MVP背景
-            mvp_color = (*self._hex_to_rgb(self.colors['mvp_gold']), 50)
-            mvp_overlay = Image.new('RGBA', (width, self.player_card_height), mvp_color)
-            img.paste(mvp_overlay, (x, y), mvp_overlay)
-            
-            # MVP边框
-            self._draw_rounded_rectangle(draw, [x, y, x + width, y + self.player_card_height], 
-                                       6, outline=self._hex_to_rgb(self.colors['mvp_gold']), width=2)
-        else:
-            # 普通玩家背景
-            draw.rectangle([x, y, x + width, y + self.player_card_height], fill=(250, 250, 250, 255))
+            # MVP 底色优先级最高
+            bg_color = (*self._hex_to_rgb(self.colors['mvp_gold']), 50)
+
+        # 始终绘制背景矩形
+        draw.rectangle([x, y, x + width, y + self.player_card_height], fill=bg_color)
+        
+        # 绘制侧边高亮条 (Identity Indicator) - 仅针对非本人的内部玩家
+        if accent_color:
+            self._draw_vertical_gradient(draw, [x, y, x + 6, y + self.player_card_height], accent_color)
+        
+        # 确定使用的字体 (本人使用粗体)
+        name_font = self.fonts.get('medium_bold', self.fonts['medium']) if is_me else self.fonts['medium']
+        score_font = self.fonts.get('small_bold', self.fonts['small']) if is_me else self.fonts['small']
         
         # 英雄头像
         hero_icon = used_hero.get('heroIcon', '')
@@ -537,7 +599,7 @@ class BattleUIGenerator:
         
         # 玩家名称
         player_name = basic_info.get('roleName', '未知玩家')
-        draw.text((x + 70, y + 10), player_name, fill=self._hex_to_rgb(self.colors['dark']), font=self.fonts['medium'])
+        draw.text((x + 70, y + 10), player_name, fill=self._hex_to_rgb(self.colors['dark']), font=name_font)
         
         # MVP标识
         if is_mvp:
@@ -563,9 +625,9 @@ class BattleUIGenerator:
         kda = f"{battle_stats.get('killCnt', 0)}/{battle_stats.get('deadCnt', 0)}/{battle_stats.get('assistCnt', 0)}"
         
         draw.text((center_x - 30, y + 10), f"评分 {rating}", 
-                 fill=self._hex_to_rgb(self.colors['primary']), font=self.fonts['small'])
+                 fill=self._hex_to_rgb(self.colors['primary']), font=score_font)
         draw.text((center_x - 20, y + 30), kda, 
-                 fill=self._hex_to_rgb(self.colors['danger']), font=self.fonts['small'])
+                 fill=self._hex_to_rgb(self.colors['danger']), font=score_font)
         
         # 百分比数据（右侧，垂直排列）
         player_money = int(battle_stats.get('money', 0))
@@ -582,13 +644,16 @@ class BattleUIGenerator:
         emojis = ['💰', '⚔️', '🛡️']
         percents = [f"{money_percent}%", f"{damage_percent}%", f"{tanked_percent}%"]
         
+        # 百分比文字也要粗体
+        percent_font = self.fonts.get('tiny_bold', self.fonts['tiny']) if is_me else self.fonts['tiny']
+        
         for i in range(3):
             # 绘制emoji
             self._draw_text_with_emoji(draw, (emoji_positions[i], y + 25), emojis[i], 
-                                     self._hex_to_rgb(self.colors['dark']), self.fonts['tiny'])
+                                     self._hex_to_rgb(self.colors['dark']), percent_font)
             # 绘制百分比数字，固定偏移16像素
             draw.text((emoji_positions[i] + 25, y + 25), percents[i], 
-                     fill=self._hex_to_rgb(self.colors['dark']), font=self.fonts['tiny'])
+                     fill=self._hex_to_rgb(self.colors['dark']), font=percent_font)
     
     def generate_battle_image(self, json_path, output_path):
         """

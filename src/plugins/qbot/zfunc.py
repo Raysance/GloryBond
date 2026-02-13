@@ -99,7 +99,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         today_details=[{\
             'GameTime':game['gametime'],\
             'GameTime_Timestamp':int(game['dtEventTime']),\
-            'HeroName':HeroList[str(game['heroId'])],\
+            'HeroName':HeroList.get(str(game['heroId']),"Unknown"),\
             'MapName':game['mapName'],\
             'MapType':1 if '排位' in game['mapName'] else (-1 if '巅峰' in game['mapName'] else 0),\
             'StarAfterGame': -1 if '排位' not in game['mapName'] else (ranklist[game['roleJobName']]+game['stars']),\
@@ -163,7 +163,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         gaming_info={
                     "in_game":True,\
                     "map_name":res["btlist"]["gaming"]["mapName"],\
-                    "hero_name":HeroList[str(res["btlist"]["gaming"]["heroId"])],\
+                    "hero_name":HeroList.get(str(res["btlist"]["gaming"]["heroId"]),"Unknown"),\
                     "duration_minute":res["btlist"]["gaming"]["duration"],\
                     "battle_num_this_hero":res["btlist"]["gaming"]["gameNum"],\
                     "win_rate_this_hero":res["btlist"]["gaming"]["winRate"],\
@@ -203,7 +203,7 @@ def ai_parser(user_query,msg_type,network=False):
             whole_query += name_pmpt[0] + str(nameref) + name_pmpt[1]+ user_query[0] + name_pmpt[2]
             ai_temperature=2
         case "single_player":
-            whole_query += single_pmpt1 + user_query[0] + single_pmpt2 + user_query[1]
+            whole_query += single_pmpt1 + user_query[0] + user_query[1] + single_pmpt2 + user_query[2]
         case "tq":
             whole_query += tq_pmpt + user_query[0]
         case "chat":
@@ -254,6 +254,8 @@ def create_website(contents,sitetype):
         url=f"https://{confs["WebService"]["server_domain"]}/btlperiod?key={hash_key}"
     elif (sitetype=="btldetail"):
         url=f"https://{confs["WebService"]["server_domain"]}/btldetail?key={hash_key}"
+    elif (sitetype=="query_select"):
+        url=f"https://{confs["WebService"]["server_domain"]}/btlquery?key={hash_key}"
     else:
         url=f""
     return url
@@ -490,16 +492,16 @@ def single_process(rcv_msg):
     # ai_feedback=False
     matching_name=extract_name(rcv_msg)
 
-    if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<5): return None # 防止重复冗余请求
-    dmc.LastSingleRequestTime[matching_name]=time_r()
-
-    today_date=str(time_r().strftime("%Y-%m-%d"))
-    exhibit_date_woyear=str(time_sul().strftime("%m-%d"))
-    exact_now_time=str(round(time.time()*1000000))
-    yesterday_date=str(time_r()-datetime.timedelta(days=1))
-
-    if (not matching_name or matching_name=="name_error"): snd_msg+="没有提到玩家名字哦"
+    if (not matching_name): snd_msg+="没有提到玩家名字哦"
     else:
+        if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<5): return None # 防止重复冗余请求
+        dmc.LastSingleRequestTime[matching_name]=time_r()
+
+        today_date=str(time_r().strftime("%Y-%m-%d"))
+        exhibit_date_woyear=str(time_sul().strftime("%m-%d"))
+        exact_now_time=str(round(time.time()*1000000))
+        yesterday_date=str(time_r()-datetime.timedelta(days=1))
+
         filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
         website_filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
         history_query=extract_history_query(rcv_msg)
@@ -610,13 +612,13 @@ def single_process(rcv_msg):
         pokename.append(gameinfo['nickname'])
         ai_process_gameinfo=[]
         for detail in gameinfo['details']:
-            ai_process_gameinfo.append({k: v for k, v in detail.items() if k in {"GameTime","HeroName","MapName","StarAfterGame","PeakGradeAfterGame","PeakGradeBeforeGame","KillCnt","DeadCnt","AssistCnt","Result","GameGrade","Duration_Second","Others"}})
-        if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),rcv_msg],"single_player")+"\n"
+            ai_process_gameinfo.append({k: v for k, v in detail.items() if k in {"GameTime","HeroName","MapName","StarAfterGame","PeakGradeAfterGame","PeakGradeBeforeGame","KillCnt","DeadCnt","AssistCnt","Result","GameGrade","Duration_Second","Others"} and not v == -1})
+        if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),snd_msg,rcv_msg],"single_player")+"\n"
+        # if (ai_feedback): snd_msg+=(str(ai_process_gameinfo))+"\n"
 
     return [snd_msg,pokename,exist_battle,last_official_btl_params,roleidlist[matching_name]]
 def view_process(rcv_msg,time_gap=analyze_time_gap):
     from .zfunc import Analyses
-    from .ztime import short_wait
 
     snd_msg=" "
     if ("b" in rcv_msg):
@@ -659,15 +661,20 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
         else:
             snd_msg+="  无数据。\n"
     return snd_msg
-def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False):
+def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False):
     from .zapi import wzry_get_official
     from .zfile import writerl
     from .zfunc import create_website
     from .zfunc import check_btl_official_with_matching
-    from .ztime import wait
     from .tools import gen_battle_res
+    import json
+    import os
 
-    res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
+    res = fetch_battle(gameseq,roleid)
+
+    if not res:
+        res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
+    
     if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None,None
     my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     my_team_total_money=0
@@ -689,22 +696,33 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
     my_userid=res['head']['userId']
     our_player_infos_suf=[]
+    our_player_infos_suf_all=[]
     our_plyaer_info_userlist=userlist|extra_useridlist
     out_player_info_namenicklist=namenick|extra_namenick
     for player in my_team_detail:
         user_id=player['basicInfo']['userId']
         for our_player_name,our_player_id in our_plyaer_info_userlist.items():
-            if (int(user_id)==int(our_player_id) and int(user_id)!=int(my_userid)):
-                our_player_infos_suf.append([our_player_name,player['battleStats']['gradeGame']])
+            if (int(user_id)==int(our_player_id)):
+                our_player_infos_suf_all.append([our_player_name,player['battleStats']['gradeGame']])
+                if (int(user_id)!=int(my_userid)):
+                    our_player_infos_suf.append([our_player_name,player['battleStats']['gradeGame']])
                 break
+                
             
     our_player_infos=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf]
+    our_player_infos_all=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf_all]
     our_player_text=""
+    our_player_text_all=""
     if (our_player_infos):
         our_player_text="With: "
         for info in our_player_infos:
             our_player_text+=f"{info[0]}({info[1]}) "
         our_player_text+="\n"
+    if (our_player_infos_all):
+        our_player_text_all=""
+        for info in our_player_infos_all:
+            our_player_text_all+=f"{info[0]}({info[1]}) "
+        our_player_text_all+="\n"
     exact_now_time=str(round(time.time()*1000000))
     filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
     json_output_path=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
@@ -715,7 +733,13 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
         picpath=os.path.join(nginx_path,"wzry_history","exhibit.png")
         gen_battle_res.generate_battle_ui_image(json_output_path,picpath)
     snd_message=""
-    if (from_web):
+    if (individual_show):
+        snd_message+=(
+            f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
+            f"{our_player_text_all}"
+            f"{linkurl}"
+        )
+    elif (from_web):
         snd_message+=(
             f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
             f"{res['head']['roleName']} {res['head']['heroName']} {team_contribute_text}\n"
@@ -733,7 +757,6 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     return snd_message,picpath
 def heropower_process(realname):
     from .zapi import wzry_get_official
-    from .ztime import short_wait
 
     userid=userlist[realname]
     roleid=roleidlist[realname]
@@ -755,7 +778,6 @@ def heropower_process(realname):
 # 单一玩家、单一英雄
 def single_player_single_hero_process(username,heroid,heroname,this_season=False):
     from .zapi import wzry_get_official
-    from .ztime import short_wait
     from .ztime import time_r, time_delta,str_to_time
 
     userid=userlist[username]
@@ -1152,7 +1174,6 @@ def recentgame_process(realname):
             pass
         return None
 def todayhero_process(realname,ignore_limit=False,ai_comment=True):
-    from .ztime import short_wait
     from .zfunc import single_player_single_hero_process
     def get_hero_name(realname,hero_name_candidates):
         from .ztime import time_r,time_delta
@@ -1264,7 +1285,6 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
         return hero_name, skin_name,pic_path,selected_info
     def get_hero_skills(heroid):
         from .zfile import readerl
-        from .ztime import wait
         all_skills=[]
         
         skill_raw=readerl(os.path.join('wzry_images','hero_skills',heroid+".json"))
@@ -1287,7 +1307,6 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
 
 def allhero_process(realname):
     from .zapi import wzry_get_official
-    from .ztime import waitx
 
     userid=userlist[realname]
     roleid=roleidlist[realname]
@@ -1308,7 +1327,6 @@ def allhero_process(realname):
     return ret_text
 def gradeanalyze_process(realname):
     from .tools import gen_grade_chart
-    from .ztime import wait
 
     userid=userlist[realname]
     data_path=os.path.join("history")
@@ -1320,8 +1338,6 @@ def gradeanalyze_process(realname):
 def watchbattle_process(realname):
     from .zapi import wzry_get_official
     from .tools import gen_battle_shot
-    from .ztime import short_wait
-    from .ztime import wait
 
     userid=userlist[realname]
     roleid=roleidlist[realname]
@@ -1594,8 +1610,10 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
 def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True): # 所有历史数据
     from .zfile import readerl
     from .zfile import writerl
-    from .ztime import str_to_time
+    from .ztime import str_to_time,time_r
 
+    if (not start_date or start_date<str_to_time(record_begin_date)): start_date=str_to_time(record_begin_date)
+    if (not end_date): end_date=time_r()
     gamedetails={}
     filenames=sorted(os.listdir("history"),reverse=True)
     duration=0
@@ -1604,7 +1622,7 @@ def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True
         history_date=os.path.splitext(os.path.basename(filename))[0]
         if not bool(re.fullmatch(r'^\d{4}-\d{2}-\d{2}$', history_date)): continue
         date_parsed=str_to_time(history_date)
-        if (start_date and end_date and (date_parsed>end_date or date_parsed<start_date)): continue
+        if (date_parsed>end_date or date_parsed<start_date): continue
         duration+=1
         full_path=os.path.join("history",filename)
         gameinfo=readerl(full_path)
@@ -1620,6 +1638,36 @@ def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True
                     gamedetails[playername].append(playerdetail)
     if (userid): gamedetails={k:v for k,v in gamedetails.items() if userid==userlist[k]}
     return gamedetails,duration
+
+def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
+    from .zfile import readerl
+    file_path = os.path.join("history", "battles", f"{gameseq}.json")
+    res=readerl(file_path)
+    if (res and roleid):
+        # 找到对应的玩家信息并更新head
+        target_role = None
+        for role in res.get('redRoles', []) + res.get('blueRoles', []):
+            if int(role['basicInfo']['roleId']) == int(roleid):
+                target_role = role
+                break
+        
+        if target_role:
+            # 更新head信息以适应当前的查询目标
+            res['head'] = {
+                'userId': target_role['basicInfo']['userId'],
+                'roleId': target_role['basicInfo']['roleId'],
+                'roleName': target_role['basicInfo']['roleName'],
+                'heroName': target_role['battleRecords']['usedHero']['heroName'],
+                'acntCamp': target_role['basicInfo']['acntCamp'],
+                'gameResult': (res['redTeam']['gameResult'] == 1 if target_role['basicInfo']['acntCamp'] == res['redTeam']['acntCamp'] else res['blueTeam']['gameResult'] == 1),
+                'killCnt': target_role['battleStats']['killCnt'],
+                'deadCnt': target_role['battleStats']['deadCnt'],
+                'assistCnt': target_role['battleStats']['assistCnt'],
+                'gradeGame': target_role['battleStats']['gradeGame'],
+                'mapName': res.get('battle', {}).get('mapName', 'Unknown'),
+                'dtEventTime': res.get('battle', {}).get('dtEventTime', '')
+            }
+    return res
 class Analyses:
     @staticmethod
     def analyze_history(userid=None,start_date=None,end_date=None): # 返回排位巅峰战队赛
@@ -1892,7 +1940,10 @@ def extract_name(from_text,precise=False):
             for nickname in nicknames:
                 if txt_contain(nickname,from_text,precise,is_origin):
                     return realname
-    return "name_error"
+    for realname,_ in extra_useridlist.items():
+        if txt_contain(realname,from_text,p=True,ori=True):
+            return realname
+    return None
 def merge_crossday_gamedata(gamedata):
     if (not gamedata): return {}
     res=gamedata[-1]
@@ -1998,3 +2049,572 @@ def txt_contain(x,y,p,ori):
             return _to_pinyin(x) == _to_pinyin(y_norm)
         else:
             return _to_pinyin(x) in _to_pinyin(y_norm)
+
+async def history_query_handler(rcv_msg):
+    from .zapi import ai_api
+    from .zfile import get_file_list, readerl
+    from .ztime import parse_fuzzy_time
+    import json
+    import re
+
+    user_msg = rcv_msg.strip()
+    # 预替换：将用户常用口语/短语映射为规范查询表达，便于后续AI解析
+    alias_map = {
+        "带飞": "评分高于",
+    }
+    # 优先替换较长键以避免短词匹配冲突
+    for k in sorted(alias_map.keys(), key=lambda x: -len(x)):
+        if k in user_msg:
+            user_msg = user_msg.replace(k, alias_map[k])
+    
+    # 引导AI返回结构化数据
+    prompt = f"""
+    你是一个针对《王者荣耀》战绩历史查询的助手。请从用户的描述中提取查询条件，并返回一个JSON对象。
+    支持的字段如下（如果没提到则为null）：
+    - PlayerName: 字符串，查询的主体玩家名称。
+    - HeroName: 字符串，指用户自己使用的英雄名称。
+    - Result: "胜利" 或 "失败"
+    - MapName: 字符串，地图/模式名称，如 "排位赛", "排位赛 五排", "排位赛 双排", "巅峰赛"
+    - GameTime: 字符串，指游戏开始的具体时间，要求格式"yyyy-mm-dd HH:MM"。
+    - FuzzyTime: 字符串，模糊时间描述，如"昨天下午","前天凌晨","上周中午"。
+    - CoPlayers: 数组，同局玩家 [{{ "Name": "玩家名", "Hero": "英雄名", "Grade": 评分 }}]。
+    - KDA: 数组 [击杀, 死亡, 助攻]。
+    - GameGrade: 浮点数，指定具体评分(近似)。
+    - Duration: 整数，游戏时长(秒)。
+    - Others: 字符串列表，包含 "MVP", "超神", "一血" 等关键词。
+
+    // 数值区间查询 (支持 "大于8分", "经济20%以上", "承伤30%到40%","伤害25%左右"(左右表示正负3%))
+    - GradeRange: [min, max] 浮点数，评分区间。
+    - MoneyRange: [min, max] 整数，经济占比(%)区间(0-100)。
+    - DamageRange: [min, max] 整数，伤害(对英雄)占比(%)区间(0-100)。
+    - DamageTakenRange: [min, max] 整数，承伤占比(%)区间(0-100)。
+    - ContributeRange: [min, max] 浮点数，团队贡献系数区间(通常在0.5-2.0之间)。
+    
+    // 排名查询 (支持 "评分第一", "全队评分第三")
+    - TeamGradeRank: 整数，队内评分排名(1-5)。
+    
+    // 比较查询 (如"A的评分比B高", "A的经济/伤害/承伤比B高", "A的贡献比B高")
+    // Operator 只支持 ">" (高于) 或 "<" (低于)
+    - ScoreComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
+    - MoneyComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
+    - DamageComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
+    - DamageTakenComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
+    - ContributeComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
+    
+    用户描述：{user_msg}
+    对于区间，如果只说"大于X"，则为 [X, 100]；"小于X"，则为 [0, X]。
+    只需返回JSON，不要包含任何解释。
+    """
+    
+    try:
+        res_text = ai_api(prompt, temperature=0.1)
+        res_text = re.sub(r'```json\n|```', '', res_text).strip()
+        query_target = json.loads(res_text)
+    except Exception as e:
+        return f"查询失败: {str(e)}"
+    
+    # 预处理
+    # 1. 用extract_name解析玩家名字
+    PlayerName=None
+    if query_target.get("PlayerName"):
+        PlayerName = extract_name(query_target["PlayerName"])
+        if PlayerName: query_target["PlayerName"] = PlayerName # 更新为标准化名字
+
+    
+    # 2. 用extract_heroname解析英雄名称
+    if query_target.get("HeroName"):
+        herores = extract_heroname(query_target["HeroName"])
+        if herores: query_target["HeroName"] = herores[1]
+    
+    # 3. 解析同局玩家 (名字->RoleId, 英雄名标准化)
+    if query_target.get("CoPlayers"):
+        for player in query_target["CoPlayers"]:
+            # 英雄名标准化
+            if player.get("Hero"):
+                herores = extract_heroname(player["Hero"])
+                if herores: player["Hero"] = herores[1]
+            
+            # 玩家名 -> 真实名 -> RoleId
+            if player.get("Name"):
+                rname = extract_name(player["Name"])
+                if rname:
+                    player["RealName"] = rname
+                    player["Name"] = namenick.get(rname, rname)
+                    # 从 roleidlist 获取 RoleId
+                    if rname in roleidlist:
+                        player["RoleId"] = roleidlist[rname]
+                    elif rname in extra_roleidlist:
+                        player["RoleId"] = extra_roleidlist[rname]
+
+    # 4. 解析 Comparison 中的名字
+    comparison_fields = ["ScoreComparison", "MoneyComparison", "DamageComparison", "DamageTakenComparison", "ContributeComparison"]
+    for field in comparison_fields:
+        if query_target.get(field):
+            sc = query_target[field]
+            if sc.get("PlayerA"):
+                pn = extract_name(sc["PlayerA"])
+                if pn: sc["PlayerA"] = pn
+                
+            if sc.get("PlayerB"):
+                pn = extract_name(sc["PlayerB"])
+                if pn: sc["PlayerB"] = pn
+    
+    # 将查询条件转换为自然语言描述
+    desc_parts = []
+    if query_target.get("PlayerName"):
+        nick = namenick.get(query_target["PlayerName"], query_target["PlayerName"])
+        desc_parts.append(f"玩家: {nick}")
+
+    if query_target.get("GradeRange"):
+        desc_parts.append(f"评分区间: {query_target['GradeRange']}")
+    if query_target.get("MoneyRange"):
+        desc_parts.append(f"经济: {query_target['MoneyRange']}")
+    if query_target.get("DamageRange"):
+        desc_parts.append(f"伤害: {query_target['DamageRange']}")
+    if query_target.get("DamageTakenRange"):
+        desc_parts.append(f"承伤: {query_target['DamageTakenRange']}")
+    if query_target.get("ContributeRange"):
+        desc_parts.append(f"贡献: {query_target['ContributeRange']}")
+    if query_target.get("TeamGradeRank"):
+        desc_parts.append(f"评分排名: 第{query_target['TeamGradeRank']}")
+    comparison_labels = {
+        "ScoreComparison": "评分",
+        "MoneyComparison": "经济占比",
+        "DamageComparison": "伤害占比",
+        "DamageTakenComparison": "承伤占比",
+        "ContributeComparison": "贡献"
+    }
+    for field, label in comparison_labels.items():
+        if query_target.get(field):
+            sc = query_target[field]
+            nickA = namenick.get(sc.get('PlayerA'), sc.get('PlayerA'))
+            nickB = namenick.get(sc.get('PlayerB'), sc.get('PlayerB'))
+            op = "高于" if sc.get('Operator') == ">" else "低于"
+            desc_parts.append(f"{label}比较: {nickA} {op} {nickB}")
+    
+    if query_target.get("FuzzyTime"):
+
+        desc_parts.append(f"模糊时间: {query_target['FuzzyTime']}")
+    elif query_target.get("GameTime"):
+        desc_parts.append(f"具体时间: {query_target['GameTime']}")
+        
+    if query_target.get("HeroName"):
+        desc_parts.append(f"英雄: {query_target['HeroName']}")
+        
+    if query_target.get("CoPlayers"):
+        cp_texts = []
+        for p in query_target["CoPlayers"]:
+            p_text = f"{p.get('Name','未知')}"
+            if p.get('Hero'): p_text += f"({p['Hero']})"
+            if p.get('Grade'): p_text += f"[{p['Grade']}分]"
+            cp_texts.append(p_text)
+        desc_parts.append(f"同局: {', '.join(cp_texts)}")
+
+    if query_target.get("MapName"):
+        desc_parts.append(f"地图: {query_target['MapName']}")
+        
+    if query_target.get("Result"):
+        desc_parts.append(f"结果: {query_target['Result']}")
+        
+    if query_target.get("KDA"):
+        try:
+            k, d, a = query_target["KDA"]
+            desc_parts.append(f"KDA约: {k}/{d}/{a}")
+        except: pass
+        
+    if query_target.get("GameGrade"):
+        desc_parts.append(f"评分约: {query_target['GameGrade']}")
+        
+    if query_target.get("Duration"):
+        try:
+            mins = query_target["Duration"] // 60
+            secs = query_target["Duration"] % 60
+            desc_parts.append(f"时长约: {mins}分{secs}秒")
+        except: pass
+        
+    if query_target.get("Others"):
+        desc_parts.append(f"其他: {' '.join(query_target['Others'])}")
+        
+    query_desc = " | ".join(desc_parts) if desc_parts else "全量查询"
+
+    # 至少指定2个条件
+    condition_count = 0
+    for k, v in query_target.items():
+        if k == "CoPlayers" and isinstance(v, list):
+            condition_count += len(v)
+        elif v:
+            condition_count += 1
+    if condition_count < 1:
+        return [query_target, f"至少指定1个查询条件", query_desc]
+
+    matches = []
+    
+    # 解析时间范围
+    start_date, end_date = None, None
+    fetch_start, fetch_end = None, None
+    if query_target.get("FuzzyTime"):
+        try:
+            start_date, end_date = parse_fuzzy_time(query_target["FuzzyTime"])
+            # fetch_history 按日期过滤，所以传整天
+            fetch_start = start_date.replace(hour=0, minute=0, second=0)
+            fetch_end = end_date.replace(hour=23, minute=59, second=59)
+        except:
+            pass
+
+    # 获取所有玩家的指定时间对局记录
+    history_data, _ = fetch_history(start_date=fetch_start, end_date=fetch_end, filter_official=False) 
+    
+    for realname, details in history_data.items():
+        # 如果指定玩家名且不匹配，则continue
+        if PlayerName and realname != PlayerName:
+            continue
+            
+        for detail in details:
+            is_match = True
+            
+            # 英雄名 (_to_pinyin)
+            if query_target.get("HeroName"):
+                if _to_pinyin(query_target["HeroName"]) not in _to_pinyin(detail.get("HeroName", "")):
+                    is_match = False
+            
+            # 地图名 (包含匹配)
+            if is_match and query_target.get("MapName"):
+                if query_target["MapName"] not in detail.get("MapName", ""):
+                    is_match = False
+            
+            # 评分区间 (无需详情)
+            if is_match and query_target.get("GradeRange"):
+               try:
+                   grade = float(detail.get("GameGrade", -1))
+                   mn, mx = map(float, query_target["GradeRange"])
+                   if not (mn <= grade <= mx):
+                       is_match = False
+               except:
+                   is_match = False
+
+            
+            btl_detail = None
+            all_roles = None
+
+            # ------------------------------------------------------------------
+            # (1) 同局玩家查询 (CoPlayers)
+            # ------------------------------------------------------------------
+            if is_match and query_target.get("CoPlayers"):
+                btl_detail = fetch_battle(detail["GameSeq"])
+                if (not btl_detail): # 由于从1月份才开始保存battle_info
+                    is_match = False # 如果指定了队友/对手，并且对局记录不存在，则直接忽略该对局
+                else:
+                    # 获取红蓝双方所有玩家
+                    all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
+                    
+                    found_all_coplayers = True
+                    for target_p in query_target["CoPlayers"]:
+                        found_this = False
+                        for role in all_roles:
+                            # 1. 名字/RoleId 匹配
+                            if target_p.get("RoleId"):
+                                if str(role.get('basicInfo', {}).get('roleId', '')) != str(target_p["RoleId"]):
+                                    continue
+                            elif target_p.get("Name"):
+                                role_name = role.get('basicInfo', {}).get('roleName', '')
+                                if target_p["Name"] not in role_name:
+                                    continue
+
+                            # 2. 英雄匹配 (已标准化)
+                            used_hero = role.get('battleRecords', {}).get('usedHero', {}).get('heroName', '')
+                            if target_p.get("Hero"):
+                                # 此处使用标准化后的名称进行对比，所以用精确匹配或拼音匹配
+                                if _to_pinyin(target_p["Hero"]) not in _to_pinyin(used_hero):
+                                    # 再尝试一下模糊包含
+                                    if not txt_contain(target_p["Hero"], used_hero, False, False):
+                                        continue
+                                
+                            # 3. 评分匹配 (误差0.5以内)
+                            if target_p.get("Grade"):
+                                try:
+                                    role_grade = float(role.get('battleStats', {}).get('gradeGame', -1))
+                                    target_grade = float(target_p["Grade"])
+                                    if abs(role_grade - target_grade) > 0.5: 
+                                        continue
+                                except:
+                                    continue
+                                    
+                            found_this = True
+                            break
+                        
+                        if not found_this:
+                            found_all_coplayers = False
+                            break
+                    
+                    if not found_all_coplayers:
+                        is_match = False
+
+            # ------------------------------------------------------------------
+            # (2) 详细数据查询 (Money, Damage, Rank, Comparison)
+            # ------------------------------------------------------------------
+            need_advanced_stats = (
+                query_target.get("MoneyRange") or 
+                query_target.get("DamageRange") or 
+                query_target.get("DamageTakenRange") or
+                query_target.get("ContributeRange") or
+                query_target.get("TeamGradeRank") or
+                query_target.get("ScoreComparison") or
+                query_target.get("MoneyComparison") or
+                query_target.get("DamageComparison") or
+                query_target.get("DamageTakenComparison") or
+                query_target.get("ContributeComparison")
+            )
+
+            if is_match and need_advanced_stats:
+                if not btl_detail:
+                    btl_detail = fetch_battle(detail["GameSeq"])
+                    if btl_detail:
+                        all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
+
+                if (not btl_detail):
+                    is_match = False
+                else:
+                    # 找到自己的Role (用于后续统计)
+                    my_role = None
+                    target_role_id = roleidlist.get(realname)
+                    if target_role_id:
+                        for r in all_roles:
+                             if str(r.get("basicInfo",{}).get("roleId")) == str(target_role_id):
+                                 my_role = r
+                                 break
+                    
+                    if is_match and my_role:
+                        my_camp = my_role.get("basicInfo", {}).get("acntCamp")
+                        team_roles = [r for r in all_roles if r.get("basicInfo", {}).get("acntCamp") == my_camp]
+                        
+                        stats = my_role.get("battleStats", {})
+                        
+                        # 经济占比区间
+                        if query_target.get("MoneyRange"):
+                            # try:
+                            total_money = sum(float(r.get("battleStats", {}).get("money", 0)) for r in team_roles)
+                            my_val = float(stats.get("money", 0))
+                            percent = (my_val / total_money * 100) if total_money > 0 else 0
+                            mn, mx = map(float, query_target["MoneyRange"])
+                            if not (mn <= percent <= mx): is_match = False
+                            # except: is_match = False
+                        
+                        # 伤害占比区间
+                        if is_match and query_target.get("DamageRange"):
+                            # try:
+                            total_hurt = sum(float(r.get("battleStats", {}).get("totalHeroHurtCnt", 0)) for r in team_roles)
+                            my_val = float(stats.get("totalHeroHurtCnt", 0))
+                            percent = (my_val / total_hurt * 100) if total_hurt > 0 else 0
+                            mn, mx = map(float, query_target["DamageRange"])
+                            if not (mn <= percent <= mx): is_match = False
+                            # except: is_match = False
+                                
+                        # 承伤占比区间
+                        if is_match and query_target.get("DamageTakenRange"):
+                            # try:
+                            total_behurt = sum(float(r.get("battleStats", {}).get("totalBeheroHurtCnt", 0)) for r in team_roles)
+                            my_val = float(stats.get("totalBeheroHurtCnt", 0))
+                            percent = (my_val / total_behurt * 100) if total_behurt > 0 else 0
+                            mn, mx = map(float, query_target["DamageTakenRange"])
+                            if not (mn <= percent <= mx): is_match = False
+                            # except: is_match = False
+
+                        # 贡献度系数区间
+                        if is_match and query_target.get("ContributeRange"):
+                            try:
+                                total_grade = sum(float(r.get("battleStats", {}).get("gradeGame", 0)) for r in team_roles)
+                                total_money = sum(float(r.get("battleStats", {}).get("money", 0)) for r in team_roles)
+                                my_grade = float(stats.get("gradeGame", 0))
+                                my_money = float(stats.get("money", 0))
+                                
+                                if total_grade > 0 and total_money > 0 and my_money > 0:
+                                    # factor = (5 * my_grade / total_grade) * pow((5 * my_money / total_money), -0.5)
+                                    term1 = (5 * my_grade / total_grade)
+                                    term2 = pow((5 * my_money / total_money), -0.5)
+                                    factor = term1 * term2
+                                    mn, mx = map(float, query_target["ContributeRange"])
+                                    if not (mn <= factor <= mx): is_match = False
+                                else:
+                                    is_match = False
+                            except: is_match = False
+                        
+                        # 队内评分排名
+                        if is_match and query_target.get("TeamGradeRank"):
+                            try:
+                                # 按评分降序
+                                team_roles.sort(key=lambda x: float(x.get("battleStats", {}).get("gradeGame", -1)), reverse=True)
+                                
+                                my_rank = -1
+                                for i, r in enumerate(team_roles):
+                                    if r == my_role:
+                                        my_rank = i + 1
+                                        break
+                                
+                                target_rank = int(query_target["TeamGradeRank"])
+                                if my_rank != target_rank:
+                                    is_match = False
+                            except: is_match = False
+
+                    # 属性比较
+                    if is_match:
+                        def get_role_by_name(p_name):
+                            rid = roleidlist.get(p_name) or extra_roleidlist.get(p_name)
+                            for r in all_roles:
+                                if rid:
+                                    if str(r.get("basicInfo",{}).get("roleId")) == str(rid):
+                                        return r
+                                elif p_name and p_name in r.get("basicInfo", {}).get("roleName", ""):
+                                    return r
+                            return None
+
+                        def get_stat_value(role, field_name):
+                            stats = role.get("battleStats", {})
+                            if field_name == "ScoreComparison":
+                                return float(stats.get("gradeGame", -1))
+                            
+                            # 获取队伍总和
+                            camp = role.get("basicInfo", {}).get("acntCamp")
+                            t_roles = [x for x in all_roles if x.get("basicInfo", {}).get("acntCamp") == camp]
+                            
+                            if field_name == "MoneyComparison":
+                                total = sum(float(x.get("battleStats", {}).get("money", 0)) for x in t_roles)
+                                return (float(stats.get("money", 0)) / total * 100) if total > 0 else 0
+                            elif field_name == "DamageComparison":
+                                total = sum(float(x.get("battleStats", {}).get("totalHeroHurtCnt", 0)) for x in t_roles)
+                                return (float(stats.get("totalHeroHurtCnt", 0)) / total * 100) if total > 0 else 0
+                            elif field_name == "DamageTakenComparison":
+                                total = sum(float(x.get("battleStats", {}).get("totalBeheroHurtCnt", 0)) for x in t_roles)
+                                return (float(stats.get("totalBeheroHurtCnt", 0)) / total * 100) if total > 0 else 0
+                            elif field_name == "ContributeComparison":
+                                total_g = sum(float(x.get("battleStats", {}).get("gradeGame", 0)) for x in t_roles)
+                                total_m = sum(float(x.get("battleStats", {}).get("money", 0)) for x in t_roles)
+                                my_g = float(stats.get("gradeGame", 0))
+                                my_m = float(stats.get("money", 0))
+                                if total_g > 0 and total_m > 0 and my_m > 0:
+                                    return (5 * my_g / total_g) * pow((5 * my_m / total_m), -0.5)
+                                return 0
+                            return -1
+
+                        comp_fields = ["ScoreComparison", "MoneyComparison", "DamageComparison", "DamageTakenComparison", "ContributeComparison"]
+                        for field in comp_fields:
+                            if is_match and query_target.get(field):
+                                try:
+                                    sc = query_target[field]
+                                    pa, pb, op = sc.get("PlayerA"), sc.get("PlayerB"), sc.get("Operator")
+                                    roleA, roleB = get_role_by_name(pa), get_role_by_name(pb)
+
+                                    if roleA and roleB:
+                                        valA = get_stat_value(roleA, field)
+                                        valB = get_stat_value(roleB, field)
+                                        
+                                        if op == ">" and not (valA > valB): is_match = False
+                                        elif op == "<" and not (valA < valB): is_match = False
+                                    else: is_match = False
+                                except: is_match = False
+
+            # 输赢
+            if is_match and query_target.get("Result"):
+                if query_target["Result"] not in detail.get("Result", ""):
+                    is_match = False
+            
+            # KDA (略微近似, 每个值差值<=1)
+            if is_match and query_target.get("KDA"):
+                try:
+                    tk, td, ta = query_target["KDA"]
+                    dk, dd, da = detail.get("KillCnt", 0), detail.get("DeadCnt", 0), detail.get("AssistCnt", 0)
+                    if abs(int(tk) - int(dk)) > 1 or abs(int(td) - int(dd)) > 1 or abs(int(ta) - int(da)) > 1:
+                        is_match = False
+                except:
+                    pass
+            
+            # 评分 (略微近似, 差值<=0.5)
+            if is_match and query_target.get("GameGrade"):
+                try:
+                    if abs(float(detail.get("GameGrade", 0)) - float(query_target["GameGrade"])) > 0.5:
+                        is_match = False
+                except:
+                    pass
+            
+            # 时长 (略微近似, 差值<=60s)
+            if is_match and query_target.get("Duration"):
+                try:
+                    if abs(int(detail.get("Duration_Second", 0)) - int(query_target["Duration"])) > 60:
+                        is_match = False
+                except:
+                    pass
+            
+            # 游戏时间 (支持 30 分钟偏差)
+            if is_match and query_target.get("GameTime"):
+                t_time_str = str(query_target["GameTime"])
+                match_time = re.search(r'(\d{1,2}:\d{1,2})', t_time_str)
+                if match_time:
+                    t_hhmm = match_time.group(1)
+                    d_time_str = str(detail.get("GameTime", ""))
+                    match_time_d = re.search(r'(\d{1,2}:\d{1,2})', d_time_str)
+                    
+                    if match_time_d:
+                        d_hhmm = match_time_d.group(1)
+                        try:
+                            th, tm = map(int, t_hhmm.split(":"))
+                            dh, dm = map(int, d_hhmm.split(":"))
+                            diff = abs((th * 60 + tm) - (dh * 60 + dm))
+                            if diff > 12 * 60:
+                                diff = 24 * 60 - diff
+                            
+                            if diff > 30:
+                                is_match = False
+                        except:
+                            if t_hhmm not in d_time_str:
+                                is_match = False
+                    elif t_hhmm not in d_time_str:
+                        is_match = False
+            
+            # 如果有 FuzzyTime, 还需要额外过滤具体时间点 (fetch_history 只按日期过滤)
+            if is_match and start_date and end_date:
+                detail_time_str = str(detail.get("GameTime", ""))
+                if detail_time_str:
+                    try:
+                        from datetime import datetime
+                        # 尝试匹配完整日期格式 yyyy-mm-dd HH:MM
+                        full_match = re.search(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{1,2})', detail_time_str)
+                        current_detail_dt = None
+                        
+                        if full_match:
+                            y, m, d, H, M = map(int, full_match.groups())
+                            current_detail_dt = datetime(y, m, d, H, M)
+                        else:
+                            # 尝试匹配 HH:MM
+                            time_match = re.search(r'(\d{1,2}):(\d{1,2})', detail_time_str)
+                            if time_match:
+                                dt_h, dt_m = map(int, time_match.groups())
+                                current_detail_dt = start_date.replace(hour=dt_h, minute=dt_m)
+                        
+                        if current_detail_dt:
+                            if not (start_date <= current_detail_dt <= end_date):
+                                is_match = False
+                    except:
+                        pass
+
+            # Others (MVP/超神/一血)
+            if is_match and query_target.get("Others"):
+                d_others = detail.get("Others", "")
+                for keyword in query_target["Others"]:
+                    if keyword not in d_others:
+                        is_match = False
+                        break
+            
+            if is_match:
+                matches.append([detail, realname])
+    
+    # 去重: 对于gameseq相同的对局只保留一份
+    unique_matches = []
+    seen_gameseqs = set()
+    for m in matches:
+        # m[0] is detail
+        gs = m[0].get("GameSeq")
+        if gs and gs not in seen_gameseqs:
+            seen_gameseqs.add(gs)
+            unique_matches.append(m)
+    matches = unique_matches
+
+    return [query_target, matches, query_desc]

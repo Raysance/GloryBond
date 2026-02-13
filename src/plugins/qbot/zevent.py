@@ -50,7 +50,6 @@ async def judge_herostatistics_query(event)->bool:
         right_ok = True
     elif extract_heroname(right,precise=True):
         right_ok = True
-
     return left_ok and right_ok
 
 def get_validated_name(event):
@@ -58,7 +57,7 @@ def get_validated_name(event):
     userqid = event.get_user_id()
     rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
     matching_name = extract_name(rcv_msg)
-    if matching_name == "name_error":
+    if not matching_name:
         add_msg("Name Not Found", event=event)
         return None
     return matching_name
@@ -97,6 +96,7 @@ _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
+_history_query=on_keyword({"查询"},rule=judge_to_me,priority=4, block=True)
 _herostatistics=on_message(rule=Rule(judge_herostatistics_query),priority=4, block=True)
 _todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
@@ -576,6 +576,87 @@ async def f_diycode(bot: Bot, event: Event):
         add_msg(str(result), event=event)
     except Exception as e:
         add_msg(f"Error: {str(e)}", event=event)
+
+@_history_query.handle()
+async def f_history_query(event: Event):
+    from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, create_website
+    import traceback
+    import json
+    from .zfile import writerl
+    import hashlib
+
+    userqid = event.get_user_id()
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+    
+
+    try:
+        res = await history_query_handler(rcv_msg)
+        if isinstance(res, str):
+            add_msg(res, event=event)
+            return
+            
+        query_target, matches, query_desc = res
+        prefix = f"🔍查询条件：{query_desc}\n\n"
+
+        if isinstance(matches, str):
+            add_msg(prefix + matches, event=event)
+            return
+        
+        if len(matches) == 1:
+            detail, realname = matches[0]
+            roleid = roleidlist[realname]
+            try:
+                # 调用btldetail_process解析该局详情，逻辑参考其他单局解析处
+                btl_info, picpath = btldetail_process(**detail['Params'], roleid=roleid, gen_image=True,individual_show=True)
+                snd_msg = MessageSegment.text(prefix + btl_info) + MessageSegment.image(picpath)
+                add_msg(snd_msg, event=event)
+            except Exception as e:
+                add_msg(prefix + f"解析局内详情异常: {str(e)}", event=event)
+                add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        elif len(matches) > 1:
+            packed_data = []
+            now_time = time.strftime("%Y-%m-%d %H:%M:%S")
+            exact_now_time = str(round(time.time()*1000000))
+            for detail, realname in matches:
+                gameseq = detail['GameSeq']
+                roleid = roleidlist[realname]
+                battle_res = fetch_battle(gameseq)
+                
+                nickname = ""
+                if battle_res:
+                    for role in battle_res.get('redRoles', []) + battle_res.get('blueRoles', []):
+                        if int(role['basicInfo']['roleId']) == int(roleid):
+                            nickname = role['basicInfo']['roleName']
+                            break
+                            
+                info = {
+                    "realname": realname,
+                    "Nickname": nickname,
+                    "roleId": roleid,
+                    "GameTime": detail.get("GameTime_Timestamp"),
+                    "Duration": detail.get("Duration_Second"),
+                    "HeroName": detail.get("HeroName"),
+                    "MapName": detail.get("MapName"),
+                    "KillCnt": detail.get('KillCnt'),
+                    "DeadCnt": detail.get('DeadCnt'),
+                    "AssistCnt": detail.get('AssistCnt'),
+                    "Result": detail.get("Result"),
+                    "GameGrade": detail.get("GameGrade"),
+                    "GameSeq":gameseq,
+                    "Others": detail.get("Others")
+                }
+                packed_data.append(info)
+                
+            filename_hashed = hashlib.sha256(exact_now_time.encode()).hexdigest()[:16]
+            filepath = os.path.join(nginx_path, "wzry_history", filename_hashed + ".json")
+            writerl(filepath,packed_data)
+            website_link = create_website(json.dumps({"filename": filename_hashed, "caller": query_target, "time": now_time}), "query_select")
+            add_msg(prefix + f"找到 {len(matches)} 局符合条件的战绩，点击链接查看详情：\n" + website_link, event=event)
+        else:
+            add_msg(prefix + "未找到符合条件的战绩。", event=event)
+    except Exception as e:
+        add_msg(f"查询错误: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 @_chat.handle()
 async def f_chat(bot,event):
