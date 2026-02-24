@@ -8,7 +8,7 @@ import requests
 from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
-@limits(calls=10, period=1)
+@limits(calls=1, period=1)
 def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1):
     import time
     roleid=str(roleid)
@@ -175,14 +175,22 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         res=response.json().get("data",{})
         error_msg=response.json().get("returnMsg","")
         if res: break
-        time.sleep(0.5)
+        if ("登录态失效" in error_msg or "操作频繁" in error_msg):
+            retry_time=0
+            break
+        time.sleep(2)
         retry_time-=1
-    if (not retry_time): raise Exception(str("HOK: "+error_msg))
+    if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
+    # import os
+    # import json
+    # save_path = os.path.join("wzry_data_format", f"{reqtype}.json")
+    # with open(save_path, 'w', encoding='utf-8') as sf:
+    #     json.dump(res, sf, ensure_ascii=False, indent=2)
     return res
 
 @sleep_and_retry
 @limits(calls=100, period=1)
-def ai_api(user_query,temperature=1.5): # deepseek官方模型-不联网
+def ai_api(user_query,temperature): # deepseek官方模型-不联网
     log_message("VISIT: ai_api_common")
     try:
         client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
@@ -231,3 +239,25 @@ def ark_api(user_query): # 火山引擎-豆包联网模型
         raise Exception("ark_api_error: "+str(e))
     return completion.choices[0].message.content
 
+def tianyuanzhiyi_tier_api():
+    url = "https://tianyuanzhiyi.com/api/global/tier"
+    headers = {
+        "accept": "*/*",
+        "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "priority": "u=1, i",
+        "sec-ch-ua": '"Not(A:Brand";v="8", "Chromium";v="144", "Microsoft Edge";v="144"',
+        "sec-ch-ua-mobile": "?1",
+        "sec-ch-ua-platform": '"Android"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36"
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return data
+    except requests.exceptions.HTTPError as e:
+        return {}

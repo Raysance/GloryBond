@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>跳转到玩家战绩</title>
+  <style>
+    :root{--bg:#f8fafc;--card:#fff;--accent:#4f8ef7;--accent-light:#eef6ff;--muted:#64748b;--border:#e2e8f0;--text:#1e293b}
+    html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+    body{background:var(--bg);display:flex;justify-content:center;color:var(--text)}
+    
+    .card{width:min(1100px,96%);background:var(--card);margin:20px auto;border-radius:16px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06);padding:24px;display:flex;flex-direction:column;min-height:90vh}
+    
+    h1{margin:0 0 4px;font-size:1.5rem;font-weight:700}
+    p.lead{margin:0 0 20px;color:var(--muted);font-size:0.9rem}
+
+    /* 布局容器 */
+    .content{display:flex;gap:24px;align-items:stretch;flex:1}
+    
+    /* 左侧列表主区域 */
+    .presets-wrap{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0}
+    .preset-search input{width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:12px;font-size:1rem;outline:none;transition:border-color 0.2s;box-sizing:border-box}
+    .preset-search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,142,247,0.1)}
+    
+    .presets{display:flex;flex-wrap:wrap;gap:10px;padding:4px;overflow-y:auto;align-content:flex-start;max-height:calc(100vh - 250px)}
+    
+    /* 预设按钮样式 */
+    .presets .btn.ghost{background:var(--accent-light);border:1px solid transparent;color:var(--accent);display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:12px;font-weight:500;transition:all 0.2s;text-align:left}
+    .presets .btn.ghost:hover{background:var(--accent);color:#fff;transform:translateY(-1px)}
+    .presets .btn.ghost small{opacity:0.8;font-size:0.75rem;margin-left:8px}
+
+    /* 右侧侧边栏 */
+    .side-form{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:20px;padding:20px;background:#f1f5f9;border-radius:16px;height:fit-content}
+    .side-form label{display:block;font-size:0.85rem;font-weight:600;color:var(--muted);margin-bottom:6px}
+    .side-form input[type="text"]{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:0.95rem;box-sizing:border-box;outline:none}
+    .side-form input[type="text"]:focus{border-color:var(--accent)}
+
+    .controls{display:flex;flex-direction:column;gap:10px}
+    .btn{padding:12px 20px;border-radius:12px;border:none;cursor:pointer;font-weight:600;font-size:0.95rem;transition:opacity 0.2s}
+    .btn.primary{background:var(--accent);color:#fff;box-shadow:0 4px 6px -1px rgba(79,142,247,0.3)}
+    .btn.primary:hover{opacity:0.9}
+    .btn.ghost-action{background:#fff;border:1px solid var(--border);color:var(--muted)}
+    
+    .back{position:absolute;left:20px;top:20px;background:var(--card);border:1px solid var(--border);padding:8px 16px;border-radius:10px;cursor:pointer;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+
+    /* 响应式适配 */
+    @media (max-width: 768px) {
+      body{background:var(--card)}
+      .card{width:100%;margin:0;border-radius:0;padding:16px;box-shadow:none;min-height:100vh}
+      .content{flex-direction:column;gap:20px}
+      .side-form{width:100%;box-sizing:border-box;order:-1;background:var(--accent-light)}
+      .presets{max-height:none;overflow:visible;padding:0}
+      .presets .btn.ghost{width:100%;flex:1 1 100% !important;padding:14px 18px}
+      .back{position:static;margin-bottom:12px;width:fit-content;display:block}
+      h1{font-size:1.3rem}
+    }
+    .note{margin-top:12px;color:#9aa6bf;font-size:0.85rem}
+  </style>
+</head>
+<body>
+  <button class="back" id="backBtn" aria-label="返回">← 返回</button>
+  <main class="card" role="main" data-useridlist='{{ useridlist | tojson | safe }}' data-roleidlist='{{ roleidlist | tojson | safe }}'>
+    <h1>按UserId/RoleId跳转</h1>
+    <p></p>
+    <div class="content">
+      <div class="presets-wrap">
+        <div class="preset-search"><input id="presetSearch" type="search" placeholder="搜索已知用户（按缩写或部分匹配）" aria-label="搜索已知用户"></div>
+        <div id="presets" class="presets" aria-hidden="true"></div>
+      </div>
+      <div class="side-form">
+        <div>
+          <label for="userid">User ID</label>
+          <input id="userid" type="text" placeholder="" inputmode="numeric" autocomplete="username">
+        </div>
+        <div>
+          <label for="roleid">Role ID</label>
+          <input id="roleid" type="text" placeholder="" inputmode="numeric">
+        </div>
+        <div class="controls">
+          <button class="btn ghost-action" id="clearBtn">清空</button>
+          <button class="btn primary" id="confirmBtn">确认并跳转</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    (function(){
+      // 外部可注入的两个字典：useridlist 和 roleidlist
+      // 模板渲染时请确保将两个变量替换为合法的 JSON 对象字面量，例如：
+      // useridlist = {"xm":123, "ly":456}
+      // roleidlist = {"xm":321, "ly":654}
+      let useridList = {};
+      let roleidList = {};
+      // 优先从 main[data-useridlist/data-roleidlist] 解析（安全，支持模板渲染时注入）
+      try {
+        const mainEl = document.querySelector('main');
+        if (mainEl) {
+          const dsU = mainEl.dataset.useridlist;
+          const dsR = mainEl.dataset.roleidlist;
+          if (dsU) {
+            try { useridList = JSON.parse(dsU); } catch (e) { /* 如果不是有效 JSON，则忽略 */ }
+          }
+          if (dsR) {
+            try { roleidList = JSON.parse(dsR); } catch (e) { /* ignore */ }
+          }
+        }
+      } catch (e) {
+        useridList = {};
+        roleidList = {};
+        showToast('解析注入数据失败');
+      }
+
+      // 其次兼容全局注入变量 window.__USERIDLIST__ / __ROLEIDLIST__（对象或 JSON 字符串）
+      try {
+        const rawU = window.__USERIDLIST__;
+        if (rawU && Object.keys(useridList).length === 0) {
+          if (typeof rawU === 'string') {
+            try { useridList = JSON.parse(rawU); } catch (e) { useridList = {}; showToast('useridlist 格式错误'); }
+          } else if (typeof rawU === 'object') {
+            useridList = rawU || {};
+          }
+        }
+      } catch (e) { useridList = {}; }
+      try {
+        const rawR = window.__ROLEIDLIST__;
+        if (rawR && Object.keys(roleidList).length === 0) {
+          if (typeof rawR === 'string') {
+            try { roleidList = JSON.parse(rawR); } catch (e) { roleidList = {}; showToast('roleidlist 格式错误'); }
+          } else if (typeof rawR === 'object') {
+            roleidList = rawR || {};
+          }
+        }
+      } catch (e) { roleidList = {}; }
+
+      const userid = document.getElementById('userid');
+      const roleid = document.getElementById('roleid');
+      const confirmBtn = document.getElementById('confirmBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const backBtn = document.getElementById('backBtn');
+      const presetSearch = document.getElementById('presetSearch');
+
+      function showToast(msg){
+        const t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = 'position:fixed;left:50%;top:20px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:10px;z-index:99999;opacity:0;transition:all .25s';
+        document.body.appendChild(t);
+        requestAnimationFrame(()=>{t.style.opacity='1';});
+        setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),250)},2600);
+      }
+
+      // 渲染预设用户/角色快捷按钮
+      function renderPresets() {
+        const presetContainerId = 'presets';
+        let presetContainer = document.getElementById(presetContainerId);
+        if (!presetContainer) {
+          presetContainer = document.createElement('div');
+          presetContainer.id = presetContainerId;
+          presetContainer.className = 'presets';
+          confirmBtn.parentElement.parentElement.insertBefore(presetContainer, confirmBtn.parentElement);
+        }
+        presetContainer.innerHTML = '';
+        presetContainer.setAttribute('aria-hidden', 'true');
+
+        const keys = new Set([...Object.keys(useridList || {}), ...Object.keys(roleidList || {})]);
+        if (!keys.size) {
+          showToast('无预设用户');
+          return;
+        }
+        presetContainer.setAttribute('aria-hidden', 'false');
+
+        keys.forEach((name) => {
+          const u = useridList[name];
+          const r = roleidList[name];
+          const btn = document.createElement('button');
+          btn.className = 'btn ghost';
+          btn.type = 'button';
+          // 移除硬编码的 flex，通过 CSS 控制响应式宽度
+          btn.style.flex = '1 1 240px'; 
+          btn.style.display = 'inline-flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'space-between';
+          btn.style.gap = '8px';
+          btn.innerHTML = `<span style="text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span><small style="opacity:0.7;white-space:nowrap">${u? 'U:'+u : ''}${u&&r? ' ' : ''}${r? 'R:'+r: ''}</small>`;
+          // store for filtering
+          btn.dataset.name = String(name).toLowerCase();
+          btn.dataset.uid = u || '';
+          btn.dataset.rid = r || '';
+          btn.addEventListener('click', () => {
+            const uid = btn.dataset.uid || '';
+            const rid = btn.dataset.rid || '';
+            // 直接跳转到已有用户页面（roleid 可为空，后台应容忍）
+            const url = `/jump-btlperson?userid=${encodeURIComponent(uid)}&roleid=${encodeURIComponent(rid)}&key={{AdminKey}}`;
+            window.location.href = url;
+          });
+          presetContainer.appendChild(btn);
+        });
+      }
+
+      confirmBtn.addEventListener('click', ()=>{
+        const u = (userid.value||'').trim();
+        const r = (roleid.value||'').trim();
+        if(!u || !r){ showToast('请填写 userid 和 roleid'); return; }
+        // 模板 key 以 {{AdminKey}} 注入
+        const url = `/jump-btlperson?userid=${encodeURIComponent(u)}&roleid=${encodeURIComponent(r)}&key={{AdminKey}}`;
+        window.location.href = url;
+      });
+
+      // 回车在任一输入框触发确认
+      [userid, roleid].forEach(inp => inp.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ confirmBtn.click(); } }));
+
+      clearBtn.addEventListener('click', ()=>{ userid.value=''; roleid.value=''; userid.focus(); });
+
+      backBtn.addEventListener('click', ()=>{
+        if(window.history.length>1){ window.history.back(); }
+        else if(document.referrer){ window.location.href = document.referrer; }
+        else{ window.location.href = '/'; }
+      });
+
+      // 小提示：把聚焦放到第一个输入框
+      userid.focus();
+      // 渲染预设按钮（如果模板注入了 useridlist/roleidlist）
+      try { renderPresets(); } catch (e) { showToast('渲染预设失败'); }
+
+      // 搜索过滤功能
+      if (presetSearch) {
+        presetSearch.addEventListener('input', function() {
+          const q = (this.value || '').trim().toLowerCase();
+          const container = document.getElementById('presets');
+          if (!container) return;
+          const buttons = Array.from(container.querySelectorAll('button'));
+          let any = false;
+          buttons.forEach(b => {
+            const name = (b.dataset.name || b.textContent || '').toLowerCase();
+            const visible = q === '' || name.includes(q);
+            b.style.display = visible ? 'inline-flex' : 'none';
+            if (visible) any = true;
+          });
+          if (!any && q) {
+            showToast('未找到匹配用户');
+          }
+        });
+      }
+    }());
+  </script>
+</body>
+</html>
