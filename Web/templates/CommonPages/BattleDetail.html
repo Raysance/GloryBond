@@ -1100,6 +1100,42 @@
             transition: all 0.3s ease;
         }
 
+        .analyze-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            color: #666;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .analyze-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            color: #9c27b0;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .analyze-btn.loading {
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .analyze-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            transition: all 0.3s ease;
+        }
+
         @media (max-width: 768px) {
             .action-buttons {
                 top: 10px;
@@ -1528,8 +1564,13 @@
                     <!-- 背景装饰 -->
                     <div style="position: absolute; top: 0; right: 0; width: 200px; height: 100%; background: url('${usedHero.heroIcon || ''}') center/cover; opacity: 0.06; z-index: 0; mask: linear-gradient(to left, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%);"></div>
                     
-                    <!-- 分享和收藏按钮 -->
+                    <!-- 分享/收藏/分析 按钮 -->
                     <div class="action-buttons">
+                        <button class="analyze-btn" onclick="handleAnalyze()" title="分析战局">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z"/>
+                            </svg>
+                        </button>
                         <button class="share-btn" onclick="handleShare()" title="分享战局">
                             <svg viewBox="0 0 24 24">
                                 <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
@@ -2252,6 +2293,206 @@
             }
         }
 
+        // 分析限时控制
+        let lastAnalyzeTime = 0;
+        const ANALYZE_COOLDOWN = 10000; // 10秒限制
+
+        function checkBtlOfficialWithMatchingWithEntertain(btlname) {
+            btlname = (btlname || '').toLowerCase();
+            if (['1v1', '2v2', '3v3'].some(pattern => btlname.includes(pattern))) {
+                return false;
+            }
+            return ['排位', '巅峰', '战队','王者峡谷','梦境'].some(pattern => btlname.includes(pattern));
+        }
+
+        // 处理分析按钮点击事件（使用页面中的 battleData）
+        async function handleAnalyze() {
+            try {
+                const currentTime = Date.now();
+                const timeSinceLastAnalyze = currentTime - lastAnalyzeTime;
+                if (timeSinceLastAnalyze < ANALYZE_COOLDOWN) {
+                    const remainingSeconds = Math.ceil((ANALYZE_COOLDOWN - timeSinceLastAnalyze) / 1000);
+                    showToast(`请等待 ${remainingSeconds} 秒后再分析`, 'warning');
+                    return;
+                }
+
+                if (!battleData) {
+                    showToast('数据未加载，无法分析', 'error');
+                    return;
+                }
+
+                const { head, battle } = battleData;
+
+                if (!checkBtlOfficialWithMatchingWithEntertain(battle.mapName || '')) {
+                    showToast('仅支持分析排位/巅峰/战队/匹配/梦境', 'warning');
+                    return;
+                }
+
+                const confirmResult = await showAnalyzeConfirm();
+                if (!confirmResult || !confirmResult.confirmed) {
+                    return;
+                }
+
+                lastAnalyzeTime = currentTime;
+
+                const analyzeBtn = document.querySelector('.analyze-btn');
+                if (analyzeBtn) analyzeBtn.classList.add('loading');
+
+                const params = new URLSearchParams({
+                    gameSeq: '{{gameSeq}}',
+                    gameSvr: '{{gameSvr}}',
+                    relaySvr: '{{relaySvr}}',
+                    targetRoleId: '{{targetRoleId}}',
+                    battleType: '{{battleType}}',
+                    key: '{{key}}',
+                    Special: (confirmResult && confirmResult.special) ? 'true' : 'false'
+                });
+
+                const response = await fetch(`/analyze-btldetail?${params.toString()}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (analyzeBtn) analyzeBtn.classList.remove('loading');
+
+                if (response.ok) {
+                    showToast('分析请求已发送，请稍候查看结果', 'success');
+                } else {
+                    const errorText = await response.text().catch(() => '');
+                    if (errorText.includes('not logged in') || errorText.includes('未登录')) {
+                        showToast('请先登录', 'error');
+                    } else {
+                        showToast('分析失败，请稍后重试', 'error');
+                    }
+                }
+
+            } catch (error) {
+                console.error('分析失败:', error);
+                const analyzeBtn = document.querySelector('.analyze-btn');
+                if (analyzeBtn) analyzeBtn.classList.remove('loading');
+                showToast('分析失败，请稍后重试', 'error');
+            }
+        }
+
+        // 显示分析确认对话框（支持长按确定，长按 >=2s 视为 special=true）
+        function showAnalyzeConfirm() {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.6);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10001;
+                    backdrop-filter: blur(5px);
+                `;
+
+                const confirmBox = document.createElement('div');
+                confirmBox.style.cssText = `
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.3);
+                    border-radius: 20px;
+                    padding: 0;
+                    max-width: 400px;
+                    width: 90%;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+                    transform: scale(0.7);
+                    transition: all 0.3s ease;
+                `;
+
+                confirmBox.innerHTML = `
+                    <div style="padding: 25px 25px 15px; text-align: center; border-bottom: 1px solid rgba(108, 155, 209, 0.2);">
+                        <div style="font-size: 2.5rem; margin-bottom: 10px;">📊</div>
+                        <h3 style="margin: 0; color: var(--dark-color); font-size: 1.3rem; font-weight: 600;">分析确认</h3>
+                    </div>
+                    <div style="padding: 20px 25px; text-align: center;">
+                        <p style="color: var(--dark-color); font-size: 1.1rem; line-height: 1.5; margin: 0 0 20px;">
+                            点击确认后会分析该战局的底蕴并发送到群聊
+                        </p>
+                        <div style="display: flex; gap: 12px; justify-content: center;">
+                            <button id="cancelAnalyze" style="
+                                background: rgba(108, 117, 125, 0.1);
+                                color: var(--accent-color);
+                                border: 1px solid rgba(108, 117, 125, 0.3);
+                                padding: 10px 20px;
+                                border-radius: 20px;
+                                font-size: 1rem;
+                                cursor: pointer;
+                                transition: all 0.3s ease;
+                                min-width: 80px;
+                            ">取消</button>
+                            <button id="confirmAnalyze" style="
+                                background: linear-gradient(135deg, #9c27b0, #ab47bc);
+                                color: white;
+                                border: none;
+                                padding: 10px 20px;
+                                border-radius: 20px;
+                                font-size: 1rem;
+                                cursor: pointer;
+                                transition: all 0.3s ease;
+                                box-shadow: 0 4px 15px rgba(156, 39, 176, 0.3);
+                                min-width: 80px;
+                            ">确定</button>
+                        </div>
+                    </div>
+                `;
+
+                overlay.appendChild(confirmBox);
+                document.body.appendChild(overlay);
+
+                setTimeout(() => { confirmBox.style.transform = 'scale(1)'; }, 50);
+
+                const cancelBtn = confirmBox.querySelector('#cancelAnalyze');
+                const confirmBtn = confirmBox.querySelector('#confirmAnalyze');
+
+                const doCancel = () => {
+                    overlay.style.opacity = '0';
+                    confirmBox.style.transform = 'scale(0.7)';
+                    setTimeout(() => { try { document.body.removeChild(overlay); } catch (e) {} resolve({ confirmed: false, special: false }); }, 300);
+                };
+
+                cancelBtn.addEventListener('click', doCancel);
+
+                let pressTimer = null;
+                let isLongPress = false;
+
+                const startPress = (e) => {
+                    e.preventDefault && e.preventDefault();
+                    isLongPress = false;
+                    if (pressTimer) clearTimeout(pressTimer);
+                    pressTimer = setTimeout(() => {
+                        isLongPress = true;
+                        try { showToast('私聊分析成功', 'success'); } catch (e) {}
+                    }, 2000);
+                };
+
+                const endPress = (e) => {
+                    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+                    const special = !!isLongPress;
+                    overlay.style.opacity = '0';
+                    confirmBox.style.transform = 'scale(0.7)';
+                    setTimeout(() => { try { document.body.removeChild(overlay); } catch (err) {} resolve({ confirmed: true, special: special }); }, 300);
+                };
+
+                confirmBtn.addEventListener('mousedown', startPress);
+                confirmBtn.addEventListener('touchstart', startPress);
+                confirmBtn.addEventListener('mouseup', endPress);
+                confirmBtn.addEventListener('mouseleave', endPress);
+                confirmBtn.addEventListener('touchend', endPress);
+
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) { doCancel(); } });
+
+                const escHandler = (e) => { if (e.key === 'Escape') { document.removeEventListener('keydown', escHandler); doCancel(); } };
+                document.addEventListener('keydown', escHandler);
+            });
+        }
+
         // 显示分享确认对话框
         function showShareConfirm() {
             return new Promise((resolve) => {
@@ -2441,7 +2682,7 @@
             </div>
         </div>
     </div>
-    <script src="animation_overlay.js"></script>
+    <script src="components/overlay/animation_overlay_.js"></script>
 </body>
 {% include 'footer_github.html' %}
 </html>

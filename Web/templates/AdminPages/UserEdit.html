@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>用户管理 - 管理后端</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #fff;
+      --accent: #4f8ef7;
+      --accent-light: #eef6ff;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .btn-back {
+      padding: 8px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .btn-back:hover {
+      background: var(--accent-light);
+      border-color: var(--accent);
+    }
+
+    h1 {
+      flex: 1;
+      text-align: center;
+      margin: 0;
+      font-size: 1.5rem;
+    }
+
+    .section {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* Table styles */
+    .table-container {
+      overflow-x: auto;
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #f1f5f9;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Sticky Actions Column */
+    .sticky-actions {
+      position: sticky;
+      right: 0;
+      background: var(--card);
+      box-shadow: -4px 0 6px -2px rgba(0, 0, 0, 0.05);
+      border-left: 1px solid var(--border);
+    }
+    tr:nth-child(even) .sticky-actions {
+        /* Optional: Handle zebra striping background if added */
+    }
+
+    .action-btns {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .action-btn {
+      padding: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .action-btn:hover {
+      background: var(--accent-light);
+      border-color: var(--accent);
+    }
+    .action-btn.delete:hover {
+      background: #fee2e2;
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .action-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+    }
+
+    /* Footer Buttons */
+    .footer-btns {
+      position: sticky;
+      bottom: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 32px;
+      z-index: 10;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-reset {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-reset:hover {
+      background: #f1f5f9;
+    }
+
+    .btn-submit {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-submit:hover {
+      opacity: 0.9;
+    }
+
+    .btn-diff {
+      background: #f1f5f9;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-diff:hover {
+      background: #e2e8f0;
+    }
+
+    .btn-add {
+      background: var(--accent);
+      color: #fff;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .modal {
+      background: var(--card);
+      border-radius: 16px;
+      width: min(500px, 90%);
+      padding: 24px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-content {
+      overflow-y: auto;
+      flex: 1;
+      padding-right: 8px;
+    }
+    .modal-header {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    /* Diff Styles */
+    .diff-item {
+      margin-bottom: 20px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .diff-item.add { border-left: 4px solid var(--success); background: #f0fdf4; }
+    .diff-item.edit { border-left: 4px solid var(--accent); background: #f0f9ff; }
+    .diff-item.delete { border-left: 4px solid var(--danger); background: #fef2f2; }
+    
+    .diff-title {
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .diff-tag {
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .tag-add { background: var(--success); color: #fff; }
+    .tag-edit { background: var(--accent); color: #fff; }
+    .tag-delete { background: var(--danger); color: #fff; }
+    
+    .diff-detail {
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .diff-change {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .diff-label { color: var(--muted); font-weight: 600; }
+    .diff-val-old { color: var(--danger); text-decoration: line-through; }
+    .diff-val-new { color: var(--success); font-weight: 600; }
+    .diff-val-arrow { color: var(--muted); padding: 0 4px; }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-sizing: border-box;
+      outline: none;
+    }
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    /* Alias Management Tags */
+    .alias-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      min-height: 40px;
+      padding: 8px;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+    .alias-item {
+      background: var(--accent-light);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      border: 1px solid rgba(79, 142, 247, 0.2);
+    }
+    .alias-text {
+      cursor: pointer;
+    }
+    .alias-text:hover {
+      text-decoration: underline;
+    }
+    .alias-del {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+    }
+    .alias-del:hover {
+      color: var(--danger);
+    }
+    .btn-alias-add {
+      background: none;
+      border: 1px dashed var(--accent);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .btn-alias-add:hover {
+      background: var(--accent-light);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    /* Modified Highlighting */
+    .row-modified {
+      background-color: #fffbeb !important; /* Light yellow background for modified rows */
+    }
+    .cell-modified {
+      color: #92400e;
+      font-weight: 600;
+      position: relative;
+    }
+    .cell-modified::after {
+      content: ' •';
+      color: #f59e0b;
+    }
+    .row-new {
+      background-color: #f0fdf4 !important; /* Light green for new rows */
+    }
+    .row-deleted {
+      background-color: #fef2f2 !important; /* Light red for deleted rows */
+      color: var(--danger);
+    }
+    .row-deleted td:not(.sticky-actions) {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+      .container { padding: 12px; }
+      .section { padding: 16px; border-radius: 12px; }
+      .header h1 { font-size: 1.2rem; }
+      .footer-btns { bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <a href="javascript:history.back()" class="btn-back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      返回
+    </a>
+    <h1>用户管理</h1>
+  </div>
+
+  <!-- Main User List Section -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">基础用户信息</div>
+      <button class="btn btn-add" id="btnAddMain">添加新用户</button>
+    </div>
+    <div class="table-container">
+      <table id="tableMain">
+        <thead>
+          <tr>
+            <th>索引 (Key)</th>
+            <th>UserID</th>
+            <th>RoleID</th>
+            <th>QID</th>
+            <th>昵称 (Nick)</th>
+            <th>别名 (Ref)</th>
+            <th class="sticky-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dynamic Content -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Extra User List Section -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">额外用户信息</div>
+      <button class="btn btn-add" id="btnAddExtra">添加额外用户</button>
+    </div>
+    <div class="table-container">
+      <table id="tableExtra">
+        <thead>
+          <tr>
+            <th>索引 (Key)</th>
+            <th>Extra UserID</th>
+            <th>Extra RoleID</th>
+            <th>Extra Nickname</th>
+            <th class="sticky-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dynamic Content -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer-btns">
+    <button class="btn btn-reset" id="btnReset">重置修改</button>
+    <button class="btn btn-diff" id="btnViewChanges">查看差异</button>
+    <button class="btn btn-submit" id="btnSubmit">确认并提交</button>
+  </div>
+</div>
+
+<!-- Diff Modal -->
+<div class="modal-overlay" id="modalDiff">
+  <div class="modal" style="width: min(700px, 95%);">
+    <div class="modal-header">未提交的修改差异</div>
+    <div class="modal-content" id="diffContent">
+      <!-- Diffs injected here -->
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-reset" onclick="closeModal('modalDiff')">关闭</button>
+      <button type="button" class="btn btn-submit" id="btnSubmitFromDiff">确认并提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit/Add Modal Main -->
+<div class="modal-overlay" id="modalMain">
+  <div class="modal">
+    <div class="modal-header" id="modalMainTitle">编辑用户</div>
+    <form id="formMain">
+      <input type="hidden" name="oldKey">
+      <div class="form-group">
+        <label>索引 (Key)</label>
+        <input type="text" name="key" required>
+      </div>
+      <div class="form-group">
+        <label>UserID</label>
+        <input type="number" name="userlist">
+      </div>
+      <div class="form-group">
+        <label>RoleID</label>
+        <input type="number" name="roleidlist">
+      </div>
+      <div class="form-group">
+        <label>QID</label>
+        <input type="number" name="qid">
+      </div>
+      <div class="form-group">
+        <label>昵称 (Namenick)</label>
+        <input type="text" name="namenick">
+      </div>
+      <div class="form-group">
+        <label>别名列表 (点击单个修改，右侧删除)</label>
+        <div id="aliasList" class="alias-container">
+          <!-- Tags injected here -->
+        </div>
+        <button type="button" class="btn-alias-add" style="margin-top: 8px;" onclick="addAliasItem()">+ 添加别名</button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-reset" onclick="closeModal('modalMain')">取消</button>
+        <button type="submit" class="btn btn-submit">确认</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit/Add Modal Extra -->
+<div class="modal-overlay" id="modalExtra">
+  <div class="modal">
+    <div class="modal-header" id="modalExtraTitle">编辑额外用户</div>
+    <form id="formExtra">
+      <input type="hidden" name="oldKey">
+      <div class="form-group">
+        <label>索引 (Key)</label>
+        <input type="text" name="key" required>
+      </div>
+      <div class="form-group">
+        <label>Extra UserID</label>
+        <input type="number" name="extra_useridlist">
+      </div>
+      <div class="form-group">
+        <label>Extra RoleID</label>
+        <input type="number" name="extra_roleidlist">
+      </div>
+      <div class="form-group">
+        <label>Extra Nickname</label>
+        <input type="text" name="extra_namenick">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-reset" onclick="closeModal('modalExtra')">取消</button>
+        <button type="submit" class="btn btn-submit">确认</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  let originalData = null;
+  let originalMain = {};
+  let originalExtra = {};
+  let currentMainData = {};
+  let currentExtraData = {};
+  let tempAliasList = [];
+
+  const API_GET = `/admin/funcs/user-edit/fetch-user-info?AdminKey={{AdminKey}}`;
+  const API_POST = `/admin/funcs/user-edit/submit-user-info?AdminKey={{AdminKey}}`;
+
+  // SVG Icons
+  const iconEdit = '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+  const iconDelete = '<svg viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>';
+
+  async function fetchData() {
+    try {
+      const resp = await fetch(API_GET);
+      const data = await resp.json();
+      originalData = JSON.parse(JSON.stringify(data));
+      processData(data, true); // true to update original stores
+      renderTables();
+    } catch (e) {
+      console.error('Fetch failed', e);
+      alert('获取数据失败');
+    }
+  }
+
+  function processData(data, updateOriginal = false) {
+    const main = {};
+    const keys = new Set([
+      ...Object.keys(data.userlist || {}),
+      ...Object.keys(data.roleidlist || {}),
+      ...Object.keys(data.qid || {}),
+      ...Object.keys(data.namenick || {}),
+      ...Object.keys(data.nameref || {})
+    ]);
+    keys.forEach(k => {
+      main[k] = {
+        userlist: data.userlist?.[k] || null,
+        roleidlist: data.roleidlist?.[k] || null,
+        qid: data.qid?.[k] || null,
+        namenick: data.namenick?.[k] || '',
+        nameref: data.nameref?.[k] || []
+      };
+    });
+
+    const extra = {};
+    const extraKeys = new Set([
+      ...Object.keys(data.extra_useridlist || {}),
+      ...Object.keys(data.extra_roleidlist || {}),
+      ...Object.keys(data.extra_namenick || {})
+    ]);
+    extraKeys.forEach(k => {
+      extra[k] = {
+        extra_useridlist: data.extra_useridlist?.[k] || null,
+        extra_roleidlist: data.extra_roleidlist?.[k] || null,
+        extra_namenick: data.extra_namenick?.[k] || ''
+      };
+    });
+
+    currentMainData = JSON.parse(JSON.stringify(main));
+    currentExtraData = JSON.parse(JSON.stringify(extra));
+    if (updateOriginal) {
+      originalMain = JSON.parse(JSON.stringify(main));
+      originalExtra = JSON.parse(JSON.stringify(extra));
+    }
+  }
+
+  // Helper to compare values including arrays
+  function isValEqual(a, b) {
+    if (a === b) return true;
+    if (Array.isArray(a) && Array.isArray(b)) {
+        return a.length === b.length && a.every((v, i) => v === b[i]);
+    }
+    return false;
+  }
+
+  function renderTables() {
+    const mainBody = document.querySelector('#tableMain tbody');
+    mainBody.innerHTML = '';
+    Object.keys(currentMainData).sort().forEach(k => {
+      const d = currentMainData[k];
+      const orig = originalMain[k];
+      const tr = document.createElement('tr');
+      
+      let isNew = !orig;
+      let isModified = false;
+      let isDeleted = !!d._deleted;
+      
+      const getCellClass = (field) => {
+        if (isNew || isDeleted) return '';
+        if (!isValEqual(d[field], orig[field])) {
+          isModified = true;
+          return 'cell-modified';
+        }
+        return '';
+      };
+
+      const classes = [];
+      if (isDeleted) {
+        classes.push('row-deleted');
+      } else {
+        if (isNew) classes.push('row-new');
+        if (isModified && !isNew) classes.push('row-modified');
+      }
+      
+      const userlistClass = getCellClass('userlist');
+      const roleidlistClass = getCellClass('roleidlist');
+      const qidClass = getCellClass('qid');
+      const namenickClass = getCellClass('namenick');
+      const namerefClass = getCellClass('nameref');
+
+      tr.className = classes.join(' ');
+
+      const iconAct = isDeleted ? 
+        `<svg viewBox="0 0 24 24"><path d="M3 12h18M12 3v18" transform="rotate(45 12 12)"/></svg>` : // Just a placeholder for "restore" would be better, but let's stick to toggle
+        iconDelete;
+
+      tr.innerHTML = `
+        <td class="${(isNew && !isDeleted) ? 'cell-modified' : ''}">${k}</td>
+        <td class="${userlistClass}">${d.userlist ?? '-'}</td>
+        <td class="${roleidlistClass}">${d.roleidlist ?? '-'}</td>
+        <td class="${qidClass}">${d.qid ?? '-'}</td>
+        <td class="${namenickClass}">${d.namenick || '-'}</td>
+        <td class="${namerefClass}" title="${d.nameref.join(', ')}">${d.nameref.join(', ') || '-'}</td>
+        <td class="sticky-actions">
+          <div class="action-btns">
+            ${isDeleted ? '' : `<button class="action-btn" title="编辑" onclick="openEditMain('${k}')">${iconEdit}</button>`}
+            <button class="action-btn delete" title="${isDeleted ? '撤销删除' : '删除'}" onclick="deleteMain('${k}')">
+              ${isDeleted ? '<svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg>' : iconDelete}
+            </button>
+          </div>
+        </td>
+      `;
+      mainBody.appendChild(tr);
+    });
+
+    const extraBody = document.querySelector('#tableExtra tbody');
+    extraBody.innerHTML = '';
+    Object.keys(currentExtraData).sort().forEach(k => {
+      const d = currentExtraData[k];
+      const orig = originalExtra[k];
+      const tr = document.createElement('tr');
+
+      let isNew = !orig;
+      let isModified = false;
+      let isDeleted = !!d._deleted;
+
+      const getCellClass = (field) => {
+        if (isNew || isDeleted) return '';
+        if (!isValEqual(d[field], orig[field])) {
+          isModified = true;
+          return 'cell-modified';
+        }
+        return '';
+      };
+
+      const classes = [];
+      if (isDeleted) {
+        classes.push('row-deleted');
+      } else {
+        if (isNew) classes.push('row-new');
+        if (isModified && !isNew) classes.push('row-modified');
+      }
+      
+      const extra_useridlistClass = getCellClass('extra_useridlist');
+      const extra_roleidlistClass = getCellClass('extra_roleidlist');
+      const extra_namenickClass = getCellClass('extra_namenick');
+
+      tr.className = classes.join(' ');
+
+      tr.innerHTML = `
+        <td class="${(isNew && !isDeleted) ? 'cell-modified' : ''}">${k}</td>
+        <td class="${extra_useridlistClass}">${d.extra_useridlist ?? '-'}</td>
+        <td class="${extra_roleidlistClass}">${d.extra_roleidlist ?? '-'}</td>
+        <td class="${extra_namenickClass}">${d.extra_namenick || '-'}</td>
+        <td class="sticky-actions">
+          <div class="action-btns">
+            ${isDeleted ? '' : `<button class="action-btn" title="编辑" onclick="openEditExtra('${k}')">${iconEdit}</button>`}
+            <button class="action-btn delete" title="${isDeleted ? '撤销删除' : '删除'}" onclick="deleteExtra('${k}')">
+              ${isDeleted ? '<svg viewBox="0 0 24 24"><path d="M3 12h18"/></svg>' : iconDelete}
+            </button>
+          </div>
+        </td>
+      `;
+      extraBody.appendChild(tr);
+    });
+  }
+
+  function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+  function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+  function openEditMain(key) {
+    const d = currentMainData[key] || { userlist: '', roleidlist: '', qid: '', namenick: '', nameref: [] };
+    const form = document.getElementById('formMain');
+    form.querySelector('[name="oldKey"]').value = key;
+    form.querySelector('[name="key"]').value = key;
+    form.querySelector('[name="userlist"]').value = d.userlist ?? '';
+    form.querySelector('[name="roleidlist"]').value = d.roleidlist ?? '';
+    form.querySelector('[name="qid"]').value = d.qid ?? '';
+    form.querySelector('[name="namenick"]').value = d.namenick ?? '';
+    
+    // Initialize temporary alias list
+    tempAliasList = [...(d.nameref || [])];
+    renderAliasTags();
+    
+    document.getElementById('modalMainTitle').innerText = key ? '编辑用户' : '添加新用户';
+    openModal('modalMain');
+  }
+
+  function renderAliasTags() {
+    const container = document.getElementById('aliasList');
+    container.innerHTML = '';
+    tempAliasList.forEach((alias, index) => {
+      const item = document.createElement('div');
+      item.className = 'alias-item';
+      item.innerHTML = `
+        <span class="alias-text" onclick="editAliasItem(${index})">${alias}</span>
+        <span class="alias-del" onclick="removeAliasItem(${index})" title="删除">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </span>
+      `;
+      container.appendChild(item);
+    });
+    if (tempAliasList.length === 0) {
+      container.innerHTML = '<span style="color:var(--muted); font-size:0.85rem; padding: 4px;">暂无别名</span>';
+    }
+  }
+
+  function addAliasItem() {
+    const name = prompt('请输入新别名:');
+    if (name && name.trim()) {
+      tempAliasList.push(name.trim());
+      renderAliasTags();
+    }
+  }
+
+  function editAliasItem(index) {
+    const oldName = tempAliasList[index];
+    const newName = prompt('修改别名:', oldName);
+    if (newName !== null && newName.trim()) {
+      tempAliasList[index] = newName.trim();
+      renderAliasTags();
+    }
+  }
+
+  function removeAliasItem(index) {
+    tempAliasList.splice(index, 1);
+    renderAliasTags();
+  }
+
+  function openEditExtra(key) {
+    const d = currentExtraData[key] || { extra_useridlist: '', extra_roleidlist: '', extra_namenick: '' };
+    const form = document.getElementById('formExtra');
+    form.querySelector('[name="oldKey"]').value = key;
+    form.querySelector('[name="key"]').value = key;
+    form.querySelector('[name="extra_useridlist"]').value = d.extra_useridlist ?? '';
+    form.querySelector('[name="extra_roleidlist"]').value = d.extra_roleidlist ?? '';
+    form.querySelector('[name="extra_namenick"]').value = d.extra_namenick ?? '';
+    document.getElementById('modalExtraTitle').innerText = key ? '编辑额外用户' : '添加额外用户';
+    openModal('modalExtra');
+  }
+
+  document.getElementById('btnAddMain').onclick = () => openEditMain('');
+  document.getElementById('btnAddExtra').onclick = () => openEditExtra('');
+  document.getElementById('btnViewChanges').onclick = () => showDiff();
+  document.getElementById('btnSubmitFromDiff').onclick = () => document.getElementById('btnSubmit').click();
+
+  function computePayload() {
+    const payload = [];
+    const isEqual = (a, b) => {
+      const aC = { ...a }; delete aC._deleted;
+      const bC = { ...b }; delete bC._deleted;
+      return JSON.stringify(aC) === JSON.stringify(bC);
+    };
+
+    // Main changes
+    Object.keys(currentMainData).forEach(k => {
+      const d = currentMainData[k];
+      if (d._deleted) {
+        if (originalMain[k]) payload.push({ op: 'delete', type: 'main', key: k });
+      } else if (!originalMain[k]) {
+        payload.push({ op: 'add', type: 'main', key: k, data: d });
+      } else if (!isEqual(originalMain[k], d)) {
+        payload.push({ op: 'edit', type: 'main', key: k, data: d });
+      }
+    });
+
+    // Extra changes
+    Object.keys(currentExtraData).forEach(k => {
+      const d = currentExtraData[k];
+      if (d._deleted) {
+        if (originalExtra[k]) payload.push({ op: 'delete', type: 'extra', key: k });
+      } else if (!originalExtra[k]) {
+        payload.push({ op: 'add', type: 'extra', key: k, data: d });
+      } else if (!isEqual(originalExtra[k], d)) {
+        payload.push({ op: 'edit', type: 'extra', key: k, data: d });
+      }
+    });
+    return payload;
+  }
+
+  function showDiff() {
+    const payload = computePayload();
+    const container = document.getElementById('diffContent');
+    container.innerHTML = '';
+    
+    if (payload.length === 0) {
+      container.innerHTML = '<div style="text-align:center; padding: 40px; color: var(--muted);">暂无修改内容</div>';
+      openModal('modalDiff');
+      return;
+    }
+
+    payload.forEach(item => {
+      const div = document.createElement('div');
+      div.className = `diff-item ${item.op}`;
+      
+      let title = `[${item.type}] ${item.key}`;
+      let tagClass = `tag-${item.op}`;
+      let tagName = item.op === 'add' ? '新增' : (item.op === 'edit' ? '修改' : '删除');
+
+      let detailsHtml = '';
+      if (item.op === 'add') {
+        detailsHtml = Object.entries(item.data).filter(([k]) => k !== '_deleted').map(([field, val]) => `
+          <div class="diff-change">
+            <span class="diff-label">${field}:</span>
+            <span class="diff-val-new">${Array.isArray(val) ? val.join(', ') : (val ?? '-')}</span>
+          </div>
+        `).join('');
+      } else if (item.op === 'edit') {
+        const orig = item.type === 'main' ? originalMain[item.key] : originalExtra[item.key];
+        detailsHtml = Object.entries(item.data).filter(([k]) => k !== '_deleted').map(([field, val]) => {
+          if (!isValEqual(orig[field], val)) {
+            return `
+              <div class="diff-change">
+                <span class="diff-label">${field}:</span>
+                <div>
+                  <span class="diff-val-old">${Array.isArray(orig[field]) ? orig[field].join(', ') : (orig[field] ?? '-')}</span>
+                  <span class="diff-val-arrow">→</span>
+                  <span class="diff-val-new">${Array.isArray(val) ? val.join(', ') : (val ?? '-')}</span>
+                </div>
+              </div>
+            `;
+          }
+          return '';
+        }).join('');
+      } else {
+        detailsHtml = '<div style="color: var(--muted); font-style: italic;">该用户及其关联数据将被移除</div>';
+      }
+
+      div.innerHTML = `
+        <div class="diff-title">
+          <span>${title}</span>
+          <span class="diff-tag ${tagClass}">${tagName}</span>
+        </div>
+        <div class="diff-detail">${detailsHtml}</div>
+      `;
+      container.appendChild(div);
+    });
+
+    openModal('modalDiff');
+  }
+
+  document.getElementById('formMain').onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const oldKey = fd.get('oldKey');
+    const newKey = fd.get('key');
+    const data = {
+      userlist: fd.get('userlist') ? parseInt(fd.get('userlist')) : null,
+      roleidlist: fd.get('roleidlist') ? parseInt(fd.get('roleidlist')) : null,
+      qid: fd.get('qid') ? parseInt(fd.get('qid')) : null,
+      namenick: fd.get('namenick'),
+      nameref: [...tempAliasList]
+    };
+    if (oldKey && oldKey !== newKey) delete currentMainData[oldKey];
+    currentMainData[newKey] = data;
+    closeModal('modalMain');
+    renderTables();
+  };
+
+  document.getElementById('formExtra').onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const oldKey = fd.get('oldKey');
+    const newKey = fd.get('key');
+    const data = {
+      extra_useridlist: fd.get('extra_useridlist') ? parseInt(fd.get('extra_useridlist')) : null,
+      extra_roleidlist: fd.get('extra_roleidlist') ? parseInt(fd.get('extra_roleidlist')) : null,
+      extra_namenick: fd.get('extra_namenick')
+    };
+    if (oldKey && oldKey !== newKey) delete currentExtraData[oldKey];
+    currentExtraData[newKey] = data;
+    closeModal('modalExtra');
+    renderTables();
+  };
+
+  function deleteMain(key) {
+    if (currentMainData[key]) {
+      currentMainData[key]._deleted = !currentMainData[key]._deleted;
+      renderTables();
+    }
+  }
+
+  function deleteExtra(key) {
+    if (currentExtraData[key]) {
+      currentExtraData[key]._deleted = !currentExtraData[key]._deleted;
+      renderTables();
+    }
+  }
+
+  document.getElementById('btnReset').onclick = () => {
+    if (confirm('确认撤销所有未提交的修改吗？')) {
+      currentMainData = JSON.parse(JSON.stringify(originalMain));
+      currentExtraData = JSON.parse(JSON.stringify(originalExtra));
+      renderTables();
+    }
+  };
+
+  document.getElementById('btnSubmit').onclick = async () => {
+    const payload = computePayload();
+
+    if (payload.length === 0) {
+      alert('没有检测到修改');
+      return;
+    }
+
+    const confirmMsg = '确认提交以下修改吗？\n' + payload.map(p => `- [${p.op}] ${p.type}:${p.key}`).join('\n');
+    if (confirm(confirmMsg)) {
+      try {
+        const resp = await fetch(API_POST, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+          alert('提交成功');
+          closeModal('modalDiff');
+          fetchData(); // Refresh
+        } else {
+          alert('提交失败');
+        }
+      } catch (e) {
+        alert('提交出错');
+      }
+    }
+  };
+
+  window.onload = fetchData;
+</script>
+
+</body>
+</html>
