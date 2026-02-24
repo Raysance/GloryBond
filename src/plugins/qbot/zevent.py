@@ -595,13 +595,20 @@ async def f_history_query(event: Event):
             add_msg(res, event=event)
             return
             
-        query_target, matches, query_desc = res
+        query_target, matches, query_desc, stats = res
         prefix = f"🔍查询条件：{query_desc}\n\n"
 
         if isinstance(matches, str):
             add_msg(prefix + matches, event=event)
             return
         
+        if stats:
+            total = stats.get('total', 0)
+            prefix += f"📊 统计概览 ({total}场)：\n"
+            prefix += f"胜率: {stats.get('win_rate', 0):.1f}% ({stats.get('wins', 0)}胜{total - stats.get('wins', 0)}负)\n"
+            prefix += f"平均评分: {stats.get('avg_grade', 0):.1f}\n"
+            prefix += f"场均KDA: {stats.get('total_k',0)/total:.1f}/{stats.get('total_d',0)/total:.1f}/{stats.get('total_a',0)/total:.1f} ({stats.get('avg_kda', 0):.2f})\n\n"
+
         if len(matches) == 1:
             detail, realname = matches[0]
             roleid = roleidlist[realname]
@@ -651,7 +658,7 @@ async def f_history_query(event: Event):
             filepath = os.path.join(nginx_path, "wzry_history", filename_hashed + ".json")
             writerl(filepath,packed_data)
             website_link = create_website(json.dumps({"filename": filename_hashed, "caller": query_target, "time": now_time}), "query_select")
-            add_msg(prefix + f"找到 {len(matches)} 局符合条件的战绩，点击链接查看详情：\n" + website_link, event=event)
+            add_msg(prefix + f"找到 {len(matches)} 局符合条件的战绩，点击链接查看详情：(视角随机)\n" + website_link, event=event)
         else:
             add_msg(prefix + "未找到符合条件的战绩。", event=event)
     except Exception as e:

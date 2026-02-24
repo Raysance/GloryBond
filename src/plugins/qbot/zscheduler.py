@@ -111,23 +111,27 @@ async def notify_msg():
     add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
 
 
-@scheduler.scheduled_job("cron", hour=7, minute=00,second=00, id="fetch_news")
+@scheduler.scheduled_job("cron", hour=6, minute=00,second=00, id="fetch_news")
 async def fetch_news():
     return _fetch_news_impl()
 
 
-@scheduler.scheduled_job("cron", hour=7, minute=30,second=00, id="fetch_herorank")
+@scheduler.scheduled_job("cron", hour=6, minute=30,second=00, id="fetch_herorank")
 async def fetch_herorank():
     return _fetch_herorank_impl()
 
+@scheduler.scheduled_job("cron", hour=7, minute=00,second=00, id="fetch_hero_tier")
+async def fetch_hero_tier():
+    return _fetch_hero_tier_impl()
 
 def init_fetch_news():
     return _fetch_news_impl()
 
-
 def init_fetch_heroranklist():
     return _fetch_herorank_impl()
 
+def init_fetch_hero_tier():
+    return _fetch_hero_tier_impl()
 
 def _fetch_news_impl():
     from .zapi import ark_api
@@ -170,6 +174,26 @@ def _fetch_herorank_impl():
 
     return None
 
+def _fetch_hero_tier_impl():
+    from .zapi import tianyuanzhiyi_tier_api
+    from .ztime import date_r
+    from .zfile import file_exist
+    from .zfile import readerl
+    from .zfile import writerl
+
+    current_date = date_r()
+    herotier_dir = "herotier"
+    file_path = os.path.join(herotier_dir, f"{current_date}.json")
+
+    if file_exist(file_path):
+        dmc.herotier = readerl(file_path)
+    else:
+        tierinfo=tianyuanzhiyi_tier_api()
+        for heroinfo in tierinfo["tiers"]:
+            dmc.herotier[heroinfo["heroName"]]=heroinfo["finalNormalizedTierScore"]
+        writerl(file_path, dmc.herotier)
+
+    return None
 
 @scheduler.scheduled_job("interval", seconds=3, id="web_shared_processor")
 async def run_web_shared_btls_processor():
@@ -219,4 +243,6 @@ async def run_web_analyze_btls_processor():
         add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
     else:
         add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+        # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
     return
