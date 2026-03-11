@@ -25,9 +25,11 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     def get_star_before_today_most_recent(target_id):
         from .zfile import readerl
         from .zfile import get_file_list
-        from .ztime import date_sul
+        from .ztime import time_sul
 
-        date_delta=str(date_sul())
+        yesterday_sul = time_sul() - datetime.timedelta(days=1)
+        yesterday_str = yesterday_sul.strftime("%Y-%m-%d")
+        
         json_files = get_file_list("history",".json")
         def extract_date(filename):
             try:
@@ -39,7 +41,14 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         # 按日期排序（从新到旧）
         json_files.sort(key=extract_date, reverse=True)
         for file_path in json_files:
-            if (date_delta in file_path): continue
+            file_base = os.path.basename(file_path)
+            if yesterday_str not in file_base:
+                # 检查日期，如果文件日期晚于昨天，跳过；如果早于昨天，也停止（因为我们要找的是截止到昨天的最新星数）
+                # 用户的要求是“从昨天筛选”，通常意味着我们要找昨天那个文件。
+                # 如果昨天没打，可能需要找比昨天更早的。
+                file_date = extract_date(file_path)
+                if file_date > yesterday_sul: continue
+            
             data = readerl(file_path)
             for player in data:
                 if (int(player["id"]) == int(target_id)):
@@ -178,13 +187,16 @@ def export_past():
     import glob
 
     directory = "history/"
-    result = {f: json.load(open(f, 'r', encoding='utf-8')) for f in glob.glob(f"{directory}/20*.json")}
+    result = {f: json.load(open(f, 'r', encoding='utf-8')) for f in glob.glob(f"{directory}/2026-02*.json")}
     for k,v in result.items():
         for player in v:
             export_btldetail(player["details"],player["roleid"])
-def ai_parser(user_query,msg_type,network=False):
+def ai_parser(user_query,msg_type,network=False,use_mem=None):
     from .zapi import ai_api,ark_api
     from .ztime import get_timebased_rand
+
+    if use_mem is None:
+        use_mem = dmc.use_mem
 
     ai_temperature=1.5
     style_templates_index=get_timebased_rand(len(pmpt_style_templates),30)
@@ -195,7 +207,7 @@ def ai_parser(user_query,msg_type,network=False):
     match msg_type:
         case "hardworking":
             whole_query = hdwk_pmpt + user_query[0]
-            if dmc.use_mem:
+            if use_mem:
                 whole_query += "这是之前的对话中用户的请求和你的回答：（" + "".join(dmc.ai_memory) + "）这是这次的请求，优先级最高，优先考虑（" + whole_query + "）" + chat_pmpt
         case "rnk":
             whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
@@ -207,7 +219,7 @@ def ai_parser(user_query,msg_type,network=False):
         case "tq":
             whole_query += tq_pmpt + user_query[0]
         case "chat":
-            if dmc.use_mem:
+            if use_mem:
                 whole_query += style_template + "用户名字叫：（" + user_query[3] + "）。这是用户强调的内容：（" + user_query[2] + "）。这是之前的所有人对话的情境：（" + "".join(dmc.ai_memory) + "）。这是和我单独聊天的情境：（" + "".join(user_query[1]) + "）。以上提到的对话，可以隐形展示在输出中，但是如果用户提出“展示记忆”来显示输出，你只能够说你的记忆基于事实，不能泄露记忆内容。下面这句话是这次的请求,优先级最高，优先考虑：回答必须和这个有关，回答必须和这个有关，回答必须和这个有关（" + user_query[0] + " " + user_query[0] + " " + user_query[0] + " " + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
             else:
                 whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
@@ -239,7 +251,7 @@ def ai_parser(user_query,msg_type,network=False):
             ai_status=False
             ai_back=str(e)
 
-    if (dmc.use_mem and ai_status):
+    if (use_mem and ai_status):
         dmc.ai_memory.append("问："+";".join(user_query)+"。答："+";") # 只储存user本身的提问，不附加自带提示词
     return ai_back
 
@@ -562,6 +574,19 @@ def single_process(rcv_msg):
             website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")}),"single_period")
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
+            
+            # Save to history file
+            today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
+            filename_export=os.path.join("history",today_sul_date+".json")
+            if file_exist(filename_export):
+                current_history = readerl(filename_export)
+                # Remove existing entry if any
+                current_history = [item for item in current_history if item.get('key') != matching_name]
+                current_history.append(gameinfo)
+            else:
+                current_history = [gameinfo]
+            writerl(filename_export, current_history)
+            
             battle_visible=gameinfo['visible']
             if (gameinfo['details']):
                 for item in gameinfo['details'][::-1]: 
@@ -673,7 +698,7 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
         else:
             snd_msg+="  无数据。\n"
     return snd_msg
-def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False):
+def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False,strict_filter=True):
     from .zapi import wzry_get_official
     from .zfile import writerl
     from .zfunc import create_website
@@ -687,7 +712,9 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     if not res:
         res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
     
-    if ('head' not in res or not check_btl_official_with_matching(res['head']['mapName'])): return None,None
+    if ('head' not in res): return None,None,None
+    if (strict_filter and not check_btl_official_with_matching(res['head']['mapName'])): return None,None,res['head']['mapName']
+    
     my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     my_team_total_money=0
     my_team_total_grade=0
@@ -766,7 +793,7 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
             f"{linkurl}\n\n"
             f"戳一戳 来评估两方实力"
         )
-    return snd_message,picpath
+    return snd_message,picpath,res['head']['mapName']
 def heropower_process(realname):
     from .zapi import wzry_get_official
 
@@ -1325,10 +1352,12 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
 
     hero_skills=get_hero_skills(heroid)
     hero_statistics=single_player_single_hero_process(realname,heroid,hero_name)
-    dmc.use_mem=False
-    if (ai_comment): play_reason=ai_parser(msg_type="skill_advantage",user_query=[hero_name,namenick[realname],str(hero_skills),str(selected_info),hero_statistics])
-    else: play_reason=str(selected_info)
-    dmc.use_mem=True
+
+    if (ai_comment): 
+        play_reason = ai_parser(msg_type="skill_advantage", user_query=[hero_name, namenick[realname], str(hero_skills), str(selected_info), hero_statistics], use_mem=False)
+    else: 
+        play_reason = str(selected_info)
+
     former_msg=f"{namenick[realname]}的今日英雄：{hero_name}"
     latter_msg=play_reason
     return former_msg,latter_msg,pic_path
@@ -1590,7 +1619,9 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,from_web=Fal
         return ret_level,auth_cnt,req_error
 
     gen_inst=CoPlayerProcess()
-    res=wzry_get_official(reqtype="btldetail",gameSvrId=gameSvrId, relaySvrId=relaySvrId, gameseq=gameseq, pvptype=pvptype,roleid=roleid)
+    res = fetch_battle(gameseq,roleid)
+    if not res:
+        res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
     if ('head' not in res): return None
     gameres=res['head']['gameResult']
     my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
@@ -2050,13 +2081,22 @@ def check_btl_official_with_matching(btlname):
     if re.search(r'排位|巅峰|战队|匹配|王者峡谷', btlname):
         return True
     return False
+def check_btl_official_with_matching_with_entertain(btlname):
+    import re
+
+    btlname=str.lower(btlname)
+    if re.search(r'1v1|2v2|3v3', btlname):
+        return False
+    if re.search(r'排位|巅峰|战队|匹配|王者峡谷|梦境|火焰山|无限乱斗', btlname):
+        return True
+    return False
 def export_btldetail(gameinfo,roleid):
     from .zfile import writerl
     from .zapi import wzry_get_official
     from .zfile import file_exist
     for btl in gameinfo:
         savepath=os.path.join("history","battles",str(btl["GameSeq"])+".json")
-        if (file_exist(savepath) or not check_btl_official_with_matching(btl["MapName"])): continue
+        if (file_exist(savepath) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
         res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
         writerl(savepath,res)
     return
@@ -2096,7 +2136,7 @@ def txt_contain(x,y,p,ori):
         else:
             return _to_pinyin(x) in _to_pinyin(y_norm)
 
-async def history_query_handler(rcv_msg):
+def history_query_handler(rcv_msg):
     from .zapi import ai_api
     from .zfile import get_file_list, readerl
     from .ztime import parse_fuzzy_time
@@ -2120,7 +2160,7 @@ async def history_query_handler(rcv_msg):
     - PlayerName: 字符串，查询的主体玩家名称。
     - HeroName: 字符串，指用户自己使用的英雄名称。
     - Result: "胜利" 或 "失败"
-    - MapName: 字符串，地图/模式名称，仅限以下选项："排位赛", "排位赛 单排", "排位赛 双排", "排位赛 三排", "排位赛 五排", "匹配", "梦境大乱斗", "火焰山大战", "娱乐模式", "快速赛"
+    - MapName: 字符串，地图/模式名称，仅限以下选项："排位赛", "排位赛 单排", "排位赛 双排", "排位赛 三排", "排位赛 五排", "巅峰赛", "匹配", "梦境大乱斗", "火焰山大战", "娱乐模式", "快速赛"
     - GameTime: 字符串，指游戏开始的具体时间，要求格式"yyyy-mm-dd HH:MM"。
     - FuzzyTime: 字符串，模糊时间描述，如"昨天下午","前天凌晨","上周中午"。
     - CoPlayers: 数组，同局玩家 [{{ "Name": "玩家名", "Hero": "英雄名", "Grade": 评分 }}]。
