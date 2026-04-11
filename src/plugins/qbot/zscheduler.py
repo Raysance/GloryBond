@@ -241,7 +241,7 @@ async def run_web_analyze_btls_processor():
 
         snd_msg += "\n\n"
 
-        btl_msg, pic_path = await asyncio.to_thread(coplayer_process, **game_params, from_web=True)
+        btl_msg, pic_path,_ = await asyncio.to_thread(coplayer_process, **game_params,spoiler_info={},from_web=True)
         snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
         snd_msg += "\n\n───来自网页分享───"
         

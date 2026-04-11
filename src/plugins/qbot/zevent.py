@@ -113,6 +113,7 @@ _todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
 _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
+_spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _tempfunc = on_keyword({"tpfc"},rule=judge_to_me,priority=4, block=True)
 
@@ -251,12 +252,12 @@ async def f_group_poke(bot, event):
                     dmc.LastBtlMsgStatus=False
                     dmc.LastBtlMsgCoolDownTime=time_to_str(add_second(time_r(),30))
                     try:
-                        ret_msg = await asyncio.to_thread(coplayer_process, **dmc.LastBtlParams, roleid=dmc.LastBtlRoleId)
+                        ret_msg = await asyncio.to_thread(coplayer_process, **dmc.LastBtlParams, roleid=dmc.LastBtlRoleId,spoiler_info={})
                     except Exception as e:
                         add_msg(str(e), event=event)
                         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
                         return
-                    txt_msg,pic_path=ret_msg
+                    txt_msg,pic_path,_=ret_msg
                     snd_msg=MessageSegment.text(txt_msg)+MessageSegment.image(pic_path)
                     add_msg(snd_msg, event=event)
                     return
@@ -464,6 +465,7 @@ async def f_single(bot,event):
             # await _single.send(traceback.format_exc())
             return
         if (btl_info):
+
             snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
             add_msg(snd_msg, event=event)
 
@@ -627,6 +629,68 @@ async def f_watchbattle(bot,event):
         add_msg(f"WatchBattle Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
+@_spoiler.handle()
+async def f_spoiler(bot, event):
+    from .zfunc import spoiler_process, qid2nick, extract_name
+    from .zapi import wzry_get_official
+    import time
+
+    userqid = event.get_user_id()
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+    raw_msg = rcv_msg.lstrip("#＃").strip()
+
+    cache = getattr(dmc, "spoiler_cache", None)
+    now = time.time()
+
+    query_realname = None
+    if "的预言" in raw_msg:
+        query_realname = extract_name(rcv_msg)
+        if not query_realname:
+            add_msg("没有提到玩家名字哦", event=event)
+            return
+
+        try:
+            btlist_res = await asyncio.to_thread(
+                wzry_get_official,
+                reqtype="btlist",
+                userid=userlist[query_realname],
+                roleid=roleidlist[query_realname],
+            )
+        except Exception as e:
+            add_msg(f"获取实时战局失败: {str(e)}", event=event)
+            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+            return
+
+        gaming_info = btlist_res.get("gaming") if btlist_res.get("isGaming") else None
+        if not gaming_info:
+            add_msg(f"【{namenick.get(query_realname, '未知玩家')}】当前不在对局中，暂时无法预言", event=event)
+            return
+
+        battle_id = gaming_info.get("battleId")
+
+        cache = {
+            "time": now,
+            "realname": query_realname,
+            "battleID": battle_id,
+        }
+        dmc.spoiler_cache = cache
+
+    if not cache or (now - cache["time"] > 300):
+        add_msg("不存在待预言对局", event=event)
+        return
+
+    target_name = namenick.get(cache.get("realname", "未知玩家"), "未知玩家")
+    add_msg(f"正在获取【{target_name}】实时战局并计算底蕴...", event=event)
+    try:
+        ret_msg = await asyncio.to_thread(spoiler_process, cache["battleID"], roleidlist.get(cache["realname"]), userlist.get(cache["realname"]))
+        # ret_msg = await asyncio.to_thread(spoiler_process, 0, 0,0)
+        txt_msg,pic_path=ret_msg
+        snd_msg=MessageSegment.text(txt_msg)+MessageSegment.image(pic_path)
+        add_msg(snd_msg, event=event)
+    except Exception as e:
+        add_msg(f"底蕴计算失败: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
 @_diycode.handle()
 async def f_diycode(bot: Bot, event: Event):
     from .zdiy import handle_diy_request
@@ -647,6 +711,7 @@ async def f_history_query(event: Event):
     from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, create_website
     import traceback
     import json
+    import time
     from .zfile import writerl
     import hashlib
 
@@ -680,6 +745,7 @@ async def f_history_query(event: Event):
             try:
                 # 调用btldetail_process解析该局详情，逻辑参考其他单局解析处
                 btl_info, picpath, mapename = await asyncio.to_thread(btldetail_process, **detail['Params'], roleid=roleid, gen_image=True, individual_show=True)
+                
                 snd_msg = MessageSegment.text(prefix + btl_info) + MessageSegment.image(picpath)
                 add_msg(snd_msg, event=event)
             except Exception as e:
