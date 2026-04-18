@@ -11,6 +11,7 @@ import json
 import random
 import time
 import traceback
+import asyncio
 # from apscheduler.schedulers.background import BackgroundScheduler
 # from apscheduler.util import timezone
 
@@ -204,12 +205,16 @@ async def run_web_shared_btls_processor():
     params_json=result
     params=json.loads(params_json)
 
-    snd_msg =   "───来自网页分享───\n\n"
-    btl_msg,pic_path=btldetail_process(**params,gen_image=True,show_profile=True)
-    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    snd_msg += "\n\n───来自网页分享───"
-    # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+    try:
+        snd_msg =   "───来自网页分享───\n\n"
+        btl_msg, pic_path, mapname = await asyncio.to_thread(btldetail_process, **params, gen_image=True, show_profile=True)
+        snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+        snd_msg += "\n\n───来自网页分享───"
+        # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+    except Exception as e:
+        add_msg(f"Shared Processor Error: {str(e)}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
     return 
 
@@ -225,24 +230,29 @@ async def run_web_analyze_btls_processor():
     if (not result): return
     result=json.loads(result)
     game_params=result["game_params"]
+    del game_params['Special']
     print(game_params)
     Special=result["Special"]
 
-    snd_msg =  "───来自网页分享───\n\n"
-    btl_msg,pic_path=btldetail_process(**game_params,gen_image=True,show_profile=True,from_web=True)
-    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+    try:
+        snd_msg =  "───来自网页分享───\n\n"
+        btl_msg, pic_path, mapname = await asyncio.to_thread(btldetail_process, **game_params, gen_image=True, show_profile=True, from_web=True, strict_filter=False)
+        snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
 
-    snd_msg += "\n\n"
+        snd_msg += "\n\n"
 
-    btl_msg,pic_path=coplayer_process(**game_params,from_web=True)
-    snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
-    snd_msg += "\n\n───来自网页分享───"
-    
-    if (Special):
-        snd_msg = "Private Message\n" + snd_msg
-        add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    else:
-        add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
-        # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        btl_msg, pic_path,_ = await asyncio.to_thread(coplayer_process, **game_params,spoiler_info={},from_web=True)
+        snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+        snd_msg += "\n\n───来自网页分享───"
+        
+        if (Special):
+            snd_msg = "Private Message\n" + snd_msg
+            add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        else:
+            add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+            # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as e:
+        add_msg(f"Analyze Processor Error: {str(e)}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
     return

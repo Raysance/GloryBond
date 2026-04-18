@@ -46,6 +46,7 @@ r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SE
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 
+SECRET_KEY = "HOKCAMP123"
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
@@ -171,7 +172,7 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
         btlist_res=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     except Exception as e:
         return templates.TemplateResponse(
-            "ErrorPages/illegal.html",{"request": request,"message":"网络参数错误"}
+            "ErrorPages/illegal.html",{"request": request,"message":f"网络参数错误 {str(e)}"}
         )
     res={"btlist":btlist_res,"profile":profile_res}
     file_name=secrets.token_hex(8)+".json"
@@ -191,22 +192,24 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
-    res=fetch_battle(gameSeq,targetRoleId)
-    if not res:
+    if (check_battle_local_exist(gameSeq,targetRoleId)):
+        web_path=os.path.join("wzry_history","battles",gameSeq+".json")
+    else:
         try:
             res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
         except Exception as e:
             return templates.TemplateResponse(
-                "ErrorPages/expired.html",{"request": request,"message":"对局已过期或id无效"}
+                "ErrorPages/expired.html",{"request": request,"message":f"对局已过期或id无效 {str(e)}"}
             )
-    file_name=secrets.token_hex(8)+".json"
-    save_path=os.path.join(nginx_path,"wzry_history", file_name)
-    writerl(save_path,res)
+        file_name=secrets.token_hex(8)+".json"
+        save_path=os.path.join(nginx_path,"wzry_history", file_name)
+        web_path=os.path.join("wzry_history",file_name)
+        writerl(save_path,res)
     return templates.TemplateResponse(
         "CommonPages/BattleDetail.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",file_name),
+            "filename": web_path,
             "key":key,
             "gameSeq":gameSeq,
             "gameSvr":gameSvr,
@@ -249,7 +252,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
         }
     return JSONResponse(success_data)
 @app.get("/share-btldetail", response_class=HTMLResponse)
-async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
+async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str,Special: bool = False):
     if (not check_key_valid(key)):
         raise HTTPException(
             status_code=400,
@@ -305,7 +308,8 @@ async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRole
         "gameseq":gameSeq,
         "roleid":targetRoleId,
         "relaySvrId":relaySvr,
-        "pvptype":battleType
+        "pvptype":battleType,
+        "Special":Special
     }
     params={
         "game_params":game_params,
@@ -348,6 +352,7 @@ async def admin_verify(request: Request, pattern: str):
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="pattern 参数不合法") from exc
 
+    VALID_PATTERN = [0, 1, 2, 5, 8]
     if parse_pattern(pattern) != VALID_PATTERN:
         return JSONResponse({"state": "failed","message": "认证失败","key":""})
 

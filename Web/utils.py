@@ -55,11 +55,26 @@ def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
                 'dtEventTime': res.get('battle', {}).get('dtEventTime', '')
             }
     return res
+def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详情
+    file_path = os.path.join(f"../NBot/history/battles/{gameseq}.json")
+    return file_exist(file_path)
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=3, period=1)
-def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1):
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
+    import time
+    from tools.decode_camp_json import decrypt_game_data
+
     roleid=str(roleid)
     userid=str(userid)
+    btldetail_url = "https://kohcamp.qq.com/game/battledetail"
+    btlist_url = "https://kohcamp.qq.com/game/morebattlelist"
+    profile_url = "https://kohcamp.qq.com/game/koh/profile"
+    season_url = "https://kohcamp.qq.com/game/curseasonpage"
+    heropower_url = "https://kohcamp.qq.com/game/profile/herolist"
+    allhero_url= "https://ssl.kohsocialapp.qq.com/play/h5getherolist"
+    herostatistics_url="https://kohcamp.qq.com/gametoolbox/hero/record/pagedetails"
+    heroranklist_url="https://kohcamp.qq.com/gametoolbox/hero/getdetailranklistbyid"
+    watchbattle_url = "https://kohcamp.qq.com/game/watchBattle"
     headers = {
         "Host": "kohcamp.qq.com",
         "istrpcrequest": "true",
@@ -107,7 +122,7 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         "relaySvr": relaySvrId,
         "battleType": int(pvptype)
     }
-    print(btldetail_data)
+    # print(btldetail_data)
     btlist_data = {
         "lastTime": 0,
         "recommendPrivacy": 0,
@@ -134,6 +149,67 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         "targetUserId":userid,
         "targetRoleId":roleid
     }
+    allhero_data = {
+        'recommendPrivacy': 0,
+        'uniqueRoleId': roleid,
+        'cChannelId': 10035044,
+        'cClientVersionCode': 2047937708,
+        'cClientVersionName': '9.104.0903',
+        'cCurrentGameId': 20001,
+        'cGameId': 20001,
+        'cGzip': 1,
+        'cIsArm64': 'true',
+        'cRand': 1760970708548,
+        'cSupportArm64': 'true',
+        'cSystem': 'android',
+        'cSystemVersionCode': 32,
+        'cSystemVersionName': '12',
+        'cpuHardware': 'HONOR',
+        'encodeParam': confs["wzry"]["encodeparam"],
+        'gameAreaId': 1,
+        'gameId': 20001,
+        'gameOpenId': confs["wzry"]["gameopenid"],
+        'gameRoleId': confs["wzry"]["roleid"],
+        'gameServerId': 1533,
+        'gameUserSex': 1,
+        'openId': confs["wzry"]["openid"],
+        'tinkerId': confs["wzry"]["tinkerid"],
+        'token': confs["wzry"]["token"],
+        'userId': confs["wzry"]["userid"]
+    }
+    herostatistics_data={
+        "recommendPrivacy": 0,
+        "toOpenid": confs["wzry"]["openid"],
+        "roleId": roleid,
+        "roleName": "",
+        "heroid": heroid,
+        "h5Get": 1
+    }
+    heroranklist_data={
+        "recommendPrivacy": 0,
+        "bottomTab": "",
+        "apiVersion": 1,
+        "rankId": rankId,
+        "segment": rankSegment,
+        "position": 0
+        # 热度榜 0
+        # 输出榜 7
+        # MVP榜 13
+        # 金牌榜 14
+
+        # Segment
+        # 所有段位 1
+        # 巅峰1350+ 3
+        # 顶端排位 4
+        # 赛事 5
+    }
+    watchbattle_data = {
+        "recommendPrivacy": 0,
+        "battleID": battle_id,
+        "roleID": roleid,
+        "type": 1,
+        "userID": userid
+    }
     match reqtype:
         case "btldetail":
             url=btldetail_url
@@ -150,14 +226,50 @@ def wzry_get_official(reqtype,userid=-1, roleid=0,gameseq=-1,gameSvrId=-1,relayS
         case "heropower":
             url=heropower_url
             data=heropower_data
-    retry_time=3
+        case "allhero":
+            url=allhero_url
+            data=allhero_data
+        case "herostatistics":
+            url=herostatistics_url
+            data=herostatistics_data
+        case "heroranklist":
+            url=heroranklist_url
+            data=heroranklist_data
+        case "watchbattle":
+            url=watchbattle_url
+            data=watchbattle_data
+    retry_time=5
+    error_msg=""
     while(retry_time):
-        response = requests.post(url, headers=headers, json=data)
-        # print(response.text)
-        res=response.json().get("data",{})
+        try:
+            encoded_response = requests.post(url, headers=headers, json=data)
+        except Exception as e:
+            error_msg="Network error: "+str(e)
+            retry_time=0
+            break
+        try:
+            decoded_response=json.loads(encoded_response.text)
+        except:
+            try:
+                decoded_response=decrypt_game_data(confs["wzry"]["pubkey"],confs["wzry"]["encoderes"],encoded_response.text)
+            except Exception as e:
+                error_msg="Decode error: "+str(e)
+                retry_time=0
+                break
+        res=decoded_response.get("data",{})
+        error_msg=decoded_response.get("returnMsg","")
         if res: break
+        if ("登录态失效" in error_msg or "操作频繁" in error_msg):
+            retry_time=0
+            break
+        time.sleep(2)
         retry_time-=1
-    if (not retry_time): raise Exception(str("王者荣耀数据源错误"))
+    if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
+    # import os
+    # import json
+    # save_path = os.path.join("wzry_data_format", f"{reqtype}.json")
+    # with open(save_path, 'w', encoding='utf-8') as sf:
+    #     json.dump(res, sf, ensure_ascii=False, indent=2)
     return res
 
 

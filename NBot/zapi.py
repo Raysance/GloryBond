@@ -9,32 +9,40 @@ from ratelimit import limits, sleep_and_retry
 
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=1, period=1)
-def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1):
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
     import time
+    from .tools.endecoder import decrypt_game_data
+    from .tools.endecoder import get_full_request_params
+
+    encoded_params = get_full_request_params(confs["wzry"]["pubkey"],confs["wzry"]["roleid"],confs["wzry"]["encoderes"])
+    print(f"crand: {encoded_params['crand']}")
+    print(f"encodeparam: {encoded_params['encodeparam']}")
+    print(f"traceparent: {encoded_params['traceparent']}")
     roleid=str(roleid)
     userid=str(userid)
     headers = {
         "Host": "kohcamp.qq.com",
         "istrpcrequest": "true",
-        "cchannelid": "10035044",
-        "cclientversioncode": "2047937708",
-        "cclientversionname": "9.104.0903",
+        "cchannelid": "10360957",
+        "cclientversioncode": "2057953202",
+        "cclientversionname": "10.111.0205",
         "ccurrentgameid": "20001",
         "cgameid": "20001",
         "cgzip": "1",
         "cisarm64": "true",
-        "crand": '1758455866028',
+        "crand": encoded_params["crand"],
+        # "crand": "1774530804298",
         "csupportarm64": "true",
         "csystem": "android",
         "csystemversioncode": "32",
         "csystemversionname": "12",
-        "cpuhardware": "HONOR",
-        "encodeparam": confs["wzry"]["encodeparam"],
+        "cpuhardware": "Xiaomi",
+        "encodeparam": encoded_params["encodeparam"],
         "gameareaid": "1",
         "gameid": "20001",
         "gameopenid": confs["wzry"]["gameopenid"],
         "gameroleid": confs["wzry"]["gameroleid"],
-        "gameserverid": "1533",
+        "gameserverid": "1545",
         "gameusersex": "1",
         "openid": confs["wzry"]["openid"],
         "tinkerid": confs["wzry"]["tinkerid"],
@@ -47,9 +55,8 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         "x-log-uid": confs["wzry"]["x-log-uid"],
         "kohdimgender": "2",
         "content-type": "application/json; charset=UTF-8",
-        "accept-encoding": "gzip",
         "user-agent": "okhttp/4.9.1",
-        "traceparent": confs["wzry"]["traceparent"]
+        "traceparent": encoded_params["traceparent"]
     }
 
     btldetail_data = {
@@ -90,25 +97,25 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
     allhero_data = {
         'recommendPrivacy': 0,
         'uniqueRoleId': roleid,
-        'cChannelId': 10035044,
-        'cClientVersionCode': 2047937708,
-        'cClientVersionName': '9.104.0903',
+        'cChannelId': 10360957,
+        'cClientVersionCode': 2057953202,
+        'cClientVersionName': '10.111.0205',
         'cCurrentGameId': 20001,
         'cGameId': 20001,
         'cGzip': 1,
         'cIsArm64': 'true',
-        'cRand': 1760970708548,
+        'cRand': 1774439182517,
         'cSupportArm64': 'true',
         'cSystem': 'android',
         'cSystemVersionCode': 32,
         'cSystemVersionName': '12',
-        'cpuHardware': 'HONOR',
-        'encodeParam': confs["wzry"]["encodeparam"],
+        'cpuHardware': 'Xiaomi',
+        'encodeParam': encoded_params["encodeparam"],
         'gameAreaId': 1,
         'gameId': 20001,
         'gameOpenId': confs["wzry"]["gameopenid"],
         'gameRoleId': confs["wzry"]["roleid"],
-        'gameServerId': 1533,
+        'gameServerId': 1545,
         'gameUserSex': 1,
         'openId': confs["wzry"]["openid"],
         'tinkerId': confs["wzry"]["tinkerid"],
@@ -141,6 +148,16 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         # 顶端排位 4
         # 赛事 5
     }
+    watchbattle_data = {
+        "recommendPrivacy": 0,
+        "battleID": battle_id,
+        "roleID": roleid,
+        "type": 1,
+        "userID": userid
+    }
+    # watchbattle_data = {'recommendPrivacy': 0, 'battleID': '177399_1742766640_1774529852', 'roleID': '2000000010', 'type': 1, 'userID': '2000000061'}
+    print(watchbattle_data)
+    
     match reqtype:
         case "btldetail":
             url=btldetail_url
@@ -166,23 +183,44 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         case "heroranklist":
             url=heroranklist_url
             data=heroranklist_data
-    retry_time=5
+        case "watchbattle":
+            url=watchbattle_url
+            data=watchbattle_data
+    retry_time=3
     error_msg=""
     while(retry_time):
-        response = requests.post(url, headers=headers, json=data)
-        # print(response.text)
-        # print(headers,data)
-        res=response.json().get("data",{})
-        error_msg=response.json().get("returnMsg","")
+        try:
+            encoded_response = requests.post(url, headers=headers, json=data)
+        except Exception as e:
+            error_msg="Network error: "+str(e)
+            retry_time=0
+            break
+
+        # print(encoded_response.text)
+        try:
+            decoded_response=json.loads(encoded_response.text)
+            # print(decoded_response)
+
+        except:
+            try:
+
+                decoded_response=decrypt_game_data(confs["wzry"]["pubkey"],confs["wzry"]["encoderes"],encoded_response.text)
+            except Exception as e:
+                error_msg="Decode error: "+str(e)
+                retry_time=0
+                break
+        res=decoded_response.get("data",{})
+        error_msg=decoded_response.get("returnMsg","")
+        # print(res,error_msg)
         if res: break
-        if ("登录态失效" in error_msg or "操作频繁" in error_msg):
+        if ("登录态失效" in error_msg or "频繁" in error_msg or "繁忙" in error_msg or "不允许被观战" in error_msg or "本场对局已结束" in error_msg):
             retry_time=0
             break
         time.sleep(2)
         retry_time-=1
     if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
     # import os
-    # import json
+    # import jso
     # save_path = os.path.join("wzry_data_format", f"{reqtype}.json")
     # with open(save_path, 'w', encoding='utf-8') as sf:
     #     json.dump(res, sf, ensure_ascii=False, indent=2)
@@ -261,3 +299,60 @@ def tianyuanzhiyi_tier_api():
         return data
     except requests.exceptions.HTTPError as e:
         return {}
+def steam_api_user_status(api_key, steam_id):
+    url = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/"
+    params = {
+        'key': api_key,
+        'steamids': steam_id
+    }
+    
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    players = data.get('response', {}).get('players', [])
+    if players:
+        player = players[0]
+        name = player.get('personaname')
+        # 0=离线, 1=在线, 其他为忙碌/离开等
+        state = player.get('personastate') 
+        game = player.get('gameextrainfo', "未在游戏中")
+        
+        # print(f"用户: {name}")
+        # print(f"状态码: {state} (1为在线)")
+        # print(f"正在玩: {game}")
+        return player
+    else:
+        return {}
+def steam_api_recent_games(api_key, steam_id):
+    """
+    获取指定用户最近14天玩过的游戏及总时长
+    :param api_key: 你的 Steam Web API Key
+    :param steam_id: 目标用户的 64位 SteamID
+    """
+    url = "https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v0001/"
+    params = {
+        'key': api_key,
+        'steamid': steam_id,
+        'format': 'json'
+    }
+
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()  # 检查 HTTP 状态码
+        data = response.json()
+        
+        # 获取游戏列表
+        games = data.get('response', {}).get('games', [])
+        
+        return games
+    
+        # game_info = {
+        #     'name': game.get('name'),
+        #     'appid': game.get('appid'),
+        #     'playtime_2weeks': game.get('playtime_2weeks'), # 最近两周时长（分钟）
+        #     'playtime_forever': game.get('playtime_forever') # 历史总时长（分钟）
+        # }
+            
+
+    except Exception as e:
+        raise Exception("STEAM Exception: "+str(e))
