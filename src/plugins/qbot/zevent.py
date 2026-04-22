@@ -27,7 +27,7 @@ async def judge_herostatistics_query(event)->bool:
     from .zfunc import qid2nick
     from .zfunc import extract_name,extract_heroname
     userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid)).replace("本赛季","")
     if not (rcv_msg.startswith("#") or rcv_msg.startswith("＃")):
         return False
     raw = rcv_msg.lstrip("#＃").strip()
@@ -114,6 +114,7 @@ _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
+_recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _tempfunc = on_keyword({"tpfc"},rule=judge_to_me,priority=4, block=True)
 
@@ -121,9 +122,24 @@ _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
 @_tempfunc.handle()
 async def f_tempfunc(event):
-    from .zfunc import export_past
-    add_msg("12322", event=event)
-    await asyncio.to_thread(export_past)
+    from .zfunc import dump_specific_user
+    args = event.get_plaintext().replace("#tpfc", "").replace("tpfc", "").strip().split()
+    if len(args) < 2:
+        add_msg("参数错误，格式：#tpfc realname date", event=event)
+        return
+    realname = args[0]
+    target_date = args[1]
+    if realname not in userlist or realname not in roleidlist:
+        add_msg(f"未找到玩家: {realname}", event=event)
+        return
+    userid = userlist[realname]
+    roleid = roleidlist[realname]
+    add_msg(f"开始导出特定用户数据: {realname} {target_date}", event=event)
+    try:
+        await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+        add_msg("导出完成", event=event)
+    except Exception as e:
+        add_msg(f"导出失败: {str(e)}", event=event)
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
@@ -223,7 +239,7 @@ async def f_repair(bot,event):
 @_show_code.handle()
 async def f_show_code(bot,event):
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/example_user_29/HOK_QQBot_showcase/", event=event)
+    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
@@ -341,7 +357,7 @@ async def f_forever_mem(event):
 async def f_manual(event):
     log_message("CMD: MANUAL")
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/example_user_29/HOK_QQBot_showcase/", event=event)
+    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
 @_super_only.handle()
 async def f_super_only(event):
@@ -531,7 +547,9 @@ async def f_herostatistics(bot,event):
     )
 
     userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+    rcv_msg_raw = event.get_plaintext().replace("我", qid2nick(userqid))
+    this_season = "本赛季" in rcv_msg_raw
+    rcv_msg = rcv_msg_raw.replace("本赛季","")
     try:
         player_plural=False
         hero_plural=False
@@ -544,13 +562,13 @@ async def f_herostatistics(bot,event):
 
         try:
             if (not player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname)
+                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname, this_season=this_season)
             elif (not player_plural and hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_mult_hero_process, matching_name)
+                snd_msg = await asyncio.to_thread(single_player_mult_hero_process, matching_name, this_season=this_season)
             elif (player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(mult_player_single_hero_process, heroid, heroname)
+                snd_msg = await asyncio.to_thread(mult_player_single_hero_process, heroid, heroname, this_season=this_season)
             else:
-                snd_msg = await asyncio.to_thread(mult_player_mult_hero_process)
+                snd_msg = await asyncio.to_thread(mult_player_mult_hero_process, this_season=this_season)
         except Exception as e:
             snd_msg = str(e)
 
@@ -705,6 +723,26 @@ async def f_diycode(bot: Bot, event: Event):
         add_msg(str(result), event=event)
     except Exception as e:
         add_msg(f"Error: {str(e)}", event=event)
+
+@_recentgames.handle()
+async def f_recentgames(event):
+    from .zfunc import recentgames_process, qid2nick, extract_name
+    from .utils.message_sender import add_msg
+    userqid = event.get_user_id()
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+    
+    realname = extract_name(rcv_msg)
+    if not realname:
+        add_msg("未识别到玩家名字", event=event)
+        await _recentgames.finish()
+        
+    try:
+        res_msg = await asyncio.to_thread(recentgames_process, realname=realname)
+        add_msg(Message(res_msg), event=event)
+    except Exception as e:
+        add_msg(f"获取时长失败: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    await _recentgames.finish()
 
 @_history_query.handle()
 async def f_history_query(event: Event):

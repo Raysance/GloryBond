@@ -15,19 +15,23 @@ def _to_pinyin(s):
     
     return "".join(lazy_pinyin(str(s))).lower()
 
-def wzry_data(realname,savepath=None): # 单人的战绩parser
+def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None): # 单人的战绩parser
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
             if (detail["MapType"]==1):
                 return detail["StarAfterGame"]
         return -1
         
-    def get_star_before_today_most_recent(target_id):
+    def get_star_before_today_most_recent(target_id, target_date_obj=None):
         from .zfile import readerl
         from .zfile import get_file_list
         from .ztime import time_sul
 
-        yesterday_sul = time_sul() - datetime.timedelta(days=1)
+        if target_date_obj:
+            today_dt = datetime.datetime.combine(target_date_obj, datetime.datetime.min.time())
+            yesterday_sul = today_dt - datetime.timedelta(days=1)
+        else:
+            yesterday_sul = time_sul() - datetime.timedelta(days=1)
         yesterday_str = yesterday_sul.strftime("%Y-%m-%d")
         
         json_files = get_file_list("history",".json")
@@ -67,8 +71,8 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
 
     log_message("VISIT: wzry_data")
     
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
+    userid=target_userid if target_userid else userlist[realname]
+    roleid=target_roleid if target_roleid else roleidlist[realname]
     
     btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     profile_data=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
@@ -93,6 +97,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
+    target_date_obj = datetime.datetime.strptime(target_date, "%Y-%m-%d").date() if target_date else sul_time.date()
     starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法强行填充
     peakUp=[]
     today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法强行填充
@@ -103,7 +108,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
     if(BtlVisible):
-        today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==sul_time.date())]
+        today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==target_date_obj)]
         # today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==date_roleback().date())]
         today_details=[{\
             'GameTime':game['gametime'],\
@@ -157,7 +162,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         today_up_peak=today_num_peak_win
         # try:
         star_today_most_recent=get_star_today_most_recent(today_details)
-        star_before_today_most_recent=get_star_before_today_most_recent(userid)
+        star_before_today_most_recent=get_star_before_today_most_recent(userid, target_date_obj)
         # print(star_today_most_recent,star_before_today_most_recent)
         starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
         # except Exception as e:
@@ -183,6 +188,38 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     # export_btl_thread.start()
     export_btldetail(today_details,roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
+def dump_specific_user(userid, roleid, target_date):
+    """
+    模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
+    :param userid: 指定的用户ID
+    :param roleid: 指定的角色ID
+    :param target_date: 导出的日期，格式为 '%Y-%m-%d' (精确到天)
+    """
+    from .zfile import writerl
+
+    log_message(f"DUMPBEGIN specific user {userid} date: {target_date}.json")
+    
+    # 构造临时的realname，wzry_data虽然传入realname，但在指定target_userid时不会用userlist查找
+    temp_realname = "temp_" + str(userid)
+    
+    gameinfo = []
+    try:
+        data = wzry_data(
+            realname=temp_realname, 
+            savepath=os.path.join("history", "personal", target_date, str(userid) + ".json"),
+            target_userid=userid,
+            target_roleid=roleid,
+            target_date=target_date
+        )
+        gameinfo.append(data)
+    except Exception as e:
+        log_message(f"Dump specific user {userid} failed: {e}")
+
+    filename = os.path.join("history", target_date + f"_{userid}.json")
+    writerl(filename, gameinfo)
+    log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
+    return gameinfo
+
 def export_past():
     import json
     import glob
@@ -275,6 +312,7 @@ def create_website(contents,sitetype):
 
 def online_process():
     from .zapi import wzry_get_official
+    from .zapi import steam_api_user_status
 
     def process_user(realname):
         userid = userlist[realname]
@@ -320,56 +358,95 @@ def online_process():
     total_online_cnt = 0
     battle_groups = {}  # 按战局ID分组: {battleId: [玩家信息]}
     idle_users = []  # 在线但不在游戏中的玩家
+    steam_online_users = []
+    
+    def process_steam_user(steam_id):
+        return steam_api_user_status(confs['Steam']['api_key'], steam_id)
+        
     try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        workers = len(userlist) + len(steam_userlist)
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
             future_to_user = {
-                executor.submit(process_user, realname): realname 
+                executor.submit(process_user, realname): ('wzry', realname) 
                 for realname in userlist
             }
-            for future in as_completed(future_to_user):
-                realname = future_to_user[future]
-                result = future.result()
-                if result and result['online_cnt'] > 0:
-                    total_online_cnt += result['online_cnt']
-                    battle_info = result['battle_info']
+            for realname, steam_id in steam_userlist.items():
+                future_to_user[executor.submit(process_steam_user, steam_id)] = ('steam', realname)
                     
-                    if battle_info and battle_info['battleId']:
-                        # 有对战号，加入对应战局组
-                        battle_id = battle_info['battleId']
-                        if battle_id not in battle_groups:
-                            battle_groups[battle_id] = []
-                        battle_groups[battle_id].append({
-                            'name': result['nickname'],
-                            'info': battle_info
-                        })
-                    elif battle_info:
-                        # 在线但不在游戏中
-                        idle_users.append({
-                            'name': result['nickname'],
-                            'job': battle_info['job']
-                        })
+            for future in as_completed(future_to_user):
+                req_type, realname = future_to_user[future]
+                if req_type == 'wzry':
+                    result = future.result()
+                    if result and result['online_cnt'] > 0:
+                        total_online_cnt += result['online_cnt']
+                        battle_info = result['battle_info']
+                        
+                        if battle_info and battle_info['battleId']:
+                            # 有对战号，加入对应战局组
+                            battle_id = battle_info['battleId']
+                            if battle_id not in battle_groups:
+                                battle_groups[battle_id] = []
+                            battle_groups[battle_id].append({
+                                'name': result['nickname'],
+                                'info': battle_info
+                            })
+                        elif battle_info:
+                            # 在线但不在游戏中
+                            idle_users.append({
+                                'name': result['nickname'],
+                                'job': battle_info['job']
+                            })
+                elif req_type == 'steam':
+                    try:
+                        result = future.result()
+                        if result:
+                            state = result.get('personastate', 0)
+                            game = result.get('gameextrainfo', '')
+                            # 如果有游戏信息或者状态不为 0 (离线)，则认为在线
+                            if state > 0 or game:
+                                steam_online_users.append({
+                                    'name': result.get('personaname', realname),
+                                    'game': game,
+                                    'state': state
+                                })
+                    except:
+                        pass
     except Exception as e:
         return str(e)
-    if total_online_cnt:
-        snd_msg = f"在线 {total_online_cnt} 人\n"
-        snd_msg += "─────────────\n"
-        
-        if battle_groups:
-            for battle_id, players in battle_groups.items():
-                map_name = players[0]['info']['mapName']
-                duration = players[0]['info']['duration']
-                snd_msg += f"🎮 {map_name}  {duration}min\n"
-                
-                for player in players:
-                    snd_msg += f"   • {player['name']} {player['info']['job']}  {player['info']['heroName']}\n"
-                
-                snd_msg += "\n"
-        
-        if idle_users:
+    
+    if total_online_cnt or steam_online_users:
+        if total_online_cnt:
+            snd_msg += f"在线 {total_online_cnt} 人\n"
+            snd_msg += "─────────────\n"
+            
             if battle_groups:
-                snd_msg += "─────────────\n"
-            for user in idle_users:
-                snd_msg += f"💤 {user['name']}  {user['job']}\n"
+                for battle_id, players in battle_groups.items():
+                    map_name = players[0]['info']['mapName']
+                    duration = players[0]['info']['duration']
+                    snd_msg += f"🎮 {map_name}  {duration}min\n"
+                    
+                    for player in players:
+                        snd_msg += f"   • {player['name']} {player['info']['job']}  {player['info']['heroName']}\n"
+                    
+                    snd_msg += "\n"
+            
+            if idle_users:
+                if battle_groups:
+                    snd_msg += "─────────────\n"
+                for user in idle_users:
+                    snd_msg += f"💤 {user['name']}  {user['job']}\n"
+                    
+        if steam_online_users:
+            if total_online_cnt:
+                snd_msg = snd_msg.rstrip('\n') + "\n\n"
+            snd_msg += f"Steam 在线 {len(steam_online_users)} 人\n"
+            snd_msg += "─────────────\n"
+            for user in steam_online_users:
+                game = user.get('game')
+                if game:
+                    snd_msg += f"🎮 {user['name']}  {game}\n"
+                else:
+                    snd_msg += f"💤 {user['name']}  在线\n"
         
         snd_msg = snd_msg.rstrip('\n')
     else:
@@ -851,8 +928,8 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=False
     # 获取本地历史数据（用于详细统计）
     end_date = time_r()
     if(this_season): 
-        start_date = str_to_time("2025-09-25")
-        TimeLim="本赛季(20250925-now)"
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
     else: 
         start_date = time_delta(end_date, -30)
         TimeLim="近30日"
@@ -897,7 +974,7 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=False
 
     return "\n".join(lines)
 # 单一玩家、所有英雄
-def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
+def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, this_season=False):
     """统计玩家在最近若干天内的英雄表现，返回 JSON 风格字符串和可读摘要。
     - rcv_msg: 包含用户名的消息，使用 extract_name 解析
     - days: 向前统计天数
@@ -905,18 +982,23 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
     - min_games: 计算胜率/评分榜时的最小出场次数阈值
     返回字符串（先 JSON，再人类可读摘要）。
     """
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta, str_to_time
     import json
 
     userid = userlist[username]
 
     end_date = time_r()
-    start_date = time_delta(end_date, -days)
+    if(this_season):
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
+    else:
+        start_date = time_delta(end_date, -days)
+        TimeLim=f"近{days}日"
     history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
     games = history.get(username, []) if history else []
     total_games = len(games)
     if total_games == 0:
-        return f"{namenick[username]} 在最近 {days} 天没有对局记录。"
+        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
 
     # 聚合每个英雄的统计
     hero_stats = {}
@@ -975,7 +1057,7 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
     # 可读摘要
     lines = []
     avg_tier = round(total_tier_val / tier_counted_games, 2) if tier_counted_games > 0 else "N/A"
-    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（近 {days} 天，共 {total_games} 场，均梯: {avg_tier}）")
+    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（{TimeLim}，共 {total_games} 场，均梯: {avg_tier}）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
@@ -1004,16 +1086,21 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
 
     return "\n".join(lines)
 # 所有玩家、所有英雄
-def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
+def mult_player_mult_hero_process(days=30, top_n=5, min_games=5, this_season=False):
     """统计所有玩家在最近若干天内的英雄总体表现，返回人类可读摘要字符串。
     - days: 向前统计天数
     - top_n: 每个榜单返回的条目数
     - min_games: 计算胜率/评分榜时的最小出场次数阈值（按英雄总出场次数）
     """
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta, str_to_time
 
     end_date = time_r()
-    start_date = time_delta(end_date, -days)
+    if(this_season):
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
+    else:
+        start_date = time_delta(end_date, -days)
+        TimeLim=f"近{days}日"
 
     hero_stats = {}
     total_games_all = 0
@@ -1037,7 +1124,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
                 pass
 
     if total_games_all == 0:
-        return f"最近 {days} 天内所有用户没有对局数据。"
+        return f"{TimeLim}内所有用户没有对局数据。"
 
     metrics = {}
     for hn, s in hero_stats.items():
@@ -1054,7 +1141,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
     top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
 
     lines = []
-    lines.append(f"【统计信息】 群u的英雄汇总\n（近 {days} 天，共 {total_games_all} 场）")
+    lines.append(f"【统计信息】 群u的英雄汇总\n（{TimeLim}，共 {total_games_all} 场）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
@@ -1076,7 +1163,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
 
     return "\n".join(lines)
 # 所有玩家、单一英雄
-def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top_n=5):
+def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top_n=5, this_season=False):
     """针对指定英雄聚合全服数据，返回人类可读摘要。
     - hero_name: 英雄名称（精确匹配 `HeroName` 字段）
     - days: 向前统计天数
@@ -1084,11 +1171,16 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
     - top_n: 每个榜单返回条目数
     返回字符串，包含：总体场次、参战玩家数、总体胜率、均分、KDA、地图分布、玩家榜单等
     """
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta, str_to_time
     import collections
 
     end_date = time_r()
-    start_date = time_delta(end_date, -days)
+    if(this_season):
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
+    else:
+        start_date = time_delta(end_date, -days)
+        TimeLim=f"近{days}日"
 
     per_player = {}  # player -> stats
     map_counter = collections.Counter()
@@ -1124,7 +1216,7 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
         per_player[realname] = stats
 
     if total_games == 0:
-        return f"在最近 {days} 天内未发现任何玩家使用 {hero_name} 的对局。"
+        return f"在{TimeLim}内未发现任何玩家使用 {hero_name} 的对局。"
 
     # 汇总总体指标
     total_wins = sum(s['wins'] for s in per_player.values())
@@ -1146,7 +1238,7 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
 
     # 组装输出
     lines = []
-    lines.append(f"【统计信息】 群u的{hero_name}\n（近 {days} 天）")
+    lines.append(f"【统计信息】 群u的{hero_name}\n（{TimeLim}）")
     lines.append(line_delim)
     lines.append(f"总场次：{total_games}    参战玩家数：{len(per_player)}")
     lines.append(f"总胜率：{round(overall_winrate*100,1)}%    均分：{round(overall_avg_grade,2)}\n K/D/A：{round(overall_k,2)}/{round(overall_d,2)}/{round(overall_a,2)}")
@@ -1179,65 +1271,6 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
 
     return "\n".join(lines)
 
-
-def recentgame_process(realname):
-    """基于本地 history 文件，做近30天的综合多维度分析，返回字符串。
-    参数 realname 用于指定用户名。
-    """
-    userid = userlist[realname]
-    # time window
-    try:
-        from .ztime import time_r, time_delta
-        end_date = time_r()
-        start_date = time_delta(end_date, -30)
-        history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-        games = history.get(realname, []) if history else []
-        if not games:
-            return f"未在本地 history 文件中找到 {namenick[matching_name]} 近30天的战绩。"
-
-        total_games = len(games)
-        wins = sum(1 for g in games if g.get('Result') == '胜利')
-        win_rate_recent = (wins / total_games) if total_games else 0
-        avg_grade = sum(float(g.get('GameGrade', 0)) for g in games) / total_games if total_games else 0
-        avg_kill = sum(int(g.get('KillCnt', 0)) for g in games) / total_games if total_games else 0
-        avg_dead = sum(int(g.get('DeadCnt', 0)) for g in games) / total_games if total_games else 0
-        avg_assist = sum(int(g.get('AssistCnt', 0)) for g in games) / total_games if total_games else 0
-        mvp_cnt = sum(1 for g in games if 'MVP' in (g.get('Others') or ''))
-        # 按英雄聚合
-        hero_stats = {}
-        for g in games:
-            hn = g.get('HeroName', '未知')
-            if hn not in hero_stats:
-                hero_stats[hn] = {'count': 0, 'wins': 0, 'grades': [], 'mvp': 0}
-            hero_stats[hn]['count'] += 1
-            if g.get('Result') == '胜利':
-                hero_stats[hn]['wins'] += 1
-            try:
-                hero_stats[hn]['grades'].append(float(g.get('GameGrade', 0)))
-            except:
-                pass
-            if 'MVP' in (g.get('Others') or ''):
-                hero_stats[hn]['mvp'] += 1
-
-        # 组装文本
-        txt = f"{namenick[matching_name]} 近30天综合战绩分析：\n"
-        txt += f"  场次：{total_games}，胜率：{round(win_rate_recent*100,2)}%，MVP：{mvp_cnt}，平均评分：{round(avg_grade,2)}\n"
-        txt += f"  场均 K/D/A：{round(avg_kill,2)}/{round(avg_dead,2)}/{round(avg_assist,2)}\n"
-        sorted_heroes = sorted(hero_stats.items(), key=lambda x: x[1]['count'], reverse=True)
-        txt += "  热门英雄：\n"
-        for hn, info in sorted_heroes[:8]:
-            cnt = info['count']
-            wins_h = info['wins']
-            winr_h = (wins_h / cnt) if cnt else 0
-            avgg = (sum(info['grades']) / len(info['grades'])) if info['grades'] else 0
-            txt += f"    {hn}：{cnt}局，胜率{round(winr_h*100,2)}%，平均分{round(avgg,2)}，MVP{info['mvp']}\n"
-        return txt
-    except Exception as e:
-        try:
-            log_message(f"recentgame_process error: {e}")
-        except:
-            pass
-        return None
 def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     from .zfunc import single_player_single_hero_process
     def get_hero_name(realname,hero_name_candidates):
@@ -1860,6 +1893,62 @@ def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True
                     gamedetails[playername].append(playerdetail)
     if (userid): gamedetails={k:v for k,v in gamedetails.items() if userid==userlist[k]}
     return gamedetails,duration
+
+def recentgames_process(realname):
+    from .ztime import time_r
+    from .zapi import steam_api_recent_games
+    import datetime
+
+    # 1. 获取名字（优先使用 namenick）
+    display_name = namenick.get(realname, realname)
+
+    # 2. 获取王者荣耀时长 (最近2周)
+    end_date = time_r()
+    start_date = end_date - datetime.timedelta(days=14)
+    
+    userid = userlist.get(realname)
+    wzry_seconds = 0
+    if userid:
+        gamedetails, _ = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
+        player_details = gamedetails.get(realname, [])
+        for detail in player_details:
+            wzry_seconds += detail.get("Duration_Second", 0)
+    
+    wzry_hours = round(wzry_seconds / 3600, 1)
+
+    # 3. 获取 Steam 时长 (最近2周)
+    steam_id = steam_userlist.get(realname)
+    steam_hours = 0.0
+    game_list = []
+    
+    # 将王者荣耀作为一个“游戏”加入列表
+    if wzry_hours > 0:
+        game_list.append(f"👑 王者荣耀: {wzry_hours}h")
+
+    if steam_id:
+        steam_api_key = confs.get("Steam", {}).get("api_key")
+        if steam_api_key:
+            games = steam_api_recent_games(steam_api_key, steam_id)
+            if games:
+                for game in games:
+                    # playtime_2weeks 是分钟
+                    game_2weeks_mins = game.get("playtime_2weeks", 0)
+                    h = round(game_2weeks_mins / 60, 1)
+                    if h > 0:
+                        steam_hours += h
+                        game_list.append(f"♨️ {game.get('name')}: {h}h")
+    
+    total_hours = round(wzry_hours + steam_hours, 1)
+
+    # 4. 构造返回文字
+    res_msg = f"🎮 {display_name} 最近2周的游戏时长：\n"
+    if game_list:
+        res_msg += "\n".join(game_list)
+        res_msg += f"\n\n📊 总计时长：{total_hours}h"
+    else:
+        res_msg += "最近2周没有游戏记录哦~"
+    
+    return res_msg
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
     from .zfile import readerl

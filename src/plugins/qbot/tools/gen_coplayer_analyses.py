@@ -710,8 +710,8 @@ def generate_player_strength_image(
                     fill_w = int(bar_w * ratio_sl)
                     if fill_w > 0:
                         _rounded_rectangle(draw, (bar_left, bar_top, bar_left + fill_w, bar_top + bar_h), radius=5, fill=ACCENT)
-                    # 顶部固定位置显示百分比数值（不随填充高度变化）
-                    pct_txt = f"{ratio_sl*100:.0f}%"
+                    # 顶部固定位置显示百分比数值及绝对底蕴（不随填充高度变化）
+                    pct_txt = f"{float(p.single_level):.1f} ({ratio_sl*100:.0f}%)"
                     pct_bbox = draw.textbbox((0, 0), pct_txt, font=small_font)
                     _safe_text(draw, (bar_left + bar_w - (pct_bbox[2]-pct_bbox[0]), bar_top - 18), pct_txt, small_font, TEXT_PRIMARY)
                     # 左侧标签（可选）
