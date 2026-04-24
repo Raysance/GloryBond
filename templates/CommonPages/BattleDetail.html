@@ -2127,7 +2127,13 @@
                         markPlayerCardLoading(this);
                         
                         // 跳转到指定URL
-                        const targetUrl = `/jump-btlperson?userid=${userId}&roleid=${roleId}&key={{key}}`;
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const currentKey = urlParams.get('key');
+                        let targetUrl = `/jump-btlperson?userid=${userId}&roleid=${roleId}`;
+                        if (currentKey) {
+                            targetUrl += `&key=${encodeURIComponent(currentKey)}`;
+                        }
+
                         console.log('准备跳转到:', targetUrl);
                         const newTab = window.open(targetUrl, '_blank');
 

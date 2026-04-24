@@ -110,12 +110,38 @@
         }
 
         .btn:hover { background: #3b7ddd; }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #10b981; }
+
+        .action-bar {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--border-color);
+            display: flex;
+            gap: 10px;
+        }
+
+        .add-memory-zone {
+            display: none;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0fdf4;
+            border-radius: 8px;
+            border: 1px solid #bbf7d0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>💬 对话记录浏览</h1>
+            <h1>💬 对话与记忆管理</h1>
             <a href="/admin/dashboard?AdminKey={{ AdminKey }}" class="btn">返回看板</a>
         </div>
 
@@ -127,11 +153,20 @@
                     <option value="{{ user_qid }}">{{ realname }} ({{ user_qid }})</option>
                     {% endfor %}
                 </select>
-                <select id="modeSelect">
+                <select id="modeSelect" onchange="toggleAddZone()">
                     <option value="chat">短期对话 (Chat)</option>
+                    <option value="raw">原始发言 (Raw Logs)</option>
                     <option value="memory">长效记忆 (Memory)</option>
                 </select>
-                <button class="btn" onclick="fetchChat()">加载记录</button>
+                <button class="btn" onclick="fetchChat();">加载记录</button>
+            </div>
+
+            <div id="addMemoryZone" class="add-memory-zone">
+                <h3 style="margin-top:0">➕ 添加新记忆</h3>
+                <div style="display:flex; gap:10px">
+                    <input type="text" id="newMemContent" placeholder="输入记忆内容..." style="flex:1">
+                    <button class="btn btn-success" onclick="doMemoryOp('add')">确定添加</button>
+                </div>
             </div>
 
             <div id="chatContent">
@@ -141,9 +176,17 @@
     </div>
 
     <script>
+        function toggleAddZone() {
+            const mode = document.getElementById('modeSelect').value;
+            const userId = document.getElementById('userSelect').value;
+            const zone = document.getElementById('addMemoryZone');
+            zone.style.display = (mode === 'memory' && userId !== 'global') ? 'block' : 'none';
+        }
+
         async function fetchChat() {
             const userId = document.getElementById('userSelect').value;
             const mode = document.getElementById('modeSelect').value;
+            toggleAddZone();
             const container = document.getElementById('chatContent');
             container.innerHTML = '<p>正在加载...</p>';
 
@@ -164,11 +207,19 @@
                                 ${r.nick ? `<span class="user-tag" title="用户ID">👤 ${r.nick}</span>` : ''}
                             </div>
                             <div class="bubble ${mode === 'memory' ? 'answer' : 'question'}">
-                                <strong>${mode === 'memory' ? '🗂️ 记忆内容' : '问'}:</strong> ${mode === 'memory' ? r.A : r.Q}
+                                <strong>${mode === 'memory' ? '🗂️ 记忆内容' : (mode === 'raw' ? '📝 原始发言' : '问')}:</strong> 
+                                <span id="content-${r.qid}-${r.idx}">${mode === 'memory' ? r.A : r.Q}</span>
                             </div>
                             ${mode === 'chat' ? `<div class="bubble answer"><strong>答:</strong> ${r.A}</div>` : ''}
+                            
+                            ${mode === 'memory' ? `
+                                <div class="action-bar">
+                                    <button class="btn btn-sm" onclick="startEdit('${r.qid}', ${r.idx})">修改</button>
+                                    <button class="btn btn-sm btn-danger" onclick="doMemoryOp('delete', '${r.qid}', null, ${r.idx})">删除</button>
+                                </div>
+                            ` : ''}
                         </div>
-                    `).join(''); // 全局记忆已在后端排序，不再反转渲染
+                    `).join('');
                 } else {
                     container.innerHTML = `<p style="color: red;">错误: ${data.message}</p>`;
                 }
@@ -176,6 +227,39 @@
                 container.innerHTML = '<p style="color: red;">网络请求失败</p>';
             }
         }
+
+        async function doMemoryOp(op, qid = null, content = null, idx = null) {
+            if (!qid) qid = document.getElementById('userSelect').value;
+            if (!content && op === 'add') content = document.getElementById('newMemContent').value;
+            
+            if ((op === 'add') && !content) return;
+            if (op === 'delete' && !confirm("确定删除这条记忆吗？")) return;
+
+            try {
+                const response = await fetch(`/admin/funcs/chat-viewer/memory-op?AdminKey={{ AdminKey }}&op=${op}&qid=${qid}&content=${encodeURIComponent(content || '')}&idx=${idx || 0}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    if (op === 'add') document.getElementById('newMemContent').value = '';
+                    fetchChat();
+                } else {
+                    alert("操作失败: " + data.message);
+                }
+            } catch (e) {
+                alert("网络错误");
+            }
+        }
+
+        function startEdit(qid, idx) {
+            const oldContent = document.getElementById(`content-${qid}-${idx}`).innerText;
+            const newContent = prompt("修改记忆内容:", oldContent);
+            if (newContent && newContent !== oldContent) {
+                doMemoryOp('update', qid, newContent, idx);
+            }
+        }
+        
+        window.onload = toggleAddZone;
     </script>
 </body>
 </html>

@@ -2079,11 +2079,17 @@
                     gameSeq: gameSeq,
                     targetRoleId: targetRoleId,
                     relaySvr: relaySvr,
-                    battleType: battleType,
-                    key: '{{key}}'
+                    battleType: battleType
                 });
                 
                 // 构建完整URL并跳转
+                // 获取当前页面的 key 参数
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentKey = urlParams.get('key');
+                if (currentKey) {
+                    params.append('key', currentKey);
+                }
+
                 const targetUrl = `/jump-btldetail?${params.toString()}`;
                 console.log('跳转URL:', targetUrl);
                 const newTab = window.open(targetUrl, '_blank');

@@ -1,6 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException, Query, Body
-from fastapi.responses import HTMLResponse
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, HTTPException, Query, Body, Cookie
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
 
@@ -161,10 +160,13 @@ async def show_btldetail(request:Request,key: str):
         }
     )
 def check_key_valid(key):
+    if key is None:
+        return False
     return r_com.exists(key) or key==SECRET_KEY
 @app.get("/jump-btlperson", response_class=HTMLResponse)
-async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
-    if (not check_key_valid(key)):
+async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
@@ -184,12 +186,13 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
         {
             "request": request,
             "filename": os.path.join("wzry_history",file_name),
-            "key":key,
+            "key": final_key,
         }
     )
 @app.get("/jump-btldetail", response_class=HTMLResponse)
-async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not check_key_valid(key)):
+async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
@@ -211,7 +214,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
         {
             "request": request,
             "filename": web_path,
-            "key":key,
+            "key": final_key,
             "gameSeq":gameSeq,
             "gameSvr":gameSvr,
             "relaySvr":relaySvr,
@@ -220,8 +223,9 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
         }
     )
 @app.get("/like-btldetail", response_class=HTMLResponse)
-async def like_btldetail(request:Request,gameSeq: str,key:str):
-    if (not check_key_valid(key)):
+async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -253,8 +257,9 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
         }
     return JSONResponse(success_data)
 @app.get("/share-btldetail", response_class=HTMLResponse)
-async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str,Special: bool = False):
-    if (not check_key_valid(key)):
+async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None),Special: bool = False):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -294,8 +299,9 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     }
     return JSONResponse(success_data)
 @app.get("/analyze-btldetail", response_class=HTMLResponse)
-async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str):
-    if (not check_key_valid(key)):
+async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -360,51 +366,63 @@ async def admin_verify(request: Request, pattern: str):
     else:
         return {"state": "success","message":"认证成功","key": SECRET_KEY}
         
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    return templates.TemplateResponse("AdminPages/AdminLogin.html", {"request": request})
+
+@app.post("/admin/login")
+async def admin_login(request: Request, password: str = Body(..., embed=True)):
+    if password == SECRET_KEY:
+        response = JSONResponse({"status": "success", "message": "登录成功"})
+        # 设置 cookie，有效期 7 天
+        response.set_cookie(key="AdminKey", value=password, max_age=604800, httponly=True)
+        return response
+    else:
+        return JSONResponse({"status": "error", "message": "密码错误"}, status_code=401)
+
 @app.get("/admin/dashboard", response_class=HTMLResponse)
-async def admin_user_edit_page(request: Request, AdminKey: str):
+async def admin_dashboard_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return RedirectResponse(url="/admin/login")
     return templates.TemplateResponse(
         "AdminPages/DashBoard.html",
         {
             "request": request,
-            "AdminKey":AdminKey
+            "AdminKey": AdminKey
         }
     )
 
 @app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)
-async def jump_admin_page(request: Request, AdminKey: str):
-    if (AdminKey!=SECRET_KEY):
-        return templates.TemplateResponse(
-            "ErrorPages/illegal.html",{"request": request,"message":"AdminKey失效"}
-        )
+async def jump_admin_page(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login")
     reload_variables()
     return templates.TemplateResponse(
         "AdminPages/DirectNavigate.html",
         {
             "request": request,
-            "AdminKey":AdminKey,
-            "useridlist":{**userlist,**extra_useridlist},
-            "roleidlist":{**roleidlist,**extra_roleidlist}
+            "AdminKey": AdminKey,
+            "useridlist": {**userlist, **extra_useridlist},
+            "roleidlist": {**roleidlist, **extra_roleidlist}
         }
     )
 
 @app.get("/admin/funcs/user-edit", response_class=HTMLResponse)
-async def admin_user_edit_page(request: Request, AdminKey: str):
+async def admin_user_edit_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return RedirectResponse(url="/admin/login")
     return templates.TemplateResponse(
         "AdminPages/UserEdit.html",
         {
             "request": request,
-            "AdminKey":AdminKey
+            "AdminKey": AdminKey
         }
     )
 
 @app.get("/admin/funcs/chat-viewer", response_class=HTMLResponse)
-async def admin_chat_viewer_page(request: Request, AdminKey: str):
+async def admin_chat_viewer_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return RedirectResponse(url="/admin/login")
     reload_variables()
     return templates.TemplateResponse(
         "AdminPages/ChatViewer.html",
@@ -416,7 +434,7 @@ async def admin_chat_viewer_page(request: Request, AdminKey: str):
     )
 
 @app.get("/admin/funcs/chat-viewer/fetch")
-async def fetch_chat_records(AdminKey: str, target_qid: str, mode: str = "chat"):
+async def fetch_chat_records(target_qid: str, mode: str = "chat", AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
         return {"status": "error", "message": "认证失败"}
     
@@ -431,29 +449,50 @@ async def fetch_chat_records(AdminKey: str, target_qid: str, mode: str = "chat")
                 for k in all_keys:
                     key_str = k.decode('utf-8')
                     qid_part = key_str.split(":")[-1]
-                    raw_records = r_chat.lrange(k, -10, -1) # 每人取最后10条防止过多
-                    for r in raw_records:
+                    raw_records = r_chat.lrange(k, 0, -1) 
+                    for idx, r in enumerate(raw_records):
                         item = json.loads(r.decode('utf-8'))
                         records.append({
                             "time": item.get("time", ""),
-                            "nick": qid_part, # 在全局记忆模式下显示UID/QID
+                            "nick": qid_part,
                             "Q": "个人记忆录入",
-                            "A": item.get("mem", "")
+                            "A": item.get("mem", ""),
+                            "qid": qid_part,
+                            "idx": idx # 记录在list中的索引用于删除
                         })
-                # 按时间排序展示最近的
                 records.sort(key=lambda x: x['time'], reverse=True)
-                records = records[:100] # 最多展示100条
+                records = records[:100]
             else:
                 key = f"{prefix}notes:{target_qid}"
-                raw_records = r_chat.lrange(key, -50, -1)
+                raw_records = r_chat.lrange(key, 0, -1)
                 records = []
-                for r in raw_records:
+                for idx, r in enumerate(raw_records):
                     item = json.loads(r.decode('utf-8'))
                     records.append({
                         "time": item.get("time", ""),
                         "Q": "系统录入记忆",
-                        "A": item.get("mem", "")
+                        "A": item.get("mem", ""),
+                        "qid": target_qid,
+                        "idx": idx
                     })
+                records.reverse()
+        elif mode == "raw":
+            # 获取原始发言记录 (raw_logs)
+            if target_qid == "global":
+                return {"status": "error", "message": "原始记录暂不支持全局查看"}
+            
+            key = f"{prefix}raw_logs:{target_qid}"
+            raw_records = r_chat.lrange(key, 0, -1)
+            records = []
+            for r in raw_records:
+                item = json.loads(r.decode('utf-8'))
+                records.append({
+                    "time": item.get("time", ""),
+                    "Q": item.get("text", ""),
+                    "A": "(原始记录，等待提炼)",
+                    "qid": target_qid
+                })
+            records.reverse()
         else:
             # 获取普通对话记录 (chats)
             if target_qid == "global":
@@ -463,15 +502,55 @@ async def fetch_chat_records(AdminKey: str, target_qid: str, mode: str = "chat")
             
             raw_records = r_chat.lrange(key, -50, -1)
             records = [json.loads(r.decode('utf-8')) for r in raw_records]
+            # 对话记录暂不支持增删改，仅做展示
         
         return {"status": "success", "records": records}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.get("/admin/funcs/user-edit/fetch-user-info")
-async def fetch_user_info(request: Request, AdminKey: str = Query(...)):
+@app.post("/admin/funcs/chat-viewer/memory-op")
+async def memory_operation(op: str, qid: str, content: str = None, idx: int = None, AdminKey: str = Cookie(None)):
+    """
+    op: add, delete, update
+    """
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return {"status": "error", "message": "认证失败"}
+    
+    key = f"zmem:notes:{qid}"
+    try:
+        if op == "add":
+            item = {
+                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "mem": content
+            }
+            r_chat.rpush(key, json.dumps(item, ensure_ascii=False))
+            r_chat.ltrim(key, -50, -1)
+        
+        elif op == "delete":
+            # Redis没有直接按索引删除的操作，需要先把值取出来再LREM，或者用LSET标记删除再LREM
+            # 为了安全，先取索引对应的值
+            target_val = r_chat.lindex(key, idx)
+            if target_val:
+                r_chat.lrem(key, 1, target_val)
+        
+        elif op == "update":
+            # 先取原记录
+            old_val_raw = r_chat.lindex(key, idx)
+            if old_val_raw:
+                old_item = json.loads(old_val_raw.decode('utf-8'))
+                old_item["mem"] = content
+                # 更新时间（可选是否打上修改标记）
+                old_item["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (已修改)"
+                r_chat.lset(key, idx, json.dumps(old_item, ensure_ascii=False))
+        
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/admin/funcs/user-edit/fetch-user-info")
+async def fetch_user_info(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return JSONResponse({"status": "error", "message": "AdminKey失效"}, status_code=401)
     reload_variables()
     return {
         "userlist": userlist,
@@ -485,9 +564,9 @@ async def fetch_user_info(request: Request, AdminKey: str = Query(...)):
     }
 
 @app.post("/admin/funcs/user-edit/submit-user-info")
-async def submit_user_info(request: Request, AdminKey: str = Query(...), changes: list = Body(...)):
+async def submit_user_info(request: Request, changes: list = Body(...), AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return JSONResponse({"status": "error", "message": "AdminKey失效"}, status_code=401)
     try:
         with open(variables_file_path, 'r', encoding='utf-8') as f:
             full_data = json.load(f)
