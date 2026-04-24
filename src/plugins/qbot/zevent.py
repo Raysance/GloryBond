@@ -589,6 +589,11 @@ async def f_todayhero(bot,event):
         ai_comment=False if ("$" in rcv_msg) else True
         ignore_limit=True if ("%" in rcv_msg) else False
         appoint_realname=True if ("~" in rcv_msg) else False
+        if ("rrrr" in rcv_msg):
+            ignore_limit=True
+            appoint_realname=True
+            add_msg("func unavailable", event=event)
+            return
         if (appoint_realname):
             matching_name = get_validated_name(event)
             if not matching_name: return
