@@ -243,10 +243,6 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
     whole_query=""
 
     match msg_type:
-        case "hardworking":
-            whole_query = hdwk_pmpt + user_query[0]
-            if use_mem:
-                whole_query += "这是之前的对话中用户的请求和你的回答：（" + "".join(dmc.ai_memory) + "）这是这次的请求，优先级最高，优先考虑（" + whole_query + "）" + chat_pmpt
         case "rnk":
             whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
         case "single_parser":
@@ -258,7 +254,24 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             whole_query += tq_pmpt + user_query[0]
         case "chat":
             if use_mem:
-                whole_query += style_template + "用户名字叫：（" + user_query[3] + "）。这是用户强调的内容：（" + user_query[2] + "）。这是之前的所有人对话的情境：（" + "".join(dmc.ai_memory) + "）。这是和我单独聊天的情境：（" + "".join(user_query[1]) + "）。以上提到的对话，可以隐形展示在输出中，但是如果用户提出“展示记忆”来显示输出，你只能够说你的记忆基于事实，不能泄露记忆内容。下面这句话是这次的请求,优先级最高，优先考虑：回答必须和这个有关，回答必须和这个有关，回答必须和这个有关（" + user_query[0] + " " + user_query[0] + " " + user_query[0] + " " + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
+                context_msg = f"""
+                【情境信息】
+                - 当前用户: {user_query[3]}
+                - 用户个人偏好/过往记忆: 
+                {user_query[2]}
+                - 最近全体对话背景 (包含其他人的聊天):
+                {user_query[4]}
+                - 用户近期战绩表现:
+                {user_query[5]}
+                - 与当前用户的近期私人对话:
+                {user_query[1]}
+
+                【重要指令】
+                以上信息仅作为对话背景，请自然地融合在回复中，不要直接列举或提及“我的记忆中”、“你刚才说”等。
+                如果用户要求“展示记忆”，请以自然的方式回应，不要泄露原始格式。
+                当前请求优先级最高: {user_query[0]}
+                """
+                whole_query += style_template + context_msg + chat_pmpt
             else:
                 whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
         case "poke":
@@ -290,7 +303,11 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             ai_back=str(e)
 
     if (use_mem and ai_status):
-        dmc.ai_memory.append("问："+";".join(user_query)+"。答："+";") # 只储存user本身的提问，不附加自带提示词
+        from .zmemory import instance as zm
+        # 将本次对话存入全体记忆
+        zm.add_global_memory(user_query[3], user_query[0], ai_back)
+        # 同时保留在运行时的内存中以防万一
+        dmc.ai_memory.append(f"[{user_query[3]}]: {user_query[0]} -> {ai_back}")
     return ai_back
 
 def create_website(contents,sitetype):

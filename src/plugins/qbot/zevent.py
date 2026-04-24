@@ -324,31 +324,21 @@ async def f_show_cache(event):
 
 @_forget_me.handle()
 async def f_forget_me(event): # 清空用户记录和用户(自己的)记忆
+    from .zmemory import instance as zm
     log_message("CMD: EMPTY_ME")
     userqid=event.get_user_id()
-    file_path=os.path.join("chats",userqid+".json")
-    try:
-        if await asyncio.to_thread(os.path.exists, file_path):
-            await asyncio.to_thread(os.remove, file_path)
-    except Exception as e:
-        pass
-    file_path=os.path.join("memory",userqid+".json")
-    try:
-        if await asyncio.to_thread(os.path.exists, file_path):
-            await asyncio.to_thread(os.remove, file_path)
-    except Exception as e:
-        pass
+    await asyncio.to_thread(zm.clear_user_data, userqid)
     add_msg(Message("成功清除记忆"), event=event)
     await _forget_me.finish()
 
 @_forever_mem.handle()
 async def f_forever_mem(event):
-    from .zfile import mem_dumper
+    from .zmemory import instance as zm
     from .zfunc import qid2nick
     log_message("CMD: FOREVER")
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext()
-    await asyncio.to_thread(mem_dumper, userqid, rcv_msg)
+    await asyncio.to_thread(zm.save_user_memory, userqid, rcv_msg)
     snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
     add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
     await _forever_mem.finish()
@@ -841,44 +831,51 @@ async def f_history_query(event: Event):
 
 @_chat.handle()
 async def f_chat(bot,event):
-    from .zfile import chats_loader
-    from .zfile import chats_dumper
-    from .zfile import mem_loader
-    from .zfunc import qid2nick
-    from .zfunc import ai_parser
+    from .zmemory import instance as zm
+    from .zfunc import qid2nick, ai_parser
     
-    userqid=event.get_user_id()
+    user_id = event.get_user_id()
     
     try:
-        groupqid=event.group_id
-    except Exception as e:
-        groupqid=None
+        group_id = event.group_id
+    except Exception:
+        group_id = None
         
-    if (groupqid):
-        await bot.group_poke(group_id=groupqid, user_id=userqid)
-    my_temp_msg = await asyncio.to_thread(chats_loader, userqid)
-    perp_msg = await asyncio.to_thread(mem_loader, userqid)
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    if group_id:
+        await bot.group_poke(group_id=group_id, user_id=user_id)
+
+    # 使用新的 zmemory 库加载记忆
+    my_temp_msg = await asyncio.to_thread(zm.load_chat, user_id)
+    # perp_msg 是用户的个人备注/偏好
+    perp_msg = await asyncio.to_thread(zm.load_user_memory, user_id)
+    # global_msg 是所有人聊天背景
+    global_msg = await asyncio.to_thread(zm.load_global_memory, 10)
+    # history_msg 是用户最近的战绩表现
+    history_msg = await asyncio.to_thread(zm.load_user_history_natural, user_id)
+    
+    nick = qid2nick(user_id)
+    rcv_msg = event.get_plaintext().replace("我", nick)
     
     for k in sorted(common_expr.keys(), key=len, reverse=True):
         rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
     
-    rcv_msg+=" "+(str(event.reply.message) if event.reply else "")+" "
-    snd_msg=""
+    rcv_msg += " " + (str(event.reply.message) if event.reply else "") + " "
+    snd_msg = ""
     
-    network=False
-    if ("&" in rcv_msg): network=True
-
+    network = "&" in rcv_msg
     use_mem_current = dmc.use_mem
-    if ("nomem" in rcv_msg): 
+    if "nomem" in rcv_msg: 
         use_mem_current = False
         
     try:
-        snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg, my_temp_msg, perp_msg, qid2nick(userqid)], "chat", network, use_mem=use_mem_current)
+        # 参数列表更新为: [当前消息, 个人对话史, 个人偏好, 昵称, 全体背景, 战绩历史]
+        snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg, my_temp_msg, perp_msg, nick, global_msg, history_msg], "chat", network, use_mem=use_mem_current)
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
-    await asyncio.to_thread(chats_dumper, userqid, rcv_msg, snd_msg)
+
+    # 使用新的 zmemory 库保存记忆
+    await asyncio.to_thread(zm.save_chat, user_id, rcv_msg, snd_msg)
     add_msg(snd_msg, event=event)
     return
