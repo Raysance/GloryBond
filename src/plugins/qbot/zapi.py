@@ -239,12 +239,13 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
 @sleep_and_retry
 @limits(calls=100, period=1)
 def ai_api(user_query,temperature): # deepseek官方模型-不联网
+    from .zfile import writera
     log_message("VISIT: ai_api_common")
     try:
         client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
         
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "user", "content": user_query},
             ],
@@ -252,6 +253,7 @@ def ai_api(user_query,temperature): # deepseek官方模型-不联网
             temperature=temperature,
             timeout=20   # 20秒超时
         )
+        writera("deepseek_output.txt",user_query)
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     random.seed(int(time.time() * 1000) % 1000000 + os.getpid())
