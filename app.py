@@ -45,6 +45,7 @@ r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
+r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
 SECRET_KEY = "HOKCAMP123"
 
@@ -399,6 +400,74 @@ async def admin_user_edit_page(request: Request, AdminKey: str):
             "AdminKey":AdminKey
         }
     )
+
+@app.get("/admin/funcs/chat-viewer", response_class=HTMLResponse)
+async def admin_chat_viewer_page(request: Request, AdminKey: str):
+    if AdminKey != SECRET_KEY:
+        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+    reload_variables()
+    return templates.TemplateResponse(
+        "AdminPages/ChatViewer.html",
+        {
+            "request": request,
+            "AdminKey": AdminKey,
+            "qid_map": qid # realname -> qid
+        }
+    )
+
+@app.get("/admin/funcs/chat-viewer/fetch")
+async def fetch_chat_records(AdminKey: str, target_qid: str, mode: str = "chat"):
+    if AdminKey != SECRET_KEY:
+        return {"status": "error", "message": "认证失败"}
+    
+    prefix = "zmem:"
+    try:
+        if mode == "memory":
+            # 获取长效记忆 (notes)
+            if target_qid == "global":
+                # 全局模式下扫描所有人的记忆
+                all_keys = r_chat.keys(f"{prefix}notes:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    raw_records = r_chat.lrange(k, -10, -1) # 每人取最后10条防止过多
+                    for r in raw_records:
+                        item = json.loads(r.decode('utf-8'))
+                        records.append({
+                            "time": item.get("time", ""),
+                            "nick": qid_part, # 在全局记忆模式下显示UID/QID
+                            "Q": "个人记忆录入",
+                            "A": item.get("mem", "")
+                        })
+                # 按时间排序展示最近的
+                records.sort(key=lambda x: x['time'], reverse=True)
+                records = records[:100] # 最多展示100条
+            else:
+                key = f"{prefix}notes:{target_qid}"
+                raw_records = r_chat.lrange(key, -50, -1)
+                records = []
+                for r in raw_records:
+                    item = json.loads(r.decode('utf-8'))
+                    records.append({
+                        "time": item.get("time", ""),
+                        "Q": "系统录入记忆",
+                        "A": item.get("mem", "")
+                    })
+        else:
+            # 获取普通对话记录 (chats)
+            if target_qid == "global":
+                key = f"{prefix}global_chat"
+            else:
+                key = f"{prefix}chats:{target_qid}"
+            
+            raw_records = r_chat.lrange(key, -50, -1)
+            records = [json.loads(r.decode('utf-8')) for r in raw_records]
+        
+        return {"status": "success", "records": records}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/admin/funcs/user-edit/fetch-user-info")
 async def fetch_user_info(request: Request, AdminKey: str = Query(...)):
     if AdminKey != SECRET_KEY:

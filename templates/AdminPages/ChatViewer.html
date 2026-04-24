@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话记录浏览 - 管理后台</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --primary-color: #4f8ef7;
+            --text-color: #1e293b;
+            --secondary-text: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        select, input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .chat-item {
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 0;
+        }
+
+        .chat-item:last-child {
+            border-bottom: none;
+        }
+
+        .chat-meta {
+            font-size: 12px;
+            color: var(--secondary-text);
+            margin-bottom: 8px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        .question {
+            background-color: #ebf4ff;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .answer {
+            background-color: #f1f5f9;
+            color: #334155;
+            border-left: 4px solid #94a3b8;
+        }
+
+        .user-tag {
+            background: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .btn:hover { background: #3b7ddd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 对话记录浏览</h1>
+            <a href="/admin/dashboard?AdminKey={{ AdminKey }}" class="btn">返回看板</a>
+        </div>
+
+        <div class="card">
+            <div class="filters">
+                <select id="userSelect">
+                    <option value="global">全体对话 (Global)</option>
+                    {% for realname, user_qid in qid_map.items() %}
+                    <option value="{{ user_qid }}">{{ realname }} ({{ user_qid }})</option>
+                    {% endfor %}
+                </select>
+                <select id="modeSelect">
+                    <option value="chat">短期对话 (Chat)</option>
+                    <option value="memory">长效记忆 (Memory)</option>
+                </select>
+                <button class="btn" onclick="fetchChat()">加载记录</button>
+            </div>
+
+            <div id="chatContent">
+                <p style="color: var(--secondary-text);">请选择用户并点击加载记录...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchChat() {
+            const userId = document.getElementById('userSelect').value;
+            const mode = document.getElementById('modeSelect').value;
+            const container = document.getElementById('chatContent');
+            container.innerHTML = '<p>正在加载...</p>';
+
+            try {
+                const response = await fetch(`/admin/funcs/chat-viewer/fetch?AdminKey={{ AdminKey }}&target_qid=${userId}&mode=${mode}`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    if (data.records.length === 0) {
+                        container.innerHTML = `<p>${data.message || '暂无记录。'}</p>`;
+                        return;
+                    }
+
+                    container.innerHTML = data.records.map(r => `
+                        <div class="chat-item">
+                            <div class="chat-meta">
+                                <span>🕒 ${r.time}</span>
+                                ${r.nick ? `<span class="user-tag" title="用户ID">👤 ${r.nick}</span>` : ''}
+                            </div>
+                            <div class="bubble ${mode === 'memory' ? 'answer' : 'question'}">
+                                <strong>${mode === 'memory' ? '🗂️ 记忆内容' : '问'}:</strong> ${mode === 'memory' ? r.A : r.Q}
+                            </div>
+                            ${mode === 'chat' ? `<div class="bubble answer"><strong>答:</strong> ${r.A}</div>` : ''}
+                        </div>
+                    `).join(''); // 全局记忆已在后端排序，不再反转渲染
+                } else {
+                    container.innerHTML = `<p style="color: red;">错误: ${data.message}</p>`;
+                }
+            } catch (e) {
+                container.innerHTML = '<p style="color: red;">网络请求失败</p>';
+            }
+        }
+    </script>
+</body>
+</html>
