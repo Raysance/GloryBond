@@ -454,6 +454,7 @@
             <th>索引 (Key)</th>
             <th>Extra UserID</th>
             <th>Extra RoleID</th>
+            <th>Extra Nickname</th>
             <th class="sticky-actions">操作</th>
           </tr>
         </thead>
@@ -544,6 +545,10 @@
         <label>Extra RoleID</label>
         <input type="number" name="extra_roleidlist">
       </div>
+      <div class="form-group">
+        <label>Extra Nickname</label>
+        <input type="text" name="extra_namenick">
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-reset" onclick="closeModal('modalExtra')">取消</button>
         <button type="submit" class="btn btn-submit">确认</button>
@@ -602,12 +607,14 @@
     const extra = {};
     const extraKeys = new Set([
       ...Object.keys(data.extra_useridlist || {}),
-      ...Object.keys(data.extra_roleidlist || {})
+      ...Object.keys(data.extra_roleidlist || {}),
+      ...Object.keys(data.extra_namenick || {})
     ]);
     extraKeys.forEach(k => {
       extra[k] = {
         extra_useridlist: data.extra_useridlist?.[k] || null,
-        extra_roleidlist: data.extra_roleidlist?.[k] || null
+        extra_roleidlist: data.extra_roleidlist?.[k] || null,
+        extra_namenick: data.extra_namenick?.[k] || ''
       };
     });
 
@@ -718,6 +725,7 @@
       
       const extra_useridlistClass = getCellClass('extra_useridlist');
       const extra_roleidlistClass = getCellClass('extra_roleidlist');
+      const extra_namenickClass = getCellClass('extra_namenick');
 
       tr.className = classes.join(' ');
 
@@ -725,6 +733,7 @@
         <td class="${(isNew && !isDeleted) ? 'cell-modified' : ''}">${k}</td>
         <td class="${extra_useridlistClass}">${d.extra_useridlist ?? '-'}</td>
         <td class="${extra_roleidlistClass}">${d.extra_roleidlist ?? '-'}</td>
+        <td class="${extra_namenickClass}">${d.extra_namenick || '-'}</td>
         <td class="sticky-actions">
           <div class="action-btns">
             ${isDeleted ? '' : `<button class="action-btn" title="编辑" onclick="openEditExtra('${k}')">${iconEdit}</button>`}
@@ -801,12 +810,13 @@
   }
 
   function openEditExtra(key) {
-    const d = currentExtraData[key] || { extra_useridlist: '', extra_roleidlist: '' };
+    const d = currentExtraData[key] || { extra_useridlist: '', extra_roleidlist: '', extra_namenick: '' };
     const form = document.getElementById('formExtra');
     form.querySelector('[name="oldKey"]').value = key;
     form.querySelector('[name="key"]').value = key;
     form.querySelector('[name="extra_useridlist"]').value = d.extra_useridlist ?? '';
     form.querySelector('[name="extra_roleidlist"]').value = d.extra_roleidlist ?? '';
+    form.querySelector('[name="extra_namenick"]').value = d.extra_namenick ?? '';
     document.getElementById('modalExtraTitle').innerText = key ? '编辑额外用户' : '添加额外用户';
     openModal('modalExtra');
   }
@@ -936,7 +946,8 @@
     const newKey = fd.get('key');
     const data = {
       extra_useridlist: fd.get('extra_useridlist') ? parseInt(fd.get('extra_useridlist')) : null,
-      extra_roleidlist: fd.get('extra_roleidlist') ? parseInt(fd.get('extra_roleidlist')) : null
+      extra_roleidlist: fd.get('extra_roleidlist') ? parseInt(fd.get('extra_roleidlist')) : null,
+      extra_namenick: fd.get('extra_namenick')
     };
     if (oldKey && oldKey !== newKey) delete currentExtraData[oldKey];
     currentExtraData[newKey] = data;
