@@ -20,6 +20,17 @@ from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command
 require("nonebot_plugin_apscheduler")
 driver = nonebot.get_driver()
 
+# 全局钩子：记录所有用户的发言（只要是 Bot 处理的消息）
+_all_messages = on_message(priority=0, block=False)
+
+@_all_messages.handle()
+async def handle_all_messages(event: MessageEvent):
+    from .zmemory import instance as zm
+    user_id = event.get_user_id()
+    msg_text = event.get_plaintext().strip()
+    if msg_text:
+        # 记录用户的原始发言
+        await asyncio.to_thread(zm.log_raw_chat, user_id, msg_text)
 
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
@@ -868,14 +879,12 @@ async def f_chat(bot,event):
         use_mem_current = False
         
     try:
-        # 参数列表更新为: [当前消息, 个人对话史, 个人偏好, 昵称, 全体背景, 战绩历史]
-        snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg, my_temp_msg, perp_msg, nick, global_msg, history_msg], "chat", network, use_mem=use_mem_current)
+        # 参数列表更新为: [当前消息, 个人对话史, 个人偏好, 昵称, 全体背景, 战绩历史, QID]
+        snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg, my_temp_msg, perp_msg, nick, global_msg, history_msg, user_id], "chat", network, use_mem=use_mem_current)
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
 
-    # 使用新的 zmemory 库保存记忆
-    await asyncio.to_thread(zm.save_chat, user_id, rcv_msg, snd_msg)
     add_msg(snd_msg, event=event)
     return

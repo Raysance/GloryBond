@@ -284,6 +284,8 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             whole_query = user_query[0]
         case "urge_game":
             whole_query = urge_game_pmpt[0] + user_query[0] + urge_game_pmpt[1] + user_query[1] + urge_game_pmpt[2] + user_query[2] + urge_game_pmpt[3]
+        case "summary":
+            whole_query = user_query[0]
         case "skill_advantage":
             whole_query = skill_advantage_pmpt[0] + skill_advantage_pmpt[1] + user_query[0] + skill_advantage_pmpt[2] + user_query[1] +  skill_advantage_pmpt[3] + user_query[2] + skill_advantage_pmpt[4] + user_query[3] + skill_advantage_pmpt[5] + user_query[4]
     ai_back=""
@@ -302,12 +304,10 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             ai_status=False
             ai_back=str(e)
 
-    if (use_mem and ai_status):
+    if (msg_type=="chat" and use_mem and ai_status):
         from .zmemory import instance as zm
-        # 将本次对话存入全体记忆
-        zm.add_global_memory(user_query[3], user_query[0], ai_back)
-        # 同时保留在运行时的内存中以防万一
-        dmc.ai_memory.append(f"[{user_query[3]}]: {user_query[0]} -> {ai_back}")
+        # 将本次对话存入个体短期记忆
+        zm.save_chat(user_query[6], user_query[0], ai_back)
     return ai_back
 
 def create_website(contents,sitetype):
