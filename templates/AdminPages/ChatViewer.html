@@ -3,263 +3,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>对话记录浏览 - 管理后台</title>
+    <title>对话与记忆管理 - Admin</title>
     <style>
         :root {
-            --bg-color: #f8fafc;
-            --card-bg: #ffffff;
-            --primary-color: #4f8ef7;
-            --text-color: #1e293b;
-            --secondary-text: #64748b;
-            --border-color: #e2e8f0;
+            --bg-color: #f3f4f6;
+            --surface-color: #ffffff;
+            --border-color: #e5e7eb;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --success: #10b981;
+            --success-hover: #059669;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-modal: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
         }
 
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding: 20px;
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; padding: 24px;
         }
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+        .layout-container { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; }
+        .page-header h1 { font-size: 1.5rem; font-weight: 600; color: #111827; }
+        .panel { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 24px; }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
+        .controls-row { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 16px; margin-bottom: 24px; }
+        @media (max-width: 768px) { .controls-row { grid-template-columns: 1fr; } }
 
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+        .form-control {
+            appearance: none; background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+            color: var(--text-main); font-size: 0.875rem; padding: 10px 16px; width: 100%; outline: none; transition: border-color 0.2s;
         }
-
-        .filters {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        select, input {
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        .chat-item {
-            border-bottom: 1px solid var(--border-color);
-            padding: 16px 0;
-        }
-
-        .chat-item:last-child {
-            border-bottom: none;
-        }
-
-        .chat-meta {
-            font-size: 12px;
-            color: var(--secondary-text);
-            margin-bottom: 8px;
-            display: flex;
-            gap: 12px;
-        }
-
-        .bubble {
-            padding: 10px 14px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            max-width: 85%;
-            word-wrap: break-word;
-        }
-
-        .question {
-            background-color: #ebf4ff;
-            color: #1e40af;
-            border-left: 4px solid #3b82f6;
-        }
-
-        .answer {
-            background-color: #f1f5f9;
-            color: #334155;
-            border-left: 4px solid #94a3b8;
-        }
-
-        .user-tag {
-            background: #e2e8f0;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
+        .form-control:focus { border-color: var(--primary); }
 
         .btn {
-            padding: 8px 16px;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            text-decoration: none;
+            display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; font-size: 0.875rem; font-weight: 500;
+            border-radius: var(--radius-md); border: none; cursor: pointer; text-decoration: none; transition: all 0.2s; outline: none;
         }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-success:hover { background-color: var(--success-hover); }
+        .btn-danger { background-color: #fee2e2; color: var(--danger); }
+        .btn-danger:hover { background-color: #fecaca; }
+        .btn-outline { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+        .btn-outline:hover { background-color: var(--bg-color); }
+        .btn-sm { padding: 6px 12px; font-size: 0.75rem; }
+        
+        .chat-list { display: flex; flex-direction: column; gap: 20px; }
+        .chat-empty { text-align: center; padding: 48px 0; color: var(--text-muted); font-size: 0.875rem; }
+        .chat-block { display: flex; flex-direction: column; gap: 12px; background: var(--surface-color); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-md); }
+        .chat-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--bg-color); padding-bottom: 8px; margin-bottom: 4px; }
 
-        .btn:hover { background: #3b7ddd; }
-
-        .btn-sm {
-            padding: 4px 8px;
-            font-size: 12px;
+        .chat-row { display: flex; flex-direction: column; gap: 8px; }
+        .chat-content-box { 
+            background-color: var(--bg-color); padding: 12px 16px; border-radius: var(--radius-md); 
+            font-size: 0.875rem; word-wrap: break-word; color: var(--text-main);
         }
+        .label { font-weight: 600; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block; }
 
-        .btn-danger { background: #ef4444; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-success { background: #10b981; }
+        .chat-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color); justify-content: flex-end; }
 
-        .action-bar {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px dashed var(--border-color);
-            display: flex;
-            gap: 10px;
-        }
-
-        .add-memory-zone {
-            display: none;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f0fdf4;
-            border-radius: 8px;
-            border: 1px solid #bbf7d0;
-        }
+        .modal-backdrop { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 40; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--surface-color); width: 100%; max-width: 500px; border-radius: var(--radius-lg); box-shadow: var(--shadow-modal); z-index: 50; overflow: hidden; }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .modal-header h3 { font-size: 1.125rem; font-weight: 600; color: var(--text-main); }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; background-color: #f9fafb; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+        textarea.form-control { resize: vertical; min-height: 120px; line-height: 1.5; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>💬 对话与记忆管理</h1>
-            <a href="/admin/dashboard?AdminKey={{ AdminKey }}" class="btn">返回看板</a>
-        </div>
+    <div class="layout-container">
+        <header class="page-header">
+            <h1>对话与记忆管理</h1>
+            <a href="/admin/dashboard" class="btn btn-outline">返回看板</a>
+        </header>
 
-        <div class="card">
-            <div class="filters">
-                <select id="userSelect">
+        <main class="panel">
+            <div class="controls-row">
+                <select id="userSelect" class="form-control" onchange="toggleAddZone()">
                     <option value="global">全体对话 (Global)</option>
                     {% for realname, user_qid in qid_map.items() %}
                     <option value="{{ user_qid }}">{{ realname }} ({{ user_qid }})</option>
                     {% endfor %}
                 </select>
-                <select id="modeSelect" onchange="toggleAddZone()">
-                    <option value="chat">短期对话 (Chat)</option>
-                    <option value="raw">原始发言 (Raw Logs)</option>
-                    <option value="memory">长效记忆 (Memory)</option>
+                
+                <select id="modeSelect" class="form-control" onchange="toggleAddZone()">
+                    <option value="active">主动聊天 (Active)</option>
+                    <option value="passive">被动聊天 (Passive)</option>
+                    <option value="forced">强制记忆 (Forced)</option>
+                    <option value="summary">提炼总结 (Summary)</option>
                 </select>
-                <button class="btn" onclick="fetchChat();">加载记录</button>
+
+                <button class="btn btn-primary" onclick="fetchChat()">加载记录</button>
+                <button id="triggerAddBtn" class="btn btn-success" onclick="showAddModal()" style="display: none;">新增记录</button>
             </div>
 
-            <div id="addMemoryZone" class="add-memory-zone">
-                <h3 style="margin-top:0">➕ 添加新记忆</h3>
-                <div style="display:flex; gap:10px">
-                    <input type="text" id="newMemContent" placeholder="输入记忆内容..." style="flex:1">
-                    <button class="btn btn-success" onclick="doMemoryOp('add')">确定添加</button>
-                </div>
+            <div id="chatContent" class="chat-list">
+                <div class="chat-empty">请选择用户并点击加载记录</div>
             </div>
+        </main>
+    </div>
 
-            <div id="chatContent">
-                <p style="color: var(--secondary-text);">请选择用户并点击加载记录...</p>
-            </div>
+    <!-- Modal Form -->
+    <div id="modalBackdrop" class="modal-backdrop" onclick="cancelUpdate()"></div>
+    <div id="editorModal" class="modal">
+        <div class="modal-header">
+            <h3 id="modalTitle">添加记录</h3>
+        </div>
+        <div class="modal-body">
+            <textarea id="newMemContent" class="form-control" placeholder="输入记录内容..."></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="cancelUpdate()">取消</button>
+            <button id="addBtn" class="btn btn-success" onclick="doMemoryOp('add')">确定添加</button>
+            <button id="updateBtn" class="btn btn-primary" onclick="finishUpdate()" style="display: none;">保存修改</button>
         </div>
     </div>
 
     <script>
+        let currentUpdateInfo = null;
+
         function toggleAddZone() {
-            const mode = document.getElementById('modeSelect').value;
             const userId = document.getElementById('userSelect').value;
-            const zone = document.getElementById('addMemoryZone');
-            zone.style.display = (mode === 'memory' && userId !== 'global') ? 'block' : 'none';
+            const triggerBtn = document.getElementById('triggerAddBtn');
+            triggerBtn.style.display = (userId !== 'global') ? 'inline-flex' : 'none';
+        }
+
+        function showAddModal() {
+            document.getElementById('modalTitle').innerText = '添加记录';
+            document.getElementById('newMemContent').value = '';
+            document.getElementById('addBtn').style.display = 'inline-flex';
+            document.getElementById('updateBtn').style.display = 'none';
+            document.getElementById('editorModal').style.display = 'block';
+            document.getElementById('modalBackdrop').style.display = 'block';
+            document.getElementById('newMemContent').focus();
         }
 
         async function fetchChat() {
             const userId = document.getElementById('userSelect').value;
             const mode = document.getElementById('modeSelect').value;
             toggleAddZone();
+            cancelUpdate();
+            
             const container = document.getElementById('chatContent');
-            container.innerHTML = '<p>正在加载...</p>';
+            container.innerHTML = '<div class="chat-empty">正在加载中...</div>';
 
             try {
-                const response = await fetch(`/admin/funcs/chat-viewer/fetch?AdminKey={{ AdminKey }}&target_qid=${userId}&mode=${mode}`);
+                const response = await fetch(`/admin/funcs/chat-viewer/fetch?target_qid=${userId}&mode=${mode}`);
                 const data = await response.json();
 
                 if (data.status === 'success') {
                     if (data.records.length === 0) {
-                        container.innerHTML = `<p>${data.message || '暂无记录。'}</p>`;
+                        container.innerHTML = `<div class="chat-empty">${data.message || '暂无记录'}</div>`;
                         return;
                     }
 
-                    container.innerHTML = data.records.map(r => `
-                        <div class="chat-item">
-                            <div class="chat-meta">
-                                <span>🕒 ${r.time}</span>
-                                ${r.nick ? `<span class="user-tag" title="用户ID">👤 ${r.nick}</span>` : ''}
-                            </div>
-                            <div class="bubble ${mode === 'memory' ? 'answer' : 'question'}">
-                                <strong>${mode === 'memory' ? '🗂️ 记忆内容' : (mode === 'raw' ? '📝 原始发言' : '问')}:</strong> 
-                                <span id="content-${r.qid}-${r.idx}">${mode === 'memory' ? r.A : r.Q}</span>
-                            </div>
-                            ${mode === 'chat' ? `<div class="bubble answer"><strong>答:</strong> ${r.A}</div>` : ''}
-                            
-                            ${mode === 'memory' ? `
-                                <div class="action-bar">
-                                    <button class="btn btn-sm" onclick="startEdit('${r.qid}', ${r.idx})">修改</button>
-                                    <button class="btn btn-sm btn-danger" onclick="doMemoryOp('delete', '${r.qid}', null, ${r.idx})">删除</button>
+                    container.innerHTML = data.records.map(r => {
+                        let blocks = '';
+                        if (mode === 'active') {
+                            blocks = `
+                                <div class="chat-meta">
+                                    <span class="user">${r.nick || '用户'}</span>
+                                    <span class="time">${r.time}</span>
                                 </div>
-                            ` : ''}
-                        </div>
-                    `).join('');
+                                <div class="chat-row">
+                                    <div class="chat-content-box"><span class="label">Ask:</span> ${r.Q}</div>
+                                    <div class="chat-content-box" style="background-color: #eff6ff;"><span class="label">Answer:</span> <span id="content-${r.idx}">${r.A}</span></div>
+                                </div>
+                            `;
+                        } else if (mode === 'passive') {
+                            blocks = `
+                                <div class="chat-meta">
+                                    <span class="user">${r.nick || '群聊日志'}</span>
+                                    <span class="time">${r.time}</span>
+                                </div>
+                                <div class="chat-row">
+                                    <div class="chat-content-box"><span class="label">Content:</span> <span id="content-${r.idx}">${r.Q}</span></div>
+                                </div>
+                            `;
+                        } else {
+                            blocks = `
+                                <div class="chat-meta">
+                                    <span class="time">${r.time}</span>
+                                </div>
+                                <div class="chat-row">
+                                    <div class="chat-content-box"><span class="label">Memory Data:</span> <span id="content-${r.idx}">${r.A}</span></div>
+                                </div>
+                            `;
+                        }
+
+                        const actions = userId !== 'global' ? `
+                            <div class="chat-actions">
+                                <button class="btn btn-sm btn-outline" onclick="startEdit(${r.idx}, '${mode}')">编辑</button>
+                                <button class="btn btn-sm btn-danger" onclick="doMemoryOp('delete', null, null, ${r.idx})">删除</button>
+                            </div>
+                        ` : '';
+
+                        return `<div class="chat-block">${blocks}${actions}</div>`;
+                    }).join('');
                 } else {
-                    container.innerHTML = `<p style="color: red;">错误: ${data.message}</p>`;
+                    container.innerHTML = `<div class="chat-empty" style="color: var(--danger)">加载失败: ${data.message}</div>`;
                 }
             } catch (e) {
-                container.innerHTML = '<p style="color: red;">网络请求失败</p>';
+                container.innerHTML = '<div class="chat-empty" style="color: var(--danger)">网络请求异常</div>';
             }
         }
 
         async function doMemoryOp(op, qid = null, content = null, idx = null) {
+            const mode = document.getElementById('modeSelect').value;
             if (!qid) qid = document.getElementById('userSelect').value;
-            if (!content && op === 'add') content = document.getElementById('newMemContent').value;
+            if (!content && ['add', 'update'].includes(op)) content = document.getElementById('newMemContent').value.trim();
             
-            if ((op === 'add') && !content) return;
-            if (op === 'delete' && !confirm("确定删除这条记忆吗？")) return;
+            if (op === 'add' && !content) return;
+            if (op === 'delete' && !confirm("确定要删除这条记录吗？")) return;
 
             try {
-                const response = await fetch(`/admin/funcs/chat-viewer/memory-op?AdminKey={{ AdminKey }}&op=${op}&qid=${qid}&content=${encodeURIComponent(content || '')}&idx=${idx || 0}`, {
-                    method: 'POST'
+                const response = await fetch(`/admin/funcs/chat-viewer/memory-op`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ op: op, qid: qid, mode: mode, content: content || '', idx: idx !== null ? parseInt(idx) : 0 })
                 });
                 const data = await response.json();
+                
                 if (data.status === 'success') {
-                    if (op === 'add') document.getElementById('newMemContent').value = '';
+                    if (['add', 'update'].includes(op)) { cancelUpdate(); }
                     fetchChat();
                 } else {
                     alert("操作失败: " + data.message);
                 }
             } catch (e) {
-                alert("网络错误");
+                alert("请求异常，请稍后重试");
             }
         }
 
-        function startEdit(qid, idx) {
-            const oldContent = document.getElementById(`content-${qid}-${idx}`).innerText;
-            const newContent = prompt("修改记忆内容:", oldContent);
-            if (newContent && newContent !== oldContent) {
-                doMemoryOp('update', qid, newContent, idx);
-            }
+        function startEdit(idx, mode) {
+            const el = document.getElementById(`content-${idx}`);
+            if (!el) { return; }
+            
+            const content = el.innerText;
+            document.getElementById('newMemContent').value = content;
+            document.getElementById('modalTitle').innerText = '修改记录';
+            document.getElementById('addBtn').style.display = 'none';
+            document.getElementById('updateBtn').style.display = 'inline-flex';
+            document.getElementById('editorModal').style.display = 'block';
+            document.getElementById('modalBackdrop').style.display = 'block';
+            
+            currentUpdateInfo = { idx };
+            document.getElementById('newMemContent').focus();
+        }
+
+        function finishUpdate() {
+            if (!currentUpdateInfo) return;
+            const content = document.getElementById('newMemContent').value;
+            doMemoryOp('update', null, content, currentUpdateInfo.idx);
+        }
+
+        function cancelUpdate() {
+            document.getElementById('newMemContent').value = '';
+            document.getElementById('editorModal').style.display = 'none';
+            document.getElementById('modalBackdrop').style.display = 'none';
+            currentUpdateInfo = null;
         }
         
-        window.onload = toggleAddZone;
+        document.addEventListener('DOMContentLoaded', toggleAddZone);
     </script>
 </body>
 </html>

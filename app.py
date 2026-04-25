@@ -434,17 +434,17 @@ async def admin_chat_viewer_page(request: Request, AdminKey: str = Cookie(None))
     )
 
 @app.get("/admin/funcs/chat-viewer/fetch")
-async def fetch_chat_records(target_qid: str, mode: str = "chat", AdminKey: str = Cookie(None)):
+async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
         return {"status": "error", "message": "认证失败"}
     
     prefix = "zmem:"
     try:
-        if mode == "memory":
-            # 获取长效记忆 (notes)
+        if mode == "forced":
+            # 获取长效记忆 (forced_mem)
             if target_qid == "global":
                 # 全局模式下扫描所有人的记忆
-                all_keys = r_chat.keys(f"{prefix}notes:*")
+                all_keys = r_chat.keys(f"{prefix}forced_mem:*")
                 records = []
                 for k in all_keys:
                     key_str = k.decode('utf-8')
@@ -455,94 +455,158 @@ async def fetch_chat_records(target_qid: str, mode: str = "chat", AdminKey: str 
                         records.append({
                             "time": item.get("time", ""),
                             "nick": qid_part,
-                            "Q": "个人记忆录入",
+                            "Q": "强制记忆录入",
                             "A": item.get("mem", ""),
                             "qid": qid_part,
-                            "idx": idx # 记录在list中的索引用于删除
+                            "idx": idx
                         })
                 records.sort(key=lambda x: x['time'], reverse=True)
-                records = records[:100]
             else:
-                key = f"{prefix}notes:{target_qid}"
+                key = f"{prefix}forced_mem:{target_qid}"
                 raw_records = r_chat.lrange(key, 0, -1)
                 records = []
                 for idx, r in enumerate(raw_records):
                     item = json.loads(r.decode('utf-8'))
                     records.append({
                         "time": item.get("time", ""),
-                        "Q": "系统录入记忆",
+                        "Q": "主动强制内容",
                         "A": item.get("mem", ""),
                         "qid": target_qid,
                         "idx": idx
                     })
                 records.reverse()
-        elif mode == "raw":
-            # 获取原始发言记录 (raw_logs)
+        elif mode == "passive":
+            # 获取被动聊天记录 (passive_chat)
             if target_qid == "global":
-                return {"status": "error", "message": "原始记录暂不支持全局查看"}
-            
-            key = f"{prefix}raw_logs:{target_qid}"
-            raw_records = r_chat.lrange(key, 0, -1)
-            records = []
-            for r in raw_records:
-                item = json.loads(r.decode('utf-8'))
-                records.append({
-                    "time": item.get("time", ""),
-                    "Q": item.get("text", ""),
-                    "A": "(原始记录，等待提炼)",
-                    "qid": target_qid
-                })
-            records.reverse()
-        else:
-            # 获取普通对话记录 (chats)
-            if target_qid == "global":
-                key = f"{prefix}global_chat"
+                all_keys = r_chat.keys(f"{prefix}passive_chat:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    last_record = r_chat.lrange(k, -1, -1)
+                    if last_record:
+                        item = json.loads(last_record[0].decode('utf-8'))
+                        records.append({
+                            "time": item.get("time", ""),
+                            "nick": qid_part,
+                            "Q": item.get("text", ""),
+                            "A": "(被动记录片段)",
+                            "qid": qid_part
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
             else:
-                key = f"{prefix}chats:{target_qid}"
-            
-            raw_records = r_chat.lrange(key, -50, -1)
-            records = [json.loads(r.decode('utf-8')) for r in raw_records]
-            # 对话记录暂不支持增删改，仅做展示
+                key = f"{prefix}passive_chat:{target_qid}"
+                raw_records = r_chat.lrange(key, -100, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    item = json.loads(r.decode('utf-8'))
+                    records.append({
+                        "time": item.get("time", ""),
+                        "Q": item.get("text", ""),
+                        "A": "(记录于群聊)",
+                        "qid": target_qid,
+                        "idx": idx
+                    })
+                records.reverse()
+        elif mode == "summary":
+            # 获取历史总结记忆 (summary_mem)
+            if target_qid == "global":
+                all_keys = r_chat.keys(f"{prefix}summary_mem:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    raw_records = r_chat.lrange(k, 0, -1)
+                    for idx, r in enumerate(raw_records):
+                        item = json.loads(r.decode('utf-8'))
+                        records.append({
+                            "time": item.get("time", ""),
+                            "nick": qid_part,
+                            "Q": f"用户总结 ({qid_part})",
+                            "A": item.get("summary", ""),
+                            "qid": qid_part,
+                            "idx": idx
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
+            else:
+                key = f"{prefix}summary_mem:{target_qid}"
+                raw_records = r_chat.lrange(key, 0, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    item = json.loads(r.decode('utf-8'))
+                    records.append({
+                        "time": item.get("time", ""),
+                        "Q": "今日状态提炼",
+                        "A": item.get("summary", ""),
+                        "qid": target_qid,
+                        "idx": idx
+                    })
+                records.reverse()
+        else: # active_chat
+            if target_qid == "global":
+                all_keys = r_chat.keys(f"{prefix}active_chat:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    raw_records = r_chat.lrange(k, -5, -1)
+                    for idx, r in enumerate(raw_records):
+                        item = json.loads(r.decode('utf-8'))
+                        records.append({
+                            **item,
+                            "nick": qid_part,
+                            "qid": qid_part,
+                            "idx": idx
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
+            else:
+                key = f"{prefix}active_chat:{target_qid}"
+                raw_records = r_chat.lrange(key, -50, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    records.append({**json.loads(r.decode('utf-8')), "idx": idx, "qid": target_qid})
+                records.reverse()
         
         return {"status": "success", "records": records}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.post("/admin/funcs/chat-viewer/memory-op")
-async def memory_operation(op: str, qid: str, content: str = None, idx: int = None, AdminKey: str = Cookie(None)):
-    """
-    op: add, delete, update
-    """
+async def memory_operation(op: str = Body(...), qid: str = Body(...), mode: str = Body("forced"), content: str = Body(None), idx: int = Body(None), AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
         return {"status": "error", "message": "认证失败"}
     
-    key = f"zmem:notes:{qid}"
+    mapping = {"forced": "forced_mem", "active": "active_chat", "passive": "passive_chat", "summary": "summary_mem"}
+    if mode not in mapping: return {"status": "error", "message": "未知模式"}
+    
+    key = f"zmem:{mapping[mode]}:{qid}"
     try:
         if op == "add":
-            item = {
-                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "mem": content
-            }
+            item = {"time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            if mode == "active": item.update({"Q": content, "A": "(手动录入)"})
+            elif mode == "passive": item["text"] = content
+            elif mode == "forced": item["mem"] = content
+            elif mode == "summary": item["summary"] = content
             r_chat.rpush(key, json.dumps(item, ensure_ascii=False))
-            r_chat.ltrim(key, -50, -1)
+            r_chat.ltrim(key, -100, -1)
         
         elif op == "delete":
-            # Redis没有直接按索引删除的操作，需要先把值取出来再LREM，或者用LSET标记删除再LREM
-            # 为了安全，先取索引对应的值
             target_val = r_chat.lindex(key, idx)
-            if target_val:
-                r_chat.lrem(key, 1, target_val)
+            if target_val: r_chat.lrem(key, 1, target_val)
         
         elif op == "update":
-            # 先取原记录
             old_val_raw = r_chat.lindex(key, idx)
             if old_val_raw:
-                old_item = json.loads(old_val_raw.decode('utf-8'))
-                old_item["mem"] = content
-                # 更新时间（可选是否打上修改标记）
-                old_item["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (已修改)"
-                r_chat.lset(key, idx, json.dumps(old_item, ensure_ascii=False))
-        
+                item = json.loads(old_val_raw.decode('utf-8'))
+                if mode == "active": item["Q"] = content
+                elif mode == "passive": item["text"] = content
+                elif mode == "forced": item["mem"] = content
+                elif mode == "summary": item["summary"] = content
+                
+                # 更新时间并打上修改标记
+                item["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (已修改)"
+                r_chat.lset(key, idx, json.dumps(item, ensure_ascii=False))
+
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
