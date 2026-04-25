@@ -245,6 +245,8 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
     match msg_type:
         case "rnk":
             whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
+        case "best_battle":
+            whole_query += "你是一个幽默的王者荣耀解说，请用夸张、幽默且具有生活气息的语言，对以下这局今日最有代表性的对局进行一句话点评（70字以内，不用双引号，不用Markdown）：" + user_query[0]
         case "single_parser":
             whole_query += name_pmpt[0] + str(nameref) + name_pmpt[1]+ user_query[0] + name_pmpt[2]
             ai_temperature=2
@@ -2362,6 +2364,258 @@ def export_btldetail(gameinfo,roleid):
         res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
         writerl(savepath,res)
     return
+
+def notify_msg_impl():
+    from .zutil import log_message
+    from .zstatic import confs
+    import datetime
+    import traceback
+
+    log_message("NOTIFY"+str(datetime.date.today()))
+    snd_msg="今日王者战报(每日23:30推送)：\n"
+    try:
+        from .zfunc import rnk_process
+        snd_msg += rnk_process(rcv_msg="", caller=None, show_zero=False, show_analyze=True)[0]
+    except Exception:
+        return [traceback.format_exc()] # 返回错误信息列表
+    
+    messages = [snd_msg]
+
+    # 获取最有代表性的对局（含数据）
+    try:
+        rep_btl_res = get_daily_representative_battle()
+        if rep_btl_res:
+            # 返回包含了文本和图片路径的元组/列表，不再使用 MessageSegment
+            messages.append(rep_btl_res)
+    except Exception as e:
+        log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
+
+    return messages
+
+def get_daily_representative_battle(target_date=None):
+    '''
+    选出当天对局中最有代表性的一局。评估维度：
+    1. 翻盘指数：落后极多评分/大幅逆风但取胜
+    2. 统治力：评分极高且参团率、贡献度极高
+    3. 惨案指数：评分极低或被碾压
+    4. 尽力局：败方MVP且评分极高
+    5. 关键先生：拿到关键成就（如超神、五连绝世等）
+    '''
+    from .ztime import time_sul
+    from .zfile import readerl
+    from .zfunc import fetch_battle
+    import math
+    import os
+
+    if target_date is None:
+        target_date = time_sul().strftime("%Y-%m-%d")
+    
+    filename = os.path.join("history", target_date + ".json")
+    
+    try:
+        gameinfo = readerl(filename)
+    except Exception:
+        return None
+
+    if not gameinfo:
+        return None
+
+    all_battles = []
+    for player_data in gameinfo:
+        realname = player_data.get("key")
+        nick = player_data.get("nickname", realname)
+        details = player_data.get("details", [])
+        roleid = player_data.get("roleid")
+        for btl in details:
+            gameseq = btl.get("GameSeq")
+            # 基础权重评分
+            score = 0
+            tags = []
+            detail_reason = ""
+            
+            grade = btl.get("GameGrade", 0)
+            result = btl.get("Result")
+            others = btl.get("Others", "")
+            duration = btl.get("Duration_Second", 0)
+            
+            # 1. 评分基础
+            # 1. 评分基础 (加倍权重)
+            score += grade * 10
+            
+            # 2. 深度数据评估 (多维度指标)
+            try:
+                battle_detail = fetch_battle(gameseq, roleid)
+                if battle_detail and 'head' in battle_detail:
+                    my_camp = battle_detail['head'].get('acntCamp')
+                    red_roles = battle_detail.get('redRoles', [])
+                    blue_roles = battle_detail.get('blueRoles', [])
+                    
+                    red_total_grade = sum(float(r['battleStats']['gradeGame']) for r in red_roles)
+                    blue_total_grade = sum(float(b['battleStats']['gradeGame']) for b in blue_roles)
+                    
+                    my_team_grade = red_total_grade if my_camp == 2 else blue_total_grade
+                    enemy_team_grade = blue_total_grade if my_camp == 2 else red_total_grade
+                    
+                    # 逆风翻盘/被翻盘
+                    grade_diff = enemy_team_grade - my_team_grade
+                    if result == "胜利" and grade_diff > 5:
+                        bonus = int(grade_diff * 10)
+                        score += bonus
+                        tags.append(f"【逆风翻盘+{bonus}】")
+                        detail_reason = f"团队总分落后 {round(grade_diff, 1)} 分实现大逆转！"
+                    elif result == "失败" and grade_diff < -5:
+                        score += 50
+                        tags.append("【痛失好局】")
+                        detail_reason = f"团队总分领先 {round(-grade_diff, 1)} 分竟然翻车了..."
+
+                    # 个人深度贡献
+                    my_stats = next((r['battleStats'] for r in (red_roles if my_camp == 2 else blue_roles) if str(r.get('roleId')) == str(roleid)), None)
+                    if my_stats:
+                        # 计算全队总额
+                        my_team_roles = red_roles if my_camp == 2 else blue_roles
+                        team_total_damage = sum(float(r['battleStats'].get('heroDamage', 0)) for r in my_team_roles)
+                        team_total_taken = sum(float(r['battleStats'].get('damageTaken', 0)) for r in my_team_roles)
+                        team_total_gold = sum(float(r['battleStats'].get('gold', 0)) for r in my_team_roles)
+
+                        h_dmg = float(my_stats.get('heroDamage', 0))
+                        t_dmg = float(my_stats.get('damageTaken', 0))
+                        gold = float(my_stats.get('gold', 0))
+
+                        # 占比计算
+                        dmg_percent = (h_dmg / team_total_damage * 100) if team_total_damage > 0 else 0
+                        take_percent = (t_dmg / team_total_taken * 100) if team_total_taken > 0 else 0
+                        gold_percent = (gold / team_total_gold * 100) if team_total_gold > 0 else 0
+
+                        if dmg_percent > 35: 
+                            score += 50; tags.append(f"【输出重锤{round(dmg_percent)}% (伤/队>35%)】")
+                        elif dmg_percent > 30: 
+                            score += 30; tags.append(f"【主力输出{round(dmg_percent)}% (伤/队>30%)】")
+
+                        if take_percent > 35: 
+                            score += 40; tags.append(f"【团队屏障{round(take_percent)}% (承/队>35%)】")
+                        
+                        # 经济转输出效率 (性价比)
+                        if gold_percent > 0:
+                            efficiency = dmg_percent / gold_percent
+                            if efficiency > 1.5 and dmg_percent > 20:
+                                score += 30; tags.append(f"【吃草挤奶 (效率{round(efficiency,2)}>1.5)】")
+                            elif efficiency < 0.6 and gold_percent > 22:
+                                score += 20; tags.append(f"【经济黑洞 (效率{round(efficiency,2)}<0.6)】")
+                            
+                            # 逆风翻盘/被翻盘 (修正标签)
+                            if result == "胜利" and grade_diff > 5:
+                                # 这里的 grade_diff 已经在上面加过 score 了，这里只增加详细标签描述
+                                for i, t in enumerate(tags):
+                                    if "逆风翻盘" in t:
+                                        tags[i] = f"【逆风翻盘 (队分差{round(grade_diff,1)}>5)】"
+                            elif result == "失败" and grade_diff < -5:
+                                for i, t in enumerate(tags):
+                                    if "痛失好局" in t:
+                                        tags[i] = f"【痛失好局 (队分差{round(grade_diff,1)}<-5)】"
+
+            except Exception as e:
+                pass
+            # 3. 结果与表现准则
+            is_mvp = "MVP" in others
+            if result == "胜利":
+                if grade >= 14: score += 60; tags.append(f"【通天代 (评分{grade}>=14)】")
+                elif grade >= 12: score += 20
+                if is_mvp: score += 40; tags.append("【带头大哥 (胜方MVP)】")
+            else:
+                if grade >= 13: score += 80; tags.append(f"【非战之罪 (评分{grade}>=13)】"); detail_reason = "虽败犹荣，评分高到离谱"
+                elif grade >= 11: score += 40; tags.append(f"【孤勇者 (评分{grade}>=11)】")
+                if is_mvp: score += 30; tags.append("【虽败MVP】")
+                if grade <= 4.5: score += 40; tags.append(f"【战犯级表现 (评分{grade}<=4.5)】")
+
+            # 4. 特殊成就 (高权重)
+            achievement_weights = {
+                "五连绝世": 150, "四连超凡": 80, "三连决胜": 30,
+                "超神": 40, "输出最高": 25, "承受最高": 20, "助攻最多": 20
+            }
+            for ach, weight in achievement_weights.items():
+                if ach in others:
+                    score += weight
+                    tags.append(f"【{ach}】")
+            
+            # 5. 时间维度
+            if duration > 1800: score += 50; tags.append(f"【史诗长局 ({round(duration/60,1)}min>30)】")
+            elif duration > 1440: score += 25; tags.append(f"【拉锯战 ({round(duration/60,1)}min>24)】")
+            elif duration < 600: score += 30; tags.append(f"【闪电战 ({round(duration/60,1)}min<10)】")
+
+            btl_info = {
+                "realname": realname,
+                "nickname": nick,
+                "roleid": roleid,
+                "HeroName": btl.get("HeroName"),
+                "Result": result,
+                "Grade": grade,
+                "Kill": btl.get("KillCnt", 0),
+                "Dead": btl.get("DeadCnt", 0),
+                "Assist": btl.get("AssistCnt", 0),
+                "MapName": btl.get("MapName"),
+                "GameSeq": gameseq,
+                "Duration": duration,
+                "Others": others,
+                "DetailReason": detail_reason,
+                "Tags": "".join(tags[:2]), 
+                "RepScore": score,
+                "RawTags": tags # 保留原始标签用于调试
+            }
+            all_battles.append(btl_info)
+
+    if not all_battles:
+        return None
+
+    # 按代表性分数降序排列
+    all_battles.sort(key=lambda x: x["RepScore"], reverse=True)
+    best_btl = all_battles[0]
+
+    # 构建基础描述
+    reason = f"{best_btl['Tags']}{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
+    if best_btl['DetailReason']:
+        reason += f" ({best_btl['DetailReason']})"
+    
+    match_info = f"今日最具代表性对局：\n{reason}\n"
+    match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
+    
+    # 获取图文详情
+    btl_img = None
+    try:
+        from .zfunc import btldetail_process
+        from .zstatic import roleidlist
+        # 尝试查找对应的 rcv_msg 参数（btldetail_process 的参数较多）
+        # 这里的 fetch_battle 拿到的 detailUrl 参数此时已经解析在 Params 中了
+        # btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, gen_image=True)
+        # 获取 battles 文件夹下的原始数据以拿到更多参数
+        file_path = os.path.join("history", "battles", f"{best_btl['GameSeq']}.json")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            raw_data = json.load(f)
+            head = raw_data.get('head', {})
+            # 调用生成图片的逻辑
+            _, btl_img, _ = btldetail_process(
+                gameSvrId=head.get('gameSvrId', 0),
+                relaySvrId=head.get('relaySvrId', 0),
+                gameseq=best_btl['GameSeq'],
+                pvptype=head.get('pvpType', 0),
+                roleid=best_btl['roleid'],
+                gen_image=True
+            )
+    except Exception as e:
+        import traceback
+        log_message(f"GET_REP_BATTLE_DETAIL_ERROR: {traceback.format_exc()}")
+
+    # 尝试使用AI润色
+    try:
+        from .zfunc import ai_parser
+        enriched = ai_parser([match_info], "best_battle")
+        if enriched and "Error" not in enriched:
+            return enriched, btl_img, best_btl # 返回 best_btl 以供调试
+    except:
+        pass
+    return match_info, btl_img, best_btl # 返回 best_btl 以供调试
+
+    return None
+
 def extract_heroname(origin_text,precise=False):
     if txt_contain("轮椅",origin_text,precise,True):
         heroid=-1

@@ -145,17 +145,35 @@ def daily_user_summary():
 
 @scheduler.scheduled_job("cron", hour=23, minute=30,second=00, id="notify_msg")
 async def notify_msg():
-    from .zfunc import rnk_process
+    from .zfunc import notify_msg_impl
+    from .utils.message_sender import add_msg
+    from .zutil import log_message
+    from .zstatic import confs
 
-    log_message("NOTIFY"+str(datetime.date.today()))
-    snd_msg="今日王者战报(每日23:30推送)：\n"
-    try:
-        snd_msg+=rnk_process(rcv_msg="",caller=None,show_zero=False,show_analyze=True)[0]
-    except Exception:
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    messages = notify_msg_impl()
+    if not messages:
         return
-    log_message("SEND: "+snd_msg)
-    add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+
+    # 处理返回的结果
+    for i, msg in enumerate(messages):
+        # 如果第一条包含错误堆栈（通常很长），发给管理员
+        if i == 0 and "Traceback" in str(msg):
+            add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+            continue
+
+        # 处理元组类型（文本, 图片路径），转换为 MessageSegment
+        final_msg = msg
+        if isinstance(msg, (list, tuple)) and len(msg) == 2:
+            text_part, img_path = msg
+            if img_path:
+                from nonebot.adapters.onebot.v11 import MessageSegment
+                import os
+                final_msg = text_part + MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
+            else:
+                final_msg = text_part
+            
+        log_message(f"SEND_NOTIFY_{i}: {str(final_msg)[:100]}...")
+        add_msg(final_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
 
 
 @scheduler.scheduled_job("cron", hour=6, minute=00,second=00, id="fetch_news")
