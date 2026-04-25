@@ -2382,13 +2382,13 @@ def notify_msg_impl():
     messages = [snd_msg]
 
     # 获取最有代表性的对局（含数据）
-    try:
-        rep_btl_res = get_daily_representative_battle()
-        if rep_btl_res:
-            # 返回包含了文本和图片路径的元组/列表，不再使用 MessageSegment
-            messages.append(rep_btl_res)
-    except Exception as e:
-        log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
+    # try:
+    #     rep_btl_res = get_daily_representative_battle()
+    #     if rep_btl_res:
+    #         # 返回包含了文本和图片路径的元组/列表，不再使用 MessageSegment
+    #         messages.append(rep_btl_res)
+    # except Exception as e:
+    #     log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
 
     return messages
 
@@ -2421,12 +2421,17 @@ def get_daily_representative_battle(target_date=None):
         return None
 
     all_battles = []
+    from .zfunc import check_btl_official_with_matching 
+    
     for player_data in gameinfo:
         realname = player_data.get("key")
         nick = player_data.get("nickname", realname)
         details = player_data.get("details", [])
         roleid = player_data.get("roleid")
         for btl in details:
+            if not check_btl_official_with_matching(btl.get("MapName", "")):
+                continue
+
             gameseq = btl.get("GameSeq")
             # 基础权重评分
             score = 0
@@ -2469,13 +2474,24 @@ def get_daily_representative_battle(target_date=None):
                         detail_reason = f"团队总分领先 {round(-grade_diff, 1)} 分竟然翻车了..."
 
                     # 个人深度贡献
-                    my_stats = next((r['battleStats'] for r in (red_roles if my_camp == 2 else blue_roles) if str(r.get('roleId')) == str(roleid)), None)
+                    my_stats = next((r['battleStats'] for r in (red_roles if my_camp == RedCamp else blue_roles) if str(r.get('roleId')) == str(roleid)), None)
                     if my_stats:
                         # 计算全队总额
-                        my_team_roles = red_roles if my_camp == 2 else blue_roles
-                        team_total_damage = sum(float(r['battleStats'].get('heroDamage', 0)) for r in my_team_roles)
-                        team_total_taken = sum(float(r['battleStats'].get('damageTaken', 0)) for r in my_team_roles)
-                        team_total_gold = sum(float(r['battleStats'].get('gold', 0)) for r in my_team_roles)
+                        my_team_roles = red_roles if my_camp == RedCamp else blue_roles
+                        
+                        def get_team_total_with_fill(roles, field, expected_count=5):
+                            val_list = [float(r['battleStats'].get(field, 0)) for r in roles]
+                            actual_count = len(val_list)
+                            current_sum = sum(val_list)
+                            if actual_count > 0 and actual_count < expected_count:
+                                # 用当前平均值填充缺失的人数
+                                avg = current_sum / actual_count
+                                current_sum += avg * (expected_count - actual_count)
+                            return current_sum
+
+                        team_total_damage = get_team_total_with_fill(my_team_roles, 'heroDamage')
+                        team_total_taken = get_team_total_with_fill(my_team_roles, 'damageTaken')
+                        team_total_gold = get_team_total_with_fill(my_team_roles, 'gold')
 
                         h_dmg = float(my_stats.get('heroDamage', 0))
                         t_dmg = float(my_stats.get('damageTaken', 0))
@@ -2494,13 +2510,18 @@ def get_daily_representative_battle(target_date=None):
                         if take_percent > 35: 
                             score += 40; tags.append(f"【团队屏障{round(take_percent)}% (承/队>35%)】")
                         
-                        # 经济转输出效率 (性价比)
+                        # 经济转贡献效率 (性价比：取伤害和承伤占比中较高的一个)
                         if gold_percent > 0:
-                            efficiency = dmg_percent / gold_percent
-                            if efficiency > 1.5 and dmg_percent > 20:
-                                score += 30; tags.append(f"【吃草挤奶 (效率{round(efficiency,2)}>1.5)】")
-                            elif efficiency < 0.6 and gold_percent > 22:
-                                score += 20; tags.append(f"【经济黑洞 (效率{round(efficiency,2)}<0.6)】")
+                            # 贡献占比取高者：MAX(伤害占比, 承伤占比)
+                            contribution_percent = max(dmg_percent, take_percent)
+                            # 效率 = 贡献占比 / 经济占比
+                            efficiency = contribution_percent / gold_percent
+                            
+                            # 门槛调整：维持 1.7/0.7 门槛，权重从 30/20 增大到 60/40
+                            if efficiency > 1.7 and contribution_percent > 20:
+                                score += 60; tags.append(f"【吃草挤奶 (最高项效率{round(efficiency,2)}>1.7)】")
+                            elif efficiency < 0.7 and gold_percent > 20:
+                                score += 40; tags.append(f"【经济黑洞 (最高项效率{round(efficiency,2)}<0.7)】")
                             
                             # 逆风翻盘/被翻盘 (修正标签)
                             if result == "胜利" and grade_diff > 5:
@@ -2571,11 +2592,13 @@ def get_daily_representative_battle(target_date=None):
     best_btl = all_battles[0]
 
     # 构建基础描述
-    reason = f"{best_btl['Tags']}{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
+    reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
     if best_btl['DetailReason']:
         reason += f" ({best_btl['DetailReason']})"
     
-    match_info = f"今日最具代表性对局：\n{reason}\n"
+    match_info = f"【今日高光/深度对局】\n"
+    match_info += f"得分：{best_btl['RepScore']} | {reason}\n"
+    match_info += f"指标：{''.join(best_btl['RawTags'])}\n"
     match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
     
     # 获取图文详情

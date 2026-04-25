@@ -99,57 +99,6 @@ _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
 _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
 _debug_rep=on_keyword({"##best"},rule=judge_super,priority=1, block=True)
-@_debug_rep.handle()
-async def handle_debug_rep(event: MessageEvent):
-    from .zfunc import get_daily_representative_battle
-    from .utils.message_sender import add_msg
-    from nonebot.adapters.onebot.v11 import MessageSegment
-    import os
-
-    # 解析日期参数，例如 ##best 2026-04-20
-    # 由于使用 on_keyword，我们需要手动剥离 ##best
-    raw_msg = event.get_plaintext().strip()
-    target_date = raw_msg.replace("##best", "").strip() or None
-
-    try:
-        # 传递可选的日期参数
-        rep_res = get_daily_representative_battle(target_date=target_date)
-        if not rep_res:
-            await _debug_rep.finish(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成")
-            return
-
-        # 构造发给发送者的消息
-        if isinstance(rep_res, (list, tuple)) and len(rep_res) >= 2:
-            text_part = rep_res[0]
-            img_path = rep_res[1]
-            final_msg = text_part
-            
-            # 调试信息：输出筛选准则
-            if len(rep_res) >= 3:
-                best_info = rep_res[2]
-                debug_info = f"\n\n[调试-筛选准则]\n"
-                debug_info += f"● 代表性得分: {best_info.get('RepScore')}\n"
-                debug_info += f"● 触发标签: {' '.join(best_info.get('RawTags', []))}\n"
-                if best_info.get('DetailReason'):
-                    debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
-                final_msg += debug_info
-
-            if img_path and os.path.exists(img_path):
-                final_msg += MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
-            
-            # 1. 发送给发送者 (私聊)
-            user_id = event.get_user_id()
-            add_msg(final_msg, msg_type="private", to_id=user_id)
-            # 使用普通的 add_msg 或直接 return 而不是 finish
-            add_msg("代表局调试结果已私聊发送", event=event)
-            return
-        else:
-            add_msg(f"数据格式异常: {str(rep_res)}", event=event)
-            return
-            
-    except Exception as e:
-        import traceback
-        add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
@@ -203,6 +152,58 @@ async def f_tempfunc(event):
         add_msg("导出完成", event=event)
     except Exception as e:
         add_msg(f"导出失败: {str(e)}", event=event)
+        
+@_debug_rep.handle()
+async def handle_debug_rep(event: MessageEvent):
+    from .zfunc import get_daily_representative_battle
+    from .utils.message_sender import add_msg
+    from nonebot.adapters.onebot.v11 import MessageSegment
+    import os
+
+    # 解析日期参数，例如 ##best 2026-04-20
+    # 由于使用 on_keyword，我们需要手动剥离 ##best
+    raw_msg = event.get_plaintext().strip()
+    target_date = raw_msg.replace("##best", "").strip() or None
+
+    try:
+        # 传递可选的日期参数
+        rep_res = get_daily_representative_battle(target_date=target_date)
+        if not rep_res:
+            await _debug_rep.finish(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成")
+            return
+
+        # 构造发给发送者的消息
+        if isinstance(rep_res, (list, tuple)) and len(rep_res) >= 2:
+            text_part = rep_res[0]
+            img_path = rep_res[1]
+            final_msg = text_part
+            
+            # 调试信息：输出筛选准则
+            if len(rep_res) >= 3:
+                best_info = rep_res[2]
+                debug_info = f"\n\n[调试-筛选准则]\n"
+                debug_info += f"● 代表性得分: {best_info.get('RepScore')}\n"
+                debug_info += f"● 触发标签: {' '.join(best_info.get('RawTags', []))}\n"
+                if best_info.get('DetailReason'):
+                    debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
+                final_msg += debug_info
+
+            if img_path and os.path.exists(img_path):
+                final_msg += MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
+            
+            # 1. 发送给发送者 (私聊)
+            user_id = event.get_user_id()
+            add_msg(final_msg, event=event)
+            # 使用普通的 add_msg 或直接 return 而不是 finish
+            add_msg("代表局调试结果已私聊发送", event=event)
+            return
+        else:
+            add_msg(f"数据格式异常: {str(rep_res)}", event=event)
+            return
+            
+    except Exception as e:
+        import traceback
+        add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
