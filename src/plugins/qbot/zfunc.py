@@ -2653,6 +2653,8 @@ def history_query_handler(rcv_msg):
             
         for detail in details:
             is_match = True
+            btl_detail = None
+            all_roles = None
             
             # 英雄名 (_to_pinyin)
             if query_target.get("HeroName"):
@@ -2768,8 +2770,8 @@ def history_query_handler(rcv_msg):
             if is_match and need_advanced_stats:
                 if not btl_detail:
                     btl_detail = fetch_battle(detail["GameSeq"])
-                    if btl_detail:
-                        all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
+                if btl_detail:
+                    all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
 
                 if (not btl_detail):
                     is_match = False
@@ -2841,14 +2843,13 @@ def history_query_handler(rcv_msg):
                         # 队内评分排名
                         if is_match and query_target.get("TeamGradeRank"):
                             try:
-                                # 按评分降序
-                                team_roles.sort(key=lambda x: float(x.get("battleStats", {}).get("gradeGame", -1)), reverse=True)
-                                
-                                my_rank = -1
-                                for i, r in enumerate(team_roles):
-                                    if r == my_role:
-                                        my_rank = i + 1
-                                        break
+                                my_grade = float(my_role.get("battleStats", {}).get("gradeGame", -1))
+                                my_rank = 1
+                                for r in team_roles:
+                                    if str(r.get("basicInfo", {}).get("roleId")) == str(my_role.get("basicInfo", {}).get("roleId")):
+                                        continue
+                                    if float(r.get("battleStats", {}).get("gradeGame", -1)) > my_grade:
+                                        my_rank += 1
                                 
                                 target_rank = int(query_target["TeamGradeRank"])
                                 if my_rank != target_rank:
