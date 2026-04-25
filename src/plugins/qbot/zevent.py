@@ -29,8 +29,8 @@ async def handle_all_messages(event: MessageEvent):
     user_id = event.get_user_id()
     msg_text = event.get_plaintext().strip()
     if msg_text:
-        # 记录用户的原始发言
-        await asyncio.to_thread(zm.log_raw_chat, user_id, msg_text)
+        # 记录用户的被动发言 (用于后期提炼)
+        await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
@@ -349,7 +349,7 @@ async def f_forever_mem(event):
     log_message("CMD: FOREVER")
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext()
-    await asyncio.to_thread(zm.save_user_memory, userqid, rcv_msg)
+    await asyncio.to_thread(zm.save_forced_memory, userqid, rcv_msg)
     snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
     add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
     await _forever_mem.finish()
@@ -855,13 +855,16 @@ async def f_chat(bot,event):
     if group_id:
         await bot.group_poke(group_id=group_id, user_id=user_id)
 
-    # 使用新的 zmemory 库加载记忆
-    my_temp_msg = await asyncio.to_thread(zm.load_chat, user_id)
-    # perp_msg 是用户的个人备注/偏好
-    perp_msg = await asyncio.to_thread(zm.load_user_memory, user_id)
-    # global_msg 是所有人聊天背景
-    global_msg = await asyncio.to_thread(zm.load_global_memory, 10)
-    # history_msg 是用户最近的战绩表现
+    # 1. 主动聊天记忆 (当前用户最多5条)
+    active_msg = await asyncio.to_thread(zm.load_active_chat, user_id, 5)
+    # 2. 被动聊天记忆 (所有用户各1条背景)
+    passive_msg = await asyncio.to_thread(zm.load_global_passive_memory, 1)
+    # 3. 主动强制记忆 (所有用户各5条)
+    forced_msg = await asyncio.to_thread(zm.load_all_forced_memory, 5)
+    # 4. 历史聊天提炼内容 (当前用户最多3条)
+    summary_msg = await asyncio.to_thread(zm.load_user_summary_memory, user_id, 3)
+    
+    # 额外：最近战绩表现
     history_msg = await asyncio.to_thread(zm.load_user_history_natural, user_id)
     
     nick = qid2nick(user_id)
@@ -879,8 +882,15 @@ async def f_chat(bot,event):
         use_mem_current = False
         
     try:
-        # 参数列表更新为: [当前消息, 个人对话史, 个人偏好, 昵称, 全体背景, 战绩历史, QID]
-        snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg, my_temp_msg, perp_msg, nick, global_msg, history_msg, user_id], "chat", network, use_mem=use_mem_current)
+        # 组装上下文列表传递给 ai_parser
+        # 映射关系: [当前消息, 主动对话史, 强制记忆, 昵称, 全局被动背景, 提炼记录, 战绩历史, QID]
+        context_list = [rcv_msg, active_msg, forced_msg, nick, passive_msg, summary_msg, history_msg, user_id]
+        snd_msg += await asyncio.to_thread(ai_parser, context_list, "chat", network, use_mem=use_mem_current)
+        
+        # 只有进入 f_chat 并且成功回复的消息才计入主动记忆
+        if snd_msg and "Error" not in snd_msg:
+             await asyncio.to_thread(zm.save_active_chat, user_id, rcv_msg, snd_msg)
+             
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])

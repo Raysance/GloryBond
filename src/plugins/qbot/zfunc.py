@@ -256,20 +256,31 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             if use_mem:
                 context_msg = f"""
                 【情境信息】
-                - 当前用户: {user_query[3]}
-                - 用户个人偏好/过往记忆: 
-                {user_query[2]}
-                - 最近全体对话背景 (包含其他人的聊天):
-                {user_query[4]}
-                - 用户近期战绩表现:
-                {user_query[5]}
-                - 与当前用户的近期私人对话:
+                - 当前用户: {user_query[3]} (QID: {user_query[7]})
+                
+                - 1. 与该用户的近期对话 (主动聊天记忆):
                 {user_query[1]}
+                
+                - 2. 大家都刚说了什么 (全局被动背景):
+                {user_query[4]}
+                
+                - 3. 重点记住的内容 (主动强制记忆):
+                {user_query[2]}
+                
+                - 4. 用户的过往状态总结 (提炼记忆):
+                {user_query[5]}
+                
+                - 用户近期王者评价 (战绩表现):
+                {user_query[6]}
 
                 【重要指令】
-                以上信息仅作为对话背景，请自然地融合在回复中，不要直接列举或提及“我的记忆中”、“你刚才说”等。
-                如果用户要求“展示记忆”，请以自然的方式回应，不要泄露原始格式。
-                当前请求优先级最高: {user_query[0]}
+                以上信息仅作为对话背景。
+                1. 强制记忆(3)是用户特意让你记住的，请务必尊重其中的事实或要求。
+                2. 对话史(1)和被动背景(2)能提供即时语境。
+                3. 总结(4)能帮你把握用户的性格和长期状态。
+                请自然地融合在回复中，不要直接提及“我根据记忆模块汇报”、“系统提示显示”等废话。
+                
+                当前请求: {user_query[0]}
                 """
                 whole_query += style_template + context_msg + chat_pmpt
             else:
@@ -307,7 +318,7 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
     if (msg_type=="chat" and use_mem and ai_status):
         from .zmemory import instance as zm
         # 将本次对话存入个体短期记忆
-        zm.save_chat(user_query[6], user_query[0], ai_back)
+        zm.save_active_chat(user_query[6], user_query[0], ai_back)
     return ai_back
 
 def create_website(contents,sitetype):

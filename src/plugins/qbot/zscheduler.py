@@ -111,7 +111,7 @@ def daily_user_summary():
 
     def process_single_user(realname, user_qid):
         user_qid = str(user_qid)
-        raw_logs = zm.get_raw_logs(user_qid)
+        raw_logs = zm.get_passive_logs(user_qid)
         
         if not raw_logs:
             return
@@ -128,11 +128,11 @@ def daily_user_summary():
             if summary and "Error" not in summary:
                 # 记录内容包含时间、用户名和总结内容
                 memory_content = f"[{now_str}] 整理自{nick}发言: {summary}"
-                # 存入笔记 (Long-term memory)
-                zm.save_user_memory(user_qid, memory_content)
+                # 存入提炼记忆 (Summary memory)
+                zm.save_summary_memory(user_qid, memory_content)
                 log_message(f"DAILY_SUMMARY: Saved summary for {nick}")
-                # 清除原始日志
-                zm.clear_raw_logs(user_qid)
+                # 清除原始日志 (被动记忆)
+                zm.clear_passive_logs(user_qid)
         except Exception as e:
             log_message(f"DAILY_SUMMARY_ERROR: {str(e)} for user {nick}")
 
