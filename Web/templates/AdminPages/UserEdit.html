@@ -408,9 +408,9 @@
 
 <div class="container">
   <div class="header">
-    <a href="javascript:history.back()" class="btn-back">
+    <a href="/admin/dashboard" class="btn-back">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      返回
+      返回看板
     </a>
     <h1>用户管理</h1>
   </div>
@@ -565,8 +565,8 @@
   let currentExtraData = {};
   let tempAliasList = [];
 
-  const API_GET = `/admin/funcs/user-edit/fetch-user-info?AdminKey={{AdminKey}}`;
-  const API_POST = `/admin/funcs/user-edit/submit-user-info?AdminKey={{AdminKey}}`;
+  const API_GET = `/admin/funcs/user-edit/fetch-user-info`;
+  const API_POST = `/admin/funcs/user-edit/submit-user-info`;
 
   // SVG Icons
   const iconEdit = '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';

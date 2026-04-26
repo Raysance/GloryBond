@@ -583,6 +583,31 @@
             object-fit: cover;
             border: 2px solid var(--light-color);
             flex-shrink: 0;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #666;
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .img-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #e0e0e0, #f5f5f5);
+            border-radius: inherit;
+            font-weight: bold;
+            color: #555;
+            padding: 2px;
+            box-sizing: border-box;
+            word-break: break-all;
+            line-height: 1.2;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
         }
         
         .battle-info {
@@ -2054,11 +2079,17 @@
                     gameSeq: gameSeq,
                     targetRoleId: targetRoleId,
                     relaySvr: relaySvr,
-                    battleType: battleType,
-                    key: '{{key}}'
+                    battleType: battleType
                 });
                 
                 // 构建完整URL并跳转
+                // 获取当前页面的 key 参数
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentKey = urlParams.get('key');
+                if (currentKey) {
+                    params.append('key', currentKey);
+                }
+
                 const targetUrl = `/jump-btldetail?${params.toString()}`;
                 console.log('跳转URL:', targetUrl);
                 const newTab = window.open(targetUrl, '_blank');
@@ -2196,7 +2227,18 @@
             }
             
             // 检查是否包含目标模式
-            return ['排位', '巅峰', '战队','王者峡谷','梦境'].some(pattern => btlname.includes(pattern));
+            return ['排位', '巅峰', '战队','王者峡谷','梦境','火焰山','无限乱斗'].some(pattern => btlname.includes(pattern));
+        }
+        function checkBtlOfficialWithMatching(btlname) {
+            btlname = btlname.toLowerCase();
+            
+            // 如果有排除模式，直接返回 false
+            if (['1v1', '2v2', '3v3'].some(pattern => btlname.includes(pattern))) {
+                return false;
+            }
+            
+            // 检查是否包含目标模式
+            return ['排位', '巅峰', '战队','王者峡谷'].some(pattern => btlname.includes(pattern));
         }
         // 处理分享按钮点击事件
         async function handleShare(battle, profileData, buttonElement) {
@@ -2211,7 +2253,7 @@
                     return;
                 }
                 if (!checkBtlOfficialWithMatchingWithEntertain(battle.mapName)){
-                    showToast(`仅支持分享排位/巅峰/战队/匹配/梦境`, 'warning');
+                    showToast(`仅支持分享排位/巅峰/战队/匹配/娱乐`, 'warning');
                     return;
                 }
                 
@@ -2320,8 +2362,8 @@
                     return;
                 }
                 
-                if (!checkBtlOfficialWithMatchingWithEntertain(battle.mapName)){
-                    showToast(`仅支持分析排位/巅峰/战队/匹配/梦境`, 'warning');
+                if (!checkBtlOfficialWithMatching(battle.mapName)){
+                    showToast(`仅支持分析排位/巅峰/战队/匹配`, 'warning');
                     return;
                 }
                 
@@ -2812,7 +2854,8 @@
                 const avatarElement = document.getElementById('playerAvatar');
                 if (avatar) {
                     avatarElement.src = avatar;
-                    avatarElement.style.display = 'block';
+                    // 使用统一的图片加载逻辑
+                    handleImageLoad(avatarElement, roleName.substring(0, 2));
                 } else {
                     avatarElement.style.display = 'none';
                 }
@@ -2902,9 +2945,13 @@
                     const heroBox = document.getElementById('gamingHeroBox');
                     
                     if (gaming.heroId || gaming.heroIcon) {
-                        if (gaming.heroIcon) heroIcon.src = gaming.heroIcon;
+                        const hName = heroMap[gaming.heroId] || '英雄';
+                        if (gaming.heroIcon) {
+                            heroIcon.src = gaming.heroIcon;
+                            handleImageLoad(heroIcon, hName);
+                        }
                         // 从全局映射中查找英雄名
-                        heroName.textContent = heroMap[gaming.heroId] || '';
+                        heroName.textContent = hName;
                         heroBox.style.display = 'flex';
                     } else {
                         heroBox.style.display = 'none';
@@ -3023,6 +3070,50 @@
                     battleDate.getDate() === today.getDate();
         }
         
+        // 辅助函数：处理图片加载
+        function handleImageLoad(imgElement, fallbackText, timeout = 2000) {
+            if (!imgElement) return;
+
+            const timer = setTimeout(() => {
+                if (!imgElement.complete || imgElement.naturalWidth === 0) {
+                    switchToFallback(imgElement, fallbackText);
+                }
+            }, timeout);
+
+            imgElement.onload = () => {
+                clearTimeout(timer);
+                imgElement.style.display = 'block';
+                if (imgElement.nextElementSibling && imgElement.nextElementSibling.classList.contains('img-placeholder')) {
+                    imgElement.nextElementSibling.remove();
+                }
+            };
+
+            imgElement.onerror = () => {
+                clearTimeout(timer);
+                switchToFallback(imgElement, fallbackText);
+            };
+        }
+
+        function switchToFallback(imgElement, text) {
+            imgElement.style.display = 'none';
+            // 避免重复添加
+            if (imgElement.nextElementSibling && imgElement.nextElementSibling.classList.contains('img-placeholder')) {
+                return;
+            }
+            const placeholder = document.createElement('div');
+            placeholder.className = 'img-placeholder';
+            // 适配文字大小：根据长度调整
+            if (text.length > 3) {
+                placeholder.style.fontSize = '10px';
+            } else if (text.length > 2) {
+                placeholder.style.fontSize = '12px';
+            } else {
+                placeholder.style.fontSize = '14px';
+            }
+            placeholder.textContent = text;
+            imgElement.parentNode.insertBefore(placeholder, imgElement.nextSibling);
+        }
+
         // 分析比赛数据（支持地图筛选和今日筛选）
         function analyzeBattles(battles, mapFilter = '全部', todayOnly = false) {
             try {
@@ -3128,8 +3219,12 @@
                     
                     const specialKillText = specialKills.length > 0 ? specialKills.join(' ') : '';
                     
+                    const heroName = heroMap[battle.heroId] || '英雄';
+                    
                     battleItem.innerHTML = `
-                        <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" onerror="this.style.display='none'">
+                        <div class="hero-icon-container" style="position: relative; width: 45px; height: 45px; margin-right: 10px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background-color: #eee;">
+                            <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" data-fallback="${heroName}">
+                        </div>
                         <div class="battle-info">
                             <div class="battle-header">
                                 <div class="battle-title">
@@ -3184,6 +3279,14 @@
                             </svg>
                         </button>
                     `;
+                    
+                    battleItemsContainer.appendChild(battleItem);
+
+                    // 为该项中的所有图片处理加载
+                    const itemImgs = battleItem.querySelectorAll('img[data-fallback]');
+                    itemImgs.forEach(img => {
+                       handleImageLoad(img, img.getAttribute('data-fallback'));
+                    });
                     
                     // 添加点击事件处理
                     battleItem.addEventListener('click', function(e) {

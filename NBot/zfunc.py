@@ -15,19 +15,23 @@ def _to_pinyin(s):
     
     return "".join(lazy_pinyin(str(s))).lower()
 
-def wzry_data(realname,savepath=None): # 单人的战绩parser
+def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None): # 单人的战绩parser
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
             if (detail["MapType"]==1):
                 return detail["StarAfterGame"]
         return -1
         
-    def get_star_before_today_most_recent(target_id):
+    def get_star_before_today_most_recent(target_id, target_date_obj=None):
         from .zfile import readerl
         from .zfile import get_file_list
         from .ztime import time_sul
 
-        yesterday_sul = time_sul() - datetime.timedelta(days=1)
+        if target_date_obj:
+            today_dt = datetime.datetime.combine(target_date_obj, datetime.datetime.min.time())
+            yesterday_sul = today_dt - datetime.timedelta(days=1)
+        else:
+            yesterday_sul = time_sul() - datetime.timedelta(days=1)
         yesterday_str = yesterday_sul.strftime("%Y-%m-%d")
         
         json_files = get_file_list("history",".json")
@@ -67,8 +71,8 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
 
     log_message("VISIT: wzry_data")
     
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
+    userid=target_userid if target_userid else userlist[realname]
+    roleid=target_roleid if target_roleid else roleidlist[realname]
     
     btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     profile_data=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
@@ -93,6 +97,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
+    target_date_obj = datetime.datetime.strptime(target_date, "%Y-%m-%d").date() if target_date else sul_time.date()
     starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法强行填充
     peakUp=[]
     today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法强行填充
@@ -103,7 +108,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
     if(BtlVisible):
-        today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==sul_time.date())]
+        today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==target_date_obj)]
         # today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==date_roleback().date())]
         today_details=[{\
             'GameTime':game['gametime'],\
@@ -157,7 +162,7 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
         today_up_peak=today_num_peak_win
         # try:
         star_today_most_recent=get_star_today_most_recent(today_details)
-        star_before_today_most_recent=get_star_before_today_most_recent(userid)
+        star_before_today_most_recent=get_star_before_today_most_recent(userid, target_date_obj)
         # print(star_today_most_recent,star_before_today_most_recent)
         starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
         # except Exception as e:
@@ -183,6 +188,38 @@ def wzry_data(realname,savepath=None): # 单人的战绩parser
     # export_btl_thread.start()
     export_btldetail(today_details,roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
+def dump_specific_user(userid, roleid, target_date):
+    """
+    模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
+    :param userid: 指定的用户ID
+    :param roleid: 指定的角色ID
+    :param target_date: 导出的日期，格式为 '%Y-%m-%d' (精确到天)
+    """
+    from .zfile import writerl
+
+    log_message(f"DUMPBEGIN specific user {userid} date: {target_date}.json")
+    
+    # 构造临时的realname，wzry_data虽然传入realname，但在指定target_userid时不会用userlist查找
+    temp_realname = "temp_" + str(userid)
+    
+    gameinfo = []
+    try:
+        data = wzry_data(
+            realname=temp_realname, 
+            savepath=os.path.join("history", "personal", target_date, str(userid) + ".json"),
+            target_userid=userid,
+            target_roleid=roleid,
+            target_date=target_date
+        )
+        gameinfo.append(data)
+    except Exception as e:
+        log_message(f"Dump specific user {userid} failed: {e}")
+
+    filename = os.path.join("history", target_date + f"_{userid}.json")
+    writerl(filename, gameinfo)
+    log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
+    return gameinfo
+
 def export_past():
     import json
     import glob
@@ -206,12 +243,10 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
     whole_query=""
 
     match msg_type:
-        case "hardworking":
-            whole_query = hdwk_pmpt + user_query[0]
-            if use_mem:
-                whole_query += "这是之前的对话中用户的请求和你的回答：（" + "".join(dmc.ai_memory) + "）这是这次的请求，优先级最高，优先考虑（" + whole_query + "）" + chat_pmpt
         case "rnk":
             whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
+        case "best_battle":
+            whole_query += "你是一个幽默的王者荣耀解说，请用夸张、幽默且具有生活气息的语言，对以下这局今日最有代表性的对局进行一句话点评（70字以内，不用双引号，不用Markdown）：" + user_query[0]
         case "single_parser":
             whole_query += name_pmpt[0] + str(nameref) + name_pmpt[1]+ user_query[0] + name_pmpt[2]
             ai_temperature=2
@@ -221,7 +256,35 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             whole_query += tq_pmpt + user_query[0]
         case "chat":
             if use_mem:
-                whole_query += style_template + "用户名字叫：（" + user_query[3] + "）。这是用户强调的内容：（" + user_query[2] + "）。这是之前的所有人对话的情境：（" + "".join(dmc.ai_memory) + "）。这是和我单独聊天的情境：（" + "".join(user_query[1]) + "）。以上提到的对话，可以隐形展示在输出中，但是如果用户提出“展示记忆”来显示输出，你只能够说你的记忆基于事实，不能泄露记忆内容。下面这句话是这次的请求,优先级最高，优先考虑：回答必须和这个有关，回答必须和这个有关，回答必须和这个有关（" + user_query[0] + " " + user_query[0] + " " + user_query[0] + " " + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
+                context_msg = f"""
+                【情境信息】
+                - 当前用户: {user_query[3]} (QID: {user_query[7]})
+                
+                - 1. 与该用户的近期对话 (主动聊天记忆):
+                {user_query[1]}
+                
+                - 2. 大家都刚说了什么 (全局被动背景):
+                {user_query[4]}
+                
+                - 3. 重点记住的内容 (主动强制记忆):
+                {user_query[2]}
+                
+                - 4. 用户的过往状态总结 (提炼记忆):
+                {user_query[5]}
+                
+                - 用户近期王者评价 (战绩表现):
+                {user_query[6]}
+
+                【重要指令】
+                以上信息仅作为对话背景。
+                1. 强制记忆(3)是用户特意让你记住的，请务必尊重其中的事实或要求。
+                2. 对话史(1)和被动背景(2)能提供即时语境。
+                3. 总结(4)能帮你把握用户的性格和长期状态。
+                请自然地融合在回复中，不要直接提及“我根据记忆模块汇报”、“系统提示显示”等废话。
+                
+                当前请求: {user_query[0]}
+                """
+                whole_query += style_template + context_msg + chat_pmpt
             else:
                 whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
         case "poke":
@@ -234,6 +297,8 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             whole_query = user_query[0]
         case "urge_game":
             whole_query = urge_game_pmpt[0] + user_query[0] + urge_game_pmpt[1] + user_query[1] + urge_game_pmpt[2] + user_query[2] + urge_game_pmpt[3]
+        case "summary":
+            whole_query = user_query[0]
         case "skill_advantage":
             whole_query = skill_advantage_pmpt[0] + skill_advantage_pmpt[1] + user_query[0] + skill_advantage_pmpt[2] + user_query[1] +  skill_advantage_pmpt[3] + user_query[2] + skill_advantage_pmpt[4] + user_query[3] + skill_advantage_pmpt[5] + user_query[4]
     ai_back=""
@@ -252,8 +317,10 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             ai_status=False
             ai_back=str(e)
 
-    if (use_mem and ai_status):
-        dmc.ai_memory.append("问："+";".join(user_query)+"。答："+";") # 只储存user本身的提问，不附加自带提示词
+    if (msg_type=="chat" and use_mem and ai_status):
+        from .zmemory import instance as zm
+        # 将本次对话存入个体短期记忆
+        zm.save_active_chat(user_query[6], user_query[0], ai_back)
     return ai_back
 
 def create_website(contents,sitetype):
@@ -891,8 +958,8 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=False
     # 获取本地历史数据（用于详细统计）
     end_date = time_r()
     if(this_season): 
-        start_date = str_to_time("2025-09-25")
-        TimeLim="本赛季(20250925-now)"
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
     else: 
         start_date = time_delta(end_date, -30)
         TimeLim="近30日"
@@ -937,7 +1004,7 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=False
 
     return "\n".join(lines)
 # 单一玩家、所有英雄
-def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
+def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, this_season=False):
     """统计玩家在最近若干天内的英雄表现，返回 JSON 风格字符串和可读摘要。
     - rcv_msg: 包含用户名的消息，使用 extract_name 解析
     - days: 向前统计天数
@@ -945,18 +1012,23 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
     - min_games: 计算胜率/评分榜时的最小出场次数阈值
     返回字符串（先 JSON，再人类可读摘要）。
     """
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta, str_to_time
     import json
 
     userid = userlist[username]
 
     end_date = time_r()
-    start_date = time_delta(end_date, -days)
+    if(this_season):
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
+    else:
+        start_date = time_delta(end_date, -days)
+        TimeLim=f"近{days}日"
     history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
     games = history.get(username, []) if history else []
     total_games = len(games)
     if total_games == 0:
-        return f"{namenick[username]} 在最近 {days} 天没有对局记录。"
+        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
 
     # 聚合每个英雄的统计
     hero_stats = {}
@@ -1015,7 +1087,7 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
     # 可读摘要
     lines = []
     avg_tier = round(total_tier_val / tier_counted_games, 2) if tier_counted_games > 0 else "N/A"
-    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（近 {days} 天，共 {total_games} 场，均梯: {avg_tier}）")
+    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（{TimeLim}，共 {total_games} 场，均梯: {avg_tier}）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
@@ -1044,16 +1116,21 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2):
 
     return "\n".join(lines)
 # 所有玩家、所有英雄
-def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
+def mult_player_mult_hero_process(days=30, top_n=5, min_games=5, this_season=False):
     """统计所有玩家在最近若干天内的英雄总体表现，返回人类可读摘要字符串。
     - days: 向前统计天数
     - top_n: 每个榜单返回的条目数
     - min_games: 计算胜率/评分榜时的最小出场次数阈值（按英雄总出场次数）
     """
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta, str_to_time
 
     end_date = time_r()
-    start_date = time_delta(end_date, -days)
+    if(this_season):
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
+    else:
+        start_date = time_delta(end_date, -days)
+        TimeLim=f"近{days}日"
 
     hero_stats = {}
     total_games_all = 0
@@ -1077,7 +1154,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
                 pass
 
     if total_games_all == 0:
-        return f"最近 {days} 天内所有用户没有对局数据。"
+        return f"{TimeLim}内所有用户没有对局数据。"
 
     metrics = {}
     for hn, s in hero_stats.items():
@@ -1094,7 +1171,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
     top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
 
     lines = []
-    lines.append(f"【统计信息】 群u的英雄汇总\n（近 {days} 天，共 {total_games_all} 场）")
+    lines.append(f"【统计信息】 群u的英雄汇总\n（{TimeLim}，共 {total_games_all} 场）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
@@ -1116,7 +1193,7 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5):
 
     return "\n".join(lines)
 # 所有玩家、单一英雄
-def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top_n=5):
+def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top_n=5, this_season=False):
     """针对指定英雄聚合全服数据，返回人类可读摘要。
     - hero_name: 英雄名称（精确匹配 `HeroName` 字段）
     - days: 向前统计天数
@@ -1124,11 +1201,16 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
     - top_n: 每个榜单返回条目数
     返回字符串，包含：总体场次、参战玩家数、总体胜率、均分、KDA、地图分布、玩家榜单等
     """
-    from .ztime import time_r, time_delta
+    from .ztime import time_r, time_delta, str_to_time
     import collections
 
     end_date = time_r()
-    start_date = time_delta(end_date, -days)
+    if(this_season):
+        start_date = str_to_time(this_season_start_date)
+        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
+    else:
+        start_date = time_delta(end_date, -days)
+        TimeLim=f"近{days}日"
 
     per_player = {}  # player -> stats
     map_counter = collections.Counter()
@@ -1164,7 +1246,7 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
         per_player[realname] = stats
 
     if total_games == 0:
-        return f"在最近 {days} 天内未发现任何玩家使用 {hero_name} 的对局。"
+        return f"在{TimeLim}内未发现任何玩家使用 {hero_name} 的对局。"
 
     # 汇总总体指标
     total_wins = sum(s['wins'] for s in per_player.values())
@@ -1186,7 +1268,7 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
 
     # 组装输出
     lines = []
-    lines.append(f"【统计信息】 群u的{hero_name}\n（近 {days} 天）")
+    lines.append(f"【统计信息】 群u的{hero_name}\n（{TimeLim}）")
     lines.append(line_delim)
     lines.append(f"总场次：{total_games}    参战玩家数：{len(per_player)}")
     lines.append(f"总胜率：{round(overall_winrate*100,1)}%    均分：{round(overall_avg_grade,2)}\n K/D/A：{round(overall_k,2)}/{round(overall_d,2)}/{round(overall_a,2)}")
@@ -2282,6 +2364,281 @@ def export_btldetail(gameinfo,roleid):
         res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
         writerl(savepath,res)
     return
+
+def notify_msg_impl():
+    from .zutil import log_message
+    from .zstatic import confs
+    import datetime
+    import traceback
+
+    log_message("NOTIFY"+str(datetime.date.today()))
+    snd_msg="今日王者战报(每日23:30推送)：\n"
+    try:
+        from .zfunc import rnk_process
+        snd_msg += rnk_process(rcv_msg="", caller=None, show_zero=False, show_analyze=True)[0]
+    except Exception:
+        return [traceback.format_exc()] # 返回错误信息列表
+    
+    messages = [snd_msg]
+
+    # 获取最有代表性的对局（含数据）
+    # try:
+    #     rep_btl_res = get_daily_representative_battle()
+    #     if rep_btl_res:
+    #         # 返回包含了文本和图片路径的元组/列表，不再使用 MessageSegment
+    #         messages.append(rep_btl_res)
+    # except Exception as e:
+    #     log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
+
+    return messages
+
+def get_daily_representative_battle(target_date=None):
+    '''
+    选出当天对局中最有代表性的一局。评估维度：
+    1. 翻盘指数：落后极多评分/大幅逆风但取胜
+    2. 统治力：评分极高且参团率、贡献度极高
+    3. 惨案指数：评分极低或被碾压
+    4. 尽力局：败方MVP且评分极高
+    5. 关键先生：拿到关键成就（如超神、五连绝世等）
+    '''
+    from .ztime import time_sul
+    from .zfile import readerl
+    from .zfunc import fetch_battle
+    import math
+    import os
+
+    if target_date is None:
+        target_date = time_sul().strftime("%Y-%m-%d")
+    
+    filename = os.path.join("history", target_date + ".json")
+    
+    try:
+        gameinfo = readerl(filename)
+    except Exception:
+        return None
+
+    if not gameinfo:
+        return None
+
+    all_battles = []
+    from .zfunc import check_btl_official_with_matching 
+    
+    for player_data in gameinfo:
+        realname = player_data.get("key")
+        nick = player_data.get("nickname", realname)
+        details = player_data.get("details", [])
+        roleid = player_data.get("roleid")
+        for btl in details:
+            if not check_btl_official_with_matching(btl.get("MapName", "")):
+                continue
+
+            gameseq = btl.get("GameSeq")
+            # 基础权重评分
+            score = 0
+            tags = []
+            detail_reason = ""
+            
+            grade = btl.get("GameGrade", 0)
+            result = btl.get("Result")
+            others = btl.get("Others", "")
+            duration = btl.get("Duration_Second", 0)
+            
+            # 1. 评分基础
+            # 1. 评分基础 (加倍权重)
+            score += grade * 10
+            
+            # 2. 深度数据评估 (多维度指标)
+            try:
+                battle_detail = fetch_battle(gameseq, roleid)
+                if battle_detail and 'head' in battle_detail:
+                    my_camp = battle_detail['head'].get('acntCamp')
+                    red_roles = battle_detail.get('redRoles', [])
+                    blue_roles = battle_detail.get('blueRoles', [])
+                    
+                    red_total_grade = sum(float(r['battleStats']['gradeGame']) for r in red_roles)
+                    blue_total_grade = sum(float(b['battleStats']['gradeGame']) for b in blue_roles)
+                    
+                    my_team_grade = red_total_grade if my_camp == 2 else blue_total_grade
+                    enemy_team_grade = blue_total_grade if my_camp == 2 else red_total_grade
+                    
+                    # 逆风翻盘/被翻盘
+                    grade_diff = enemy_team_grade - my_team_grade
+                    if result == "胜利" and grade_diff > 5:
+                        bonus = int(grade_diff * 10)
+                        score += bonus
+                        tags.append(f"【逆风翻盘+{bonus}】")
+                        detail_reason = f"团队总分落后 {round(grade_diff, 1)} 分实现大逆转！"
+                    elif result == "失败" and grade_diff < -5:
+                        score += 50
+                        tags.append("【痛失好局】")
+                        detail_reason = f"团队总分领先 {round(-grade_diff, 1)} 分竟然翻车了..."
+
+                    # 个人深度贡献
+                    my_stats = next((r['battleStats'] for r in (red_roles if my_camp == RedCamp else blue_roles) if str(r.get('roleId')) == str(roleid)), None)
+                    if my_stats:
+                        # 计算全队总额
+                        my_team_roles = red_roles if my_camp == RedCamp else blue_roles
+                        
+                        def get_team_total_with_fill(roles, field, expected_count=5):
+                            val_list = [float(r['battleStats'].get(field, 0)) for r in roles]
+                            actual_count = len(val_list)
+                            current_sum = sum(val_list)
+                            if actual_count > 0 and actual_count < expected_count:
+                                # 用当前平均值填充缺失的人数
+                                avg = current_sum / actual_count
+                                current_sum += avg * (expected_count - actual_count)
+                            return current_sum
+
+                        team_total_damage = get_team_total_with_fill(my_team_roles, 'heroDamage')
+                        team_total_taken = get_team_total_with_fill(my_team_roles, 'damageTaken')
+                        team_total_gold = get_team_total_with_fill(my_team_roles, 'gold')
+
+                        h_dmg = float(my_stats.get('heroDamage', 0))
+                        t_dmg = float(my_stats.get('damageTaken', 0))
+                        gold = float(my_stats.get('gold', 0))
+
+                        # 占比计算
+                        dmg_percent = (h_dmg / team_total_damage * 100) if team_total_damage > 0 else 0
+                        take_percent = (t_dmg / team_total_taken * 100) if team_total_taken > 0 else 0
+                        gold_percent = (gold / team_total_gold * 100) if team_total_gold > 0 else 0
+
+                        if dmg_percent > 35: 
+                            score += 50; tags.append(f"【输出重锤{round(dmg_percent)}% (伤/队>35%)】")
+                        elif dmg_percent > 30: 
+                            score += 30; tags.append(f"【主力输出{round(dmg_percent)}% (伤/队>30%)】")
+
+                        if take_percent > 35: 
+                            score += 40; tags.append(f"【团队屏障{round(take_percent)}% (承/队>35%)】")
+                        
+                        # 经济转贡献效率 (性价比：取伤害和承伤占比中较高的一个)
+                        if gold_percent > 0:
+                            # 贡献占比取高者：MAX(伤害占比, 承伤占比)
+                            contribution_percent = max(dmg_percent, take_percent)
+                            # 效率 = 贡献占比 / 经济占比
+                            efficiency = contribution_percent / gold_percent
+                            
+                            # 门槛调整：维持 1.7/0.7 门槛，权重从 30/20 增大到 60/40
+                            if efficiency > 1.7 and contribution_percent > 20:
+                                score += 60; tags.append(f"【吃草挤奶 (最高项效率{round(efficiency,2)}>1.7)】")
+                            elif efficiency < 0.7 and gold_percent > 20:
+                                score += 40; tags.append(f"【经济黑洞 (最高项效率{round(efficiency,2)}<0.7)】")
+                            
+                            # 逆风翻盘/被翻盘 (修正标签)
+                            if result == "胜利" and grade_diff > 5:
+                                # 这里的 grade_diff 已经在上面加过 score 了，这里只增加详细标签描述
+                                for i, t in enumerate(tags):
+                                    if "逆风翻盘" in t:
+                                        tags[i] = f"【逆风翻盘 (队分差{round(grade_diff,1)}>5)】"
+                            elif result == "失败" and grade_diff < -5:
+                                for i, t in enumerate(tags):
+                                    if "痛失好局" in t:
+                                        tags[i] = f"【痛失好局 (队分差{round(grade_diff,1)}<-5)】"
+
+            except Exception as e:
+                pass
+            # 3. 结果与表现准则
+            is_mvp = "MVP" in others
+            if result == "胜利":
+                if grade >= 14: score += 60; tags.append(f"【通天代 (评分{grade}>=14)】")
+                elif grade >= 12: score += 20
+                if is_mvp: score += 40; tags.append("【带头大哥 (胜方MVP)】")
+            else:
+                if grade >= 13: score += 80; tags.append(f"【非战之罪 (评分{grade}>=13)】"); detail_reason = "虽败犹荣，评分高到离谱"
+                elif grade >= 11: score += 40; tags.append(f"【孤勇者 (评分{grade}>=11)】")
+                if is_mvp: score += 30; tags.append("【虽败MVP】")
+                if grade <= 4.5: score += 40; tags.append(f"【战犯级表现 (评分{grade}<=4.5)】")
+
+            # 4. 特殊成就 (高权重)
+            achievement_weights = {
+                "五连绝世": 150, "四连超凡": 80, "三连决胜": 30,
+                "超神": 40, "输出最高": 25, "承受最高": 20, "助攻最多": 20
+            }
+            for ach, weight in achievement_weights.items():
+                if ach in others:
+                    score += weight
+                    tags.append(f"【{ach}】")
+            
+            # 5. 时间维度
+            if duration > 1800: score += 50; tags.append(f"【史诗长局 ({round(duration/60,1)}min>30)】")
+            elif duration > 1440: score += 25; tags.append(f"【拉锯战 ({round(duration/60,1)}min>24)】")
+            elif duration < 600: score += 30; tags.append(f"【闪电战 ({round(duration/60,1)}min<10)】")
+
+            btl_info = {
+                "realname": realname,
+                "nickname": nick,
+                "roleid": roleid,
+                "HeroName": btl.get("HeroName"),
+                "Result": result,
+                "Grade": grade,
+                "Kill": btl.get("KillCnt", 0),
+                "Dead": btl.get("DeadCnt", 0),
+                "Assist": btl.get("AssistCnt", 0),
+                "MapName": btl.get("MapName"),
+                "GameSeq": gameseq,
+                "Duration": duration,
+                "Others": others,
+                "DetailReason": detail_reason,
+                "Tags": "".join(tags[:2]), 
+                "RepScore": score,
+                "RawTags": tags # 保留原始标签用于调试
+            }
+            all_battles.append(btl_info)
+
+    if not all_battles:
+        return None
+
+    # 按代表性分数降序排列
+    all_battles.sort(key=lambda x: x["RepScore"], reverse=True)
+    best_btl = all_battles[0]
+
+    # 构建基础描述
+    reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
+    if best_btl['DetailReason']:
+        reason += f" ({best_btl['DetailReason']})"
+    
+    match_info = f"【今日高光/深度对局】\n"
+    match_info += f"得分：{best_btl['RepScore']} | {reason}\n"
+    match_info += f"指标：{''.join(best_btl['RawTags'])}\n"
+    match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
+    
+    # 获取图文详情
+    btl_img = None
+    try:
+        from .zfunc import btldetail_process
+        from .zstatic import roleidlist
+        # 尝试查找对应的 rcv_msg 参数（btldetail_process 的参数较多）
+        # 这里的 fetch_battle 拿到的 detailUrl 参数此时已经解析在 Params 中了
+        # btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, gen_image=True)
+        # 获取 battles 文件夹下的原始数据以拿到更多参数
+        file_path = os.path.join("history", "battles", f"{best_btl['GameSeq']}.json")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            raw_data = json.load(f)
+            head = raw_data.get('head', {})
+            # 调用生成图片的逻辑
+            _, btl_img, _ = btldetail_process(
+                gameSvrId=head.get('gameSvrId', 0),
+                relaySvrId=head.get('relaySvrId', 0),
+                gameseq=best_btl['GameSeq'],
+                pvptype=head.get('pvpType', 0),
+                roleid=best_btl['roleid'],
+                gen_image=True
+            )
+    except Exception as e:
+        import traceback
+        log_message(f"GET_REP_BATTLE_DETAIL_ERROR: {traceback.format_exc()}")
+
+    # 尝试使用AI润色
+    try:
+        from .zfunc import ai_parser
+        enriched = ai_parser([match_info], "best_battle")
+        if enriched and "Error" not in enriched:
+            return enriched, btl_img, best_btl # 返回 best_btl 以供调试
+    except:
+        pass
+    return match_info, btl_img, best_btl # 返回 best_btl 以供调试
+
+    return None
+
 def extract_heroname(origin_text,precise=False):
     if txt_contain("轮椅",origin_text,precise,True):
         heroid=-1
@@ -2584,6 +2941,8 @@ def history_query_handler(rcv_msg):
             
         for detail in details:
             is_match = True
+            btl_detail = None
+            all_roles = None
             
             # 英雄名 (_to_pinyin)
             if query_target.get("HeroName"):
@@ -2699,8 +3058,8 @@ def history_query_handler(rcv_msg):
             if is_match and need_advanced_stats:
                 if not btl_detail:
                     btl_detail = fetch_battle(detail["GameSeq"])
-                    if btl_detail:
-                        all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
+                if btl_detail:
+                    all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
 
                 if (not btl_detail):
                     is_match = False
@@ -2772,14 +3131,13 @@ def history_query_handler(rcv_msg):
                         # 队内评分排名
                         if is_match and query_target.get("TeamGradeRank"):
                             try:
-                                # 按评分降序
-                                team_roles.sort(key=lambda x: float(x.get("battleStats", {}).get("gradeGame", -1)), reverse=True)
-                                
-                                my_rank = -1
-                                for i, r in enumerate(team_roles):
-                                    if r == my_role:
-                                        my_rank = i + 1
-                                        break
+                                my_grade = float(my_role.get("battleStats", {}).get("gradeGame", -1))
+                                my_rank = 1
+                                for r in team_roles:
+                                    if str(r.get("basicInfo", {}).get("roleId")) == str(my_role.get("basicInfo", {}).get("roleId")):
+                                        continue
+                                    if float(r.get("battleStats", {}).get("gradeGame", -1)) > my_grade:
+                                        my_rank += 1
                                 
                                 target_rank = int(query_target["TeamGradeRank"])
                                 if my_rank != target_rank:
