@@ -198,6 +198,34 @@
                         inset 0 2px 0 rgba(255, 255, 255, 0.3),
                         0 0 20px rgba(255, 215, 0, 0.3);
             border-radius: 12px;
+        }
+
+        .img-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #e0e0e0, #f5f5f5);
+            border-radius: inherit;
+            font-weight: bold;
+            color: #555;
+            padding: 2px;
+            box-sizing: border-box;
+            word-break: break-all;
+            line-height: 1.2;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        .img-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-color: #eee;
+        }
             animation: mvpGlow 2.5s ease-in-out infinite alternate;
             transform: scale(1.02);
             margin: 4px 0;
@@ -1476,6 +1504,52 @@
             return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
         }
 
+        // 处理图片加载逻辑
+        function handleImageLoad(imgElement, fallbackText, timeout = 2000) {
+            if (!imgElement) return;
+
+            const timer = setTimeout(() => {
+                if (!imgElement.complete || imgElement.naturalWidth === 0) {
+                    switchToFallback(imgElement, fallbackText);
+                }
+            }, timeout);
+
+            imgElement.onload = () => {
+                clearTimeout(timer);
+                imgElement.style.display = 'block';
+                const next = imgElement.nextElementSibling;
+                if (next && next.classList.contains('img-placeholder')) {
+                    next.remove();
+                }
+            };
+
+            imgElement.onerror = () => {
+                clearTimeout(timer);
+                switchToFallback(imgElement, fallbackText);
+            };
+        }
+
+        function switchToFallback(imgElement, text) {
+            imgElement.style.display = 'none';
+            if (imgElement.nextElementSibling && imgElement.nextElementSibling.classList.contains('img-placeholder')) {
+                return;
+            }
+            const placeholder = document.createElement('div');
+            placeholder.className = 'img-placeholder';
+            
+            // 适配文字大小
+            if (text.length > 3) {
+                placeholder.style.fontSize = '8px';
+            } else if (text.length > 2) {
+                placeholder.style.fontSize = '10px';
+            } else {
+                placeholder.style.fontSize = '12px';
+            }
+            
+            placeholder.textContent = text;
+            imgElement.parentNode.insertBefore(placeholder, imgElement.nextSibling);
+        }
+
         // 渲染队伍对比 - 合并的标题和当前玩家信息
         function renderTeamComparison(data) {
             const { redTeam, blueTeam, head, redRoles, blueRoles, battle } = data;
@@ -1550,7 +1624,11 @@
             // 生成装备HTML - 移动端优化尺寸
             const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
                 if (equip && equip.equipIcon) {
-                    return `<img src="${equip.equipIcon}" alt="${equip.equipName || ''}" style="width: 42px; height: 42px; border-radius: 6px; margin: 3px;" class="header-equipment" title="${equip.equipName || ''}">`;
+                    const equipNameShort = (equip.equipName || '').substring(0, 3);
+                    return `
+                        <div class="img-container header-equipment" style="width: 42px; height: 42px; border-radius: 6px; margin: 3px;">
+                            <img src="${equip.equipIcon}" alt="${equip.equipName || ''}" style="width: 100%; height: 100%; border-radius: 6px;" data-fallback="${equipNameShort}" title="${equip.equipName || ''}">
+                        </div>`;
                 }
                 return '<div style="width: 42px; height: 42px; margin: 3px;" class="header-equipment"></div>';
             }).join('');
@@ -1606,9 +1684,12 @@
                     <div style="position: relative; z-index: 1; padding: 60px 0 45px 0;">
                         <!-- 当前玩家信息行 - 调整为横向对齐，向下移动 -->
                         <div style="display: flex; align-items: center; gap: 40px; margin-bottom: 15px; flex-wrap: wrap;">
-                            <img src="${usedHero.heroIcon || '/api/placeholder/60/60'}" 
-                                 alt="${usedHero.heroName || '未知英雄'}" 
-                                 style="width: 80px; height: 80px; border-radius: 50%; border: 4px solid ${resultColor}; flex-shrink: 0; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
+                            <div class="img-container" style="width: 80px; height: 80px; border-radius: 50%; border: 4px solid ${resultColor}; flex-shrink: 0; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
+                                <img src="${usedHero.heroIcon || '/api/placeholder/60/60'}" 
+                                     alt="${usedHero.heroName || '未知英雄'}" 
+                                     style="width: 100%; height: 100%;"
+                                     data-fallback="${(usedHero.heroName || '英雄').substring(0, 2)}">
+                            </div>
                             
                             <div style="flex: 1; min-width: 200px;">
                                 <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 12px; flex-wrap: wrap;">
@@ -1744,6 +1825,12 @@
             const teamComparisonElement = document.getElementById('teamComparison');
             if (teamComparisonElement) {
                 teamComparisonElement.innerHTML = comparisonHTML;
+                
+                // 处理图片加载
+                teamComparisonElement.querySelectorAll('img[data-fallback]').forEach(img => {
+                    handleImageLoad(img, img.dataset.fallback);
+                });
+                
                 console.log('合并的玩家信息已渲染');
             } else {
                 console.error('找不到teamComparison元素');
@@ -1913,7 +2000,11 @@
                 // 生成装备HTML
                 const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
                     if (equip && equip.equipIcon) {
-                        return `<img src="${equip.equipIcon}" alt="${equip.equipName || ''}" class="equipment-item" title="${equip.equipName || ''}">`;
+                        const equipNameShort = (equip.equipName || '').substring(0, 2);
+                        return `
+                            <div class="img-container equipment-item" style="width: 24px; height: 24px; border-radius: 4px;">
+                                <img src="${equip.equipIcon}" alt="${equip.equipName || ''}" style="width: 100%; height: 100%;" class="equipment-item-img" data-fallback="${equipNameShort}" title="${equip.equipName || ''}">
+                            </div>`;
                     }
                     return '<div class="equipment-item"></div>';
                 }).join('');
@@ -1926,10 +2017,13 @@
                          data-role-id="${basicInfo.roleId || ''}"
                          data-role-name="${basicInfo.roleName || ''}">
                         <div class="player-main">
-                            <img src="${heroIcon}" 
-                                 alt="${heroName}" 
-                                 class="hero-avatar"
-                                 onerror="this.src='/api/placeholder/40/40'">
+                            <div class="img-container" style="width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;">
+                                <img src="${heroIcon}" 
+                                     alt="${heroName}" 
+                                     class="hero-avatar"
+                                     style="width: 100%; height: 100%;"
+                                     data-fallback="${heroName.substring(0, 2)}">
+                            </div>
                             <div class="player-left">
                                 <div class="player-left-top">
                                     <div class="player-info">
@@ -1966,6 +2060,11 @@
                     </div>
                 `;
             }).join('');
+
+            // 处理容器内新加载的图片
+            container.querySelectorAll('img[data-fallback]').forEach(img => {
+                handleImageLoad(img, img.dataset.fallback);
+            });
 
             // 设置皮肤背景
             setTimeout(() => {
@@ -2028,7 +2127,13 @@
                         markPlayerCardLoading(this);
                         
                         // 跳转到指定URL
-                        const targetUrl = `/jump-btlperson?userid=${userId}&roleid=${roleId}&key={{key}}`;
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const currentKey = urlParams.get('key');
+                        let targetUrl = `/jump-btlperson?userid=${userId}&roleid=${roleId}`;
+                        if (currentKey) {
+                            targetUrl += `&key=${encodeURIComponent(currentKey)}`;
+                        }
+
                         console.log('准备跳转到:', targetUrl);
                         const newTab = window.open(targetUrl, '_blank');
 
@@ -2167,6 +2272,17 @@
         let lastShareTime = 0;
         const SHARE_COOLDOWN = 10000; // 10秒限制
         
+        function checkBtlOfficialWithMatchingWithEntertain(btlname) {
+            btlname = btlname.toLowerCase();
+            
+            // 如果有排除模式，直接返回 false
+            if (['1v1', '2v2', '3v3'].some(pattern => btlname.includes(pattern))) {
+                return false;
+            }
+            
+            // 检查是否包含目标模式
+            return ['排位', '巅峰', '战队','王者峡谷','梦境','火焰山','无限乱斗'].some(pattern => btlname.includes(pattern));
+        }
         function checkBtlOfficialWithMatching(btlname) {
             btlname = btlname.toLowerCase();
             
@@ -2201,9 +2317,9 @@
                 const { head, battle } = battleData;
                 
                 // 检查是否为官方模式
-                const isOfficialMode = checkBtlOfficialWithMatching(battle.mapName || '');
+                const isOfficialMode = checkBtlOfficialWithMatchingWithEntertain(battle.mapName || '');
                 if (!isOfficialMode) {
-                    showToast('仅支持分享排位/巅峰/战队/匹配', 'warning');
+                    showToast('仅支持分享排位/巅峰/战队/匹配/娱乐', 'warning');
                     return;
                 }
 
@@ -2297,14 +2413,6 @@
         let lastAnalyzeTime = 0;
         const ANALYZE_COOLDOWN = 10000; // 10秒限制
 
-        function checkBtlOfficialWithMatchingWithEntertain(btlname) {
-            btlname = (btlname || '').toLowerCase();
-            if (['1v1', '2v2', '3v3'].some(pattern => btlname.includes(pattern))) {
-                return false;
-            }
-            return ['排位', '巅峰', '战队','王者峡谷','梦境'].some(pattern => btlname.includes(pattern));
-        }
-
         // 处理分析按钮点击事件（使用页面中的 battleData）
         async function handleAnalyze() {
             try {
@@ -2323,8 +2431,8 @@
 
                 const { head, battle } = battleData;
 
-                if (!checkBtlOfficialWithMatchingWithEntertain(battle.mapName || '')) {
-                    showToast('仅支持分析排位/巅峰/战队/匹配/梦境', 'warning');
+                if (!checkBtlOfficialWithMatching(battle.mapName || '')) {
+                    showToast('仅支持分析排位/巅峰/战队/匹配', 'warning');
                     return;
                 }
 

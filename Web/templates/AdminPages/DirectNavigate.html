@@ -58,7 +58,7 @@
   </style>
 </head>
 <body>
-  <button class="back" id="backBtn" aria-label="返回">← 返回</button>
+  <button class="back" id="backBtn" aria-label="返回看板" onclick="window.location.href='/admin/dashboard'">← 返回看板</button>
   <main class="card" role="main" data-useridlist='{{ useridlist | tojson | safe }}' data-roleidlist='{{ roleidlist | tojson | safe }}'>
     <h1>按UserId/RoleId跳转</h1>
     <p></p>
@@ -141,6 +141,12 @@
       const backBtn = document.getElementById('backBtn');
       const presetSearch = document.getElementById('presetSearch');
 
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+      }
+
       function showToast(msg){
         const t = document.createElement('div');
         t.textContent = msg;
@@ -191,7 +197,8 @@
             const uid = btn.dataset.uid || '';
             const rid = btn.dataset.rid || '';
             // 直接跳转到已有用户页面（roleid 可为空，后台应容忍）
-            const url = `/jump-btlperson?userid=${encodeURIComponent(uid)}&roleid=${encodeURIComponent(rid)}&key={{AdminKey}}`;
+            // 不再在 URL 中拼接 AdminKey，后端会从 Cookie 中读取
+            const url = `/jump-btlperson?userid=${encodeURIComponent(uid)}&roleid=${encodeURIComponent(rid)}`;
             window.location.href = url;
           });
           presetContainer.appendChild(btn);
@@ -202,8 +209,8 @@
         const u = (userid.value||'').trim();
         const r = (roleid.value||'').trim();
         if(!u || !r){ showToast('请填写 userid 和 roleid'); return; }
-        // 模板 key 以 {{AdminKey}} 注入
-        const url = `/jump-btlperson?userid=${encodeURIComponent(u)}&roleid=${encodeURIComponent(r)}&key={{AdminKey}}`;
+        // 不再在 URL 中拼接 AdminKey，后端会从 Cookie 中读取
+        const url = `/jump-btlperson?userid=${encodeURIComponent(u)}&roleid=${encodeURIComponent(r)}`;
         window.location.href = url;
       });
 

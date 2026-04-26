@@ -20,6 +20,15 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
     print(f"traceparent: {encoded_params['traceparent']}")
     roleid=str(roleid)
     userid=str(userid)
+    btldetail_url = "https://kohcamp.qq.com/game/battledetail"
+    btlist_url = "https://kohcamp.qq.com/game/morebattlelist"
+    profile_url = "https://kohcamp.qq.com/game/koh/profile"
+    season_url = "https://kohcamp.qq.com/game/curseasonpage"
+    heropower_url = "https://kohcamp.qq.com/game/profile/herolist"
+    allhero_url= "https://ssl.kohsocialapp.qq.com/play/h5getherolist"
+    herostatistics_url="https://kohcamp.qq.com/gametoolbox/hero/record/pagedetails"
+    heroranklist_url="https://kohcamp.qq.com/gametoolbox/hero/getdetailranklistbyid"
+    watchbattle_url = "https://kohcamp.qq.com/game/watchBattle"
     headers = {
         "Host": "kohcamp.qq.com",
         "istrpcrequest": "true",
@@ -38,6 +47,7 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         "csystemversionname": "12",
         "cpuhardware": "Xiaomi",
         "encodeparam": encoded_params["encodeparam"],
+        # "encodeparam": "26kVVHLwgvRtB6NWDBlSV3PR7wCUFoZcKrHWDx0f9awQRltcKu1U/A8eDZEc9hUhdiKMb89JkTQL7R0CCY/HM8YHZnWkRFp28HHFJGHLPNGUQu0IqQPoHMQKv25Wjqg7ZO2Sdg==",
         "gameareaid": "1",
         "gameid": "20001",
         "gameopenid": confs["wzry"]["gameopenid"],
@@ -229,12 +239,13 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
 @sleep_and_retry
 @limits(calls=100, period=1)
 def ai_api(user_query,temperature): # deepseek官方模型-不联网
+    from .zfile import writera
     log_message("VISIT: ai_api_common")
     try:
         client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
         
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "user", "content": user_query},
             ],
@@ -242,6 +253,7 @@ def ai_api(user_query,temperature): # deepseek官方模型-不联网
             temperature=temperature,
             timeout=20   # 20秒超时
         )
+        writera("deepseek_output.txt",user_query)
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     random.seed(int(time.time() * 1000) % 1000000 + os.getpid())

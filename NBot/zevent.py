@@ -20,6 +20,17 @@ from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command
 require("nonebot_plugin_apscheduler")
 driver = nonebot.get_driver()
 
+# 全局钩子：记录所有用户的发言（只要是 Bot 处理的消息）
+_all_messages = on_message(priority=0, block=False)
+
+@_all_messages.handle()
+async def handle_all_messages(event: MessageEvent):
+    from .zmemory import instance as zm
+    user_id = event.get_user_id()
+    msg_text = event.get_plaintext().strip()
+    if msg_text:
+        # 记录用户的被动发言 (用于后期提炼)
+        await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
@@ -27,7 +38,7 @@ async def judge_herostatistics_query(event)->bool:
     from .zfunc import qid2nick
     from .zfunc import extract_name,extract_heroname
     userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid)).replace("本赛季","")
     if not (rcv_msg.startswith("#") or rcv_msg.startswith("＃")):
         return False
     raw = rcv_msg.lstrip("#＃").strip()
@@ -87,6 +98,7 @@ _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
 _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
+_debug_rep=on_keyword({"##best"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
@@ -122,9 +134,76 @@ _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
 @_tempfunc.handle()
 async def f_tempfunc(event):
-    from .zfunc import export_past
-    add_msg("12322", event=event)
-    await asyncio.to_thread(export_past)
+    from .zfunc import dump_specific_user
+    args = event.get_plaintext().replace("#tpfc", "").replace("tpfc", "").strip().split()
+    if len(args) < 2:
+        add_msg("参数错误，格式：#tpfc realname date", event=event)
+        return
+    realname = args[0]
+    target_date = args[1]
+    if realname not in userlist or realname not in roleidlist:
+        add_msg(f"未找到玩家: {realname}", event=event)
+        return
+    userid = userlist[realname]
+    roleid = roleidlist[realname]
+    add_msg(f"开始导出特定用户数据: {realname} {target_date}", event=event)
+    try:
+        await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+        add_msg("导出完成", event=event)
+    except Exception as e:
+        add_msg(f"导出失败: {str(e)}", event=event)
+        
+@_debug_rep.handle()
+async def handle_debug_rep(event: MessageEvent):
+    from .zfunc import get_daily_representative_battle
+    from .utils.message_sender import add_msg
+    from nonebot.adapters.onebot.v11 import MessageSegment
+    import os
+
+    # 解析日期参数，例如 ##best 2026-04-20
+    # 由于使用 on_keyword，我们需要手动剥离 ##best
+    raw_msg = event.get_plaintext().strip()
+    target_date = raw_msg.replace("##best", "").strip() or None
+
+    try:
+        # 传递可选的日期参数
+        rep_res = get_daily_representative_battle(target_date=target_date)
+        if not rep_res:
+            await _debug_rep.finish(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成")
+            return
+
+        # 构造发给发送者的消息
+        if isinstance(rep_res, (list, tuple)) and len(rep_res) >= 2:
+            text_part = rep_res[0]
+            img_path = rep_res[1]
+            final_msg = text_part
+            
+            # 调试信息：输出筛选准则
+            if len(rep_res) >= 3:
+                best_info = rep_res[2]
+                debug_info = f"\n\n[调试-筛选准则]\n"
+                debug_info += f"● 代表性得分: {best_info.get('RepScore')}\n"
+                debug_info += f"● 触发标签: {' '.join(best_info.get('RawTags', []))}\n"
+                if best_info.get('DetailReason'):
+                    debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
+                final_msg += debug_info
+
+            if img_path and os.path.exists(img_path):
+                final_msg += MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
+            
+            # 1. 发送给发送者 (私聊)
+            user_id = event.get_user_id()
+            add_msg(final_msg, event=event)
+            # 使用普通的 add_msg 或直接 return 而不是 finish
+            add_msg("代表局调试结果已私聊发送", event=event)
+            return
+        else:
+            add_msg(f"数据格式异常: {str(rep_res)}", event=event)
+            return
+            
+    except Exception as e:
+        import traceback
+        add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
@@ -224,7 +303,7 @@ async def f_repair(bot,event):
 @_show_code.handle()
 async def f_show_code(bot,event):
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/zhdxlz/HOK_QQBot_showcase/", event=event)
+    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
@@ -309,31 +388,21 @@ async def f_show_cache(event):
 
 @_forget_me.handle()
 async def f_forget_me(event): # 清空用户记录和用户(自己的)记忆
+    from .zmemory import instance as zm
     log_message("CMD: EMPTY_ME")
     userqid=event.get_user_id()
-    file_path=os.path.join("chats",userqid+".json")
-    try:
-        if await asyncio.to_thread(os.path.exists, file_path):
-            await asyncio.to_thread(os.remove, file_path)
-    except Exception as e:
-        pass
-    file_path=os.path.join("memory",userqid+".json")
-    try:
-        if await asyncio.to_thread(os.path.exists, file_path):
-            await asyncio.to_thread(os.remove, file_path)
-    except Exception as e:
-        pass
+    await asyncio.to_thread(zm.clear_user_data, userqid)
     add_msg(Message("成功清除记忆"), event=event)
     await _forget_me.finish()
 
 @_forever_mem.handle()
 async def f_forever_mem(event):
-    from .zfile import mem_dumper
+    from .zmemory import instance as zm
     from .zfunc import qid2nick
     log_message("CMD: FOREVER")
     userqid=event.get_user_id()
     rcv_msg=event.get_plaintext()
-    await asyncio.to_thread(mem_dumper, userqid, rcv_msg)
+    await asyncio.to_thread(zm.save_forced_memory, userqid, rcv_msg)
     snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
     add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
     await _forever_mem.finish()
@@ -342,7 +411,7 @@ async def f_forever_mem(event):
 async def f_manual(event):
     log_message("CMD: MANUAL")
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/zhdxlz/HOK_QQBot_showcase/", event=event)
+    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
 @_super_only.handle()
 async def f_super_only(event):
@@ -532,7 +601,9 @@ async def f_herostatistics(bot,event):
     )
 
     userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
+    rcv_msg_raw = event.get_plaintext().replace("我", qid2nick(userqid))
+    this_season = "本赛季" in rcv_msg_raw
+    rcv_msg = rcv_msg_raw.replace("本赛季","")
     try:
         player_plural=False
         hero_plural=False
@@ -545,13 +616,13 @@ async def f_herostatistics(bot,event):
 
         try:
             if (not player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname)
+                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname, this_season=this_season)
             elif (not player_plural and hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_mult_hero_process, matching_name)
+                snd_msg = await asyncio.to_thread(single_player_mult_hero_process, matching_name, this_season=this_season)
             elif (player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(mult_player_single_hero_process, heroid, heroname)
+                snd_msg = await asyncio.to_thread(mult_player_single_hero_process, heroid, heroname, this_season=this_season)
             else:
-                snd_msg = await asyncio.to_thread(mult_player_mult_hero_process)
+                snd_msg = await asyncio.to_thread(mult_player_mult_hero_process, this_season=this_season)
         except Exception as e:
             snd_msg = str(e)
 
@@ -572,6 +643,11 @@ async def f_todayhero(bot,event):
         ai_comment=False if ("$" in rcv_msg) else True
         ignore_limit=True if ("%" in rcv_msg) else False
         appoint_realname=True if ("~" in rcv_msg) else False
+        if ("rrrr" in rcv_msg):
+            ignore_limit=True
+            appoint_realname=True
+            add_msg("func unavailable", event=event)
+            return
         if (appoint_realname):
             matching_name = get_validated_name(event)
             if not matching_name: return
@@ -819,44 +895,59 @@ async def f_history_query(event: Event):
 
 @_chat.handle()
 async def f_chat(bot,event):
-    from .zfile import chats_loader
-    from .zfile import chats_dumper
-    from .zfile import mem_loader
-    from .zfunc import qid2nick
-    from .zfunc import ai_parser
+    from .zmemory import instance as zm
+    from .zfunc import qid2nick, ai_parser
     
-    userqid=event.get_user_id()
+    user_id = event.get_user_id()
     
     try:
-        groupqid=event.group_id
-    except Exception as e:
-        groupqid=None
+        group_id = event.group_id
+    except Exception:
+        group_id = None
         
-    if (groupqid):
-        await bot.group_poke(group_id=groupqid, user_id=userqid)
-    my_temp_msg = await asyncio.to_thread(chats_loader, userqid)
-    perp_msg = await asyncio.to_thread(mem_loader, userqid)
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    if group_id:
+        await bot.group_poke(group_id=group_id, user_id=user_id)
+
+    # 1. 主动聊天记忆 (当前用户最多5条)
+    active_msg = await asyncio.to_thread(zm.load_active_chat, user_id, 5)
+    # 2. 被动聊天记忆 (所有用户各1条背景)
+    passive_msg = await asyncio.to_thread(zm.load_global_passive_memory, 1)
+    # 3. 主动强制记忆 (所有用户各5条)
+    forced_msg = await asyncio.to_thread(zm.load_all_forced_memory, 5)
+    # 4. 历史聊天提炼内容 (当前用户最多3条)
+    summary_msg = await asyncio.to_thread(zm.load_user_summary_memory, user_id, 3)
+    
+    # 额外：最近战绩表现
+    history_msg = await asyncio.to_thread(zm.load_user_history_natural, user_id)
+    
+    nick = qid2nick(user_id)
+    rcv_msg = event.get_plaintext().replace("我", nick)
     
     for k in sorted(common_expr.keys(), key=len, reverse=True):
         rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
     
-    rcv_msg+=" "+(str(event.reply.message) if event.reply else "")+" "
-    snd_msg=""
+    rcv_msg += " " + (str(event.reply.message) if event.reply else "") + " "
+    snd_msg = ""
     
-    network=False
-    if ("&" in rcv_msg): network=True
-
+    network = "&" in rcv_msg
     use_mem_current = dmc.use_mem
-    if ("nomem" in rcv_msg): 
+    if "nomem" in rcv_msg: 
         use_mem_current = False
         
     try:
-        snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg, my_temp_msg, perp_msg, qid2nick(userqid)], "chat", network, use_mem=use_mem_current)
+        # 组装上下文列表传递给 ai_parser
+        # 映射关系: [当前消息, 主动对话史, 强制记忆, 昵称, 全局被动背景, 提炼记录, 战绩历史, QID]
+        context_list = [rcv_msg, active_msg, forced_msg, nick, passive_msg, summary_msg, history_msg, user_id]
+        snd_msg += await asyncio.to_thread(ai_parser, context_list, "chat", network, use_mem=use_mem_current)
+        
+        # 只有进入 f_chat 并且成功回复的消息才计入主动记忆
+        if snd_msg and "Error" not in snd_msg:
+             await asyncio.to_thread(zm.save_active_chat, user_id, rcv_msg, snd_msg)
+             
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
-    await asyncio.to_thread(chats_dumper, userqid, rcv_msg, snd_msg)
+
     add_msg(snd_msg, event=event)
     return

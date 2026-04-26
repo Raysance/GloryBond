@@ -15,3 +15,4 @@ MessageQueue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_MESSAGE_Q
 TodayHeroPool=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_TODAY_HERO_POOL)
 BtlAnalyzeEvaluatorPool=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_BTL_ANALYZE_EVALUATOR_POOL)
 redis_deamon_diy_code = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_DIY_CODE)
+redis_deamon_chat_memory = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)

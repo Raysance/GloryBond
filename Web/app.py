@@ -1,6 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException, Query, Body
-from fastapi.responses import HTMLResponse
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, HTTPException, Query, Body, Cookie
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
 
@@ -45,6 +44,7 @@ r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
+r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
 SECRET_KEY = "HOKCAMP123"
 
@@ -160,10 +160,13 @@ async def show_btldetail(request:Request,key: str):
         }
     )
 def check_key_valid(key):
+    if key is None:
+        return False
     return r_com.exists(key) or key==SECRET_KEY
 @app.get("/jump-btlperson", response_class=HTMLResponse)
-async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
-    if (not check_key_valid(key)):
+async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
@@ -183,12 +186,13 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str):
         {
             "request": request,
             "filename": os.path.join("wzry_history",file_name),
-            "key":key,
+            "key": final_key,
         }
     )
 @app.get("/jump-btldetail", response_class=HTMLResponse)
-async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str):
-    if (not check_key_valid(key)):
+async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
@@ -210,7 +214,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
         {
             "request": request,
             "filename": web_path,
-            "key":key,
+            "key": final_key,
             "gameSeq":gameSeq,
             "gameSvr":gameSvr,
             "relaySvr":relaySvr,
@@ -219,8 +223,9 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
         }
     )
 @app.get("/like-btldetail", response_class=HTMLResponse)
-async def like_btldetail(request:Request,gameSeq: str,key:str):
-    if (not check_key_valid(key)):
+async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -252,8 +257,9 @@ async def like_btldetail(request:Request,gameSeq: str,key:str):
         }
     return JSONResponse(success_data)
 @app.get("/share-btldetail", response_class=HTMLResponse)
-async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str,Special: bool = False):
-    if (not check_key_valid(key)):
+async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None),Special: bool = False):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -293,8 +299,9 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     }
     return JSONResponse(success_data)
 @app.get("/analyze-btldetail", response_class=HTMLResponse)
-async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str):
-    if (not check_key_valid(key)):
+async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str = Query(None), AdminKey: str = Cookie(None)):
+    final_key = key or AdminKey
+    if (not check_key_valid(final_key)):
         raise HTTPException(
             status_code=400,
             detail={
@@ -359,50 +366,255 @@ async def admin_verify(request: Request, pattern: str):
     else:
         return {"state": "success","message":"认证成功","key": SECRET_KEY}
         
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    return templates.TemplateResponse("AdminPages/AdminLogin.html", {"request": request})
+
+@app.post("/admin/login")
+async def admin_login(request: Request, password: str = Body(..., embed=True)):
+    if password == SECRET_KEY:
+        response = JSONResponse({"status": "success", "message": "登录成功"})
+        # 设置 cookie，有效期 7 天
+        response.set_cookie(key="AdminKey", value=password, max_age=604800, httponly=True)
+        return response
+    else:
+        return JSONResponse({"status": "error", "message": "密码错误"}, status_code=401)
+
 @app.get("/admin/dashboard", response_class=HTMLResponse)
-async def admin_user_edit_page(request: Request, AdminKey: str):
+async def admin_dashboard_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return RedirectResponse(url="/admin/login")
     return templates.TemplateResponse(
         "AdminPages/DashBoard.html",
         {
             "request": request,
-            "AdminKey":AdminKey
+            "AdminKey": AdminKey
         }
     )
 
 @app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)
-async def jump_admin_page(request: Request, AdminKey: str):
-    if (AdminKey!=SECRET_KEY):
-        return templates.TemplateResponse(
-            "ErrorPages/illegal.html",{"request": request,"message":"AdminKey失效"}
-        )
+async def jump_admin_page(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login")
     reload_variables()
     return templates.TemplateResponse(
         "AdminPages/DirectNavigate.html",
         {
             "request": request,
-            "AdminKey":AdminKey,
-            "useridlist":{**userlist,**extra_useridlist},
-            "roleidlist":{**roleidlist,**extra_roleidlist}
+            "AdminKey": AdminKey,
+            "useridlist": {**userlist, **extra_useridlist},
+            "roleidlist": {**roleidlist, **extra_roleidlist}
         }
     )
 
 @app.get("/admin/funcs/user-edit", response_class=HTMLResponse)
-async def admin_user_edit_page(request: Request, AdminKey: str):
+async def admin_user_edit_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return RedirectResponse(url="/admin/login")
     return templates.TemplateResponse(
         "AdminPages/UserEdit.html",
         {
             "request": request,
-            "AdminKey":AdminKey
+            "AdminKey": AdminKey
         }
     )
-@app.get("/admin/funcs/user-edit/fetch-user-info")
-async def fetch_user_info(request: Request, AdminKey: str = Query(...)):
+
+@app.get("/admin/funcs/chat-viewer", response_class=HTMLResponse)
+async def admin_chat_viewer_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return RedirectResponse(url="/admin/login")
+    reload_variables()
+    return templates.TemplateResponse(
+        "AdminPages/ChatViewer.html",
+        {
+            "request": request,
+            "AdminKey": AdminKey,
+            "qid_map": qid # realname -> qid
+        }
+    )
+
+@app.get("/admin/funcs/chat-viewer/fetch")
+async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return {"status": "error", "message": "认证失败"}
+    
+    prefix = "zmem:"
+    try:
+        if mode == "forced":
+            # 获取长效记忆 (forced_mem)
+            if target_qid == "global":
+                # 全局模式下扫描所有人的记忆
+                all_keys = r_chat.keys(f"{prefix}forced_mem:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    raw_records = r_chat.lrange(k, 0, -1) 
+                    for idx, r in enumerate(raw_records):
+                        item = json.loads(r.decode('utf-8'))
+                        records.append({
+                            "time": item.get("time", ""),
+                            "nick": qid_part,
+                            "Q": "强制记忆录入",
+                            "A": item.get("mem", ""),
+                            "qid": qid_part,
+                            "idx": idx
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
+            else:
+                key = f"{prefix}forced_mem:{target_qid}"
+                raw_records = r_chat.lrange(key, 0, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    item = json.loads(r.decode('utf-8'))
+                    records.append({
+                        "time": item.get("time", ""),
+                        "Q": "主动强制内容",
+                        "A": item.get("mem", ""),
+                        "qid": target_qid,
+                        "idx": idx
+                    })
+                records.reverse()
+        elif mode == "passive":
+            # 获取被动聊天记录 (passive_chat)
+            if target_qid == "global":
+                all_keys = r_chat.keys(f"{prefix}passive_chat:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    last_record = r_chat.lrange(k, -1, -1)
+                    if last_record:
+                        item = json.loads(last_record[0].decode('utf-8'))
+                        records.append({
+                            "time": item.get("time", ""),
+                            "nick": qid_part,
+                            "Q": item.get("text", ""),
+                            "A": "(被动记录片段)",
+                            "qid": qid_part
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
+            else:
+                key = f"{prefix}passive_chat:{target_qid}"
+                raw_records = r_chat.lrange(key, -100, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    item = json.loads(r.decode('utf-8'))
+                    records.append({
+                        "time": item.get("time", ""),
+                        "Q": item.get("text", ""),
+                        "A": "(记录于群聊)",
+                        "qid": target_qid,
+                        "idx": idx
+                    })
+                records.reverse()
+        elif mode == "summary":
+            # 获取历史总结记忆 (summary_mem)
+            if target_qid == "global":
+                all_keys = r_chat.keys(f"{prefix}summary_mem:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    raw_records = r_chat.lrange(k, 0, -1)
+                    for idx, r in enumerate(raw_records):
+                        item = json.loads(r.decode('utf-8'))
+                        records.append({
+                            "time": item.get("time", ""),
+                            "nick": qid_part,
+                            "Q": f"用户总结 ({qid_part})",
+                            "A": item.get("summary", ""),
+                            "qid": qid_part,
+                            "idx": idx
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
+            else:
+                key = f"{prefix}summary_mem:{target_qid}"
+                raw_records = r_chat.lrange(key, 0, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    item = json.loads(r.decode('utf-8'))
+                    records.append({
+                        "time": item.get("time", ""),
+                        "Q": "今日状态提炼",
+                        "A": item.get("summary", ""),
+                        "qid": target_qid,
+                        "idx": idx
+                    })
+                records.reverse()
+        else: # active_chat
+            if target_qid == "global":
+                all_keys = r_chat.keys(f"{prefix}active_chat:*")
+                records = []
+                for k in all_keys:
+                    key_str = k.decode('utf-8')
+                    qid_part = key_str.split(":")[-1]
+                    raw_records = r_chat.lrange(k, -5, -1)
+                    for idx, r in enumerate(raw_records):
+                        item = json.loads(r.decode('utf-8'))
+                        records.append({
+                            **item,
+                            "nick": qid_part,
+                            "qid": qid_part,
+                            "idx": idx
+                        })
+                records.sort(key=lambda x: x['time'], reverse=True)
+            else:
+                key = f"{prefix}active_chat:{target_qid}"
+                raw_records = r_chat.lrange(key, -50, -1)
+                records = []
+                for idx, r in enumerate(raw_records):
+                    records.append({**json.loads(r.decode('utf-8')), "idx": idx, "qid": target_qid})
+                records.reverse()
+        
+        return {"status": "success", "records": records}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/admin/funcs/chat-viewer/memory-op")
+async def memory_operation(op: str = Body(...), qid: str = Body(...), mode: str = Body("forced"), content: str = Body(None), idx: int = Body(None), AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return {"status": "error", "message": "认证失败"}
+    
+    mapping = {"forced": "forced_mem", "active": "active_chat", "passive": "passive_chat", "summary": "summary_mem"}
+    if mode not in mapping: return {"status": "error", "message": "未知模式"}
+    
+    key = f"zmem:{mapping[mode]}:{qid}"
+    try:
+        if op == "add":
+            item = {"time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            if mode == "active": item.update({"Q": content, "A": "(手动录入)"})
+            elif mode == "passive": item["text"] = content
+            elif mode == "forced": item["mem"] = content
+            elif mode == "summary": item["summary"] = content
+            r_chat.rpush(key, json.dumps(item, ensure_ascii=False))
+            r_chat.ltrim(key, -100, -1)
+        
+        elif op == "delete":
+            target_val = r_chat.lindex(key, idx)
+            if target_val: r_chat.lrem(key, 1, target_val)
+        
+        elif op == "update":
+            old_val_raw = r_chat.lindex(key, idx)
+            if old_val_raw:
+                item = json.loads(old_val_raw.decode('utf-8'))
+                if mode == "active": item["Q"] = content
+                elif mode == "passive": item["text"] = content
+                elif mode == "forced": item["mem"] = content
+                elif mode == "summary": item["summary"] = content
+                
+                # 更新时间并打上修改标记
+                item["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (已修改)"
+                r_chat.lset(key, idx, json.dumps(item, ensure_ascii=False))
+
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/admin/funcs/user-edit/fetch-user-info")
+async def fetch_user_info(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return JSONResponse({"status": "error", "message": "AdminKey失效"}, status_code=401)
     reload_variables()
     return {
         "userlist": userlist,
@@ -416,9 +628,9 @@ async def fetch_user_info(request: Request, AdminKey: str = Query(...)):
     }
 
 @app.post("/admin/funcs/user-edit/submit-user-info")
-async def submit_user_info(request: Request, AdminKey: str = Query(...), changes: list = Body(...)):
+async def submit_user_info(request: Request, changes: list = Body(...), AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
-        return templates.TemplateResponse("ErrorPages/illegal.html", {"request": request, "message": "AdminKey失效"})
+        return JSONResponse({"status": "error", "message": "AdminKey失效"}, status_code=401)
     try:
         with open(variables_file_path, 'r', encoding='utf-8') as f:
             full_data = json.load(f)
