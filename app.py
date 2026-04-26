@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Query, Body, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
 import redis
 import os
@@ -45,6 +46,10 @@ r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SE
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
+
+app.mount("/bot_demo_assets", StaticFiles(directory="bot_demo_msg_readme/assets"), name="bot_demo_assets")
+
+import bot_demo_msg_processor
 
 SECRET_KEY = "HOKCAMP123"
 
@@ -669,6 +674,15 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/bot_demo", response_class=HTMLResponse)
+async def bot_demo_page(request: Request):
+    return templates.TemplateResponse("BotDemo.html", {"request": request})
+
+@app.post("/bot_demo/message")
+async def bot_demo_message(request: Request, message: str = Body(..., embed=True)):
+    response = await bot_demo_msg_processor.process_message(message)
+    return JSONResponse(response)
 
 if __name__ == "__main__":
     import uvicorn

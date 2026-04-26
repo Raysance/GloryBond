@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOK_QQBOT 模拟对话</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f7f9fb;
+            --header-bg: #ffffff;
+            --chat-bg: #ffffff;
+            --user-bubble: #007aff;
+            --bot-bubble: #f0f0f2;
+            --text-main: #333333;
+            --text-sec: #8e8e93;
+            --border-color: #e5e5ea;
+            --accent: #007aff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--header-bg);
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        #chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background-color: var(--chat-bg);
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            animation: fadeIn 0.15s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .message.bot {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        .message-content {
+            padding: 0.75rem 1rem;
+            border-radius: 1.1rem;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .user .message-content {
+            background-color: var(--user-bubble);
+            color: white;
+            border-bottom-right-radius: 0.2rem;
+        }
+
+        .bot .message-content {
+            background-color: var(--bot-bubble);
+            color: var(--text-main);
+            border-bottom-left-radius: 0.2rem;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-sec);
+            margin-top: 0.3rem;
+        }
+
+        .rich-content {
+            background-color: var(--bot-bubble);
+            border-radius: 1rem;
+            padding: 1rem;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .rich-image {
+            width: 100%;
+            border-radius: 0.5rem;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .rich-footer {
+            font-size: 0.85rem;
+            color: var(--text-sec);
+        }
+
+        .image-msg {
+            max-width: 100%;
+            border-radius: 0.8rem;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .image-msg:hover {
+            opacity: 0.9;
+        }
+
+        footer {
+            background-color: var(--header-bg);
+            padding: 0.8rem 1rem;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--border-color);
+            gap: 0.8rem;
+        }
+
+        .cmd-menu {
+            border: 1px solid var(--border-color);
+            border-radius: 0.8rem;
+            overflow: hidden;
+            background: #f9f9fb;
+        }
+
+        .cmd-menu summary {
+            padding: 0.6rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cmd-menu summary::after {
+            content: '▼';
+            font-size: 0.7rem;
+            transition: transform 0.2s;
+        }
+
+        .cmd-menu[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .cmd-list {
+            padding: 0.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.5rem;
+            border-top: 1px solid var(--border-color);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .cmd-item {
+            background: white;
+            padding: 0.4rem 0.6rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cmd-item:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 0.8rem;
+            align-items: center;
+        }
+
+        input {
+            flex-grow: 1;
+            background-color: #f0f0f2;
+            border: none;
+            padding: 0.7rem 1rem;
+            border-radius: 1.5rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .send-btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .poke-btn {
+            background-color: #ffcc00;
+            color: #333;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        /* Image Overlay */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            cursor: zoom-out;
+        }
+
+        #overlay img {
+            max-width: 95%;
+            max-height: 95%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d1d1d6;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>HOK_QQBOT Demo</h1>
+    </header>
+
+    <main id="chat-container">
+        <div class="message bot">
+            <div class="message-content">你好！我是 HOK_QQBOT 模拟器。查看下方的指令列表开始测试。所有返回内容均与 README 保持一致。</div>
+            <div class="message-time">刚刚</div>
+        </div>
+    </main>
+
+    <footer>
+        <details class="cmd-menu">
+            <summary>
+                <span>支持的所有功能指令 (Readme 同步)</span>
+            </summary>
+            <div class="cmd-list">
+                <div class="cmd-item" onclick="fillText('#排行')">#排行</div>
+                <div class="cmd-item" onclick="fillText('#我的战绩')">#我的战绩</div>
+                <div class="cmd-item" onclick="fillText('#示例玩家65昨天的战绩')">#昨天战绩</div>
+                <div class="cmd-item" onclick="fillText('#在线')">#在线</div>
+                <div class="cmd-item" onclick="fillText('#查询示例玩家71排位')">#对局查询</div>
+                <div class="cmd-item" onclick="fillText('#我的战力')">#我的战力</div>
+                <div class="cmd-item" onclick="fillText('#示例玩家41的英雄')">#我的英雄汇总</div>
+                <div class="cmd-item" onclick="fillText('#示例玩家63的露娜')">#指定英雄</div>
+                <div class="cmd-item" onclick="fillText('#群u的英雄')">#群u英雄汇总</div>
+                <div class="cmd-item" onclick="fillText('#今日英雄')">#今日英雄</div>
+                <div class="cmd-item" onclick="fillText('#我的分析')">#趋势分析</div>
+                <div class="cmd-item" onclick="fillText('#b')">#机制收益b</div>
+                <div class="cmd-item" onclick="fillText('#示例玩家65的预言')">#对局预言</div>
+                <div class="cmd-item" onclick="fillText('#我的时长')">#游戏时长</div>
+            </div>
+        </details>
+
+        <div class="input-wrapper">
+            <button class="poke-btn" id="poke-btn">戳一戳</button>
+            <input type="text" id="msg-input" placeholder="输入 # 指令..." autocomplete="off">
+            <button class="send-btn" id="send-btn">发送</button>
+        </div>
+    </footer>
+
+    <div id="overlay" onclick="closeOverlay()">
+        <img id="overlay-img" src="" alt="Preview">
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const msgInput = document.getElementById('msg-input');
+        const sendBtn = document.getElementById('send-btn');
+        const pokeBtn = document.getElementById('poke-btn');
+        const overlay = document.getElementById('overlay');
+        const overlayImg = document.getElementById('overlay-img');
+
+        function fillText(text) {
+            msgInput.value = text;
+            msgInput.focus();
+        }
+
+        function showOverlay(src) {
+            overlayImg.src = src;
+            overlay.style.display = 'flex';
+        }
+
+        function closeOverlay() {
+            overlay.style.display = 'none';
+        }
+
+        function appendMessage(role, data) {
+            if (Array.isArray(data)) {
+                data.forEach(item => appendMessage(role, item));
+                return;
+            }
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            if (data.type === 'text') {
+                msgDiv.innerHTML = `
+                    <div class="message-content">${linkify(data.content)}</div>
+                    <div class="message-time">${time}</div>
+                `;
+            } else if (data.type === 'image') {
+                msgDiv.innerHTML = `
+                    <img src="${data.content}" class="image-msg" onclick="showOverlay('${data.content}')">
+                    ${data.text ? `<div class="message-content" style="margin-top: 5px;">${data.text}</div>` : ''}
+                    <div class="message-time">${time}</div>
+                `;
+            } else if (data.type === 'rich') {
+                msgDiv.innerHTML = `
+                    <div class="rich-content">
+                        <div style="font-weight: 600;">${data.content}</div>
+                        ${data.image ? `<img src="${data.image}" class="rich-image" onclick="showOverlay('${data.image}')">` : ''}
+                        ${data.footer ? `<div class="rich-footer">${data.footer}</div>` : ''}
+                    </div>
+                    <div class="message-time">${time}</div>
+                `;
+            }
+
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function linkify(text) {
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            return text.replace(urlRegex, function(url) {
+                return '<a href="' + url + '" target="_blank" style="color: #007aff; text-decoration: underline;">' + url + '</a>';
+            });
+        }
+
+        async function sendMessage(text) {
+            if (!text.trim()) return;
+            appendMessage('user', { type: 'text', content: text });
+            msgInput.value = '';
+
+            try {
+                const response = await fetch('/bot_demo/message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await response.json();
+                
+                // If data is list, it will be handled by appendMessage itself
+                setTimeout(() => appendMessage('bot', data), 400);
+            } catch (error) {
+                appendMessage('bot', { type: 'text', content: '服务响应错误' });
+            }
+        }
+
+        sendBtn.addEventListener('click', () => sendMessage(msgInput.value));
+        msgInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage(msgInput.value);
+        });
+        pokeBtn.addEventListener('click', () => sendMessage('戳一戳'));
+    </script>
+</body>
+</html>
