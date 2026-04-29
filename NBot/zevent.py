@@ -303,7 +303,7 @@ async def f_repair(bot,event):
 @_show_code.handle()
 async def f_show_code(bot,event):
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
+    add_msg("https://github.com/Raysance/GloryBond/", event=event)
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
@@ -411,7 +411,7 @@ async def f_forever_mem(event):
 async def f_manual(event):
     log_message("CMD: MANUAL")
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
+    add_msg("https://github.com/Raysance/GloryBond/", event=event)
 
 @_super_only.handle()
 async def f_super_only(event):
