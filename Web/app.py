@@ -46,7 +46,6 @@ r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QU
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
-SECRET_KEY = "HOKCAMP123"
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
