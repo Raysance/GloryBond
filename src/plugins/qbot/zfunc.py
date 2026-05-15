@@ -168,7 +168,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         # except Exception as e:
         #     log_message(str(e))
         peakUp=get_peak_alter_list(details=today_details,processed=False)
-        gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if not any(zerograde in game['mapName'] for zerograde in {"1V1","3V3"})]
+        gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if check_btl_official_with_matching(game['mapName'])]
         today_btl_aver = round(sum((gamegrades)) / len(gamegrades),3) if gamegrades else 0
         today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
         today_btl_min= fin if len(gamegrades)==0 else min(gamegrades)
@@ -286,7 +286,7 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
                 """
                 whole_query += style_template + context_msg + chat_pmpt
             else:
-                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
+                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
         case "poke":
             whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
         case "festival":
@@ -2315,7 +2315,7 @@ def merge_crossday_gamedata(gamedata):
     if ("visible" not in res): res["visible"]=True
     official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official_with_matching(btl["MapName"])]
     res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
-    res["btl_aver"]=round(res["btl_aver"],1)
+    res["btl_aver"]=round(res["btl_aver"],3)
 
     return res
 def check_btl_official(btlname):
@@ -2684,17 +2684,34 @@ def history_query_handler(rcv_msg):
 
     user_msg = rcv_msg.strip()
     # 预替换：将用户常用口语/短语映射为规范查询表达，便于后续AI解析
-    from datetime import datetime
+    from datetime import datetime,timedelta
     today_str = datetime.now().strftime("%Y-%m-%d")
+    date_1_days_ago = datetime.now() - timedelta(days=1)
+    date_1_days_ago_str = date_1_days_ago.strftime("%Y-%m-%d")
+    date_2_days_ago = datetime.now() - timedelta(days=2)
+    date_2_days_ago_str = date_2_days_ago.strftime("%Y-%m-%d")
+    date_7_days_ago = datetime.now() - timedelta(days=7)
+    date_7_days_ago_str = date_7_days_ago.strftime("%Y-%m-%d")
+    date_14_days_ago = datetime.now() - timedelta(days=14)
+    date_14_days_ago_str = date_14_days_ago.strftime("%Y-%m-%d")
+    date_30_days_ago = datetime.now() - timedelta(days=30)
+    date_30_days_ago_str = date_30_days_ago.strftime("%Y-%m-%d")
     alias_map = {
         "带飞": "评分高于",
         "今天": f"{today_str}",
+        "昨天": f"{date_1_days_ago_str}",
+        "前天": f"{date_2_days_ago_str}",
         "本赛季": f"{this_season_start_date}到{today_str}",
         "这赛季": f"{this_season_start_date}到{today_str}",
         "这个赛季": f"{this_season_start_date}到{today_str}",
         "当前赛季": f"{this_season_start_date}到{today_str}",
         "上个赛季": f"{last_season_start_date}到{last_season_end_date}",
         "上赛季": f"{last_season_start_date}到{last_season_end_date}",
+        "这周": f"{date_7_days_ago_str}到{today_str}",
+        "本周": f"{date_7_days_ago_str}到{today_str}",
+        "上周": f"{date_14_days_ago_str}到{date_7_days_ago_str}",
+        "本月": f"{date_30_days_ago_str}到{today_str}",
+        "这个月": f"{date_30_days_ago_str}到{today_str}"
     }
     # 优先替换较长键以避免短词匹配冲突
     for k in sorted(alias_map.keys(), key=lambda x: -len(x)):

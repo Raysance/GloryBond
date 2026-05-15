@@ -253,7 +253,7 @@ def ai_api(user_query,temperature): # deepseek官方模型-不联网
             temperature=temperature,
             timeout=20   # 20秒超时
         )
-        writera("deepseek_output.txt",user_query)
+        # writera("deepseek_output.txt",user_query)
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     random.seed(int(time.time() * 1000) % 1000000 + os.getpid())

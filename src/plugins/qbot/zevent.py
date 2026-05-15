@@ -114,8 +114,6 @@ _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
 
 _atall=on_fullmatch(tuple(atall_keywords),priority=4, block=True)
-_rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=4, block=True)
-_single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
@@ -129,6 +127,9 @@ _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
 _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _tempfunc = on_keyword({"tpfc"},rule=judge_to_me,priority=4, block=True)
+
+_rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=5, block=True)
+_single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
@@ -788,9 +789,11 @@ async def f_recentgames(event):
     from .zfunc import recentgames_process, qid2nick, extract_name
     from .utils.message_sender import add_msg
     userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
-    
-    realname = extract_name(rcv_msg)
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid)).replace("的", "").replace("时长", "")
+    if ("排行" in rcv_msg or "排名" in rcv_msg):
+        add_msg(f"tο be implemented", event=event)
+        return
+    realname = extract_name(from_text=rcv_msg,precise=False)
     if not realname:
         add_msg("未识别到玩家名字", event=event)
         await _recentgames.finish()
