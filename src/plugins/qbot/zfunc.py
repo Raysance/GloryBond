@@ -199,13 +199,17 @@ def dump_specific_user(userid, roleid, target_date):
 
     log_message(f"DUMPBEGIN specific user {userid} date: {target_date}.json")
     
-    # 构造临时的realname，wzry_data虽然传入realname，但在指定target_userid时不会用userlist查找
-    temp_realname = "temp_" + str(userid)
+    # 获取真正的realname (key)
+    realname = "unknown"
+    for k, v in userlist.items():
+        if v == userid:
+            realname = k
+            break
     
     gameinfo = []
     try:
         data = wzry_data(
-            realname=temp_realname, 
+            realname=realname, 
             savepath=os.path.join("history", "personal", target_date, str(userid) + ".json"),
             target_userid=userid,
             target_roleid=roleid,
@@ -215,8 +219,21 @@ def dump_specific_user(userid, roleid, target_date):
     except Exception as e:
         log_message(f"Dump specific user {userid} failed: {e}")
 
-    filename = os.path.join("history", target_date + f"_{userid}.json")
-    writerl(filename, gameinfo)
+    aggregated_filename = os.path.join("history", target_date + ".json")
+    try:
+        if os.path.exists(aggregated_filename):
+            with open(aggregated_filename, 'r', encoding='utf-8') as f:
+                import json
+                existing_data = json.load(f)
+            # Remove old data for this user if exists
+            existing_data = [d for d in existing_data if str(d.get("id")) != str(userid)]
+            existing_data.extend(gameinfo)
+            writerl(aggregated_filename, existing_data)
+        else:
+            writerl(aggregated_filename, gameinfo)
+    except Exception as e:
+        log_message(f"Failed to update aggregated file {aggregated_filename}: {e}")
+        
     log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
     return gameinfo
 

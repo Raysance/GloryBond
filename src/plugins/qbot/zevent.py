@@ -142,6 +142,20 @@ async def f_tempfunc(event):
         return
     realname = args[0]
     target_date = args[1]
+
+    if realname.lower() == "all":
+        add_msg(f"开始导出所有用户数据: {target_date}", event=event)
+        try:
+            for rname in userlist:
+                if rname in roleidlist:
+                    userid = userlist[rname]
+                    roleid = roleidlist[rname]
+                    await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+            add_msg("全部导出完成", event=event)
+        except Exception as e:
+            add_msg(f"全部导出失败: {str(e)}", event=event)
+        return
+
     if realname not in userlist or realname not in roleidlist:
         add_msg(f"未找到玩家: {realname}", event=event)
         return
