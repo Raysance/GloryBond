@@ -47,7 +47,7 @@ r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QU
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
-app.mount("/btldefaultjson", StaticFiles(directory="default_json_templates"), name="default_json_templates")
+# app.mount("/btldefaultjson", StaticFiles(directory="default_json_templates"), name="default_json_templates")
 
 SECRET_KEY = "HOKCAMP123"
 
@@ -74,7 +74,7 @@ async def not_found_exception_handler(request: Request, exc: HTTPException):
         status_code=404
     )
 
-@app.get("/btlist", response_class=HTMLResponse)
+@app.get("/all", response_class=HTMLResponse)
 async def show_btlist(request:Request,key: str):
     # raise HTTPException(
     #     status_code=404,
@@ -96,7 +96,7 @@ async def show_btlist(request:Request,key: str):
             "caller": text_content["caller"],
         }
     )
-@app.get("/btlperson", response_class=HTMLResponse)
+@app.get("/person", response_class=HTMLResponse)
 async def show_btlperson(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
@@ -113,7 +113,7 @@ async def show_btlperson(request:Request,key: str):
             "key": key,
         }
     )
-@app.get("/btlperiod", response_class=HTMLResponse)
+@app.get("/period", response_class=HTMLResponse)
 async def show_btlperiod(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
@@ -132,7 +132,7 @@ async def show_btlperiod(request:Request,key: str):
             "DateTo":text_content["DateTo"],
         }
     )
-@app.get("/btldetail", response_class=HTMLResponse)
+@app.get("/battle", response_class=HTMLResponse)
 async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
@@ -149,7 +149,7 @@ async def show_btldetail(request:Request,key: str):
             "key": key,
         }
     )
-@app.get("/btlquery", response_class=HTMLResponse)
+@app.get("/query", response_class=HTMLResponse)
 async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
@@ -171,7 +171,7 @@ def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False
     return r_com.exists(key) or key==SECRET_KEY
-@app.get("/jump-btlperson", response_class=HTMLResponse)
+@app.get("/jump-person", response_class=HTMLResponse)
 async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
     if (not check_key_valid(key=final_key,reqtype="jump_btlperson")):
@@ -197,7 +197,7 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query
             "key": final_key,
         }
     )
-@app.get("/jump-btldetail", response_class=HTMLResponse)
+@app.get("/jump-battle", response_class=HTMLResponse)
 async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
     if (not check_key_valid(key=final_key,reqtype="jump_btldetail")):
@@ -230,7 +230,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             "battleType":battleType,
         }
     )
-@app.get("/like-btldetail", response_class=HTMLResponse)
+@app.get("/like-battle", response_class=HTMLResponse)
 async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
     if (not check_key_valid(key=final_key,reqtype="like_btldetail")):
@@ -264,7 +264,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
             }
         }
     return JSONResponse(success_data)
-@app.get("/share-btldetail", response_class=HTMLResponse)
+@app.get("/share-battle", response_class=HTMLResponse)
 async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None),Special: bool = False):
     final_key = key or AdminKey
     if (not check_key_valid(key=final_key,reqtype="share_btldetail")):
@@ -306,7 +306,7 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
         }
     }
     return JSONResponse(success_data)
-@app.get("/analyze-btldetail", response_class=HTMLResponse)
+@app.get("/analyze-battle", response_class=HTMLResponse)
 async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
     if (not check_key_valid(key=final_key,reqtype="analyze_btldetail")):
