@@ -186,8 +186,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
-    export_btldetail(today_details,roleid)
-    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
+    unaccessible_battles=export_btldetail(today_details,roleid)
+    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
 def dump_specific_user(userid, roleid, target_date):
     """
     模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
@@ -235,7 +235,7 @@ def dump_specific_user(userid, roleid, target_date):
         log_message(f"Failed to update aggregated file {aggregated_filename}: {e}")
         
     log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
-    return gameinfo
+    return gameinfo[0]
 
 def export_past():
     import json
@@ -344,15 +344,15 @@ def create_website(contents,sitetype):
     hash_key = hashlib.sha256(secrets.token_hex(16).encode()).hexdigest()[:16]
     dmc.redis_deamon.set(hash_key, contents, ex=REDIS_TEXT_EXPIRE_SECONDS)
     if (sitetype=="all"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlist?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/all?key={hash_key}"
     elif (sitetype=="single_oneday"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlperson?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/person?key={hash_key}"
     elif (sitetype=="single_period"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlperiod?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/period?key={hash_key}"
     elif (sitetype=="btldetail"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btldetail?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/battle?key={hash_key}"
     elif (sitetype=="query_select"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlquery?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/query?key={hash_key}"
     else:
         url=f""
     return url
@@ -2375,12 +2375,17 @@ def export_btldetail(gameinfo,roleid):
     from .zfile import writerl
     from .zapi import wzry_get_official
     from .zfile import file_exist
+    unaccessible_battles=[]
     for btl in gameinfo:
         savepath=os.path.join("history","battles",str(btl["GameSeq"])+".json")
         if (file_exist(savepath) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
-        res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
-        writerl(savepath,res)
-    return
+        try:
+            res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
+            writerl(savepath,res)
+        except Exception as e:
+            unaccessible_battles.append({"roleid":roleid,"GameSeq":btl["GameSeq"],"Error":str(e)})
+
+    return unaccessible_battles
 
 def notify_msg_impl():
     from .zutil import log_message
@@ -2398,7 +2403,7 @@ def notify_msg_impl():
     
     messages = [snd_msg]
 
-    # 获取最有代表性的对局（含数据）
+    # # 获取最有代表性的对局（含数据）
     # try:
     #     rep_btl_res = get_daily_representative_battle()
     #     if rep_btl_res:

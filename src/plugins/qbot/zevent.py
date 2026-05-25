@@ -98,7 +98,7 @@ _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
 _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
-_debug_rep=on_keyword({"##best"},rule=judge_super,priority=1, block=True)
+_dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
@@ -126,23 +126,23 @@ _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
 _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
-_tempfunc = on_keyword({"tpfc"},rule=judge_to_me,priority=4, block=True)
+_exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
 
 _rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=5, block=True)
 _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
-@_tempfunc.handle()
-async def f_tempfunc(event):
+@_exporthistory.handle()
+async def f_exporthistory(event):
     from .zfunc import dump_specific_user
-    args = event.get_plaintext().replace("#tpfc", "").replace("tpfc", "").strip().split()
+    args = event.get_plaintext().replace("#exp", "").replace("exp", "").strip().split()
     if len(args) < 2:
-        add_msg("参数错误，格式：#tpfc realname date", event=event)
+        add_msg("参数错误，格式：#exp realname date", event=event)
         return
     realname = args[0]
     target_date = args[1]
-
+    unaccessible_battles=[]
     if realname.lower() == "all":
         add_msg(f"开始导出所有用户数据: {target_date}", event=event)
         try:
@@ -150,10 +150,16 @@ async def f_tempfunc(event):
                 if rname in roleidlist:
                     userid = userlist[rname]
                     roleid = roleidlist[rname]
-                    await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
-            add_msg("全部导出完成", event=event)
+                    gameinfo=await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+                if gameinfo["unaccessible_battles"]:
+                    unaccessible_battles.append(gameinfo["unaccessible_battles"])
         except Exception as e:
             add_msg(f"全部导出失败: {str(e)}", event=event)
+            return
+        if (unaccessible_battles):
+            add_msg(f"全部导出battle失败: {str(unaccessible_battles)}", event=event)
+        else:
+            add_msg("全部导出完成", event=event)
         return
 
     if realname not in userlist or realname not in roleidlist:
@@ -163,13 +169,17 @@ async def f_tempfunc(event):
     roleid = roleidlist[realname]
     add_msg(f"开始导出特定用户数据: {realname} {target_date}", event=event)
     try:
-        await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
-        add_msg("导出完成", event=event)
+        gameinfo=await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+        if gameinfo["unaccessible_battles"]:
+            unaccessible_battles=gameinfo["unaccessible_battles"]
+        if (unaccessible_battles):
+            add_msg(f"导出battle失败: {str(unaccessible_battles)}", event=event)
+        else:
+            add_msg("导出完成", event=event)
     except Exception as e:
-        add_msg(f"导出失败: {str(e)}", event=event)
-        
-@_debug_rep.handle()
-async def handle_debug_rep(event: MessageEvent):
+        add_msg(f"导出失败: {str(e)+traceback.format_exc()}", event=event)
+@_dailyrepbattle.handle()
+async def f_dailyrepbattle(event: MessageEvent):
     from .zfunc import get_daily_representative_battle
     from .utils.message_sender import add_msg
     from nonebot.adapters.onebot.v11 import MessageSegment
@@ -178,7 +188,7 @@ async def handle_debug_rep(event: MessageEvent):
     # 解析日期参数，例如 ##best 2026-04-20
     # 由于使用 on_keyword，我们需要手动剥离 ##best
     raw_msg = event.get_plaintext().strip()
-    target_date = raw_msg.replace("##best", "").strip() or None
+    target_date = raw_msg.replace("##srep", "").strip() or None
 
     try:
         # 传递可选的日期参数
