@@ -333,7 +333,7 @@ async def f_show_code(bot,event):
 
 @_emoji_gen.handle()
 async def f_emoji_gen(event):
-    from .zfunc import generate_user_emoji_image
+    from .tools.gen_emoji_image import generate_user_emoji_image
     try:
         meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=event.get_user_id())
         add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
@@ -391,7 +391,7 @@ async def f_group_poke(bot, event):
 
                     send_type=(random.random()>-1)
                     if random.random() < (getattr(dmc, "EmojiImageProb", None) or 0):
-                        from .zfunc import generate_user_emoji_image
+                        from .tools.gen_emoji_image import generate_user_emoji_image
                         try:
                             meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=userqid)
                             add_msg(MessageSegment.image(meta["image_path"]), event=event)
