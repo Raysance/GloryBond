@@ -102,6 +102,7 @@ _dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
+_emoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
@@ -330,6 +331,18 @@ async def f_show_code(bot,event):
     add_msg(Message("Code on Github："), event=event)
     add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
+@_emoji_gen.handle()
+async def f_emoji_gen(event):
+    from .zfunc import generate_user_emoji_image
+    try:
+        meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=event.get_user_id())
+        add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
+        add_msg(MessageSegment.image(meta["image_path"]), event=event)
+    except Exception as e:
+        add_msg(f"emoji_gen_error: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    await _emoji_gen.finish()
+
 @_group_poke.handle()
 async def f_group_poke(bot, event):
     from .zfunc import qid2nick
@@ -377,6 +390,15 @@ async def f_group_poke(bot, event):
                         groupqid=None
 
                     send_type=(random.random()>-1)
+                    if random.random() < (getattr(dmc, "EmojiImageProb", None) or 0):
+                        from .zfunc import generate_user_emoji_image
+                        try:
+                            meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=userqid)
+                            add_msg(MessageSegment.image(meta["image_path"]), event=event)
+                        except Exception as e:
+                            add_msg(f"emoji_gen_error: {str(e)}", event=event)
+                            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                        return
                     if send_type:
                         snd_msg = await asyncio.to_thread(ai_parser, [qid2nick(userqid), str(datetime.datetime.now())], "poke")
                     else:

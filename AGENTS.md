@@ -54,7 +54,7 @@
 
 ### 2.1 配置文件（仓库根目录）
 
-- `config.yaml`：王者荣耀/Steam 的 API-Key、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
+- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
 - `variables_static.json`：用户 QQ 号、王者荣耀 roleid/userid、用户昵称、SteamID、常见俚语缩写、赛季起止时间、英雄 ID 映射、部分功能 prompt 等稳定数据。
 - `variables_dynamic.json`：动态变量初始值，例如是否记忆、机器人是否开放、英雄梯度、今日新闻、上一次查询战绩时间、今日导出失败用户名单等。
 

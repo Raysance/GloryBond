@@ -121,6 +121,37 @@ class ZMemory:
             res += f"提炼{i} ({item['time']}): {item['summary']}\n"
         return res
 
+    def load_user_recent_passive_text(self, qid: str) -> str:
+        key = self._get_key("passive_chat", qid)
+        records = self.redis.lrange(key, -1, -1)
+        if not records:
+            return ""
+        item = json.loads(records[0])
+        return item.get("text", "") or ""
+
+    def load_user_summary_last_days(self, qid: str, days: int = 2) -> str:
+        key = self._get_key("summary_mem", qid)
+        records = self.redis.lrange(key, 0, -1)
+        if not records:
+            return ""
+        now = datetime.datetime.now()
+        picked = []
+        for raw in records[::-1]:
+            item = json.loads(raw)
+            ts = item.get("time", "")
+            try:
+                dt = datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                continue
+            if (now - dt).total_seconds() > days * 86400:
+                break
+            summary = item.get("summary", "")
+            if summary:
+                picked.append(f"[{ts}] {summary}")
+            if len(picked) >= 3:
+                break
+        return "\n".join(reversed(picked))
+
     # --- 辅助与历史兼容 ---
     def load_user_history_natural(self, qid: str, days: int = 7) -> str:
         from .zfunc import fetch_history

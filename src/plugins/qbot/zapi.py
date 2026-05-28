@@ -289,6 +289,31 @@ def ark_api(user_query): # 火山引擎-豆包联网模型
         raise Exception("ark_api_error: "+str(e))
     return completion.choices[0].message.content
 
+def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
+    api_key = confs["QQBot"].get("ark_image_key") or confs["QQBot"].get("ark_key") or ""
+    if not api_key:
+        raise Exception("ark_images_generate_error: missing config.yaml QQBot.ark_image_key")
+
+    base_url = "https://ark.cn-beijing.volces.com/api/v3"
+    client = OpenAI(base_url=base_url, api_key=api_key)
+    model = getattr(dmc, "EmojiImageModel", None) or "doubao-seedream-5-0-260128"
+    extra_body = {"image": reference_image_url, "watermark": False}
+    request_payload = {
+        "base_url": base_url,
+        "model": model,
+        "prompt": prompt,
+        "size": size,
+        "response_format": "url",
+        "extra_body": extra_body,
+    }
+    images_response = client.images.generate(model=model, prompt=prompt, size=size, response_format="url", extra_body=extra_body)
+    if not images_response or not getattr(images_response, "data", None) or not images_response.data:
+        raise Exception("ark_images_generate_error: empty response")
+    url = getattr(images_response.data[0], "url", None)
+    if not url:
+        raise Exception("ark_images_generate_error: missing url in response")
+    return {"url": url, "request": request_payload}
+
 def tianyuanzhiyi_tier_api():
     url = "https://tianyuanzhiyi.com/api/global/tier"
     headers = {
