@@ -314,6 +314,91 @@ def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
         raise Exception("ark_images_generate_error: missing url in response")
     return {"url": url, "request": request_payload}
 
+def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str, resolution: str):
+    api_key = confs["QQBot"].get("apimart_key") or ""
+    if not api_key:
+        raise Exception("apimart_images_generate_error: missing config.yaml QQBot.apimart_key")
+
+    base_url = "https://api.apimart.ai/v1/images/generations"
+    model = getattr(dmc, "EmojiImageModel", None) or "gpt-image-2"
+    payload = {"model": model, "prompt": prompt, "n": 1, "size": size, "resolution": resolution}
+    if reference_image_url:
+        payload["image"] = reference_image_url
+
+    request_payload = {
+        "base_url": base_url,
+        "model": model,
+        "prompt": prompt,
+        "n": 1,
+        "size": size,
+        "resolution": resolution,
+    }
+    if reference_image_url:
+        request_payload["image"] = reference_image_url
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    try:
+        response = requests.post(base_url, json=payload, headers=headers, timeout=120)
+        response.raise_for_status()
+        res = response.json()
+    except Exception as e:
+        raise Exception(f"apimart_images_generate_error: {repr(e)}")
+
+    if not isinstance(res, dict) or res.get("code") != 200:
+        raise Exception(f"apimart_images_generate_error: unexpected response {str(res)[:500]}")
+
+    data = res.get("data")
+    if not isinstance(data, list) or not data:
+        raise Exception(f"apimart_images_generate_error: missing task_id {str(res)[:500]}")
+
+    task_id = (data[0] or {}).get("task_id")
+    if not task_id:
+        raise Exception(f"apimart_images_generate_error: missing task_id {str(res)[:500]}")
+
+    request_payload["task_id"] = task_id
+
+    task_url = f"https://api.apimart.ai/v1/tasks/{task_id}"
+    poll_request_payload = {"base_url": task_url, "task_id": task_id}
+    request_payload["poll"] = poll_request_payload
+
+    last_status = None
+    for _ in range(60):
+        try:
+            task_resp = requests.get(task_url, headers=headers, timeout=60)
+            task_resp.raise_for_status()
+            task_res = task_resp.json()
+        except Exception as e:
+            raise Exception(f"apimart_task_query_error: {repr(e)}")
+
+        if not isinstance(task_res, dict) or task_res.get("code") != 200:
+            raise Exception(f"apimart_task_query_error: unexpected response {str(task_res)[:500]}")
+
+        task_data = task_res.get("data") or {}
+        status = task_data.get("status")
+        last_status = status
+        if status == "completed":
+            result = task_data.get("result") or {}
+            images = result.get("images") or []
+            if not images:
+                raise Exception(f"apimart_task_query_error: completed without images {str(task_res)[:500]}")
+            first = images[0] or {}
+            url_list = first.get("url") or []
+            if isinstance(url_list, list) and url_list:
+                url = url_list[0]
+            else:
+                url = None
+            if not url:
+                raise Exception(f"apimart_task_query_error: missing image url {str(task_res)[:500]}")
+            return {"url": url, "request": request_payload}
+
+        if status in {"failed", "cancelled"}:
+            raise Exception(f"apimart_task_query_error: status={status} {str(task_res)[:500]}")
+
+        import time as _time
+        _time.sleep(2)
+
+    raise Exception(f"apimart_task_query_error: timeout last_status={last_status} task_id={task_id}")
+
 def tianyuanzhiyi_tier_api():
     url = "https://tianyuanzhiyi.com/api/global/tier"
     headers = {

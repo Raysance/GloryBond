@@ -48,7 +48,7 @@ def _emoji_build_prompt(*, last_user_text: str, summary_2d: str):
     return prompt
 
 def generate_user_emoji_image(*, user_qid: str, size=None):
-    from ..zapi import ark_images_generate
+    from ..zapi import apimart_images_generate
     from ..zfile import download_url_to_file, append_jsonl, ensure_dir
     from ..zmemory import instance as zm
     from ..ztime import time_r
@@ -62,8 +62,22 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
 
     if not size:
         size = getattr(dmc, "EmojiImageSize", None) or "2048x2048"
+    resolution = getattr(dmc, "EmojiImageResolution", None) or "1k"
+    if isinstance(size, str) and "x" in size and ":" not in size:
+        try:
+            w, h = size.lower().split("x", 1)
+            w = int(w.strip())
+            h = int(h.strip())
+            if w == h:
+                size = "1:1"
+            else:
+                import math as _math
+                g = _math.gcd(w, h)
+                size = f"{w//g}:{h//g}"
+        except Exception:
+            size = "1:1"
 
-    gen_res = ark_images_generate(prompt=prompt, reference_image_url=reference_url, size=size)
+    gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution)
     image_url = gen_res["url"]
     request_payload = gen_res["request"]
 
