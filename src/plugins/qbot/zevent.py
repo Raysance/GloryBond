@@ -102,7 +102,8 @@ _dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
-_emoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
+_emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
+_kmoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
@@ -342,6 +343,36 @@ async def f_emoji_gen(event):
         add_msg(f"emoji_gen_error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
     await _emoji_gen.finish()
+
+@_kmoji_gen.handle()
+async def f_kmoji_gen(event):
+    from .tools.gen_emoji_image import generate_user_kmoji_image
+    raw_tail = event.get_plaintext().replace("##kmoji", "").strip()
+    template_num = None
+    prompt_tail = raw_tail
+    if raw_tail:
+        first = raw_tail.split()[0].strip()
+        if first.isdigit():
+            template_num = int(first)
+            prompt_tail = raw_tail[len(first):].strip()
+    image_url = None
+    try:
+        for seg in event.message:
+            if getattr(seg, "type", "") == "image":
+                image_url = (seg.data or {}).get("url") or (seg.data or {}).get("file")
+                if image_url:
+                    break
+    except Exception:
+        image_url = None
+    try:
+        img_arg = {"custom_image_url": image_url, "template_num": template_num}
+        meta = await asyncio.to_thread(generate_user_kmoji_image, user_qid=event.get_user_id(), custom_image_url=img_arg, prompt_tail=prompt_tail)
+        add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
+        add_msg(MessageSegment.image(meta["image_path"]), event=event)
+    except Exception as e:
+        add_msg(f"kmoji_gen_error: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    await _kmoji_gen.finish()
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
