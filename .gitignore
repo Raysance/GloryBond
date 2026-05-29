@@ -7,6 +7,7 @@
 # /memory/*.json
 # /news/*.txt
 /wzry_images/skins/
+/wzry_images/generated/
 /herorank/
 
 # .env
@@ -18,3 +19,4 @@ QBOT.log
 *.pyc
 
 **/.mypy_cache/
+
