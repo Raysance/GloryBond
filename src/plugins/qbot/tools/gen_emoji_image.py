@@ -1,6 +1,7 @@
 from ..zutil import *
 from ..zstatic import *
 from .. import zdynamic as dmc
+from PIL import Image
 
 EmojiStyleTemplates = [
     "风格A：清爽日系二次元线稿上色，色块干净，轻阴影，表情夸张但可爱",
@@ -16,6 +17,77 @@ def _emoji_pick_style_template():
         return ""
     picked = random.choice([str(t) for t in templates if str(t).strip()])
     return picked.strip()
+
+def _rgba_dist(a, b):
+    return max(abs(int(a[0]) - int(b[0])), abs(int(a[1]) - int(b[1])), abs(int(a[2]) - int(b[2])))
+
+def transparentize_checkerboard_background(image_path: str, tolerance: int = 18):
+    img = Image.open(image_path).convert("RGBA")
+    w, h = img.size
+    if w <= 4 or h <= 4:
+        return image_path
+
+    px = img.load()
+    edge = []
+    for x in range(w):
+        edge.append(px[x, 0])
+        edge.append(px[x, h - 1])
+    for y in range(h):
+        edge.append(px[0, y])
+        edge.append(px[w - 1, y])
+
+    freq = {}
+    for c in edge:
+        rgb = (int(c[0]), int(c[1]), int(c[2]))
+        freq[rgb] = freq.get(rgb, 0) + 1
+    colors = sorted(freq.items(), key=lambda kv: kv[1], reverse=True)
+    bg_colors = [c for c, _ in colors[:2]]
+    if not bg_colors:
+        return image_path
+
+    visited = [[False] * w for _ in range(h)]
+    q = []
+    def push(x, y):
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return
+        if visited[y][x]:
+            return
+        visited[y][x] = True
+        q.append((x, y))
+
+    for x in range(w):
+        push(x, 0)
+        push(x, h - 1)
+    for y in range(h):
+        push(0, y)
+        push(w - 1, y)
+
+    to_clear = []
+    while q:
+        x, y = q.pop()
+        c = px[x, y]
+        rgb = (int(c[0]), int(c[1]), int(c[2]))
+        ok = False
+        for bg in bg_colors:
+            if _rgba_dist(rgb, bg) <= tolerance:
+                ok = True
+                break
+        if not ok:
+            continue
+        to_clear.append((x, y))
+        push(x + 1, y)
+        push(x - 1, y)
+        push(x, y + 1)
+        push(x, y - 1)
+
+    if not to_clear:
+        return image_path
+
+    for x, y in to_clear:
+        r, g, b, _a = px[x, y]
+        px[x, y] = (int(r), int(g), int(b), 0)
+    img.save(image_path)
+    return image_path
 
 def _emoji_message_filter_prompt():
     return (
@@ -215,10 +287,9 @@ def _emoji_build_prompt_with_message(*, recent_msg: str, summary_2d: str, style_
     prompt += "\n用户近2天发言总结:\n" + (summary_2d if summary_2d else "（空）")
     return prompt
 
-def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_tail: str):
+def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_tail: str, style_template: str = ""):
     tail = (prompt_tail or "").strip()
     if tail:
-        style_template = _emoji_pick_style_template()
         prompt = "请以参考图作为“画风与角色设定”参考生成一张静态图片。参考图仅用于风格与角色识别特征，不要把姿态、表情、镜头角度、构图一比一复刻。请根据用户上下文表达情绪与动作，多样化展示人物的姿态与表情（例如：开心/震惊/无语/生气/得意/委屈/疑惑等，对应不同动作与脸部表情）。"
         if style_template:
             prompt += "\n\n本次风格模板(随机选一)：\n" + style_template
@@ -275,6 +346,7 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
     basename = f"emoji_{ts}_{user_qid}_{os.path.splitext(template_filename)[0]}.png"
     local_path = os.path.join(local_dir, basename)
     download_url_to_file(image_url, local_path)
+    transparentize_checkerboard_background(local_path)
 
     meta = {
         "time": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -308,7 +380,8 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str, prompt_ta
 
     last_text = zm.load_user_recent_passive_text(user_qid)
     summary_2d = zm.load_user_summary_last_days(user_qid, 2)
-    prompt = _emoji_build_kmoji_prompt(last_user_text=last_text, summary_2d=summary_2d, prompt_tail=prompt_tail)
+    style_template = _emoji_pick_style_template()
+    prompt = _emoji_build_kmoji_prompt(last_user_text=last_text, summary_2d=summary_2d, prompt_tail=prompt_tail, style_template=style_template)
 
     now = time_r()
     ts = now.strftime("%Y%m%d_%H%M%S")
@@ -356,6 +429,7 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str, prompt_ta
     basename = f"kmoji_{ts}_{user_qid}.png"
     local_path = os.path.join(local_dir, basename)
     download_url_to_file(image_url, local_path)
+    transparentize_checkerboard_background(local_path)
 
     meta = {
         "time": now.strftime("%Y-%m-%d %H:%M:%S"),

@@ -28,7 +28,9 @@ async def handle_all_messages(event: MessageEvent):
     from .zmemory import instance as zm
     user_id = event.get_user_id()
     msg_text = event.get_plaintext().strip()
-    if msg_text:
+    if msg_text and not msg_text.startswith("#"):
+        for k in sorted(common_expr.keys(), key=len, reverse=True):
+            msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
         # 记录用户的被动发言 (用于后期提炼)
         await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
