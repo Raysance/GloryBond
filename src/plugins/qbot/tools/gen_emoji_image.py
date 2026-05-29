@@ -207,6 +207,9 @@ def _emoji_pick_one_refined_message(user_qid: str):
 def _emoji_template_local_dir():
     return getattr(dmc, "EmojiTemplateLocalDir", None) or os.path.join("wzry_images", "emoji_template")
 
+def _emoji_template_extra_dirs():
+    return [os.path.join("wzry_images", "custom_wzry_E1")]
+
 def _emoji_generated_local_dir():
     return getattr(dmc, "EmojiGeneratedLocalDir", None) or os.path.join("wzry_images", "generated")
 
@@ -218,22 +221,24 @@ def _emoji_template_public_dir():
 
 def _emoji_pick_template_path():
     from ..zfile import get_file_list
-    template_dir = _emoji_template_local_dir()
     candidates = []
-    for ext in [".png", ".jpg", ".jpeg", ".webp"]:
-        candidates.extend(get_file_list(template_dir, ext))
+    template_dirs = [_emoji_template_local_dir()] + _emoji_template_extra_dirs()
+    for template_dir in template_dirs:
+        for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+            candidates.extend(get_file_list(template_dir, ext))
     if not candidates:
-        raise Exception(f"emoji_template_error: no templates in {template_dir}")
+        raise Exception("emoji_template_error: no templates found in template dirs")
     return random.choice(candidates)
 
 def _emoji_pick_template_by_num(template_num):
     from ..zfile import get_file_list
-    template_dir = _emoji_template_local_dir()
     candidates = []
-    for ext in [".png", ".jpg", ".jpeg", ".webp"]:
-        candidates.extend(get_file_list(template_dir, ext))
+    template_dirs = [_emoji_template_local_dir()] + _emoji_template_extra_dirs()
+    for template_dir in template_dirs:
+        for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+            candidates.extend(get_file_list(template_dir, ext))
     if not candidates:
-        raise Exception(f"emoji_template_error: no templates in {template_dir}")
+        raise Exception("emoji_template_error: no templates found in template dirs")
     for p in candidates:
         base = os.path.basename(p)
         head = base.split("_", 1)[0].split(".", 1)[0]
@@ -365,28 +370,34 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
     append_jsonl(_emoji_meta_jsonl_path(), meta)
     return meta
 
-def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str, prompt_tail: str, size=None):
+def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, template_num: int = None, prompt_tail: str = "", size=None):
     from ..zapi import apimart_images_generate
     from ..zfile import download_url_to_file, append_jsonl, ensure_dir, copyfile_to_dir
     from ..zmemory import instance as zm
     from ..ztime import time_r
 
-    template_num = None
-    if isinstance(custom_image_url, dict):
-        template_num = custom_image_url.get("template_num")
-        custom_image_url = custom_image_url.get("custom_image_url")
+    use_default_template = False
     if not custom_image_url and template_num is None:
-        raise Exception("kmoji_error: missing custom image (attach image) or template num (##kmoji <num> ...)")
+        use_default_template = True
 
-    last_text = zm.load_user_recent_passive_text(user_qid)
-    summary_2d = zm.load_user_summary_last_days(user_qid, 2)
     style_template = _emoji_pick_style_template()
-    prompt = _emoji_build_kmoji_prompt(last_user_text=last_text, summary_2d=summary_2d, prompt_tail=prompt_tail, style_template=style_template)
+    picked = None
+    tail = (prompt_tail or "").strip()
+    if tail:
+        prompt = _emoji_build_kmoji_prompt(last_user_text="", summary_2d="", prompt_tail=tail, style_template=style_template)
+        summary_2d = ""
+    else:
+        summary_2d = zm.load_user_summary_last_days(user_qid, 2)
+        picked = _emoji_pick_one_refined_message(user_qid)
+        prompt = _emoji_build_prompt_with_message(recent_msg=picked.get("text", ""), summary_2d=summary_2d, style_template=style_template)
 
     now = time_r()
     ts = now.strftime("%Y%m%d_%H%M%S")
 
-    if template_num is not None:
+    if use_default_template:
+        template_path = _emoji_pick_template_path()
+        reference_url, _ = _emoji_template_reference_url(template_path)
+    elif template_num is not None:
         template_path = _emoji_pick_template_by_num(template_num)
         reference_url, _ = _emoji_template_reference_url(template_path)
     else:
@@ -441,9 +452,11 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str, prompt_ta
         "template_public_url": reference_url,
         "prompt": prompt,
         "style_template": style_template,
+        "picked_msg": picked,
         "prompt_tail": (prompt_tail or "").strip(),
         "custom_image_url": custom_image_url,
         "template_num": template_num,
+        "use_default_template": use_default_template,
         "request": request_payload,
         "image_url": image_url,
     }
