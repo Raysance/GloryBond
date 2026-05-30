@@ -404,7 +404,11 @@ async def f_kmoji_gen(event):
             template_num=template_num,
             prompt_tail=prompt_tail,
         )
-        add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
+        add_msg(
+            "PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2),
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
         add_msg(MessageSegment.image(meta["image_path"]), event=event)
     except Exception as e:
         add_msg(f"kmoji_gen_error: {str(e)}", event=event)

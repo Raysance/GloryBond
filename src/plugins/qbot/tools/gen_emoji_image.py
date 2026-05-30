@@ -11,6 +11,8 @@ EmojiStyleTemplates = [
     "风格E：极简扁平插画，几何形状，纯色块，留白多，重点突出表情与文案",
 ]
 
+EmojiKmojiFixedStyleTemplate = ""
+
 def _emoji_pick_style_template():
     templates = EmojiStyleTemplates
     if not isinstance(templates, list) or not templates:
@@ -297,7 +299,7 @@ def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_ta
     if tail:
         prompt = "请以参考图作为“画风与角色设定”参考生成一张静态图片。参考图仅用于风格与角色识别特征，不要把姿态、表情、镜头角度、构图一比一复刻。请根据用户上下文表达情绪与动作，多样化展示人物的姿态与表情（例如：开心/震惊/无语/生气/得意/委屈/疑惑等，对应不同动作与脸部表情）。"
         if style_template:
-            prompt += "\n\n本次风格模板(随机选一)：\n" + style_template
+            prompt += "\n\n本次风格模板(固定)：\n" + style_template
         prompt += "\n\n画面要求："
         prompt += "\n- 只出现一个人物（保持角色辨识度，允许适度改动作、表情、角度、手势、道具）"
         prompt += "\n- 文字只出现一句短句（<=12字），必须与用户上下文相关"
@@ -307,7 +309,7 @@ def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_ta
         prompt += "\n\n用户手动提示词:\n" + tail
         return prompt
 
-    return _emoji_build_prompt(last_user_text=last_user_text, summary_2d=summary_2d, style_template=_emoji_pick_style_template())
+    return _emoji_build_prompt(last_user_text=last_user_text, summary_2d=summary_2d, style_template=style_template)
 
 def generate_user_emoji_image(*, user_qid: str, size=None):
     from ..zapi import apimart_images_generate
@@ -380,7 +382,7 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
     if not custom_image_url and template_num is None:
         use_default_template = True
 
-    style_template = _emoji_pick_style_template()
+    style_template = EmojiKmojiFixedStyleTemplate
     picked = None
     tail = (prompt_tail or "").strip()
     if tail:
