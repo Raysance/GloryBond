@@ -198,6 +198,20 @@ def init_fetch_heroranklist():
 def init_fetch_hero_tier():
     return _fetch_hero_tier_impl()
 
+
+@scheduler.scheduled_job(
+    "interval",
+    minutes=getattr(dmc, "KplPushIntervalMinutes", 2),
+    id="kpl_match_push",
+)
+async def kpl_match_push():
+    from .zfunc import kpl_check_and_push
+    try:
+        await asyncio.to_thread(kpl_check_and_push, debug=False)
+    except Exception:
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        raise
+
 def _fetch_news_impl():
     from .zapi import ark_api
     from .ztime import date_r

@@ -2418,6 +2418,155 @@ def notify_msg_impl():
 
     return messages
 
+def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False):
+    from .ztime import time_r
+    from .ztime import date_start_epoch_ms
+    from .tools.kpl_match_collector import get_full_match_list
+    from .tools.kpl_match_collector import get_match_content
+    from .utils.message_sender import add_msg
+    from nonebot.adapters.onebot.v11 import MessageSegment
+    from .zfile import download_url_to_file
+    from .zfile import ensure_dir
+    now = time_r()
+    time_ms = date_start_epoch_ms(now)
+    mid = getattr(dmc, "KplScheduleMid", 214)
+    ps = getattr(dmc, "KplSchedulePs", 50)
+    window_sec = getattr(dmc, "KplPushWindowSeconds", 3600)
+    size = getattr(dmc, "KplImageSize", "1792x1024")
+    resolution = getattr(dmc, "KplImageResolution", "2k")
+
+    full = get_full_match_list(mid=mid, time_ms=time_ms, now=now, ps=ps)
+    now_epoch = int(full.get("now_epoch") or 0)
+    finished = full.get("groups", {}).get("finished") or []
+
+    candidates = []
+    for it in finished:
+        cid = it.get("cid")
+        etime = it.get("etime") or 0
+        if not cid or not etime:
+            continue
+        gap = now_epoch - int(etime)
+        if force or (0 <= gap <= window_sec):
+            candidates.append((int(etime), it))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+
+    debug_lines = []
+    debug_lines.append(f"KPL_PUSH now_epoch={now_epoch} mid={mid} time_ms={time_ms} finished_cnt={len(finished)} cand_cnt={len(candidates)}")
+
+    for etime, it in candidates:
+        cid = int(it.get("cid"))
+        pushed = bool(dmc.redis_deamon.sismember("kpl:pushed_cids", str(cid)))
+        debug_lines.append(f"KPL_PUSH_CAND cid={cid} etime={etime} pushed={pushed} home={it.get('home', {}).get('name')} away={it.get('away', {}).get('name')} score={it.get('score')}")
+        if pushed and not force:
+            continue
+
+        match_content = get_match_content(it)
+        res = kpl_match_image_generate(match_content=match_content, size=size, resolution=resolution)
+        url = (res or {}).get("url") or ""
+        if not url:
+            raise Exception(f"kpl_push_error: empty image url for cid={cid}")
+
+        day_dir = os.path.join("wzry_images", "kpl", now.strftime("%Y-%m-%d"))
+        ensure_dir(day_dir)
+        local_path = os.path.join(day_dir, f"{cid}.png")
+        download_url_to_file(url, local_path)
+
+        home = (it.get("home") or {}).get("name") or ""
+        away = (it.get("away") or {}).get("name") or ""
+        score = it.get("score") or {}
+        score_text = f"{score.get('home', '-')}-{score.get('away', '-')}"
+        stage = it.get("game_stage") or it.get("title") or ""
+        text = f"KPL 战局推送：{home} vs {away}  {score_text}\n{stage}\n结束时间: {match_content.get('end_time_iso') or it.get('etime')}"
+        msg = text + MessageSegment.image(f"file:///{os.path.abspath(local_path)}")
+        add_msg(msg, event=event, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+
+        dmc.redis_deamon.sadd("kpl:pushed_cids", str(cid))
+        return {"pushed": True, "cid": cid, "image_path": local_path, "debug": "\n".join(debug_lines)}
+
+    return {"pushed": False, "cid": None, "image_path": None, "debug": "\n".join(debug_lines)}
+
+def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str):
+    """
+    根据 KPL 单场内容生成战报图。
+
+    - 使用多种风格模板随机选择一种
+    - 对输入数据进行过滤与摘要，避免将不可读/冗余字段喂给生图
+    """
+    from .zapi import apimart_images_generate
+    from .ztime import get_timebased_rand
+
+    style_templates = [
+        "赛博霓虹电竞风：深色背景、霓虹线条、强对比，高亮比分与 MVP 卡片，整体干净克制。",
+        "极简信息图风：浅色背景、大留白、网格排版，重点突出队名、比分、时间，数据表格精炼。",
+        "赛事官方海报风：沉稳大气、视觉中心突出比分，辅以选手高光与关键英雄，带轻微颗粒质感。",
+        "直播转播台风：类似解说台数据面板，模块化信息块，清晰展示队伍、比分、关键选手数据。",
+        "国风电竞混搭：暗色纹理底 + 金色点缀，信息层级明确，不要花哨元素遮挡文字。",
+    ]
+    style_idx = get_timebased_rand(len(style_templates), 10)
+    style = style_templates[style_idx]
+
+    teams = match_content.get("teams") or []
+    teams_out = []
+    for t in teams:
+        if not isinstance(t, dict):
+            continue
+        teams_out.append({"name": t.get("name")})
+
+    score = match_content.get("score") or {}
+    score_out = {"home": score.get("home"), "away": score.get("away")}
+
+    players = match_content.get("players") or []
+
+    def _to_float(x):
+        try:
+            return float(x)
+        except Exception:
+            return -1.0
+
+    players_sorted = sorted(players, key=lambda p: _to_float((p or {}).get("avg_grade")), reverse=True)
+    highlights = []
+    for p in players_sorted[:10]:
+        if not isinstance(p, dict):
+            continue
+        kda = p.get("kda") or {}
+        hero = p.get("hero") or {}
+        hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
+        if len(hot) > 60:
+            hot = hot[:60] + "..."
+        highlights.append(
+            {
+                "team": p.get("team_name"),
+                "player": p.get("player_name"),
+                "pos": p.get("position"),
+                "grade": p.get("avg_grade"),
+                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
+                "hero_id": hero.get("hero_id"),
+                "hot": hot,
+            }
+        )
+
+    payload = {
+        "match_name": match_content.get("match_name"),
+        "game_stage": match_content.get("game_stage"),
+        "start_time": match_content.get("start_time_iso"),
+        "end_time": match_content.get("end_time_iso"),
+        "teams": teams_out,
+        "score": score_out,
+        "highlights": highlights,
+    }
+    prompt = (
+        "你是专业赛事视觉设计师。"
+        "请根据以下 KPL 比赛摘要数据生成一张对局战报信息图。"
+        "只生成图片，不要输出任何文字说明。"
+        "画面为横向宽屏，适配 2K。"
+        "需要清晰展示：队名、比分、比赛阶段、开始/结束时间。"
+        "从 highlights 中提炼高光，不要虚构不存在的信息。\n"
+        f"风格模板：{style}\n\n"
+        + json.dumps(payload, ensure_ascii=False)
+    )
+    return apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
+
 def get_daily_representative_battle(target_date=None):
     '''
     选出当天对局中最有代表性的一局。评估维度：

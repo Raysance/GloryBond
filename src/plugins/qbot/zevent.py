@@ -106,6 +106,7 @@ _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
 _kmoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
+_kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
@@ -233,6 +234,28 @@ async def f_dailyrepbattle(event: MessageEvent):
     except Exception as e:
         import traceback
         add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
+
+@_kpl_push.handle()
+async def f_kpl_push(event: MessageEvent):
+    from .zfunc import kpl_check_and_push
+    import traceback
+
+    raw_msg = event.get_plaintext().strip()
+    args = raw_msg.replace("##kpl", "").strip().split()
+    force = any(x.lower() in {"force", "f"} for x in args)
+
+    try:
+        res = await asyncio.to_thread(kpl_check_and_push, debug=True, event=event, force=force)
+        if res.get("pushed"):
+            add_msg(f"KPL 推送完成 cid={res.get('cid')}", event=event)
+        else:
+            add_msg("KPL 本轮未发现可推送战局", event=event)
+        debug_text = res.get("debug") or ""
+        if debug_text:
+            add_msg(debug_text, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception:
+        add_msg("KPL 手动触发崩溃，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
