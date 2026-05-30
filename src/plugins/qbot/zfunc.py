@@ -2427,64 +2427,102 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False):
     from nonebot.adapters.onebot.v11 import MessageSegment
     from .zfile import download_url_to_file
     from .zfile import ensure_dir
-    now = time_r()
-    time_ms = date_start_epoch_ms(now)
-    mid = getattr(dmc, "KplScheduleMid", 214)
-    ps = getattr(dmc, "KplSchedulePs", 50)
-    window_sec = getattr(dmc, "KplPushWindowSeconds", 3600)
-    size = getattr(dmc, "KplImageSize", "1792x1024")
-    resolution = getattr(dmc, "KplImageResolution", "2k")
+    lock_key = "kpl:push_lock"
+    pending_key = "kpl:push_pending"
+    if force:
+        loop_guard = 1
+    else:
+        loop_guard = 2
 
-    full = get_full_match_list(mid=mid, time_ms=time_ms, now=now, ps=ps)
-    now_epoch = int(full.get("now_epoch") or 0)
-    finished = full.get("groups", {}).get("finished") or []
+    last_result = None
+    while loop_guard > 0:
+        loop_guard -= 1
+        now = time_r()
+        if not force:
+            locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time.time())), nx=True, ex=600))
+            if locked:
+                dmc.redis_deamon.set(pending_key, "1", ex=3600)
+                return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH locked; pending set"}
 
-    candidates = []
-    for it in finished:
-        cid = it.get("cid")
-        etime = it.get("etime") or 0
-        if not cid or not etime:
+        try:
+            time_ms = date_start_epoch_ms(now)
+            mid = getattr(dmc, "KplScheduleMid", 214)
+            ps = getattr(dmc, "KplSchedulePs", 50)
+            window_sec = getattr(dmc, "KplPushWindowSeconds", 3600)
+            size = getattr(dmc, "KplImageSize", "1792x1024")
+            resolution = getattr(dmc, "KplImageResolution", "2k")
+
+            full = get_full_match_list(mid=mid, time_ms=time_ms, now=now, ps=ps)
+            now_epoch = int(full.get("now_epoch") or 0)
+            finished = full.get("groups", {}).get("finished") or []
+
+            candidates = []
+            for it in finished:
+                cid = it.get("cid")
+                etime = it.get("etime") or 0
+                if not cid or not etime:
+                    continue
+                gap = now_epoch - int(etime)
+                if force or (0 <= gap <= window_sec):
+                    candidates.append((int(etime), it))
+
+            candidates.sort(key=lambda x: x[0], reverse=True)
+
+            debug_lines = []
+            debug_lines.append(f"KPL_PUSH now_epoch={now_epoch} mid={mid} time_ms={time_ms} finished_cnt={len(finished)} cand_cnt={len(candidates)}")
+
+            local_result = None
+            for etime, it in candidates:
+                cid = int(it.get("cid"))
+                pushed = bool(dmc.redis_deamon.sismember("kpl:pushed_cids", str(cid)))
+                debug_lines.append(f"KPL_PUSH_CAND cid={cid} etime={etime} pushed={pushed} home={it.get('home', {}).get('name')} away={it.get('away', {}).get('name')} score={it.get('score')}")
+                if pushed and not force:
+                    continue
+
+                match_content = get_match_content(it)
+                res = kpl_match_image_generate(match_content=match_content, size=size, resolution=resolution)
+                url = (res or {}).get("url") or ""
+                if not url:
+                    raise Exception(f"kpl_push_error: empty image url for cid={cid}")
+                if debug:
+                    debug_lines.append(f"KPL_PUSH_PROMPT\n{(res or {}).get('prompt') or ''}")
+
+                day_dir = os.path.join("wzry_images", "kpl", now.strftime("%Y-%m-%d"))
+                ensure_dir(day_dir)
+                local_path = os.path.join(day_dir, f"{cid}.png")
+                download_url_to_file(url, local_path)
+
+                home = (it.get("home") or {}).get("name") or ""
+                away = (it.get("away") or {}).get("name") or ""
+                score = it.get("score") or {}
+                score_text = f"{score.get('home', '-')}-{score.get('away', '-')}"
+                stage = it.get("game_stage") or it.get("title") or ""
+                text = f"KPL 战局推送：{home} vs {away}  {score_text}\n{stage}\n结束时间: {match_content.get('end_time_iso') or it.get('etime')}"
+                msg = text + MessageSegment.image(f"file:///{os.path.abspath(local_path)}")
+                add_msg(msg, event=event, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+
+                dmc.redis_deamon.sadd("kpl:pushed_cids", str(cid))
+                local_result = {"pushed": True, "cid": cid, "image_path": local_path, "debug": "\n".join(debug_lines)}
+                break
+
+            if local_result is None:
+                local_result = {"pushed": False, "cid": None, "image_path": None, "debug": "\n".join(debug_lines)}
+            last_result = local_result
+
+        finally:
+            if not force:
+                dmc.redis_deamon.delete(lock_key)
+
+        if force:
+            return last_result
+
+        pending = dmc.redis_deamon.get(pending_key)
+        if pending:
+            dmc.redis_deamon.delete(pending_key)
             continue
-        gap = now_epoch - int(etime)
-        if force or (0 <= gap <= window_sec):
-            candidates.append((int(etime), it))
+        return last_result
 
-    candidates.sort(key=lambda x: x[0], reverse=True)
-
-    debug_lines = []
-    debug_lines.append(f"KPL_PUSH now_epoch={now_epoch} mid={mid} time_ms={time_ms} finished_cnt={len(finished)} cand_cnt={len(candidates)}")
-
-    for etime, it in candidates:
-        cid = int(it.get("cid"))
-        pushed = bool(dmc.redis_deamon.sismember("kpl:pushed_cids", str(cid)))
-        debug_lines.append(f"KPL_PUSH_CAND cid={cid} etime={etime} pushed={pushed} home={it.get('home', {}).get('name')} away={it.get('away', {}).get('name')} score={it.get('score')}")
-        if pushed and not force:
-            continue
-
-        match_content = get_match_content(it)
-        res = kpl_match_image_generate(match_content=match_content, size=size, resolution=resolution)
-        url = (res or {}).get("url") or ""
-        if not url:
-            raise Exception(f"kpl_push_error: empty image url for cid={cid}")
-
-        day_dir = os.path.join("wzry_images", "kpl", now.strftime("%Y-%m-%d"))
-        ensure_dir(day_dir)
-        local_path = os.path.join(day_dir, f"{cid}.png")
-        download_url_to_file(url, local_path)
-
-        home = (it.get("home") or {}).get("name") or ""
-        away = (it.get("away") or {}).get("name") or ""
-        score = it.get("score") or {}
-        score_text = f"{score.get('home', '-')}-{score.get('away', '-')}"
-        stage = it.get("game_stage") or it.get("title") or ""
-        text = f"KPL 战局推送：{home} vs {away}  {score_text}\n{stage}\n结束时间: {match_content.get('end_time_iso') or it.get('etime')}"
-        msg = text + MessageSegment.image(f"file:///{os.path.abspath(local_path)}")
-        add_msg(msg, event=event, msg_type="group", to_id=confs["QQBot"]["group_qid"])
-
-        dmc.redis_deamon.sadd("kpl:pushed_cids", str(cid))
-        return {"pushed": True, "cid": cid, "image_path": local_path, "debug": "\n".join(debug_lines)}
-
-    return {"pushed": False, "cid": None, "image_path": None, "debug": "\n".join(debug_lines)}
+    return last_result or {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH loop_guard_exceeded"}
 
 def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str):
     """
@@ -2534,6 +2572,8 @@ def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str)
         hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
         if len(hot) > 60:
             hot = hot[:60] + "..."
+        hero_id = hero.get("hero_id")
+        hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
         highlights.append(
             {
                 "team": p.get("team_name"),
@@ -2541,8 +2581,32 @@ def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str)
                 "pos": p.get("position"),
                 "grade": p.get("avg_grade"),
                 "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
-                "hero_id": hero.get("hero_id"),
+                "hero": hero_name or hero_id,
                 "hot": hot,
+            }
+        )
+
+    team_highlights = {}
+    for p in players_sorted:
+        if not isinstance(p, dict):
+            continue
+        team = p.get("team_name")
+        if not team:
+            continue
+        team_highlights.setdefault(team, [])
+        if len(team_highlights[team]) >= 3:
+            continue
+        kda = p.get("kda") or {}
+        hero = p.get("hero") or {}
+        hero_id = hero.get("hero_id")
+        hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
+        team_highlights[team].append(
+            {
+                "player": p.get("player_name"),
+                "pos": p.get("position"),
+                "grade": p.get("avg_grade"),
+                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
+                "hero": hero_name or hero_id,
             }
         )
 
@@ -2554,18 +2618,29 @@ def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str)
         "teams": teams_out,
         "score": score_out,
         "highlights": highlights,
+        "team_top_players": team_highlights,
     }
     prompt = (
-        "你是专业赛事视觉设计师。"
-        "请根据以下 KPL 比赛摘要数据生成一张对局战报信息图。"
-        "只生成图片，不要输出任何文字说明。"
-        "画面为横向宽屏，适配 2K。"
-        "需要清晰展示：队名、比分、比赛阶段、开始/结束时间。"
-        "从 highlights 中提炼高光，不要虚构不存在的信息。\n"
+        "你是专业赛事视觉设计师，擅长把结构化数据做成可读性很强的赛事战报信息图。"
+        "请严格根据以下 JSON 数据生成一张 KPL 对局战报信息图。"
+        "只生成图片，不要输出任何额外解释文字。"
+        "画面为横向宽屏海报（适配 2K），信息必须丰富但不拥挤，文字清晰可读。"
+        "必须包含以下版块（都要出现）："
+        "1) 顶部：比赛名称(match_name) + 比赛阶段(game_stage) + 开始/结束时间；"
+        "2) 中部主视觉：两队队名(teams) + 大号比分(score)，左右对称排版；"
+        "3) 下方数据区：每队至少 2-3 名关键选手（team_top_players），展示选手名、位置、评分、K/D/A、关键英雄(hero)；"
+        "4) 高光区：从 highlights 中挑 3-6 条亮点做卡片（可包含短 hot 文案，但不要长段落）。"
+        "不要显示不可读字段或内部 id；如果数据缺失，用“-”占位，不要编造。\n"
         f"风格模板：{style}\n\n"
         + json.dumps(payload, ensure_ascii=False)
     )
-    return apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
+    res = apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
+    if not isinstance(res, dict):
+        raise Exception(f"kpl_match_image_generate_error: unexpected response {str(res)[:500]}")
+    res["prompt"] = prompt
+    res["payload"] = payload
+    res["style_template"] = style
+    return res
 
 def get_daily_representative_battle(target_date=None):
     '''

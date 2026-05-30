@@ -202,6 +202,9 @@ def init_fetch_hero_tier():
 @scheduler.scheduled_job(
     "interval",
     minutes=getattr(dmc, "KplPushIntervalMinutes", 2),
+    coalesce=False,
+    max_instances=20,
+    misfire_grace_time=3600,
     id="kpl_match_push",
 )
 async def kpl_match_push():
