@@ -1,7 +1,11 @@
 """
 kpl_match_collector
 
-提供 B 站赛事中心赛程与单场数据的获取接口，供 qbot 的业务层直接调用。
+提供 B 站赛事中心赛程与单场数据的获取接口，供 qbot 业务层直接调用。
+
+对外推荐接口：
+- `get_full_match_list(...)`: 获取赛程并按 finished/ongoing/upcoming 分组
+- `get_match_content(...)`: 根据 cid 获取单场的选手评分/热评/英雄/KDA 等内容
 """
 
 from __future__ import annotations
@@ -74,6 +78,12 @@ def _classify_match(now_sec: int, stime: Optional[int], etime: Optional[int]) ->
 
 @dataclass
 class BiliClient:
+    """
+    B 站接口请求客户端（requests.Session 封装）。
+
+    - `create()` 构造带常用 headers 的 session
+    - `get_json()` 统一处理 code/message 并在异常时抛出
+    """
     session: requests.Session
 
     @staticmethod
@@ -109,6 +119,13 @@ def fetch_schedule(
     pn: int = 1,
     ps: int = 50,
 ) -> Dict[str, Any]:
+    """
+    获取赛程分页列表。
+
+    返回：
+    - items: 标准化后的 contest 列表（包含队伍/比分/时间等）
+    - raw: 原始接口响应（便于业务侧排查字段变更）
+    """
     url = API_ENDPOINTS["schedule_list"]
     payload = client.get_json(url, params={"mid": mid, "time": time_ms, "pn": pn, "ps": ps})
     contests = (payload.get("data") or {}).get("list") or []
@@ -143,6 +160,18 @@ def fetch_schedule(
 
 
 def fetch_match_grade(client: BiliClient, *, cid: int) -> Dict[str, Any]:
+    """
+    获取单场内容（选手评分/热评/英雄/KDA 等）。
+
+    关键字段来源：
+    - data.teams[].player_grade_detail[] 提供选手评分与热评等信息
+
+    返回：
+    - teams: 队伍基础信息（name/logo 等，原样透传）
+    - score: 比分
+    - players: 展平后的选手列表（含 team_name/player_name/position/avg_grade/kda/hero/hot_comment）
+    - raw: 原始接口响应
+    """
     url = API_ENDPOINTS["match_grade"]
     payload = client.get_json(url, params={"cid": cid})
     data = payload.get("data") or {}
@@ -163,25 +192,27 @@ def fetch_match_grade(client: BiliClient, *, cid: int) -> Dict[str, Any]:
     for team in (data.get("teams") or []):
         team_name = team.get("name")
         team_id = team.get("team_id") or team.get("id")
-        for p in team.get("players") or []:
-            hero = p.get("hero") or {}
-            hero_photo = hero.get("hero_photo") or hero.get("photo") or ""
+        player_list = team.get("player_grade_detail") or []
+        for p in player_list:
+            if not isinstance(p, dict):
+                continue
+            hero_photo = p.get("hero_photo") or ""
             hero_id = None
             if hero_photo:
-                m = re.search(r"/(\\d+)\\.(?:png|jpg|jpeg|webp)$", hero_photo)
+                m = re.search(r"/(\d+)\.(?:png|jpg|jpeg|webp)$", str(hero_photo))
                 hero_id = int(m.group(1)) if m else None
             players_out.append(
                 {
                     "team_id": team_id,
                     "team_name": team_name,
-                    "player_id": p.get("player_id") or p.get("id"),
-                    "player_name": p.get("player_name") or p.get("name"),
+                    "player_id": p.get("player_id"),
+                    "player_name": p.get("nickname"),
                     "position": p.get("position"),
-                    "avg_grade": p.get("avg_grade") or p.get("grade"),
+                    "avg_grade": p.get("avg_grade"),
                     "grade_users": p.get("grade_users"),
-                    "kda": p.get("kda") or {},
+                    "kda": {"kill": p.get("kill"), "death": p.get("death"), "assist": p.get("assist")},
                     "hero": {"hero_id": hero_id, "hero_photo": hero_photo},
-                    "hot_comment": p.get("hot_comment") or "",
+                    "hot_comment": p.get("hot_remark") or "",
                     "raw": p,
                 }
             )
@@ -283,4 +314,3 @@ def get_match_content(match_params: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("match_params 缺少必要字段 cid")
     client = BiliClient.create()
     return fetch_match_grade(client, cid=int(cid))
-

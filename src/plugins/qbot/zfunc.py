@@ -2418,7 +2418,7 @@ def notify_msg_impl():
 
     return messages
 
-def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False):
+def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, preview_only: bool = False):
     from .ztime import time_r
     from .ztime import date_start_epoch_ms
     from .tools.kpl_match_collector import get_full_match_list
@@ -2480,12 +2480,25 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False):
                     continue
 
                 match_content = get_match_content(it)
+                if preview_only:
+                    preview = kpl_build_match_image_prompt(match_content=match_content)
+                    if debug:
+                        debug_lines.append("KPL_PUSH_PROMPT")
+                        debug_lines.append(preview.get("prompt") or "")
+                        debug_lines.append("KPL_PUSH_PAYLOAD")
+                        debug_lines.append(json.dumps(preview.get("payload") or {}, ensure_ascii=False))
+                    local_result = {"pushed": False, "cid": cid, "image_path": None, "debug": "\n".join(debug_lines)}
+                    break
+
                 res = kpl_match_image_generate(match_content=match_content, size=size, resolution=resolution)
                 url = (res or {}).get("url") or ""
                 if not url:
                     raise Exception(f"kpl_push_error: empty image url for cid={cid}")
                 if debug:
-                    debug_lines.append(f"KPL_PUSH_PROMPT\n{(res or {}).get('prompt') or ''}")
+                    debug_lines.append("KPL_PUSH_PROMPT")
+                    debug_lines.append((res or {}).get("prompt") or "")
+                    debug_lines.append("KPL_PUSH_PAYLOAD")
+                    debug_lines.append(json.dumps((res or {}).get("payload") or {}, ensure_ascii=False))
 
                 day_dir = os.path.join("wzry_images", "kpl", now.strftime("%Y-%m-%d"))
                 ensure_dir(day_dir)
@@ -2534,12 +2547,26 @@ def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str)
     from .zapi import apimart_images_generate
     from .ztime import get_timebased_rand
 
+    built = kpl_build_match_image_prompt(match_content=match_content)
+    prompt = built["prompt"]
+    payload = built["payload"]
+    style = built["style_template"]
+    res = apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
+    if not isinstance(res, dict):
+        raise Exception(f"kpl_match_image_generate_error: unexpected response {str(res)[:500]}")
+    res["prompt"] = prompt
+    res["payload"] = payload
+    res["style_template"] = style
+    return res
+
+def kpl_build_match_image_prompt(*, match_content: dict):
+    from .ztime import get_timebased_rand
+
     style_templates = [
-        "赛博霓虹电竞风：深色背景、霓虹线条、强对比，高亮比分与 MVP 卡片，整体干净克制。",
-        "极简信息图风：浅色背景、大留白、网格排版，重点突出队名、比分、时间，数据表格精炼。",
-        "赛事官方海报风：沉稳大气、视觉中心突出比分，辅以选手高光与关键英雄，带轻微颗粒质感。",
-        "直播转播台风：类似解说台数据面板，模块化信息块，清晰展示队伍、比分、关键选手数据。",
-        "国风电竞混搭：暗色纹理底 + 金色点缀，信息层级明确，不要花哨元素遮挡文字。",
+        "暗色高级转播UI：深蓝灰渐变背景 + 玻璃拟态卡片，8px圆角、细分割线、轻阴影，整体克制高级；比分与队名用大字号，数据区用表格卡片。",
+        "浅色极简信息图：白/浅灰背景，大留白，12列网格对齐；标题用黑字，强调色只用于比分和小图标，表格线极浅，信息密集但不拥挤。",
+        "官方海报质感：暗色底 + 柔和聚光，主体居中，左右队名对称；使用干净的几何块面与细线框，不要霓虹，不要花哨纹理，质感像赛事官方宣传图。",
+        "现代电竞面板：深色面板+模块化信息块，顶部标题条，中部比分条，底部双列对比表；使用统一图标与小标签，强调对齐与层级。",
     ]
     style_idx = get_timebased_rand(len(style_templates), 10)
     style = style_templates[style_idx]
@@ -2586,21 +2613,19 @@ def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str)
             }
         )
 
-    team_highlights = {}
-    for p in players_sorted:
+    team_players = {}
+    for p in players:
         if not isinstance(p, dict):
             continue
         team = p.get("team_name")
         if not team:
             continue
-        team_highlights.setdefault(team, [])
-        if len(team_highlights[team]) >= 3:
-            continue
+        team_players.setdefault(team, [])
         kda = p.get("kda") or {}
         hero = p.get("hero") or {}
         hero_id = hero.get("hero_id")
         hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
-        team_highlights[team].append(
+        team_players[team].append(
             {
                 "player": p.get("player_name"),
                 "pos": p.get("position"),
@@ -2611,36 +2636,38 @@ def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str)
         )
 
     payload = {
-        "match_name": match_content.get("match_name"),
-        "game_stage": match_content.get("game_stage"),
-        "start_time": match_content.get("start_time_iso"),
-        "end_time": match_content.get("end_time_iso"),
+        "match_name": match_content.get("match_name") or "KPL 对局战报",
+        "game_stage": match_content.get("game_stage") or "-",
+        "start_time": match_content.get("start_time_iso") or "-",
+        "end_time": match_content.get("end_time_iso") or "-",
         "teams": teams_out,
         "score": score_out,
         "highlights": highlights,
-        "team_top_players": team_highlights,
+        "team_players": team_players,
     }
+
     prompt = (
         "你是专业赛事视觉设计师，擅长把结构化数据做成可读性很强的赛事战报信息图。"
         "请严格根据以下 JSON 数据生成一张 KPL 对局战报信息图。"
         "只生成图片，不要输出任何额外解释文字。"
-        "画面为横向宽屏海报（适配 2K），信息必须丰富但不拥挤，文字清晰可读。"
-        "必须包含以下版块（都要出现）："
-        "1) 顶部：比赛名称(match_name) + 比赛阶段(game_stage) + 开始/结束时间；"
-        "2) 中部主视觉：两队队名(teams) + 大号比分(score)，左右对称排版；"
-        "3) 下方数据区：每队至少 2-3 名关键选手（team_top_players），展示选手名、位置、评分、K/D/A、关键英雄(hero)；"
-        "4) 高光区：从 highlights 中挑 3-6 条亮点做卡片（可包含短 hot 文案，但不要长段落）。"
-        "不要显示不可读字段或内部 id；如果数据缺失，用“-”占位，不要编造。\n"
+        "画面为横向宽屏海报（16:9，适配 2K），整体必须高级、现代、干净，不要廉价霓虹风，不要过度装饰。"
+        "使用统一无衬线字体风格，字号层级清晰，确保文字可读（不要小字糊成一片）。"
+        "严格网格对齐：左右对称、边距一致、模块间距一致；使用少量强调色即可。"
+        "你必须把 JSON 里的具体内容排版到图上，不允许只画占位框不填内容。"
+        "必须包含以下版块（都要出现，且必须写出具体值）："
+        "1) 顶部标题区：将 match_name、game_stage、start_time、end_time 原样展示；"
+        "2) 中部主视觉区：将 teams[0].name 与 teams[1].name 放在左右两侧，并在中间用超大字号展示 score.home-score.away；"
+        "3) 关键选手数据区：对 team_players 中每个队伍，展示该队全部选手；每名选手必须包含 player、pos、grade、kda、hero；"
+        "4) 热评/高光区：从 highlights 里挑 3-6 条，展示 player、team、grade、kda、hero，以及 hot（如有）。"
+        "如果某字段为 '-' 或空，才允许显示 '-'；其余字段必须完整展示，不要省略。"
+        "不要展示 JSON 字段名或技术字段名本身，只展示对应的值。\n"
+        "排版建议：底部做左右两列对比表（左=队伍A，右=队伍B），每行一个选手；评分可用条形/星级视觉但仍要显示数值。"
+        "避免：花哨背景纹理、过度发光、低对比度文字、过多装饰性图案。\n"
         f"风格模板：{style}\n\n"
         + json.dumps(payload, ensure_ascii=False)
     )
-    res = apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
-    if not isinstance(res, dict):
-        raise Exception(f"kpl_match_image_generate_error: unexpected response {str(res)[:500]}")
-    res["prompt"] = prompt
-    res["payload"] = payload
-    res["style_template"] = style
-    return res
+
+    return {"prompt": prompt, "payload": payload, "style_template": style}
 
 def get_daily_representative_battle(target_date=None):
     '''

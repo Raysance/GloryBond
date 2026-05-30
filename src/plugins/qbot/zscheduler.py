@@ -58,7 +58,16 @@ def load_yesterday(imple_type=0):
     return
 
 
-@scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute-5, second=00, id="dump_today")
+@scheduler.scheduled_job(
+    "cron",
+    hour=bound_hour,
+    minute=bound_minute-5,
+    second=00,
+    coalesce=False,
+    max_instances=20,
+    misfire_grace_time=3600,
+    id="dump_today",
+)
 async def dump_today():
     return _dump_today_impl()
 # @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+5, second=00, id="dump_today_dupli")
@@ -143,7 +152,16 @@ def daily_user_summary():
     
     log_message("DAILY_SUMMARY: All summaries completed.")
 
-@scheduler.scheduled_job("cron", hour=23, minute=30,second=00, id="notify_msg")
+@scheduler.scheduled_job(
+    "cron",
+    hour=23,
+    minute=30,
+    second=00,
+    coalesce=False,
+    max_instances=20,
+    misfire_grace_time=3600,
+    id="notify_msg",
+)
 async def notify_msg():
     from .zfunc import notify_msg_impl
     from .utils.message_sender import add_msg

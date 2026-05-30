@@ -243,13 +243,20 @@ async def f_kpl_push(event: MessageEvent):
     raw_msg = event.get_plaintext().strip()
     args = raw_msg.replace("##kpl", "").strip().split()
     force = any(x.lower() in {"force", "f"} for x in args)
+    preview_only = any(x.lower() in {"preview", "p"} for x in args)
 
     try:
-        res = await asyncio.to_thread(kpl_check_and_push, debug=True, event=event, force=force)
-        if res.get("pushed"):
-            add_msg(f"KPL 推送完成 cid={res.get('cid')}", event=event)
+        res = await asyncio.to_thread(kpl_check_and_push, debug=True, event=event, force=force, preview_only=preview_only)
+        if preview_only:
+            if res.get("cid"):
+                add_msg(f"KPL 预览完成 cid={res.get('cid')}（未生图）", event=event)
+            else:
+                add_msg("KPL 本轮未发现可预览战局", event=event)
         else:
-            add_msg("KPL 本轮未发现可推送战局", event=event)
+            if res.get("pushed"):
+                add_msg(f"KPL 推送完成 cid={res.get('cid')}", event=event)
+            else:
+                add_msg("KPL 本轮未发现可推送战局", event=event)
         debug_text = res.get("debug") or ""
         if debug_text:
             add_msg(debug_text, msg_type="private", to_id=confs["QQBot"]["super_qid"])
