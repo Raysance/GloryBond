@@ -1909,7 +1909,7 @@
             const hasSeenUpdatesTip_20251121 = localStorage.getItem('hasSeenUpdatesTip_20251121');
             if (!hasSeenUpdatesTip_20251121 || hasSeenUpdatesTip_20251121 < 1) {
                 // 延迟显示，确保页面加载完成
-                setTimeout(showFeatureTip, 1000);
+                // setTimeout(showFeatureTip, 1000);
             }
         }
 
@@ -2090,7 +2090,7 @@
                     params.append('key', currentKey);
                 }
 
-                const targetUrl = `/jump-btldetail?${params.toString()}`;
+                const targetUrl = `/jump-battle?${params.toString()}`;
                 console.log('跳转URL:', targetUrl);
                 const newTab = window.open(targetUrl, '_blank');
 
@@ -2149,7 +2149,7 @@
                 console.log('收藏战局参数:', { gameSeq, key: '{{key}}' });
                 
                 // 发送GET请求到收藏接口
-                const response = await fetch(`/like-btldetail?${params.toString()}`, {
+                const response = await fetch(`/like-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2300,7 +2300,7 @@
                 });
                 
                 // 发送GET请求到分享接口
-                const response = await fetch(`/share-btldetail?${params.toString()}`, {
+                const response = await fetch(`/share-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2414,7 +2414,7 @@
                 });
                 
                 // 发送GET请求到分析接口
-                const response = await fetch(`/analyze-btldetail?${params.toString()}`, {
+                const response = await fetch(`/analyze-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',

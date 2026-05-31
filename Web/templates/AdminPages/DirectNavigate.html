@@ -198,7 +198,7 @@
             const rid = btn.dataset.rid || '';
             // 直接跳转到已有用户页面（roleid 可为空，后台应容忍）
             // 不再在 URL 中拼接 AdminKey，后端会从 Cookie 中读取
-            const url = `/jump-btlperson?userid=${encodeURIComponent(uid)}&roleid=${encodeURIComponent(rid)}`;
+            const url = `/jump-person?userid=${encodeURIComponent(uid)}&roleid=${encodeURIComponent(rid)}`;
             window.location.href = url;
           });
           presetContainer.appendChild(btn);
@@ -210,7 +210,7 @@
         const r = (roleid.value||'').trim();
         if(!u || !r){ showToast('请填写 userid 和 roleid'); return; }
         // 不再在 URL 中拼接 AdminKey，后端会从 Cookie 中读取
-        const url = `/jump-btlperson?userid=${encodeURIComponent(u)}&roleid=${encodeURIComponent(r)}`;
+        const url = `/jump-person?userid=${encodeURIComponent(u)}&roleid=${encodeURIComponent(r)}`;
         window.location.href = url;
       });
 

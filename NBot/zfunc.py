@@ -168,7 +168,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         # except Exception as e:
         #     log_message(str(e))
         peakUp=get_peak_alter_list(details=today_details,processed=False)
-        gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if not any(zerograde in game['mapName'] for zerograde in {"1V1","3V3"})]
+        gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if check_btl_official_with_matching(game['mapName'])]
         today_btl_aver = round(sum((gamegrades)) / len(gamegrades),3) if gamegrades else 0
         today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
         today_btl_min= fin if len(gamegrades)==0 else min(gamegrades)
@@ -186,8 +186,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
-    export_btldetail(today_details,roleid)
-    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible}
+    unaccessible_battles=export_btldetail(today_details,roleid)
+    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
 def dump_specific_user(userid, roleid, target_date):
     """
     模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
@@ -199,13 +199,17 @@ def dump_specific_user(userid, roleid, target_date):
 
     log_message(f"DUMPBEGIN specific user {userid} date: {target_date}.json")
     
-    # 构造临时的realname，wzry_data虽然传入realname，但在指定target_userid时不会用userlist查找
-    temp_realname = "temp_" + str(userid)
+    # 获取真正的realname (key)
+    realname = "unknown"
+    for k, v in userlist.items():
+        if v == userid:
+            realname = k
+            break
     
     gameinfo = []
     try:
         data = wzry_data(
-            realname=temp_realname, 
+            realname=realname, 
             savepath=os.path.join("history", "personal", target_date, str(userid) + ".json"),
             target_userid=userid,
             target_roleid=roleid,
@@ -215,10 +219,23 @@ def dump_specific_user(userid, roleid, target_date):
     except Exception as e:
         log_message(f"Dump specific user {userid} failed: {e}")
 
-    filename = os.path.join("history", target_date + f"_{userid}.json")
-    writerl(filename, gameinfo)
+    aggregated_filename = os.path.join("history", target_date + ".json")
+    try:
+        if os.path.exists(aggregated_filename):
+            with open(aggregated_filename, 'r', encoding='utf-8') as f:
+                import json
+                existing_data = json.load(f)
+            # Remove old data for this user if exists
+            existing_data = [d for d in existing_data if str(d.get("id")) != str(userid)]
+            existing_data.extend(gameinfo)
+            writerl(aggregated_filename, existing_data)
+        else:
+            writerl(aggregated_filename, gameinfo)
+    except Exception as e:
+        log_message(f"Failed to update aggregated file {aggregated_filename}: {e}")
+        
     log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
-    return gameinfo
+    return gameinfo[0]
 
 def export_past():
     import json
@@ -286,7 +303,7 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
                 """
                 whole_query += style_template + context_msg + chat_pmpt
             else:
-                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些"
+                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
         case "poke":
             whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
         case "festival":
@@ -327,15 +344,15 @@ def create_website(contents,sitetype):
     hash_key = hashlib.sha256(secrets.token_hex(16).encode()).hexdigest()[:16]
     dmc.redis_deamon.set(hash_key, contents, ex=REDIS_TEXT_EXPIRE_SECONDS)
     if (sitetype=="all"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlist?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/all?key={hash_key}"
     elif (sitetype=="single_oneday"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlperson?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/person?key={hash_key}"
     elif (sitetype=="single_period"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlperiod?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/period?key={hash_key}"
     elif (sitetype=="btldetail"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btldetail?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/battle?key={hash_key}"
     elif (sitetype=="query_select"):
-        url=f"https://{confs["WebService"]["server_domain"]}/btlquery?key={hash_key}"
+        url=f"https://hok.{confs["WebService"]["server_domain"]}/query?key={hash_key}"
     else:
         url=f""
     return url
@@ -2242,8 +2259,12 @@ def get_emoji(txt):
     res=int(ai_api(pmpt,temperature=2))
     return res
 def get_emoji_url(index):
-    emoji_url=f"http://{confs["WebService"]["server_domain"]}/doraemon_emojis/{index}.jpg"
+    emoji_url=f"http://{confs['WebService']['server_domain']}/doraemon_emojis/{index}.jpg"
     return emoji_url
+
+def generate_user_emoji_image(*, user_qid: str, size=None):
+    from .tools.gen_emoji_image import generate_user_emoji_image as _impl
+    return _impl(user_qid=user_qid, size=size)
 def extract_url_params(url):
     from urllib.parse import urlparse, parse_qs
     # 解析 URL
@@ -2315,7 +2336,7 @@ def merge_crossday_gamedata(gamedata):
     if ("visible" not in res): res["visible"]=True
     official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official_with_matching(btl["MapName"])]
     res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
-    res["btl_aver"]=round(res["btl_aver"],1)
+    res["btl_aver"]=round(res["btl_aver"],3)
 
     return res
 def check_btl_official(btlname):
@@ -2358,12 +2379,17 @@ def export_btldetail(gameinfo,roleid):
     from .zfile import writerl
     from .zapi import wzry_get_official
     from .zfile import file_exist
+    unaccessible_battles=[]
     for btl in gameinfo:
         savepath=os.path.join("history","battles",str(btl["GameSeq"])+".json")
         if (file_exist(savepath) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
-        res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
-        writerl(savepath,res)
-    return
+        try:
+            res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
+            writerl(savepath,res)
+        except Exception as e:
+            unaccessible_battles.append({"roleid":roleid,"GameSeq":btl["GameSeq"],"Error":str(e)})
+
+    return unaccessible_battles
 
 def notify_msg_impl():
     from .zutil import log_message
@@ -2381,7 +2407,7 @@ def notify_msg_impl():
     
     messages = [snd_msg]
 
-    # 获取最有代表性的对局（含数据）
+    # # 获取最有代表性的对局（含数据）
     # try:
     #     rep_btl_res = get_daily_representative_battle()
     #     if rep_btl_res:
@@ -2391,6 +2417,257 @@ def notify_msg_impl():
     #     log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
 
     return messages
+
+def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, preview_only: bool = False):
+    from .ztime import time_r
+    from .ztime import date_start_epoch_ms
+    from .tools.kpl_match_collector import get_full_match_list
+    from .tools.kpl_match_collector import get_match_content
+    from .utils.message_sender import add_msg
+    from nonebot.adapters.onebot.v11 import MessageSegment
+    from .zfile import download_url_to_file
+    from .zfile import ensure_dir
+    lock_key = "kpl:push_lock"
+    pending_key = "kpl:push_pending"
+    if force:
+        loop_guard = 1
+    else:
+        loop_guard = 2
+
+    last_result = None
+    while loop_guard > 0:
+        loop_guard -= 1
+        now = time_r()
+        if not force:
+            locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time.time())), nx=True, ex=600))
+            if locked:
+                dmc.redis_deamon.set(pending_key, "1", ex=3600)
+                return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH locked; pending set"}
+
+        try:
+            time_ms = date_start_epoch_ms(now)
+            mid = getattr(dmc, "KplScheduleMid", 214)
+            ps = getattr(dmc, "KplSchedulePs", 50)
+            window_sec = getattr(dmc, "KplPushWindowSeconds", 3600)
+            size = getattr(dmc, "KplImageSize", "1792x1024")
+            resolution = getattr(dmc, "KplImageResolution", "2k")
+
+            full = get_full_match_list(mid=mid, time_ms=time_ms, now=now, ps=ps)
+            now_epoch = int(full.get("now_epoch") or 0)
+            finished = full.get("groups", {}).get("finished") or []
+
+            candidates = []
+            for it in finished:
+                cid = it.get("cid")
+                etime = it.get("etime") or 0
+                if not cid or not etime:
+                    continue
+                gap = now_epoch - int(etime)
+                if force or (0 <= gap <= window_sec):
+                    candidates.append((int(etime), it))
+
+            candidates.sort(key=lambda x: x[0], reverse=True)
+
+            debug_lines = []
+            debug_lines.append(f"KPL_PUSH now_epoch={now_epoch} mid={mid} time_ms={time_ms} finished_cnt={len(finished)} cand_cnt={len(candidates)}")
+
+            local_result = None
+            for etime, it in candidates:
+                cid = int(it.get("cid"))
+                pushed = bool(dmc.redis_deamon.sismember("kpl:pushed_cids", str(cid)))
+                debug_lines.append(f"KPL_PUSH_CAND cid={cid} etime={etime} pushed={pushed} home={it.get('home', {}).get('name')} away={it.get('away', {}).get('name')} score={it.get('score')}")
+                if pushed and not force:
+                    continue
+
+                match_content = get_match_content(it)
+                if preview_only:
+                    preview = kpl_build_match_image_prompt(match_content=match_content)
+                    if debug:
+                        debug_lines.append("KPL_PUSH_PROMPT")
+                        debug_lines.append(preview.get("prompt") or "")
+                        debug_lines.append("KPL_PUSH_PAYLOAD")
+                        debug_lines.append(json.dumps(preview.get("payload") or {}, ensure_ascii=False))
+                    local_result = {"pushed": False, "cid": cid, "image_path": None, "debug": "\n".join(debug_lines)}
+                    break
+
+                res = kpl_match_image_generate(match_content=match_content, size=size, resolution=resolution)
+                url = (res or {}).get("url") or ""
+                if not url:
+                    raise Exception(f"kpl_push_error: empty image url for cid={cid}")
+                if debug:
+                    debug_lines.append("KPL_PUSH_PROMPT")
+                    debug_lines.append((res or {}).get("prompt") or "")
+                    debug_lines.append("KPL_PUSH_PAYLOAD")
+                    debug_lines.append(json.dumps((res or {}).get("payload") or {}, ensure_ascii=False))
+
+                day_dir = os.path.join("wzry_images", "kpl", now.strftime("%Y-%m-%d"))
+                ensure_dir(day_dir)
+                local_path = os.path.join(day_dir, f"{cid}.png")
+                download_url_to_file(url, local_path)
+
+                home = (it.get("home") or {}).get("name") or ""
+                away = (it.get("away") or {}).get("name") or ""
+                score = it.get("score") or {}
+                score_text = f"{score.get('home', '-')}-{score.get('away', '-')}"
+                stage = it.get("game_stage") or it.get("title") or ""
+                text = f"KPL 战局推送：{home} vs {away}  {score_text}\n{stage}\n结束时间: {match_content.get('end_time_iso') or it.get('etime')}"
+                msg = text + MessageSegment.image(f"file:///{os.path.abspath(local_path)}")
+                add_msg(msg, event=event, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+
+                dmc.redis_deamon.sadd("kpl:pushed_cids", str(cid))
+                local_result = {"pushed": True, "cid": cid, "image_path": local_path, "debug": "\n".join(debug_lines)}
+                break
+
+            if local_result is None:
+                local_result = {"pushed": False, "cid": None, "image_path": None, "debug": "\n".join(debug_lines)}
+            last_result = local_result
+
+        finally:
+            if not force:
+                dmc.redis_deamon.delete(lock_key)
+
+        if force:
+            return last_result
+
+        pending = dmc.redis_deamon.get(pending_key)
+        if pending:
+            dmc.redis_deamon.delete(pending_key)
+            continue
+        return last_result
+
+    return last_result or {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH loop_guard_exceeded"}
+
+def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str):
+    """
+    根据 KPL 单场内容生成战报图。
+
+    - 使用多种风格模板随机选择一种
+    - 对输入数据进行过滤与摘要，避免将不可读/冗余字段喂给生图
+    """
+    from .zapi import apimart_images_generate
+    from .ztime import get_timebased_rand
+
+    built = kpl_build_match_image_prompt(match_content=match_content)
+    prompt = built["prompt"]
+    payload = built["payload"]
+    style = built["style_template"]
+    res = apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
+    if not isinstance(res, dict):
+        raise Exception(f"kpl_match_image_generate_error: unexpected response {str(res)[:500]}")
+    res["prompt"] = prompt
+    res["payload"] = payload
+    res["style_template"] = style
+    return res
+
+def kpl_build_match_image_prompt(*, match_content: dict):
+    from .ztime import get_timebased_rand
+
+    style_templates = [
+        "暗色高级转播UI：深蓝灰渐变背景 + 玻璃拟态卡片，8px圆角、细分割线、轻阴影，整体克制高级；比分与队名用大字号，数据区用表格卡片。",
+        "浅色极简信息图：白/浅灰背景，大留白，12列网格对齐；标题用黑字，强调色只用于比分和小图标，表格线极浅，信息密集但不拥挤。",
+        "官方海报质感：暗色底 + 柔和聚光，主体居中，左右队名对称；使用干净的几何块面与细线框，不要霓虹，不要花哨纹理，质感像赛事官方宣传图。",
+        "现代电竞面板：深色面板+模块化信息块，顶部标题条，中部比分条，底部双列对比表；使用统一图标与小标签，强调对齐与层级。",
+    ]
+    style_idx = get_timebased_rand(len(style_templates), 10)
+    style = style_templates[style_idx]
+
+    teams = match_content.get("teams") or []
+    teams_out = []
+    for t in teams:
+        if not isinstance(t, dict):
+            continue
+        teams_out.append({"name": t.get("name")})
+
+    score = match_content.get("score") or {}
+    score_out = {"home": score.get("home"), "away": score.get("away")}
+
+    players = match_content.get("players") or []
+
+    def _to_float(x):
+        try:
+            return float(x)
+        except Exception:
+            return -1.0
+
+    players_sorted = sorted(players, key=lambda p: _to_float((p or {}).get("avg_grade")), reverse=True)
+    highlights = []
+    for p in players_sorted[:10]:
+        if not isinstance(p, dict):
+            continue
+        kda = p.get("kda") or {}
+        hero = p.get("hero") or {}
+        hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
+        if len(hot) > 60:
+            hot = hot[:60] + "..."
+        hero_id = hero.get("hero_id")
+        hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
+        highlights.append(
+            {
+                "team": p.get("team_name"),
+                "player": p.get("player_name"),
+                "pos": p.get("position"),
+                "grade": p.get("avg_grade"),
+                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
+                "hero": hero_name or hero_id,
+                "hot": hot,
+            }
+        )
+
+    team_players = {}
+    for p in players:
+        if not isinstance(p, dict):
+            continue
+        team = p.get("team_name")
+        if not team:
+            continue
+        team_players.setdefault(team, [])
+        kda = p.get("kda") or {}
+        hero = p.get("hero") or {}
+        hero_id = hero.get("hero_id")
+        hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
+        team_players[team].append(
+            {
+                "player": p.get("player_name"),
+                "pos": p.get("position"),
+                "grade": p.get("avg_grade"),
+                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
+                "hero": hero_name or hero_id,
+            }
+        )
+
+    payload = {
+        "match_name": match_content.get("match_name") or "KPL 对局战报",
+        "game_stage": match_content.get("game_stage") or "-",
+        "start_time": match_content.get("start_time_iso") or "-",
+        "end_time": match_content.get("end_time_iso") or "-",
+        "teams": teams_out,
+        "score": score_out,
+        "highlights": highlights,
+        "team_players": team_players,
+    }
+
+    prompt = (
+        "你是专业赛事视觉设计师，擅长把结构化数据做成可读性很强的赛事战报信息图。"
+        "请严格根据以下 JSON 数据生成一张 KPL 对局战报信息图。"
+        "只生成图片，不要输出任何额外解释文字。"
+        "画面为横向宽屏海报（16:9，适配 2K），整体必须高级、现代、干净，不要廉价霓虹风，不要过度装饰。"
+        "使用统一无衬线字体风格，字号层级清晰，确保文字可读（不要小字糊成一片）。"
+        "严格网格对齐：左右对称、边距一致、模块间距一致；使用少量强调色即可。"
+        "你必须把 JSON 里的具体内容排版到图上，不允许只画占位框不填内容。"
+        "必须包含以下版块（都要出现，且必须写出具体值）："
+        "1) 顶部标题区：将 match_name、game_stage、start_time、end_time 原样展示；"
+        "2) 中部主视觉区：将 teams[0].name 与 teams[1].name 放在左右两侧，并在中间用超大字号展示 score.home-score.away；"
+        "3) 关键选手数据区：对 team_players 中每个队伍，展示该队全部选手；每名选手必须包含 player、pos、grade、kda、hero；"
+        "4) 热评/高光区：从 highlights 里挑 3-6 条，展示 player、team、grade、kda、hero，以及 hot（如有）。"
+        "如果某字段为 '-' 或空，才允许显示 '-'；其余字段必须完整展示，不要省略。"
+        "不要展示 JSON 字段名或技术字段名本身，只展示对应的值。\n"
+        "排版建议：底部做左右两列对比表（左=队伍A，右=队伍B），每行一个选手；评分可用条形/星级视觉但仍要显示数值。"
+        "避免：花哨背景纹理、过度发光、低对比度文字、过多装饰性图案。\n"
+        f"风格模板：{style}\n\n"
+        + json.dumps(payload, ensure_ascii=False)
+    )
+
+    return {"prompt": prompt, "payload": payload, "style_template": style}
 
 def get_daily_representative_battle(target_date=None):
     '''
@@ -2684,17 +2961,34 @@ def history_query_handler(rcv_msg):
 
     user_msg = rcv_msg.strip()
     # 预替换：将用户常用口语/短语映射为规范查询表达，便于后续AI解析
-    from datetime import datetime
+    from datetime import datetime,timedelta
     today_str = datetime.now().strftime("%Y-%m-%d")
+    date_1_days_ago = datetime.now() - timedelta(days=1)
+    date_1_days_ago_str = date_1_days_ago.strftime("%Y-%m-%d")
+    date_2_days_ago = datetime.now() - timedelta(days=2)
+    date_2_days_ago_str = date_2_days_ago.strftime("%Y-%m-%d")
+    date_7_days_ago = datetime.now() - timedelta(days=7)
+    date_7_days_ago_str = date_7_days_ago.strftime("%Y-%m-%d")
+    date_14_days_ago = datetime.now() - timedelta(days=14)
+    date_14_days_ago_str = date_14_days_ago.strftime("%Y-%m-%d")
+    date_30_days_ago = datetime.now() - timedelta(days=30)
+    date_30_days_ago_str = date_30_days_ago.strftime("%Y-%m-%d")
     alias_map = {
         "带飞": "评分高于",
         "今天": f"{today_str}",
+        "昨天": f"{date_1_days_ago_str}",
+        "前天": f"{date_2_days_ago_str}",
         "本赛季": f"{this_season_start_date}到{today_str}",
         "这赛季": f"{this_season_start_date}到{today_str}",
         "这个赛季": f"{this_season_start_date}到{today_str}",
         "当前赛季": f"{this_season_start_date}到{today_str}",
         "上个赛季": f"{last_season_start_date}到{last_season_end_date}",
         "上赛季": f"{last_season_start_date}到{last_season_end_date}",
+        "这周": f"{date_7_days_ago_str}到{today_str}",
+        "本周": f"{date_7_days_ago_str}到{today_str}",
+        "上周": f"{date_14_days_ago_str}到{date_7_days_ago_str}",
+        "本月": f"{date_30_days_ago_str}到{today_str}",
+        "这个月": f"{date_30_days_ago_str}到{today_str}"
     }
     # 优先替换较长键以避免短词匹配冲突
     for k in sorted(alias_map.keys(), key=lambda x: -len(x)):

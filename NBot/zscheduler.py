@@ -58,7 +58,16 @@ def load_yesterday(imple_type=0):
     return
 
 
-@scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute-5, second=00, id="dump_today")
+@scheduler.scheduled_job(
+    "cron",
+    hour=bound_hour,
+    minute=bound_minute-5,
+    second=00,
+    coalesce=False,
+    max_instances=20,
+    misfire_grace_time=3600,
+    id="dump_today",
+)
 async def dump_today():
     return _dump_today_impl()
 # @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+5, second=00, id="dump_today_dupli")
@@ -143,7 +152,16 @@ def daily_user_summary():
     
     log_message("DAILY_SUMMARY: All summaries completed.")
 
-@scheduler.scheduled_job("cron", hour=23, minute=30,second=00, id="notify_msg")
+@scheduler.scheduled_job(
+    "cron",
+    hour=23,
+    minute=30,
+    second=00,
+    coalesce=False,
+    max_instances=20,
+    misfire_grace_time=3600,
+    id="notify_msg",
+)
 async def notify_msg():
     from .zfunc import notify_msg_impl
     from .utils.message_sender import add_msg
@@ -197,6 +215,23 @@ def init_fetch_heroranklist():
 
 def init_fetch_hero_tier():
     return _fetch_hero_tier_impl()
+
+
+@scheduler.scheduled_job(
+    "interval",
+    minutes=getattr(dmc, "KplPushIntervalMinutes", 2),
+    coalesce=False,
+    max_instances=20,
+    misfire_grace_time=3600,
+    id="kpl_match_push",
+)
+async def kpl_match_push():
+    from .zfunc import kpl_check_and_push
+    try:
+        await asyncio.to_thread(kpl_check_and_push, debug=False)
+    except Exception:
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        raise
 
 def _fetch_news_impl():
     from .zapi import ark_api

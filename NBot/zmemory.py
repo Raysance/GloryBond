@@ -5,9 +5,43 @@ from typing import List, Dict, Optional
 from . import zdynamic as dmc
 
 class ZMemory:
+    class EmojiMemory:
+        def __init__(self, parent):
+            self.parent = parent
+
+        def _used_key(self, qid: str) -> str:
+            return self.parent._get_key("emoji_used", qid)
+
+        def _action_key(self, qid: str) -> str:
+            return self.parent._get_key("emoji_action", qid)
+
+        def msg_used(self, qid: str, msg_hash: str) -> bool:
+            return bool(self.parent.redis.sismember(self._used_key(qid), msg_hash))
+
+        def mark_msg_used(self, qid: str, msg_hash: str, ttl_seconds: int = 2 * 86400):
+            key = self._used_key(qid)
+            self.parent.redis.sadd(key, msg_hash)
+            self.parent.redis.expire(key, ttl_seconds)
+
+        def get_msg_action(self, qid: str, msg_hash: str):
+            raw = self.parent.redis.hget(self._action_key(qid), msg_hash)
+            if not raw:
+                return None
+            try:
+                return json.loads(raw)
+            except Exception:
+                return None
+
+        def set_msg_action(self, qid: str, msg_hash: str, action: str, text: str, raw_text: str, ttl_seconds: int = 2 * 86400):
+            payload = {"action": action, "text": text, "raw": raw_text}
+            key = self._action_key(qid)
+            self.parent.redis.hset(key, msg_hash, json.dumps(payload, ensure_ascii=False))
+            self.parent.redis.expire(key, ttl_seconds)
+
     def __init__(self):
         self.redis = dmc.redis_deamon_chat_memory
         self.prefix = "zmem:"
+        self.emoji = ZMemory.EmojiMemory(self)
 
     def _get_key(self, category: str, qid: str) -> str:
         return f"{self.prefix}{category}:{qid}"
@@ -120,6 +154,69 @@ class ZMemory:
             item = json.loads(r)
             res += f"提炼{i} ({item['time']}): {item['summary']}\n"
         return res
+
+    def load_user_recent_passive_text(self, qid: str) -> str:
+        key = self._get_key("passive_chat", qid)
+        records = self.redis.lrange(key, -1, -1)
+        if not records:
+            return ""
+        item = json.loads(records[0])
+        return item.get("text", "") or ""
+
+    def load_user_recent_passive_texts(self, qid: str, num: int = 5) -> List[str]:
+        key = self._get_key("passive_chat", qid)
+        records = self.redis.lrange(key, -num, -1)
+        res = []
+        for raw in records:
+            try:
+                item = json.loads(raw)
+            except Exception:
+                continue
+            text = (item.get("text", "") or "").strip()
+            if not text:
+                continue
+            res.append(text)
+        return res
+
+    def load_user_recent_passive_items(self, qid: str, num: int = 20) -> List[Dict]:
+        key = self._get_key("passive_chat", qid)
+        records = self.redis.lrange(key, -num, -1)
+        res = []
+        for raw in records:
+            try:
+                item = json.loads(raw)
+            except Exception:
+                continue
+            text = (item.get("text", "") or "").strip()
+            ts = (item.get("time", "") or "").strip()
+            if not text:
+                continue
+            res.append({"time": ts, "text": text})
+        return res
+
+
+    def load_user_summary_last_days(self, qid: str, days: int = 2) -> str:
+        key = self._get_key("summary_mem", qid)
+        records = self.redis.lrange(key, 0, -1)
+        if not records:
+            return ""
+        now = datetime.datetime.now()
+        picked = []
+        for raw in records[::-1]:
+            item = json.loads(raw)
+            ts = item.get("time", "")
+            try:
+                dt = datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                continue
+            if (now - dt).total_seconds() > days * 86400:
+                break
+            summary = item.get("summary", "")
+            if summary:
+                picked.append(f"[{ts}] {summary}")
+            if len(picked) >= 3:
+                break
+        return "\n".join(reversed(picked))
 
     # --- 辅助与历史兼容 ---
     def load_user_history_natural(self, qid: str, days: int = 7) -> str:

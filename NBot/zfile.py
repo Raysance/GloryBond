@@ -4,6 +4,7 @@ from .zstatic import *
 from . import zdynamic as dmc
 import shutil
 import os
+import requests
 
 def readera(filepath):
     try:
@@ -110,3 +111,36 @@ def get_file_list(root_path,end_with):
                 file_path = os.path.join(root_path, filename)
                 file_list.append(file_path)
     return file_list
+
+def ensure_dir(dir_path):
+    """Ensure directory exists, otherwise raise."""
+    if not dir_path:
+        raise Exception("ensure_dir_error: empty dir_path")
+    os.makedirs(dir_path, exist_ok=True)
+    return dir_path
+
+def copyfile_to_dir(src_file, dst_dir):
+    """Copy file to dst_dir, keep basename."""
+    ensure_dir(dst_dir)
+    dst_file = os.path.join(dst_dir, os.path.basename(src_file))
+    shutil.copy(src_file, dst_file)
+    return dst_file
+
+def download_url_to_file(url: str, dst_file: str):
+    """Download url to dst_file, raise on failure."""
+    ensure_dir(os.path.dirname(dst_file))
+    resp = requests.get(url, stream=True, timeout=60)
+    resp.raise_for_status()
+    with open(dst_file, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=1024 * 64):
+            if chunk:
+                f.write(chunk)
+    return dst_file
+
+def append_jsonl(filepath: str, item):
+    """Append one json line, raise on failure."""
+    ensure_dir(os.path.dirname(filepath))
+    with open(filepath, "a", encoding="utf-8") as f:
+        f.write(json.dumps(item, ensure_ascii=False))
+        f.write("\n")
+    return filepath

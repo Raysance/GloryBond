@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>单人详情-笙煎守味🤖</title>
     <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script> -->
-    <script type="module" src="components/gesture-lock/gesture-lock-trigger.js"></script>
+    <!-- NOTE: `components/gesture-lock/gesture-lock-trigger.js` is not shipped in this repo.
+         Disabled to avoid 404 errors in production. -->
+    <!-- <script type="module" src="components/gesture-lock/gesture-lock-trigger.js"></script> -->
     <style>
         :root {
             --primary-color: #6c9bd1;
@@ -1820,6 +1822,34 @@
         // 这里监听该事件并跳转到 /admin/dashboard?key=<env key>&AdminKey=<adminKey>
         window.addEventListener('gesture-lock-key', function(e) {
             try {
+                // 该页面可能不渲染玩家资料卡片（playerName/playerTitle/...），这里做空值容错，
+                // 避免阻断后续分析/渲染流程。
+                const playerNameEl = document.getElementById('playerName');
+                const playerTitleEl = document.getElementById('playerTitle');
+                const playerAvatarEl = document.getElementById('playerAvatar');
+                const totalBattlesEl = document.getElementById('totalBattles');
+                const mvpCountEl = document.getElementById('mvpCount');
+                const winRateEl = document.getElementById('winRate');
+
+                const hasAnyProfileDom = Boolean(
+                    playerNameEl ||
+                    playerTitleEl ||
+                    playerAvatarEl ||
+                    totalBattlesEl ||
+                    mvpCountEl ||
+                    winRateEl
+                );
+
+                if (!hasAnyProfileDom) {
+                    return;
+                }
+                // if (!buttonElement) {
+                    // throw new Error('缺少按钮元素');
+                // }
+                // if (!profileData) {
+                    // throw new Error('缺少玩家资料，请刷新页面后重试');
+                // }
+
                 const detail = e && e.detail;
                 const adminKey = detail && detail.key;
                 // 页面环境中的 key（模板变量，将在服务端/渲染时替换）
@@ -2195,7 +2225,7 @@
                 });
                 
                 // 构建完整URL并跳转
-                const targetUrl = `/jump-btldetail?${params.toString()}`;
+                const targetUrl = `/jump-battle?${params.toString()}`;
                 console.log('跳转URL:', targetUrl);
                 const newTab = window.open(targetUrl, '_blank');
 
@@ -2254,7 +2284,7 @@
                 console.log('收藏战局参数:', { gameSeq, key: '{{key}}' });
                 
                 // 发送GET请求到收藏接口
-                const response = await fetch(`/like-btldetail?${params.toString()}`, {
+                const response = await fetch(`/like-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2304,7 +2334,9 @@
                 console.error('收藏战局失败:', error);
                 
                 // 恢复按钮状态
-                buttonElement.classList.remove('loading');
+                if (buttonElement && buttonElement.classList) {
+                    buttonElement.classList.remove('loading');
+                }
                 const outlineIcon = buttonElement.querySelector('.heart-outline');
                 const filledIcon = buttonElement.querySelector('.heart-filled');
                 if (outlineIcon) outlineIcon.style.display = 'block';
@@ -2405,7 +2437,7 @@
                 });
                 
                 // 发送GET请求到分享接口
-                const response = await fetch(`/share-btldetail?${params.toString()}`, {
+                const response = await fetch(`/share-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2455,8 +2487,15 @@
         }
         
         // 处理分析按钮点击事件
-        async function handleAnalyze(battle, profileData, buttonElement) {
+        async function handleAnalyze(battle, buttonElement) {
             try {
+                if (!buttonElement) {
+                    throw new Error('缺少按钮元素');
+                }
+                if (!profileData) {
+                    throw new Error('缺少玩家资料，请刷新页面后重试');
+                }
+
                 // 检查分析限时
                 const currentTime = Date.now();
                 const timeSinceLastAnalyze = currentTime - lastAnalyzeTime;
@@ -2519,7 +2558,7 @@
                 });
                 
                 // 发送GET请求到分析接口
-                const response = await fetch(`/analyze-btldetail?${params.toString()}`, {
+                const response = await fetch(`/analyze-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2527,7 +2566,9 @@
                 });
                 
                 // 恢复按钮状态
-                buttonElement.classList.remove('loading');
+                if (buttonElement && buttonElement.classList) {
+                    buttonElement.classList.remove('loading');
+                }
                 
                 if (response.ok) {
                     const result = await response.text();
@@ -2556,7 +2597,9 @@
                 console.error('分析战局失败:', error);
                 
                 // 恢复按钮状态
-                buttonElement.classList.remove('loading');
+                if (buttonElement && buttonElement.classList) {
+                    buttonElement.classList.remove('loading');
+                }
                 
                 showToast(error.message || '分析失败，请稍后重试', 'error');
             }
@@ -2937,6 +2980,16 @@
         // 更新玩家资料
         function updatePlayerProfile(profileData) {
             try {
+                const playerNameEl = document.getElementById('playerName');
+                const playerTitleEl = document.getElementById('playerTitle');
+                const avatarElement = document.getElementById('playerAvatar');
+                const totalBattlesEl = document.getElementById('totalBattles');
+                const mvpCountEl = document.getElementById('mvpCount');
+                const winRateEl = document.getElementById('winRate');
+
+                if (!playerNameEl && !playerTitleEl && !avatarElement && !totalBattlesEl && !mvpCountEl && !winRateEl) {
+                    return;
+                }
                 // 从profile.roleList中找到目标角色
                 const targetRoleId = profileData.targetRoleId;
                 const targetRole = profileData.roleList.find(role => role.roleId === targetRoleId);
@@ -2952,16 +3005,16 @@
                 const avatar = targetRole.roleIcon || '';
                 
                 // 设置玩家信息
-                document.getElementById('playerName').textContent = roleName;
-                document.getElementById('playerTitle').textContent = roleJobName;
+                if (playerNameEl) playerNameEl.textContent = roleName;
+                if (playerTitleEl) playerTitleEl.textContent = roleJobName;
                 
                 // 设置头像
-                const avatarElement = document.getElementById('playerAvatar');
-                if (avatar) {
+                // avatarElement already resolved at function start
+                if (avatarElement && avatar) {
                     avatarElement.src = avatar;
                     // 使用统一的图片加载逻辑
                     handleImageLoad(avatarElement, roleName.substring(0, 2));
-                } else {
+                } else if (avatarElement) {
                     avatarElement.style.display = 'none';
                 }
                 
@@ -2978,9 +3031,9 @@
                     const mvpCount = mvpMod ? mvpMod.content : '0';
                     const winRate = winRateMod ? winRateMod.content : '0%';
                     
-                    document.getElementById('totalBattles').textContent = totalBattles;
-                    document.getElementById('mvpCount').textContent = mvpCount;
-                    document.getElementById('winRate').textContent = winRate;
+                    if (totalBattlesEl) totalBattlesEl.textContent = totalBattles;
+                    if (mvpCountEl) mvpCountEl.textContent = mvpCount;
+                    if (winRateEl) winRateEl.textContent = winRate;
                 }
                 
             } catch (error) {
@@ -3407,21 +3460,21 @@
                             e.target.closest('.analyze-btn')) {
                             return;
                         }
-                        handleBattleCardClick(battle, this);
+                        handleBattleCardClick(battle, profileData, this);
                     });
                     
                     // 添加收藏按钮事件处理
                     const favoriteBtn = battleItem.querySelector('.favorite-btn');
                     favoriteBtn.addEventListener('click', function(e) {
                         e.stopPropagation(); // 阻止事件冒泡
-                        handleFavorite(battle, this);
+                        handleFavorite(battle, profileData, this);
                     });
                     
                     // 添加分享按钮事件处理
                     const shareBtn = battleItem.querySelector('.share-btn');
                     shareBtn.addEventListener('click', function(e) {
                         e.stopPropagation(); // 阻止事件冒泡
-                        handleShare(battle, this);
+                        handleShare(battle, profileData, this);
                     });
                     
                     // 添加分析按钮事件处理
@@ -3608,7 +3661,9 @@
             }
         }
     </script>
-    <script src="components/overlay/animation_overlay_.js"></script>
+    <!-- NOTE: `components/overlay/animation_overlay_.js` is not shipped in this repo.
+         Disabled to avoid 404 errors in production. -->
+    <!-- <script src="components/overlay/animation_overlay_.js"></script> -->
 
 </body>
 {% include 'footer_github.html' %}
