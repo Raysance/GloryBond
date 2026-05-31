@@ -58,6 +58,15 @@ def get_timebased_rand(n,rand_gap):
     random.seed(time_seed)
     return random.randint(0, n-1) # 保证左闭右开
 
+def date_start_epoch_ms(time_real=None):
+    """
+    获取 time_real 所在日期的 00:00:00 的 epoch 毫秒时间戳（以本机时区为准）。
+    """
+    if time_real is None:
+        time_real = time_r()
+    day_start = time_real.replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(day_start.timestamp() * 1000)
+
 def parse_fuzzy_time(fuzzy_str):
     """
     解析模糊时间描述，返回(start_time, end_time)

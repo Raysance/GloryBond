@@ -28,7 +28,9 @@ async def handle_all_messages(event: MessageEvent):
     from .zmemory import instance as zm
     user_id = event.get_user_id()
     msg_text = event.get_plaintext().strip()
-    if msg_text:
+    if msg_text and not msg_text.startswith("#"):
+        for k in sorted(common_expr.keys(), key=len, reverse=True):
+            msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
         # 记录用户的被动发言 (用于后期提炼)
         await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
@@ -98,10 +100,13 @@ _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
 _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
-_debug_rep=on_keyword({"##best"},rule=judge_super,priority=1, block=True)
+_dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
+_emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
+_kmoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
+_kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
@@ -114,8 +119,6 @@ _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
 
 _atall=on_fullmatch(tuple(atall_keywords),priority=4, block=True)
-_rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=4, block=True)
-_single=on_keyword(set(single_keywords),rule=judge_to_me,priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
 _btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
 _heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
@@ -128,19 +131,42 @@ _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
 _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
-_tempfunc = on_keyword({"tpfc"},rule=judge_to_me,priority=4, block=True)
+_exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
+
+_rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=5, block=True)
+_single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
-@_tempfunc.handle()
-async def f_tempfunc(event):
+@_exporthistory.handle()
+async def f_exporthistory(event):
     from .zfunc import dump_specific_user
-    args = event.get_plaintext().replace("#tpfc", "").replace("tpfc", "").strip().split()
+    args = event.get_plaintext().replace("#exp", "").replace("exp", "").strip().split()
     if len(args) < 2:
-        add_msg("参数错误，格式：#tpfc realname date", event=event)
+        add_msg("参数错误，格式：#exp realname date", event=event)
         return
     realname = args[0]
     target_date = args[1]
+    unaccessible_battles=[]
+    if realname.lower() == "all":
+        add_msg(f"开始导出所有用户数据: {target_date}", event=event)
+        try:
+            for rname in userlist:
+                if rname in roleidlist:
+                    userid = userlist[rname]
+                    roleid = roleidlist[rname]
+                    gameinfo=await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+                if gameinfo["unaccessible_battles"]:
+                    unaccessible_battles.append(gameinfo["unaccessible_battles"])
+        except Exception as e:
+            add_msg(f"全部导出失败: {str(e)}", event=event)
+            return
+        if (unaccessible_battles):
+            add_msg(f"全部导出battle失败: {str(unaccessible_battles)}", event=event)
+        else:
+            add_msg("全部导出完成", event=event)
+        return
+
     if realname not in userlist or realname not in roleidlist:
         add_msg(f"未找到玩家: {realname}", event=event)
         return
@@ -148,13 +174,17 @@ async def f_tempfunc(event):
     roleid = roleidlist[realname]
     add_msg(f"开始导出特定用户数据: {realname} {target_date}", event=event)
     try:
-        await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
-        add_msg("导出完成", event=event)
+        gameinfo=await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
+        if gameinfo["unaccessible_battles"]:
+            unaccessible_battles=gameinfo["unaccessible_battles"]
+        if (unaccessible_battles):
+            add_msg(f"导出battle失败: {str(unaccessible_battles)}", event=event)
+        else:
+            add_msg("导出完成", event=event)
     except Exception as e:
-        add_msg(f"导出失败: {str(e)}", event=event)
-        
-@_debug_rep.handle()
-async def handle_debug_rep(event: MessageEvent):
+        add_msg(f"导出失败: {str(e)+traceback.format_exc()}", event=event)
+@_dailyrepbattle.handle()
+async def f_dailyrepbattle(event: MessageEvent):
     from .zfunc import get_daily_representative_battle
     from .utils.message_sender import add_msg
     from nonebot.adapters.onebot.v11 import MessageSegment
@@ -163,7 +193,7 @@ async def handle_debug_rep(event: MessageEvent):
     # 解析日期参数，例如 ##best 2026-04-20
     # 由于使用 on_keyword，我们需要手动剥离 ##best
     raw_msg = event.get_plaintext().strip()
-    target_date = raw_msg.replace("##best", "").strip() or None
+    target_date = raw_msg.replace("##srep", "").strip() or None
 
     try:
         # 传递可选的日期参数
@@ -204,6 +234,35 @@ async def handle_debug_rep(event: MessageEvent):
     except Exception as e:
         import traceback
         add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
+
+@_kpl_push.handle()
+async def f_kpl_push(event: MessageEvent):
+    from .zfunc import kpl_check_and_push
+    import traceback
+
+    raw_msg = event.get_plaintext().strip()
+    args = raw_msg.replace("##kpl", "").strip().split()
+    force = any(x.lower() in {"force", "f"} for x in args)
+    preview_only = any(x.lower() in {"preview", "p"} for x in args)
+
+    try:
+        res = await asyncio.to_thread(kpl_check_and_push, debug=True, event=event, force=force, preview_only=preview_only)
+        if preview_only:
+            if res.get("cid"):
+                add_msg(f"KPL 预览完成 cid={res.get('cid')}（未生图）", event=event)
+            else:
+                add_msg("KPL 本轮未发现可预览战局", event=event)
+        else:
+            if res.get("pushed"):
+                add_msg(f"KPL 推送完成 cid={res.get('cid')}", event=event)
+            else:
+                add_msg("KPL 本轮未发现可推送战局", event=event)
+        debug_text = res.get("debug") or ""
+        if debug_text:
+            add_msg(debug_text, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception:
+        add_msg("KPL 手动触发崩溃，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
@@ -303,7 +362,58 @@ async def f_repair(bot,event):
 @_show_code.handle()
 async def f_show_code(bot,event):
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/Raysance/GloryBond/", event=event)
+    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
+
+@_emoji_gen.handle()
+async def f_emoji_gen(event):
+    from .tools.gen_emoji_image import generate_user_emoji_image
+    try:
+        meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=event.get_user_id())
+        add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
+        add_msg(MessageSegment.image(meta["image_path"]), event=event)
+    except Exception as e:
+        add_msg(f"emoji_gen_error: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    await _emoji_gen.finish()
+
+@_kmoji_gen.handle()
+async def f_kmoji_gen(event):
+    from .tools.gen_emoji_image import generate_user_kmoji_image
+    raw_tail = event.get_plaintext().replace("##kmoji", "").strip()
+    template_num = None
+    prompt_tail = raw_tail
+    if raw_tail:
+        first = raw_tail.split()[0].strip()
+        if first.isdigit():
+            template_num = int(first)
+            prompt_tail = raw_tail[len(first):].strip()
+    image_url = None
+    try:
+        for seg in event.message:
+            if getattr(seg, "type", "") == "image":
+                image_url = (seg.data or {}).get("url") or (seg.data or {}).get("file")
+                if image_url:
+                    break
+    except Exception:
+        image_url = None
+    try:
+        meta = await asyncio.to_thread(
+            generate_user_kmoji_image,
+            user_qid=event.get_user_id(),
+            custom_image_url=image_url,
+            template_num=template_num,
+            prompt_tail=prompt_tail,
+        )
+        add_msg(
+            "PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2),
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        add_msg(MessageSegment.image(meta["image_path"]), event=event)
+    except Exception as e:
+        add_msg(f"kmoji_gen_error: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    await _kmoji_gen.finish()
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
@@ -352,6 +462,15 @@ async def f_group_poke(bot, event):
                         groupqid=None
 
                     send_type=(random.random()>-1)
+                    if random.random() < (getattr(dmc, "EmojiImageProb", None) or 0):
+                        from .tools.gen_emoji_image import generate_user_emoji_image
+                        try:
+                            meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=userqid)
+                            add_msg(MessageSegment.image(meta["image_path"]), event=event)
+                        except Exception as e:
+                            add_msg(f"emoji_gen_error: {str(e)}", event=event)
+                            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                        return
                     if send_type:
                         snd_msg = await asyncio.to_thread(ai_parser, [qid2nick(userqid), str(datetime.datetime.now())], "poke")
                     else:
@@ -411,7 +530,7 @@ async def f_forever_mem(event):
 async def f_manual(event):
     log_message("CMD: MANUAL")
     add_msg(Message("Code on Github："), event=event)
-    add_msg("https://github.com/Raysance/GloryBond/", event=event)
+    add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
 @_super_only.handle()
 async def f_super_only(event):
@@ -788,9 +907,11 @@ async def f_recentgames(event):
     from .zfunc import recentgames_process, qid2nick, extract_name
     from .utils.message_sender import add_msg
     userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
-    
-    realname = extract_name(rcv_msg)
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid)).replace("的", "").replace("时长", "")
+    if ("排行" in rcv_msg or "排名" in rcv_msg):
+        add_msg(f"tο be implemented", event=event)
+        return
+    realname = extract_name(from_text=rcv_msg,precise=False)
     if not realname:
         add_msg("未识别到玩家名字", event=event)
         await _recentgames.finish()

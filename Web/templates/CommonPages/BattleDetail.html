@@ -2129,7 +2129,7 @@
                         // 跳转到指定URL
                         const urlParams = new URLSearchParams(window.location.search);
                         const currentKey = urlParams.get('key');
-                        let targetUrl = `/jump-btlperson?userid=${userId}&roleid=${roleId}`;
+                        let targetUrl = `/jump-person?userid=${userId}&roleid=${roleId}`;
                         if (currentKey) {
                             targetUrl += `&key=${encodeURIComponent(currentKey)}`;
                         }
@@ -2223,7 +2223,7 @@
             const hasSeenUpdatesTip_20251006_battledetail = localStorage.getItem('hasSeenUpdatesTip_20251006_battledetail');
             if (!hasSeenUpdatesTip_20251006_battledetail || hasSeenUpdatesTip_20251006_battledetail < 2) {
                 // 延迟显示，确保页面渲染完成
-                setTimeout(showFeatureTip, 1500);
+                // setTimeout(showFeatureTip, 1500);
             }
         }
         
@@ -2343,7 +2343,7 @@
 
                 
                 // 发送GET请求到分享接口
-                const response = await fetch(`/share-btldetail?${params.toString()}`, {
+                const response = await fetch(`/share-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2384,7 +2384,7 @@
                 console.log('收藏战局参数:', { gameSeq:'{{gameSeq}}', key: '{{key}}' });
                 
                 // 发送GET请求到收藏接口
-                const response = await fetch(`/like-btldetail?${params.toString()}`, {
+                const response = await fetch(`/like-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2456,7 +2456,7 @@
                     Special: (confirmResult && confirmResult.special) ? 'true' : 'false'
                 });
 
-                const response = await fetch(`/analyze-btldetail?${params.toString()}`, {
+                const response = await fetch(`/analyze-battle?${params.toString()}`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
                 });
