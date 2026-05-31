@@ -8,6 +8,7 @@
 # /news/*.txt
 /wzry_images/skins/
 /wzry_images/generated/
+/wzry_images/kpl/
 /herorank/
 
 # .env
