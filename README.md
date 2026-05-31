@@ -2,15 +2,20 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Raysance/GloryBond)
 
-
 [Click here tο try Demo](https://zhdxlz.top/agent-demo)
+
 
 ## 目录
 
 - [GloryBond (QQ-HOK-Agent) User Manual](#glorybond-qq-hok-agent-user-manual)
   - [目录](#目录)
-  - [🎯 功能速查](#-功能速查)
   - [📖 总览](#-总览)
+  - [项目架构与文件职责](#项目架构与文件职责)
+    - [🤖 NBot (逻辑核心)](#-nbot-逻辑核心)
+    - [📊 Tools (自动化生成工具)](#-tools-自动化生成工具)
+    - [🌐 Web (数据展示与管理)](#-web-数据展示与管理)
+    - [📂 其他目录](#-其他目录)
+  - [🎯 功能速查](#-功能速查)
   - [🎮 核心功能](#-核心功能)
     - [一、战绩查询](#一战绩查询)
       - [1. 排行榜查询](#1-排行榜查询)
@@ -54,6 +59,57 @@
     - [二、拿手英雄指标](#二拿手英雄指标)
     - [三、战局实力评估（底蕴值）](#三战局实力评估底蕴值)
     - [四、团队贡献度指标](#四团队贡献度指标)
+
+---
+
+## 📖 总览
+
+**GloryBond（竞技之光，社交之绊）** 是一个深度连接王者荣耀游戏数据与QQ群交往生态的智能助手。它旨在打破游戏与生活的边界，将游戏战绩转化为群友间的互动话题，打造**“玩 → 聊 → 再玩”**的高粘性社交闭环。可通过发送带 **#** 前缀的消息来触发功能。
+
+**核心愿景 (Why GloryBond?)**：
+- **Glory（荣耀 · 极致竞技体验）**：利用智能化数据为你带来职业级的分析体验。通过**实力评估**、**阵容兼容性分析**与**智能组队摇人**，用 AI 逻辑补缺战术短板，带你触达更专业的竞技高度。
+- **Bond（羁绊 · 有温度的社交）**：打破数据的冰冷感，构建情感连结。自动播报**高光/低光战绩**，通过个性化**情感关怀**与**智能对话**，让 Agent 成为群内活跃氛围的“破冰者”。让“神操作”得到喝彩，“下饭瞬间”化作调侃。
+
+---
+
+## 项目架构与文件职责
+
+### 🤖 NBot (逻辑核心)
+
+- **[config.py](NBot/config.py)**: 定义插件的基础配置模型，使用 Pydantic 进行配置验证与解析。
+- **[zdebug.py](NBot/zdebug.py)**: 系统调试工具，包含战绩数据的手动持久化 (Dump) 与紧急数据恢复逻辑。
+- **[zdynamic.py](NBot/zdynamic.py)**: 动态状态管理，负责维护 Redis 连接实例并实时同步全局动态变量。
+- **[zevent.py](NBot/zevent.py)**: 核心事件路由，处理指令正则匹配（如战绩查询）及全局消息监听钩子。
+- **[zfile.py](NBot/zfile.py)**: 数据持久化层，封装 JSON 标准读写及本地聊天日志的记录逻辑。
+- **[zfunc.py](NBot/zfunc.py)**: 业务功能库，核心包含王者荣耀战绩解析、数据清洗及玩家统计函数。
+- **[zmemory.py](NBot/zmemory.py)**: 记忆系统模块，利用 Redis 存储用户对话上下文，为 AI 角色提供记忆。
+- **[zscheduler.py](NBot/zscheduler.py)**: 定时任务管理器，负责每日自动备份战绩、生成报表等后台任务。
+- **[zstatic.py](NBot/zstatic.py)**: 静态配置加载，读取环境变量、英雄数据库及段位权重表等常量。
+- **[ztime.py](NBot/ztime.py)**: 时间工具类，处理业务特有的“凌晨归位”逻辑（3:30界限）及格式转换。
+- **[zutil.py](NBot/zutil.py)**: 基础工具集，提供全局日志记录、异常捕获以及底层依赖管理。
+- **[utils/message_sender.py](NBot/utils/message_sender.py)**: 消息发送管道，通过异步队列控制发送频率。
+
+### 📊 Tools (自动化生成工具)
+位于 `NBot/tools/`，专注于数据的可视化转化。
+
+- **[gen_battle_res.py](NBot/tools/gen_battle_res.py)**: 单局结果渲染器，将复杂的对局 JSON 数据绘制为美化的长图。
+- **[gen_battle_shot.py](NBot/tools/gen_battle_shot.py)**: 自动化截图工具，支持监听推流并在关键时刻截取游戏画面。
+- **[gen_coplayer_analyses.py](NBot/tools/gen_coplayer_analyses.py)**: 深度关系分析，生成带有头像、胜率及评价的玩家关联图表。
+- **[gen_grade_chart.py](NBot/tools/gen_grade_chart.py)**: 趋势统计工具，利用 Matplotlib 生成玩家星数或评分的赛季走势图。
+
+### 🌐 Web (数据展示与管理)
+基于 FastAPI 构建的轻量级展示后端。
+
+- **[app.py](Web/app.py)**: Web 服务主程序，定义所有 HTTP 路由、视图渲染及 API 交互。
+- **[utils.py](Web/utils.py)**: Web 端专用工具，集成 OpenAI 分析能力及单局战绩文件的索引映射。
+- **[templates/](Web/templates/)**: 网页模板目录：
+  - `AdminPages/`: 管理后端页面（登录、聊天查看器、数据同步等）。
+  - `CommonPages/`: 业务前端界面（战绩列表展示、对局详情预览）。
+  - `ErrorPages/`: 异常处理器，如令牌过期或非法访问的友好提示。
+
+### 📂 其他目录
+- **assets/**: README需要的静态图片资源。
+- **wzry_images/**: 预存的英雄、装备图标等游戏静态素材数据库。
 
 ---
 
@@ -158,16 +214,26 @@
 <td>清除记忆</td>
 <td><code>#empty_cache</code></td>
 </tr>
+<tr>
+<td>智能摇人</td>
+<td>缺人时自动匹配队友</td>
+<td><code>几个/缺几个/来几个</code></td>
+</tr>
+<tr>
+<td>兼容性分析</td>
+<td>团队阵容兼容性深度分析</td>
+<td><code>#阵容分析</code></td>
+</tr>
+<tr>
+<td>自动播报</td>
+<td>自动识别推送极端战绩</td>
+<td><code>自动触发</code></td>
+</tr>
 </tbody>
 </table>
 
 ---
 
-## 📖 总览
-
-本机器人是一个基于王者荣耀游戏数据的智能QQ群助手，能够查询战绩、分析数据、智能对话等。所有功能均通过发送以 **#** 开头的消息触发。
-
----
 
 ## 🎮 核心功能
 
