@@ -2571,15 +2571,30 @@ def kpl_build_match_image_prompt(*, match_content: dict):
     style_idx = get_timebased_rand(len(style_templates), 10)
     style = style_templates[style_idx]
 
-    teams = match_content.get("teams") or []
-    teams_out = []
-    for t in teams:
-        if not isinstance(t, dict):
-            continue
-        teams_out.append({"name": t.get("name")})
+    def _strip_timezone(iso_s: str):
+        if not iso_s:
+            return "-"
+        s = str(iso_s).strip()
+        try:
+            dt = datetime.datetime.fromisoformat(s)
+            return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            m = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", s)
+            if m:
+                return m.group(1).replace("T", " ")
+            return s
 
-    score = match_content.get("score") or {}
-    score_out = {"home": score.get("home"), "away": score.get("away")}
+    raw = match_content.get("raw") or {}
+    raw_data = raw.get("data") or {}
+    home_team = raw_data.get("home_team") or {}
+    away_team = raw_data.get("away_team") or {}
+    home_name = home_team.get("name") or ""
+    away_name = away_team.get("name") or ""
+    home_score = raw_data.get("home_score")
+    away_score = raw_data.get("away_score")
+    total_score = None
+    if home_score is not None and away_score is not None:
+        total_score = f"{home_score}-{away_score}"
 
     players = match_content.get("players") or []
 
@@ -2588,30 +2603,6 @@ def kpl_build_match_image_prompt(*, match_content: dict):
             return float(x)
         except Exception:
             return -1.0
-
-    players_sorted = sorted(players, key=lambda p: _to_float((p or {}).get("avg_grade")), reverse=True)
-    highlights = []
-    for p in players_sorted[:10]:
-        if not isinstance(p, dict):
-            continue
-        kda = p.get("kda") or {}
-        hero = p.get("hero") or {}
-        hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
-        if len(hot) > 60:
-            hot = hot[:60] + "..."
-        hero_id = hero.get("hero_id")
-        hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
-        highlights.append(
-            {
-                "team": p.get("team_name"),
-                "player": p.get("player_name"),
-                "pos": p.get("position"),
-                "grade": p.get("avg_grade"),
-                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
-                "hero": hero_name or hero_id,
-                "hot": hot,
-            }
-        )
 
     team_players = {}
     for p in players:
@@ -2625,25 +2616,38 @@ def kpl_build_match_image_prompt(*, match_content: dict):
         hero = p.get("hero") or {}
         hero_id = hero.get("hero_id")
         hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
+        hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
+        if len(hot) > 80:
+            hot = hot[:80] + "..."
         team_players[team].append(
             {
-                "player": p.get("player_name"),
+                "name": p.get("player_name"),
                 "pos": p.get("position"),
-                "grade": p.get("avg_grade"),
-                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
+                "score": p.get("avg_grade"),
                 "hero": hero_name or hero_id,
+                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
+                "hot": hot,
             }
         )
 
+    teams_payload = []
+    for name in [home_name, away_name]:
+        if not name:
+            continue
+        if name == home_name:
+            score = home_score
+        elif name == away_name:
+            score = away_score
+        else:
+            score = None
+        teams_payload.append({"name": name, "score": score, "players": team_players.get(name) or []})
+
     payload = {
         "match_name": match_content.get("match_name") or "KPL 对局战报",
-        "game_stage": match_content.get("game_stage") or "-",
-        "start_time": match_content.get("start_time_iso") or "-",
-        "end_time": match_content.get("end_time_iso") or "-",
-        "teams": teams_out,
-        "score": score_out,
-        "highlights": highlights,
-        "team_players": team_players,
+        "start_time": _strip_timezone(match_content.get("start_time_iso") or ""),
+        "end_time": _strip_timezone(match_content.get("end_time_iso") or ""),
+        "total_score": total_score or "-",
+        "teams": teams_payload,
     }
 
     prompt = (
@@ -2655,10 +2659,10 @@ def kpl_build_match_image_prompt(*, match_content: dict):
         "严格网格对齐：左右对称、边距一致、模块间距一致；使用少量强调色即可。"
         "你必须把 JSON 里的具体内容排版到图上，不允许只画占位框不填内容。"
         "必须包含以下版块（都要出现，且必须写出具体值）："
-        "1) 顶部标题区：将 match_name、game_stage、start_time、end_time 原样展示；"
-        "2) 中部主视觉区：将 teams[0].name 与 teams[1].name 放在左右两侧，并在中间用超大字号展示 score.home-score.away；"
-        "3) 关键选手数据区：对 team_players 中每个队伍，展示该队全部选手；每名选手必须包含 player、pos、grade、kda、hero；"
-        "4) 热评/高光区：从 highlights 里挑 3-6 条，展示 player、team、grade、kda、hero，以及 hot（如有）。"
+        "1) 顶部标题区：展示 match_name、start_time、end_time；"
+        "2) 中部主视觉区：展示两队 teams[0].name vs teams[1].name，并用超大字号展示 total_score；"
+        "3) 数据区：两列对比表格（左=队伍A，右=队伍B），展示双方全部选手；每名选手必须包含 name、pos、score、hero、kda；"
+        "4) 热评区：在每名选手行内或旁边展示 hot（如为空可不展示）。"
         "如果某字段为 '-' 或空，才允许显示 '-'；其余字段必须完整展示，不要省略。"
         "不要展示 JSON 字段名或技术字段名本身，只展示对应的值。\n"
         "排版建议：底部做左右两列对比表（左=队伍A，右=队伍B），每行一个选手；评分可用条形/星级视觉但仍要显示数值。"
