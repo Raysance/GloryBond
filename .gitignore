@@ -9,6 +9,7 @@
 /wzry_images/skins/
 /wzry_images/generated/
 /wzry_images/kpl/
+/wzry_images/tmp/
 /herorank/
 
 # .env
@@ -20,4 +21,6 @@ QBOT.log
 *.pyc
 
 **/.mypy_cache/
+
+src/plugins/qbot/debug_tools/
 

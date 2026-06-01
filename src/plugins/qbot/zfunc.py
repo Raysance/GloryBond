@@ -1997,6 +1997,99 @@ def recentgames_process(realname):
     
     return res_msg
 
+def gametime_rank_process(days=14, top_n=14):
+    from .ztime import time_r
+    from .zfile import ensure_dir
+    from .tools import gen_gametime_table
+    from .zapi import steam_api_recent_games
+    import datetime
+    import hashlib
+
+    end_date = time_r()
+    start_date = end_date - datetime.timedelta(days=days)
+
+    def calc_recent_gametime(realname):
+        display_name = namenick.get(realname, realname)
+
+        userid = userlist.get(realname)
+        wzry_seconds = 0
+        if userid:
+            gamedetails, _ = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
+            player_details = gamedetails.get(realname, [])
+            for detail in player_details:
+                wzry_seconds += detail.get("Duration_Second", 0)
+
+        wzry_hours = round(wzry_seconds / 3600, 1)
+        per_game = {}
+        if wzry_hours > 0:
+            per_game["王者荣耀"] = wzry_hours
+
+        steam_id = steam_userlist.get(realname)
+        steam_hours = 0.0
+        if steam_id:
+            steam_api_key = confs.get("Steam", {}).get("api_key")
+            if steam_api_key:
+                games = steam_api_recent_games(steam_api_key, steam_id)
+                if games:
+                    for game in games:
+                        game_2weeks_mins = game.get("playtime_2weeks", 0)
+                        h = round(game_2weeks_mins / 60, 1)
+                        if h > 0:
+                            steam_hours += h
+                            game_name = game.get("name") or "Unknown"
+                            per_game[game_name] = per_game.get(game_name, 0) + h
+
+        total_hours = round(wzry_hours + steam_hours, 1)
+        return display_name, total_hours, per_game
+
+    realnames = sorted(set(list(userlist.keys()) + list(steam_userlist.keys())))
+    rows = []
+    all_games = set()
+    for realname in realnames:
+        display_name, total_hours, per_game = calc_recent_gametime(realname)
+        if total_hours <= 0:
+            continue
+        rows.append((display_name, total_hours, per_game))
+        for g in per_game:
+            all_games.add(g)
+
+    rows = sorted(rows, key=lambda x: x[1], reverse=True)[:top_n]
+
+    if not rows:
+        return f"最近{days}天没有可用的时长记录", ""
+
+    ts = str(round(time.time() * 1000000))
+    filename_hashed = hashlib.sha256(ts.encode()).hexdigest()[:16]
+    out_dir = ensure_dir(os.path.join("wzry_images", "tmp"))
+    pic_path = os.path.join(out_dir, f"gametime_rank_{filename_hashed}.png")
+
+    def sort_games(rows, all_games):
+        if not all_games:
+            return []
+        sums = {}
+        for _, _, per_game in rows:
+            for g, v in (per_game or {}).items():
+                sums[g] = sums.get(g, 0) + float(v or 0)
+        games_other = [g for g in all_games if g != "王者荣耀"]
+        games_other.sort(key=lambda g: sums.get(g, 0), reverse=True)
+        return (["王者荣耀"] if "王者荣耀" in all_games else []) + games_other
+
+    game_list = sort_games(rows, all_games)
+    title = f"最近{days}天游戏时长排行"
+    table_rows = []
+    for display_name, total_hours, per_game in rows:
+        table_rows.append({"player": display_name, "total": total_hours, "games": per_game})
+    gen_gametime_table.gen(table_rows, game_list, pic_path, title=title)
+
+    lines = [title]
+    for i, (display_name, total_hours, per_game) in enumerate(rows, 1):
+        parts = []
+        for game_name in sorted(per_game.keys()):
+            parts.append(f"{game_name}{round(per_game.get(game_name,0),1)}h")
+        lines.append(f"{i}. {display_name}: {total_hours}h ({' / '.join(parts)})")
+
+    return "\n".join(lines), pic_path
+
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
     from .zfile import readerl
     file_path = os.path.join("history", "battles", f"{gameseq}.json")
@@ -2568,7 +2661,17 @@ def kpl_build_match_image_prompt(*, match_content: dict):
         "官方海报质感：暗色底 + 柔和聚光，主体居中，左右队名对称；使用干净的几何块面与细线框，不要霓虹，不要花哨纹理，质感像赛事官方宣传图。",
         "现代电竞面板：深色面板+模块化信息块，顶部标题条，中部比分条，底部双列对比表；使用统一图标与小标签，强调对齐与层级。",
     ]
-    style_idx = get_timebased_rand(len(style_templates), 10)
+    style_mode = getattr(dmc, "KplImageStyleMode", "fixed")
+    fixed_idx = getattr(dmc, "KplImageStyleFixedIndex", 1)
+    if style_mode == "random":
+        style_idx = get_timebased_rand(len(style_templates), 10)
+    else:
+        try:
+            style_idx = int(fixed_idx)
+        except Exception:
+            style_idx = 1
+        if style_idx < 0 or style_idx >= len(style_templates):
+            style_idx = 1
     style = style_templates[style_idx]
 
     def _strip_timezone(iso_s: str):
@@ -2596,39 +2699,41 @@ def kpl_build_match_image_prompt(*, match_content: dict):
     if home_score is not None and away_score is not None:
         total_score = f"{home_score}-{away_score}"
 
-    players = match_content.get("players") or []
+    pos_map = {"TOP": "对抗路", "JUG": "打野", "MID": "中路", "AD": "发育路", "SUP": "游走"}
 
-    def _to_float(x):
-        try:
-            return float(x)
-        except Exception:
-            return -1.0
-
-    team_players = {}
-    for p in players:
+    hot_map = {}
+    for p in match_content.get("players") or []:
         if not isinstance(p, dict):
             continue
-        team = p.get("team_name")
-        if not team:
-            continue
-        team_players.setdefault(team, [])
-        kda = p.get("kda") or {}
-        hero = p.get("hero") or {}
-        hero_id = hero.get("hero_id")
-        hero_name = HeroList.get(str(hero_id), None) if hero_id is not None else None
+        name = p.get("player_name")
         hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
+        if not name or not hot:
+            continue
         if len(hot) > 80:
             hot = hot[:80] + "..."
-        team_players[team].append(
-            {
-                "name": p.get("player_name"),
-                "pos": p.get("position"),
-                "score": p.get("avg_grade"),
-                "hero": hero_name or hero_id,
-                "kda": {"k": kda.get("kill"), "d": kda.get("death"), "a": kda.get("assist")},
-                "hot": hot,
-            }
-        )
+        hot_map[name] = hot
+
+    global_grade = raw_data.get("global_grade_info") or {}
+    team_players = {}
+    for side in ["home_team", "away_team"]:
+        side_info = global_grade.get(side) or {}
+        plist = side_info.get("players") or []
+        for p in plist:
+            if not isinstance(p, dict):
+                continue
+            name = p.get("nickname")
+            place = p.get("place")
+            pos = pos_map.get(str(place), place)
+            if side == "home_team":
+                team_name = home_name
+            else:
+                team_name = away_name
+            team_players.setdefault(team_name, [])
+            item = {"name": name, "pos": pos, "score": p.get("avg_grade")}
+            hot = hot_map.get(name)
+            if hot:
+                item["hot"] = hot
+            team_players[team_name].append(item)
 
     teams_payload = []
     for name in [home_name, away_name]:
@@ -2642,8 +2747,13 @@ def kpl_build_match_image_prompt(*, match_content: dict):
             score = None
         teams_payload.append({"name": name, "score": score, "players": team_players.get(name) or []})
 
+    if home_name and away_name:
+        match_name = f"{home_name} vs {away_name}"
+    else:
+        match_name = match_content.get("match_name") or "KPL 对局战报"
+
     payload = {
-        "match_name": match_content.get("match_name") or "KPL 对局战报",
+        "match_name": match_name,
         "start_time": _strip_timezone(match_content.get("start_time_iso") or ""),
         "end_time": _strip_timezone(match_content.get("end_time_iso") or ""),
         "total_score": total_score or "-",
@@ -2651,22 +2761,11 @@ def kpl_build_match_image_prompt(*, match_content: dict):
     }
 
     prompt = (
-        "你是专业赛事视觉设计师，擅长把结构化数据做成可读性很强的赛事战报信息图。"
-        "请严格根据以下 JSON 数据生成一张 KPL 对局战报信息图。"
+        "你是专业赛事视觉设计师。"
+        "请根据以下 JSON 数据生成一张 KPL 系列赛战报信息图（强调整场系列赛的大比分）。"
         "只生成图片，不要输出任何额外解释文字。"
-        "画面为横向宽屏海报（16:9，适配 2K），整体必须高级、现代、干净，不要廉价霓虹风，不要过度装饰。"
-        "使用统一无衬线字体风格，字号层级清晰，确保文字可读（不要小字糊成一片）。"
-        "严格网格对齐：左右对称、边距一致、模块间距一致；使用少量强调色即可。"
-        "你必须把 JSON 里的具体内容排版到图上，不允许只画占位框不填内容。"
-        "必须包含以下版块（都要出现，且必须写出具体值）："
-        "1) 顶部标题区：展示 match_name、start_time、end_time；"
-        "2) 中部主视觉区：展示两队 teams[0].name vs teams[1].name，并用超大字号展示 total_score；"
-        "3) 数据区：两列对比表格（左=队伍A，右=队伍B），展示双方全部选手；每名选手必须包含 name、pos、score、hero、kda；"
-        "4) 热评区：在每名选手行内或旁边展示 hot（如为空可不展示）。"
-        "如果某字段为 '-' 或空，才允许显示 '-'；其余字段必须完整展示，不要省略。"
-        "不要展示 JSON 字段名或技术字段名本身，只展示对应的值。\n"
-        "排版建议：底部做左右两列对比表（左=队伍A，右=队伍B），每行一个选手；评分可用条形/星级视觉但仍要显示数值。"
-        "避免：花哨背景纹理、过度发光、低对比度文字、过多装饰性图案。\n"
+        "整体风格要求高级、现代、干净，确保文字清晰可读。"
+        "不要虚构 JSON 中不存在的信息；不要输出 JSON 字段名，只展示内容本身。\n"
         f"风格模板：{style}\n\n"
         + json.dumps(payload, ensure_ascii=False)
     )
