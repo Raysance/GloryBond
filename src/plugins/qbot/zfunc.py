@@ -1997,16 +1997,33 @@ def recentgames_process(realname):
     
     return res_msg
 
-def gametime_rank_process(days=14, top_n=14):
+def gametime_rank_process(days=14):
     from .ztime import time_r
     from .zfile import ensure_dir
     from .tools import gen_gametime_table
     from .zapi import steam_api_recent_games
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     import datetime
     import hashlib
 
     end_date = time_r()
     start_date = end_date - datetime.timedelta(days=days)
+
+    steam_api_key = confs.get("Steam", {}).get("api_key")
+    steam_games_by_realname = {}
+    if steam_api_key:
+        steam_tasks = [(realname, steam_userlist.get(realname)) for realname in steam_userlist]
+        steam_tasks = [(realname, steam_id) for realname, steam_id in steam_tasks if steam_id]
+        if steam_tasks:
+            max_workers = min(8, max(1, len(steam_tasks)))
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                fut_map = {ex.submit(steam_api_recent_games, steam_api_key, steam_id): realname for realname, steam_id in steam_tasks}
+                for fut in as_completed(fut_map):
+                    realname = fut_map[fut]
+                    try:
+                        steam_games_by_realname[realname] = fut.result() or []
+                    except Exception as e:
+                        raise Exception(f"steam_recent_games_error: {realname} {repr(e)}")
 
     def calc_recent_gametime(realname):
         display_name = namenick.get(realname, realname)
@@ -2019,7 +2036,7 @@ def gametime_rank_process(days=14, top_n=14):
             for detail in player_details:
                 wzry_seconds += detail.get("Duration_Second", 0)
 
-        wzry_hours = round(wzry_seconds / 3600, 1)
+        wzry_hours = wzry_seconds / 3600.0
         per_game = {}
         if wzry_hours > 0:
             per_game["王者荣耀"] = wzry_hours
@@ -2027,19 +2044,17 @@ def gametime_rank_process(days=14, top_n=14):
         steam_id = steam_userlist.get(realname)
         steam_hours = 0.0
         if steam_id:
-            steam_api_key = confs.get("Steam", {}).get("api_key")
-            if steam_api_key:
-                games = steam_api_recent_games(steam_api_key, steam_id)
-                if games:
-                    for game in games:
-                        game_2weeks_mins = game.get("playtime_2weeks", 0)
-                        h = round(game_2weeks_mins / 60, 1)
-                        if h > 0:
-                            steam_hours += h
-                            game_name = game.get("name") or "Unknown"
-                            per_game[game_name] = per_game.get(game_name, 0) + h
+            games = steam_games_by_realname.get(realname, [])
+            if games:
+                for game in games:
+                    game_2weeks_mins = game.get("playtime_2weeks", 0)
+                    h = game_2weeks_mins / 60.0
+                    if h > 0:
+                        steam_hours += h
+                        game_name = game.get("name") or "Unknown"
+                        per_game[game_name] = per_game.get(game_name, 0) + h
 
-        total_hours = round(wzry_hours + steam_hours, 1)
+        total_hours = wzry_hours + steam_hours
         return display_name, total_hours, per_game
 
     realnames = sorted(set(list(userlist.keys()) + list(steam_userlist.keys())))
@@ -2053,7 +2068,7 @@ def gametime_rank_process(days=14, top_n=14):
         for g in per_game:
             all_games.add(g)
 
-    rows = sorted(rows, key=lambda x: x[1], reverse=True)[:top_n]
+    rows = sorted(rows, key=lambda x: x[1], reverse=True)
 
     if not rows:
         return f"最近{days}天没有可用的时长记录", ""
@@ -2086,7 +2101,7 @@ def gametime_rank_process(days=14, top_n=14):
         parts = []
         for game_name in sorted(per_game.keys()):
             parts.append(f"{game_name}{round(per_game.get(game_name,0),1)}h")
-        lines.append(f"{i}. {display_name}: {total_hours}h ({' / '.join(parts)})")
+        lines.append(f"{i}. {display_name}: {round(total_hours,1)}h ({' / '.join(parts)})")
 
     return "\n".join(lines), pic_path
 

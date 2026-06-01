@@ -917,7 +917,7 @@ async def f_recentgames(event):
         try:
             txt_msg, pic_path = await asyncio.to_thread(gametime_rank_process)
             if pic_path:
-                add_msg(MessageSegment.text(txt_msg) + MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
+                add_msg(MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
             else:
                 add_msg(txt_msg, event=event)
         except Exception as e:
