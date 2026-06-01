@@ -2058,17 +2058,19 @@ def gametime_rank_process(days=14):
         return display_name, total_hours, per_game
 
     realnames = sorted(set(list(userlist.keys()) + list(steam_userlist.keys())))
-    rows = []
     all_games = set()
+
+    raw_rows = []
     for realname in realnames:
         display_name, total_hours, per_game = calc_recent_gametime(realname)
         if total_hours <= 0:
             continue
-        rows.append((display_name, total_hours, per_game))
-        for g in per_game:
+        raw_rows.append({"realname": realname, "player": display_name, "total": float(total_hours), "games": per_game or {}})
+        for g in (per_game or {}):
             all_games.add(g)
 
-    rows = sorted(rows, key=lambda x: x[1], reverse=True)
+    from .tools.gen_gametime_table import merge_gametime_rows
+    rows = merge_gametime_rows(raw_rows, globals().get("sameuser", {}), namenick=namenick)
 
     if not rows:
         return f"最近{days}天没有可用的时长记录", ""
@@ -2082,8 +2084,9 @@ def gametime_rank_process(days=14):
         if not all_games:
             return []
         sums = {}
-        for _, _, per_game in rows:
-            for g, v in (per_game or {}).items():
+        for item in rows:
+            per_game = item.get("games") or {}
+            for g, v in per_game.items():
                 sums[g] = sums.get(g, 0) + float(v or 0)
         games_other = [g for g in all_games if g != "王者荣耀"]
         games_other.sort(key=lambda g: sums.get(g, 0), reverse=True)
@@ -2091,19 +2094,8 @@ def gametime_rank_process(days=14):
 
     game_list = sort_games(rows, all_games)
     title = f"最近{days}天游戏时长排行"
-    table_rows = []
-    for display_name, total_hours, per_game in rows:
-        table_rows.append({"player": display_name, "total": total_hours, "games": per_game})
-    gen_gametime_table.gen(table_rows, game_list, pic_path, title=title)
-
-    lines = [title]
-    for i, (display_name, total_hours, per_game) in enumerate(rows, 1):
-        parts = []
-        for game_name in sorted(per_game.keys()):
-            parts.append(f"{game_name}{round(per_game.get(game_name,0),1)}h")
-        lines.append(f"{i}. {display_name}: {round(total_hours,1)}h ({' / '.join(parts)})")
-
-    return "\n".join(lines), pic_path
+    gen_gametime_table.gen(rows, game_list, pic_path, title=title)
+    return "", pic_path
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
     from .zfile import readerl

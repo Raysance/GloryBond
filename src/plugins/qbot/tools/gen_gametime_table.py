@@ -1,11 +1,72 @@
+def merge_gametime_rows(rows, sameuser, namenick=None):
+    """Merge per-account gametime rows into main accounts by sameuser mapping.
+
+    rows: [{"realname": str, "total": float, "games": {game: hours}}]
+    sameuser: {main: [alias1, alias2, ...]}
+    namenick: optional nickname dict for display
+
+    Returns: [{"player": str, "subs": [str], "total": float, "games": {game: hours}}]
+    """
+    namenick = namenick or {}
+
+    alias_to_main = {}
+    main_to_aliases = {}
+    if isinstance(sameuser, dict):
+        for main, aliases in sameuser.items():
+            if not isinstance(aliases, list):
+                continue
+            main_to_aliases[main] = list(aliases)
+            for a in aliases:
+                alias_to_main[a] = main
+
+    merged = {}
+    main_sub_totals = {}
+    for row in rows:
+        realname = row.get("realname")
+        if not realname:
+            continue
+        main = alias_to_main.get(realname, realname)
+        if main not in merged:
+            merged[main] = {"main": main, "total": 0.0, "games": {}}
+            main_sub_totals[main] = {}
+        merged[main]["total"] += float(row.get("total") or 0)
+        main_sub_totals[main][realname] = main_sub_totals[main].get(realname, 0.0) + float(row.get("total") or 0)
+        games = row.get("games") or {}
+        for g, v in games.items():
+            merged[main]["games"][g] = merged[main]["games"].get(g, 0.0) + float(v or 0)
+
+    out = []
+    for main, item in merged.items():
+        aliases = main_to_aliases.get(main, [])
+        subs = []
+        for a in aliases:
+            if a == main:
+                continue
+            if a not in alias_to_main:
+                continue
+            h = main_sub_totals.get(main, {}).get(a, 0.0)
+            subs.append(f"({namenick.get(a, a)} {round(h, 1)}h)")
+        out.append(
+            {
+                "player": namenick.get(main, main),
+                "subs": subs,
+                "total": item.get("total", 0.0),
+                "games": item.get("games") or {},
+            }
+        )
+    out.sort(key=lambda x: x.get("total", 0), reverse=True)
+    return out
+
+
 def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
     """Generate neon glow gametime matrix image.
 
-    rows: [{player,total,games:{game:hours}}]
+    rows: [{player,total,games:{game:hours}, subs:[...]}]
     """
     import os
     import math
     from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
     try:
         from .emoji_renderer import draw_text_with_emoji
     except Exception as e:
@@ -39,7 +100,7 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
         return ImageFont.load_default()
 
     def measure(draw: ImageDraw.ImageDraw, font, text: str):
-        bbox = draw.textbbox((0, 0), text, font=font)
+        bbox = draw.textbbox((0, 0), str(text), font=font)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
     def clamp01(x: float):
@@ -83,14 +144,74 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
 
         return Image.alpha_composite(glow, fill_layer)
 
-    font_title = load_font(52, bold=True)
-    font_header = load_font(30, bold=True)
-    font_axis = load_font(30, bold=True)
-    font_total = load_font(30, bold=True)
-    font_cell = load_font(30, bold=False)
+    def estimate_width(text: str, font, emoji_size: int):
+        w = 0.0
+        for ch in str(text):
+            if ord(ch) > 0xFFFF:
+                w += emoji_size
+            else:
+                try:
+                    w += font.getlength(ch)
+                except Exception:
+                    tmp = Image.new("RGB", (10, 10), (255, 255, 255))
+                    dtmp = ImageDraw.Draw(tmp)
+                    w += dtmp.textlength(ch, font=font)
+        return w
 
-    players = [str(r.get("player") or "") for r in rows]
-    totals = [float(r.get("total") or 0) for r in rows]
+    def wrap_label(text: str, max_width: float, font, emoji_size: int):
+        raw = str(text).strip()
+        if not raw:
+            return [""]
+        parts = raw.split(" ")
+        lines = []
+        cur = ""
+        for part in parts:
+            cand = part if not cur else (cur + " " + part)
+            if estimate_width(cand, font, emoji_size) <= max_width:
+                cur = cand
+                continue
+            if cur:
+                lines.append(cur)
+                cur = ""
+            if estimate_width(part, font, emoji_size) <= max_width:
+                cur = part
+                continue
+            tmp = ""
+            for ch in part:
+                cand2 = tmp + ch
+                if estimate_width(cand2, font, emoji_size) <= max_width:
+                    tmp = cand2
+                else:
+                    if tmp:
+                        lines.append(tmp)
+                    tmp = ch
+            if tmp:
+                cur = tmp
+        if cur:
+            lines.append(cur)
+        return lines
+
+    scale = 2
+
+    def S(x: int):
+        return int(x * scale)
+
+    font_title = load_font(S(52), bold=True)
+    font_header = load_font(S(30), bold=True)
+    font_axis = load_font(S(32), bold=True)
+    font_axis_sub = load_font(S(26), bold=False)
+    font_total = load_font(S(30), bold=True)
+    font_cell = load_font(S(30), bold=False)
+
+    emoji_cache_dir = os.path.join("wzry_images", "tmp", "twemoji")
+
+    labels = []
+    totals = []
+    for r in rows:
+        main = str(r.get("player") or "")
+        subs = [str(x) for x in (r.get("subs") or [])]
+        labels.append([main] + subs)
+        totals.append(float(r.get("total") or 0))
 
     matrix = []
     cols = len(games)
@@ -98,53 +219,58 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
         gmap = r.get("games") or {}
         matrix.append([float(gmap.get(g, 0) or 0) for g in games])
 
-    rows_n = len(players)
+    rows_n = len(labels)
     col_stats = []
     for j in range(cols):
-        col_vals = [matrix[i][j] for i in range(rows_n)]
-        avg = sum(col_vals) / rows_n if rows_n else 0.0
+        col_vals = [matrix[i][j] for i in range(rows_n) if matrix[i][j] > 0]
+        active_n = len(col_vals)
+        avg = sum(col_vals) / active_n if active_n else 0.0
         max_v = max(col_vals) if col_vals else 0.0
         min_v = min(col_vals) if col_vals else 0.0
         col_stats.append(
             {"avg": avg, "max_above": max(0.0, max_v - avg), "max_below": max(0.0, avg - min_v)}
         )
 
-    cell_h = 98
-    cell_w = 240
-    total_w = 190
-    gap_x = 16
-    gap_y = 16
+    line_h_main = S(38)
+    line_h_sub = S(32)
+    max_lines = max((len(x) for x in labels), default=1)
+    text_h = line_h_main + max(0, max_lines - 1) * line_h_sub
+
+    cell_h = max(S(110), text_h + S(26))
+    cell_w = S(240)
+    total_w = S(190)
+    gap_x = S(16)
+    gap_y = S(16)
 
     dummy = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
     d0 = ImageDraw.Draw(dummy)
 
     left_w = 0
-    for p in players + ["玩家"]:
-        w, _ = measure(d0, font_axis, p)
-        left_w = max(left_w, w)
-    left_w = max(left_w + 28, 220)
+    for lines in labels + [["玩家"]]:
+        for idx, line in enumerate(lines):
+            f = font_axis if idx == 0 else font_axis_sub
+            w, _ = measure(d0, f, line)
+            left_w = max(left_w, w + (S(18) if idx > 0 else 0))
+    left_w = max(left_w + S(28), S(220))
 
-    top_h = 150
-    header_h = 110
+    top_h = S(150)
+    header_h = S(110)
 
     grid_w = cols * cell_w + max(0, cols - 1) * gap_x
     grid_h = rows_n * cell_h + max(0, rows_n - 1) * gap_y
 
-    total_x = left_w + 54
-    x0 = total_x + total_w + 22
+    total_x = left_w + S(54)
+    x0 = total_x + total_w + S(22)
     y0 = top_h + header_h
 
-    canvas_w = x0 + grid_w + 54
-    canvas_h = y0 + grid_h + 64
+    canvas_w = x0 + grid_w + S(54)
+    canvas_h = y0 + grid_h + S(64)
 
     img = Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))
     draw = ImageDraw.Draw(img)
 
-    title = str(title)
     tw, th = measure(draw, font_title, title)
-    draw.text(((canvas_w - tw) // 2, 34), title, fill="#000000", font=font_title)
-
-    emoji_cache_dir = os.path.join("wzry_images", "tmp", "twemoji")
+    draw.text(((canvas_w - tw) // 2, S(34)), str(title), fill="#000000", font=font_title)
 
     band_dark = (245, 247, 250)
     band_light = (255, 255, 255)
@@ -152,11 +278,20 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
         by = y0 + i * (cell_h + gap_y) - gap_y // 2
         bh = cell_h + gap_y
         band = band_dark if (i % 2 == 1) else band_light
-        draw.rectangle([total_x - 10, by, x0 + grid_w + 10, by + bh], fill=band)
+        draw.rectangle([total_x - S(10), by, x0 + grid_w + S(10), by + bh], fill=band)
 
-    for i, p in enumerate(players):
-        py = y0 + i * (cell_h + gap_y) + (cell_h - 32) // 2
-        draw_text_with_emoji(img, (54, py), p, font_axis, "#000000", emoji_size=32, cache_dir=emoji_cache_dir)
+    for i, lines in enumerate(labels):
+        row_y = y0 + i * (cell_h + gap_y)
+        needed_h = line_h_main + max(0, len(lines) - 1) * line_h_sub
+        y_start = row_y + (cell_h - needed_h) // 2
+
+        for idx, line in enumerate(lines):
+            if idx == 0:
+                draw_text_with_emoji(img, (S(54), y_start), line, font_axis, "#000000", S(32), emoji_cache_dir)
+                y_start += line_h_main
+            else:
+                draw_text_with_emoji(img, (S(72), y_start), line, font_axis_sub, "#000000", S(28), emoji_cache_dir)
+                y_start += line_h_sub
 
     total_label = "总时长"
     gw, gh = measure(draw, font_total, total_label)
@@ -170,16 +305,22 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
     for j, g in enumerate(games):
         gx = x0 + j * (cell_w + gap_x)
         label = str(g)
-        gw, gh = measure(draw, font_header, label)
-        draw_text_with_emoji(
-            img,
-            (gx + (cell_w - gw) / 2, top_h + (header_h - gh) / 2),
-            label,
-            font_header,
-            "#000000",
-            emoji_size=34,
-            cache_dir=emoji_cache_dir,
-        )
+        max_w = cell_w - S(20)
+        lines = wrap_label(label, max_w, font_header, S(34))
+        line_h = S(34)
+        total_h = len(lines) * line_h
+        y_start = top_h + (header_h - total_h) / 2
+        for idx, line in enumerate(lines):
+            gw, _ = measure(draw, font_header, line)
+            draw_text_with_emoji(
+                img,
+                (gx + (cell_w - gw) / 2, y_start + idx * line_h),
+                line,
+                font_header,
+                "#000000",
+                S(34),
+                emoji_cache_dir,
+            )
 
     for i in range(rows_n):
         for j in range(cols):
