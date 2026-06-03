@@ -49,7 +49,11 @@ r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
 # app.mount("/btldefaultjson", StaticFiles(directory="default_json_templates"), name="default_json_templates")
 
-SECRET_KEY = "HOKCAMP123"
+confs = {}
+with open('../NBot/config.yaml', 'r') as file:
+    confs = yaml.load(file, Loader=yaml.FullLoader)
+SECRET_KEY = confs["WebService"]["secret_key"]
+VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])]
 
 def key_to_filename(key: str, reqtype: str):
     try:
@@ -367,7 +371,6 @@ async def admin_verify(request: Request, pattern: str):
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="pattern 参数不合法") from exc
 
-    VALID_PATTERN = [0, 1, 2, 5, 8]
     if parse_pattern(pattern) != VALID_PATTERN:
         return JSONResponse({"state": "failed","message": "认证失败","key":""})
 
