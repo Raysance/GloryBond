@@ -1,27 +1,20 @@
+# ENV
 /.venv/
 
-# /chats/*.json
-# /history/*.json
+# TEMP LOG
+**/__pycache__/
+*.pyc
+**/.mypy_cache/
+QBOT.log
+
+# UNNECESSARY
 /history/personal/
 /history/battles/
-# /memory/*.json
-# /news/*.txt
 /wzry_images/skins/
 /wzry_images/generated/
 /wzry_images/kpl/
 /wzry_images/tmp/
-/wzry_images/tmp/twemoji/
 /herorank/
-
-# .env
-# config.yaml
 emojiref.json
-QBOT.log
-
-**/__pycache__/
-*.pyc
-
-**/.mypy_cache/
-
 src/plugins/qbot/debug_tools/
 

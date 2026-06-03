@@ -314,7 +314,7 @@ def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
         raise Exception("ark_images_generate_error: missing url in response")
     return {"url": url, "request": request_payload}
 
-def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str, resolution: str):
+def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str, resolution: str, task_timeout_seconds=None, task_poll_interval_seconds=None):
     api_key = confs["QQBot"].get("apimart_key") or ""
     if not api_key:
         raise Exception("apimart_images_generate_error: missing config.yaml QQBot.apimart_key")
@@ -358,11 +358,13 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
     request_payload["task_id"] = task_id
 
     task_url = f"https://api.apimart.ai/v1/tasks/{task_id}"
-    poll_request_payload = {"base_url": task_url, "task_id": task_id}
+    timeout_seconds = task_timeout_seconds or 120
+    poll_interval_seconds = task_poll_interval_seconds or 2
+    poll_request_payload = {"base_url": task_url, "task_id": task_id, "timeout_seconds": timeout_seconds, "poll_interval_seconds": poll_interval_seconds}
     request_payload["poll"] = poll_request_payload
 
     last_status = None
-    for _ in range(60):
+    for _ in range(max(1, int(timeout_seconds / poll_interval_seconds))):
         try:
             task_resp = requests.get(task_url, headers=headers, timeout=60)
             task_resp.raise_for_status()
@@ -395,7 +397,7 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
             raise Exception(f"apimart_task_query_error: status={status} {str(task_res)[:500]}")
 
         import time as _time
-        _time.sleep(2)
+        _time.sleep(poll_interval_seconds)
 
     raise Exception(f"apimart_task_query_error: timeout last_status={last_status} task_id={task_id}")
 
