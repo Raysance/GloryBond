@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Query, Body, Cookie
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
 import redis
 import os
@@ -46,7 +47,29 @@ r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QU
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
+# app.mount("/btldefaultjson", StaticFiles(directory="default_json_templates"), name="default_json_templates")
 
+confs = {}
+with open('../NBot/config.yaml', 'r') as file:
+    confs = yaml.load(file, Loader=yaml.FullLoader)
+SECRET_KEY = confs["WebService"]["secret_key"]
+VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])]
+
+def key_to_filename(key: str, reqtype: str):
+    try:
+        content = json.loads(r_com.get(key).decode('utf-8'))
+        local_path=os.path.join("wzry_history",content["filename"]+".json")
+        return content,local_path
+    except:
+        raise Exception()
+        ret_json={}
+        filepath=os.path.join("btldefaultjson",reqtype+".json")
+        ret_json["filename"]=filepath
+        ret_json["caller"]={"PlayerName":"链接已失效，这是历史对局条件查询的模板页面"}
+        ret_json["DateFrom"]="模拟DateFrom"
+        ret_json["DateTo"]="模拟DateTo"
+        ret_json["time"]="模拟time"
+        return ret_json,filepath
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
@@ -55,7 +78,7 @@ async def not_found_exception_handler(request: Request, exc: HTTPException):
         status_code=404
     )
 
-@app.get("/btlist", response_class=HTMLResponse)
+@app.get("/all", response_class=HTMLResponse)
 async def show_btlist(request:Request,key: str):
     # raise HTTPException(
     #     status_code=404,
@@ -63,9 +86,7 @@ async def show_btlist(request:Request,key: str):
     # )
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r_com.get(key).decode('utf-8'))
-        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
-        if (not file_exist(local_path)): raise Exception("File not exists.")
+        text_content,jsonpath = key_to_filename(key=key,reqtype="btlist")
     except Exception as e:
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
@@ -74,18 +95,16 @@ async def show_btlist(request:Request,key: str):
         "CommonPages/AllBattleList.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "filename": jsonpath,
             "time": text_content["time"],
             "caller": text_content["caller"],
         }
     )
-@app.get("/btlperson", response_class=HTMLResponse)
+@app.get("/person", response_class=HTMLResponse)
 async def show_btlperson(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r_com.get(key).decode('utf-8'))
-        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
-        if (not file_exist(local_path)): raise Exception("File not exists.")
+        text_content,jsonpath = key_to_filename(key=key,reqtype="btlperson")
     except Exception as e:
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
@@ -94,17 +113,15 @@ async def show_btlperson(request:Request,key: str):
         "CommonPages/SingleBattleList.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "filename": jsonpath,
             "key": key,
         }
     )
-@app.get("/btlperiod", response_class=HTMLResponse)
+@app.get("/period", response_class=HTMLResponse)
 async def show_btlperiod(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r_com.get(key).decode('utf-8'))
-        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
-        if (not file_exist(local_path)): raise Exception("File not exists.")
+        text_content,jsonpath = key_to_filename(key=key,reqtype="btlperiod")
     except Exception as e:
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
@@ -113,19 +130,17 @@ async def show_btlperiod(request:Request,key: str):
         "CommonPages/SinglePeriodBattleList.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "filename": jsonpath,
             "key": key,
             "DateFrom":text_content["DateFrom"],
             "DateTo":text_content["DateTo"],
         }
     )
-@app.get("/btldetail", response_class=HTMLResponse)
+@app.get("/battle", response_class=HTMLResponse)
 async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r_com.get(key).decode('utf-8'))
-        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
-        if (not file_exist(local_path)): raise Exception("File not exists.")
+        text_content,jsonpath = key_to_filename(key=key,reqtype="btldetail")
     except Exception as e:
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
@@ -134,17 +149,15 @@ async def show_btldetail(request:Request,key: str):
         "CommonPages/BattleDetail.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "filename": jsonpath,
             "key": key,
         }
     )
-@app.get("/btlquery", response_class=HTMLResponse)
+@app.get("/query", response_class=HTMLResponse)
 async def show_btldetail(request:Request,key: str):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        text_content = json.loads(r_com.get(key).decode('utf-8'))
-        local_path=os.path.join(nginx_path,"wzry_history",text_content["filename"]+".json")
-        if (not file_exist(local_path)): raise Exception("File not exists.")
+        text_content,jsonpath = key_to_filename(key=key,reqtype="btlquery")
     except Exception as e:
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
@@ -153,19 +166,19 @@ async def show_btldetail(request:Request,key: str):
         "CommonPages/BattleQuery.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",text_content["filename"]+".json"),
+            "filename": jsonpath,
             "query_target":text_content["caller"],
             "key": key,
         }
     )
-def check_key_valid(key):
+def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False
     return r_com.exists(key) or key==SECRET_KEY
-@app.get("/jump-btlperson", response_class=HTMLResponse)
+@app.get("/jump-person", response_class=HTMLResponse)
 async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
-    if (not check_key_valid(final_key)):
+    if (not check_key_valid(key=final_key,reqtype="jump_btlperson")):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
@@ -188,10 +201,10 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query
             "key": final_key,
         }
     )
-@app.get("/jump-btldetail", response_class=HTMLResponse)
+@app.get("/jump-battle", response_class=HTMLResponse)
 async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
-    if (not check_key_valid(final_key)):
+    if (not check_key_valid(key=final_key,reqtype="jump_btldetail")):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
@@ -221,10 +234,10 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             "battleType":battleType,
         }
     )
-@app.get("/like-btldetail", response_class=HTMLResponse)
+@app.get("/like-battle", response_class=HTMLResponse)
 async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
-    if (not check_key_valid(final_key)):
+    if (not check_key_valid(key=final_key,reqtype="like_btldetail")):
         raise HTTPException(
             status_code=400,
             detail={
@@ -255,10 +268,10 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
             }
         }
     return JSONResponse(success_data)
-@app.get("/share-btldetail", response_class=HTMLResponse)
+@app.get("/share-battle", response_class=HTMLResponse)
 async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,key:str = Query(None), AdminKey: str = Cookie(None),Special: bool = False):
     final_key = key or AdminKey
-    if (not check_key_valid(final_key)):
+    if (not check_key_valid(key=final_key,reqtype="share_btldetail")):
         raise HTTPException(
             status_code=400,
             detail={
@@ -297,10 +310,10 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
         }
     }
     return JSONResponse(success_data)
-@app.get("/analyze-btldetail", response_class=HTMLResponse)
+@app.get("/analyze-battle", response_class=HTMLResponse)
 async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId: str, relaySvr: str,battleType:str,Special: bool,key: str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
-    if (not check_key_valid(final_key)):
+    if (not check_key_valid(key=final_key,reqtype="analyze_btldetail")):
         raise HTTPException(
             status_code=400,
             detail={
@@ -358,7 +371,6 @@ async def admin_verify(request: Request, pattern: str):
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="pattern 参数不合法") from exc
 
-    VALID_PATTERN = [0, 1, 2, 5, 8]
     if parse_pattern(pattern) != VALID_PATTERN:
         return JSONResponse({"state": "failed","message": "认证失败","key":""})
 
@@ -373,8 +385,8 @@ async def admin_login_page(request: Request):
 async def admin_login(request: Request, password: str = Body(..., embed=True)):
     if password == SECRET_KEY:
         response = JSONResponse({"status": "success", "message": "登录成功"})
-        # 设置 cookie，有效期 7 天
-        response.set_cookie(key="AdminKey", value=password, max_age=604800, httponly=True)
+        # 设置 cookie，有效期 7000 天
+        response.set_cookie(key="AdminKey", value=password, max_age=604800000, httponly=True)
         return response
     else:
         return JSONResponse({"status": "error", "message": "密码错误"}, status_code=401)

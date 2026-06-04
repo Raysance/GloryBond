@@ -1,0 +1,311 @@
+{
+  "skillList1": [
+    {
+      "skillId": 12000,
+      "heroId": 120,
+      "heroTitle": "白起",
+      "title": "反击之镰",
+      "icon": "0.d30469d0df873cad5fc4be5aec75fcbf",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "白起造成或受到伤害时会获得暗影之力，增加移速和治疗效果，最多增加<span style=\"color:#30b13a\">70点移速</span>和<span style=\"color:#30b13a\">80%治疗效果</span>。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "o1467ettsty",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12010,
+      "heroId": 120,
+      "heroTitle": "白起",
+      "title": "血之回响",
+      "icon": "0.830c5f557c1defe8159cab16a7c2cbf7",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 5,
+      "loss": 0,
+      "desc": "(可蓄力)白起回旋大镰血洗四方，对敌人造成180<span style=\"color:#ff6600\">(+40%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，自身回复<span style=\"color:#30b13a\">(90(+2%额外<span style=\"color: #30B13A;\">生命值</span>))</span>生命。</br><span style=\"color:#f7b400\">被动：白起受伤时有20%几率释放【血之回响】。</span></br>蓄力越久，伤害和回复越高，最多造成3倍的伤害和回复。只命中非英雄单位时效果减半。",
+      "skillData1": "基础伤害|180|224|268|312|356|400",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "l14671jesht",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12030,
+      "heroId": 120,
+      "heroTitle": "白起",
+      "title": "死神之镰",
+      "icon": "0.c4f911aff591c2a4890939111225e9e5",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 12,
+      "loss": 0,
+      "desc": "白起召唤镰刀，1.2秒后收回镰刀并拉回路径上的敌人，造成325<span style=\"color:#ff6600\">(+120%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">25%减速</span>，持续2.5秒。</br><span style=\"color:#f7b400\">被动：白起对生命低于30%的目标会额外造成30%伤害。</span>",
+      "skillData1": "基础伤害|325|390|455|520|585|650",
+      "skillData2": "冷却时间|12|11.4|10.8|10.2|9.6|9",
+      "skillData3": "减少移速|25%|30%|35%|40%|45%|50%",
+      "skillData4": "",
+      "heroVideo": "n1467odzm32",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12020,
+      "heroId": 120,
+      "heroTitle": "白起",
+      "title": "傲慢嘲讽",
+      "icon": "0.26f2513219c8a5d71232265cd44de44b",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 40,
+      "loss": 0,
+      "desc": "白起立即充满暗影之力，向指定位置跳跃，造成300<span style=\"color:#ff6600\">(+100%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>并<span style=\"color:#0dafeb\">嘲讽</span>敌人。嘲讽的基础时长为<span style=\"color:#0dafeb\">1~1.5秒</span>，白起每1000点额外生命会额外增加0.2秒，最多持续<span style=\"color:#0dafeb\">2.5秒</span>。",
+      "skillData1": "基础伤害|300|380|460",
+      "skillData2": "冷却时间|40|35|30",
+      "skillData3": "嘲讽时长|1|1.25|1.5",
+      "skillData4": "",
+      "heroVideo": "o1467rss70t",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 120,
+      "showRate": "0.7515",
+      "winRate": "0.5667",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 120,
+      "showRate": "0.1267",
+      "winRate": "0.5613",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 120,
+      "showRate": "0.0579",
+      "winRate": "0.5647",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 6,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 4,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    }
+  ]
+}

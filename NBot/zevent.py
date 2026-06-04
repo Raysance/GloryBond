@@ -36,6 +36,10 @@ async def handle_all_messages(event: MessageEvent):
 
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
+
+async def judge_not_duration_rank(event)->bool:
+    raw = event.get_plaintext()
+    return ("时长排行" not in raw) and ("时长排名" not in raw)
 async def judge_herostatistics_query(event)->bool:
     from .zfunc import qid2nick
     from .zfunc import extract_name,extract_heroname
@@ -133,7 +137,7 @@ _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
 
-_rnk=on_keyword(set(rnk_keywords),rule=judge_to_me,priority=5, block=True)
+_rnk=on_keyword(set(rnk_keywords),rule=Rule(judge_to_me,judge_not_duration_rank),priority=5, block=True)
 _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
@@ -904,12 +908,21 @@ async def f_diycode(bot: Bot, event: Event):
 
 @_recentgames.handle()
 async def f_recentgames(event):
-    from .zfunc import recentgames_process, qid2nick, extract_name
+    from .zfunc import recentgames_process, gametime_rank_process, qid2nick, extract_name
     from .utils.message_sender import add_msg
+    from nonebot.adapters.onebot.v11 import MessageSegment
     userqid = event.get_user_id()
     rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid)).replace("的", "").replace("时长", "")
     if ("排行" in rcv_msg or "排名" in rcv_msg):
-        add_msg(f"tο be implemented", event=event)
+        try:
+            txt_msg, pic_path = await asyncio.to_thread(gametime_rank_process)
+            if pic_path:
+                add_msg(MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
+            else:
+                add_msg(txt_msg, event=event)
+        except Exception as e:
+            add_msg(f"时长排行失败: {str(e)}", event=event)
+            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
     realname = extract_name(from_text=rcv_msg,precise=False)
     if not realname:

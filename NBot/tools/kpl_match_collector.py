@@ -167,9 +167,10 @@ def fetch_match_grade(client: BiliClient, *, cid: int) -> Dict[str, Any]:
     - data.teams[].player_grade_detail[] 提供选手评分与热评等信息
 
     返回：
-    - teams: 队伍基础信息（name/logo 等，原样透传）
-    - score: 比分
-    - players: 展平后的选手列表（含 team_name/player_name/position/avg_grade/kda/hero/hot_comment）
+    - score: 系列赛总比分（home/away）
+    - teams: 队伍基础信息（name/logo 等，原样透传，可能为空）
+    - players: 单局维度的选手列表（当前 bo 的英雄/KDA/热评等；来源 player_grade_detail）
+    - global_players: 系列赛维度的选手评分列表（来源 global_grade_info；不包含英雄/KDA）
     - raw: 原始接口响应
     """
     url = API_ENDPOINTS["match_grade"]
@@ -217,11 +218,31 @@ def fetch_match_grade(client: BiliClient, *, cid: int) -> Dict[str, Any]:
                 }
             )
 
+    global_players: List[Dict[str, Any]] = []
+    global_grade = data.get("global_grade_info") or {}
+    for side in ["home_team", "away_team"]:
+        side_info = global_grade.get(side) or {}
+        for p in side_info.get("players") or []:
+            if not isinstance(p, dict):
+                continue
+            global_players.append(
+                {
+                    "side": side,
+                    "player_id": p.get("player_id"),
+                    "player_name": p.get("nickname"),
+                    "position": p.get("place"),
+                    "avg_grade": p.get("avg_grade"),
+                    "raw": p,
+                }
+            )
+
     return {
         "cid": cid,
         "match_name": data.get("match_name") or data.get("title"),
         "season": data.get("season") or {},
         "game_stage": data.get("game_stage"),
+        "current_bo": data.get("current_bo"),
+        "bo_status": data.get("bo_status"),
         "start_time": _ensure_int(data.get("stime")) or _ensure_int(data.get("start_time")),
         "start_time_iso": _dt_from_ts(_ensure_int(data.get("stime")) or _ensure_int(data.get("start_time"))),
         "end_time": _ensure_int(data.get("etime")) or _ensure_int(data.get("end_time")),
@@ -229,6 +250,7 @@ def fetch_match_grade(client: BiliClient, *, cid: int) -> Dict[str, Any]:
         "teams": teams,
         "score": score,
         "players": players_out,
+        "global_players": global_players,
         "raw": payload,
     }
 
@@ -314,3 +336,74 @@ def get_match_content(match_params: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("match_params 缺少必要字段 cid")
     client = BiliClient.create()
     return fetch_match_grade(client, cid=int(cid))
+
+def get_series_summary(match_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    获取系列赛（大场/整场 BO）维度信息。
+
+    返回字段（JSON 可序列化）：
+    - cid
+    - match_name / game_stage / start_time_iso / end_time_iso
+    - teams: [{"name": str, "score": int|None, "players": [{"name": str, "pos": str|None, "score": str|None}]}]
+      其中 players 来源于 global_grade_info，不包含英雄/KDA/热评
+    - raw: 原始接口响应
+    """
+    content = get_match_content(match_params)
+    raw = content.get("raw") or {}
+    data = raw.get("data") or {}
+    home_team = data.get("home_team") or {}
+    away_team = data.get("away_team") or {}
+    home_name = home_team.get("name") or ""
+    away_name = away_team.get("name") or ""
+    home_score = data.get("home_score")
+    away_score = data.get("away_score")
+
+    pos_map = {"TOP": "对抗路", "JUG": "打野", "MID": "中路", "AD": "发育路", "SUP": "游走"}
+    teams_out = []
+    grade = data.get("global_grade_info") or {}
+    for side, name, score in [("home_team", home_name, home_score), ("away_team", away_name, away_score)]:
+        if not name:
+            continue
+        players = []
+        for p in (grade.get(side) or {}).get("players") or []:
+            if not isinstance(p, dict):
+                continue
+            place = p.get("place")
+            players.append({"name": p.get("nickname"), "pos": pos_map.get(str(place), place), "score": p.get("avg_grade")})
+        teams_out.append({"name": name, "score": score, "players": players})
+
+    return {
+        "cid": content.get("cid"),
+        "match_name": content.get("match_name"),
+        "game_stage": content.get("game_stage"),
+        "start_time_iso": content.get("start_time_iso"),
+        "end_time_iso": content.get("end_time_iso"),
+        "teams": teams_out,
+        "raw": raw,
+    }
+
+def get_current_map_detail(match_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    获取当前小局（地图/bo）维度信息。
+
+    说明：bilibili `x/esports/grade/info` 在 `teams[].player_grade_detail` 中包含英雄/KDA/热评等，
+    其语义更接近“当前 bo 的单局数据”。目前未发现可稳定指定 bo 序号的参数接口，因此仅提供当前数据读取。
+
+    返回字段（JSON 可序列化）：
+    - cid
+    - current_bo / bo_status
+    - score: 系列赛总比分
+    - teams: 队伍基础信息
+    - players: 单局维度选手信息（英雄/KDA/热评）
+    - raw: 原始接口响应
+    """
+    content = get_match_content(match_params)
+    return {
+        "cid": content.get("cid"),
+        "current_bo": content.get("current_bo"),
+        "bo_status": content.get("bo_status"),
+        "score": content.get("score"),
+        "teams": content.get("teams"),
+        "players": content.get("players"),
+        "raw": content.get("raw"),
+    }

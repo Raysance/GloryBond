@@ -215,6 +215,9 @@ def _emoji_template_extra_dirs():
 def _emoji_generated_local_dir():
     return getattr(dmc, "EmojiGeneratedLocalDir", None) or os.path.join("wzry_images", "generated")
 
+def _emoji_task_timeout_seconds():
+    return getattr(dmc, "EmojiImageTaskTimeoutSeconds", None) or 600
+
 def _emoji_meta_jsonl_path():
     return getattr(dmc, "EmojiGenMetaPath", None) or os.path.join(_emoji_generated_local_dir(), "meta.jsonl")
 
@@ -342,7 +345,7 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
         except Exception:
             size = "1:1"
 
-    gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution)
+    gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution, task_timeout_seconds=_emoji_task_timeout_seconds())
     image_url = gen_res["url"]
     request_payload = gen_res["request"]
 
@@ -433,7 +436,7 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
         except Exception:
             size = "1:1"
 
-    gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution)
+    gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution, task_timeout_seconds=_emoji_task_timeout_seconds())
     image_url = gen_res["url"]
     request_payload = gen_res["request"]
 

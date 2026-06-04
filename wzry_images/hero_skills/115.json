@@ -1,0 +1,337 @@
+{
+  "skillList1": [
+    {
+      "skillId": 11500,
+      "heroId": 115,
+      "heroTitle": "高渐离",
+      "title": "哀歌",
+      "icon": "0.fa2afd7cfea8052a9ba96752d3664d9a",
+      "type": "被动",
+      "label": "法术",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "高渐离的普攻和技能可视作弹奏，每三次弹奏后的下次普攻会强化为能量和弦，对路径上的敌人造成280<span style=\"color:#f264ff\">(+80%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "w1469i76pdp",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 11510,
+      "heroId": 115,
+      "heroTitle": "高渐离",
+      "title": "狂歌",
+      "icon": "0.817bf628c473d713f22c4d786cf59485",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 8,
+      "loss": 55,
+      "desc": "高渐离弹奏出音符，对范围内至多2名敌人造成350+47%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害。音符命中敌人后会向附近的敌人进行弹射，音符至多弹射2次。</br>当多个音符命中同一英雄目标时，后续音符只造成30%伤害。",
+      "skillData1": "基础伤害|350|410|470|530|590|650",
+      "skillData2": "冷却时间|8|7.8|7.6|7.4|7.2|7",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "y1469hegonc",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 11520,
+      "heroId": 115,
+      "heroTitle": "高渐离",
+      "title": "离歌",
+      "icon": "0.984ba78f1df8d19cbea6814cbc21f3cf",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 10,
+      "loss": 70,
+      "desc": "高渐离朝指定方向位移，同时震慑琴弦对附近敌人造成450+60%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害和<span style=\"color:#0dafeb\">15%减速</span>，持续2秒。每命中一个英雄<span style=\"color:#30b13a\">回复</span>100<span style=\"color:#f264ff\">(+15%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#30b13a\">生命</span>，非英雄单位减半。位移期间获得<span style=\"color:#f7b400\">10%减伤</span>并且<span style=\"color:#f7b400\">免疫减速</span>。</br><span style=\"color:#f7b400\">位移期间释放【狂歌】可以进行二次位移。</span>",
+      "skillData1": "基础伤害|450|540|630|720|810|900",
+      "skillData2": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "降低移速|15%|18%|21%|24%|27%|30%",
+      "skillData4": "生命回复|100|120|140|160|180|200",
+      "heroVideo": "l1469tq640y",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "免伤比例|10%|12%|14%|16%|18%|20%",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": "免伤比例|10%|12%|14%|16%|18%|20%"
+    },
+    {
+      "skillId": 11530,
+      "heroId": 115,
+      "heroTitle": "高渐离",
+      "title": "魔音贯耳",
+      "icon": "0.d3f39bf339f6b0c6e56cb4e910cd5912",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 45,
+      "loss": 140,
+      "desc": "高渐离激情演奏，持续5秒，每0.5秒弹奏一下，造成200<span style=\"color:#f264ff\">(+20%)</span><span style=\"color: #F264FF;\">法术攻击</span>法术伤害。</br>演奏开始时高渐离增加<span style=\"color:#30b13a\">50%移速</span>，3秒内随时间衰减。演奏持续期间附近有敌方英雄获得<span style=\"color:#f7b400\">10%减伤</span>，此外每多一名敌方英雄，额外提供<span style=\"color:#f7b400\">5%减伤</span>。",
+      "skillData1": "基础伤害|200|300|400",
+      "skillData2": "冷却时间|45|40|35",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "m14692wmy1y",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "减伤",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 115,
+      "showRate": "0.4243",
+      "winRate": "0.5543",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 9,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 1517,
+          "num": 1,
+          "iId": 1276,
+          "iRuneId": 1517,
+          "szCate": "攻击|攻速",
+          "szTitle": "5级铭文:凶兆",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|攻击速度+0.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 115,
+      "showRate": "0.1675",
+      "winRate": "0.5523",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 9,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 1517,
+          "num": 1,
+          "iId": 1276,
+          "iRuneId": 1517,
+          "szCate": "攻击|攻速",
+          "szTitle": "5级铭文:凶兆",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|攻击速度+0.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1517.png"
+        },
+        {
+          "runeId": 2503,
+          "num": 3,
+          "iId": 1195,
+          "iRuneId": 2503,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:贪婪",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2503.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 7,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 115,
+      "showRate": "0.1365",
+      "winRate": "0.541",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}
