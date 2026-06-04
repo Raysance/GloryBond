@@ -1,0 +1,23 @@
+name: Deploy HOK QQBot WebService
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Kill Old App, Pull and Restart app
+        run: |
+          fuser -k 8000/tcp || true
+          
+          cd /QQBot/Web/
+          
+          git fetch
+          git reset --hard origin/main
+
+          RUNNER_TRACKING_ID=0 nohup python app.py > fastapi.log 2>&1 &
+          
+          echo "success"
