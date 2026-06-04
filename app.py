@@ -13,8 +13,13 @@ import datetime
 import secrets
 import yaml
 import time
+from dotenv import load_dotenv
+
 
 from utils import *
+
+env_path = "/QQBot/.env"
+load_dotenv(dotenv_path=env_path)
 
 # 引入变量
 variables_to_import = ["userlist", "roleidlist", "qid", "namenick", "nameref", "extra_useridlist", "extra_roleidlist", "extra_namenick"]

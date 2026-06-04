@@ -28,7 +28,7 @@ def readerl(filepath):
         return []
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
-    file_path = os.path.join(f"../NBot/history/battles/{gameseq}.json")
+    file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
     res=readerl(file_path)
     if (res and roleid):
         # 找到对应的玩家信息并更新head
@@ -56,7 +56,7 @@ def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
             }
     return res
 def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详情
-    file_path = os.path.join(f"../NBot/history/battles/{gameseq}.json")
+    file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
     return file_exist(file_path)
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=3, period=1)
