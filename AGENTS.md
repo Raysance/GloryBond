@@ -29,9 +29,6 @@
 - `src/plugins/qbot/ztime.py`：时间工具与日期处理统一入口；任何时间计算/格式化/时间窗口判断都应调用这里的接口。
 - `src/plugins/qbot/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `src/plugins/qbot/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
-
-补充（当前目录已存在但未在上文列出的文件）：
-
 - `src/plugins/qbot/zapi.py`：与外部服务/API 交互的适配层（请求封装、签名、响应解析）；业务编排仍应留在 `zfunc.py`。
 - `src/plugins/qbot/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
