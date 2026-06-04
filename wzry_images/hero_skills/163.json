@@ -1,0 +1,322 @@
+{
+  "skillList1": [
+    {
+      "skillId": 16300,
+      "heroId": 163,
+      "heroTitle": "橘右京",
+      "title": "秘剑胧刀",
+      "icon": "0.bab6122cab8358073e63661a011fb0a5",
+      "type": "被动",
+      "label": "物理/控制",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "橘右京下次普攻变为拔刀斩，拔刀斩具有更长射程，对目标造成40<span style=\"color:#ff6600\">(+35%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>和<span style=\"color:#0dafeb\">15~30%减速</span>（随英雄等级成长），持续2秒，对攻击边缘的敌人再额外附加80<span style=\"color:#ff6600\">(+70%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，同时<span style=\"color:#30b13a\">回复</span>自身100<span style=\"color:#30b13a\">(+2%额外<span style=\"color: #30B13A;\">生命值</span>)</span>生命值，对非英雄减半。</br>拔刀斩每5~4秒可准备1次（随英雄等级成长），每一次技能伤害会缩短拔刀斩0.5秒的冷却时间。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "y1467gskd7x",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 16310,
+      "heroId": 163,
+      "heroTitle": "橘右京",
+      "title": "燕返",
+      "icon": "0.154131cf13b86bd66f8a2e59a93ae3b1",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 7,
+      "loss": 0,
+      "desc": "橘右京后跳并斩击沿途敌人，造成330<span style=\"color:#ff6600\">(+150%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>。2秒后可激活二段使用，若成功命中一名敌方单位则可以直接激活二段使用。</br>再次释放时，若返回第一段起点附近，则强化第二段，燕返向后跳并斩击更大范围内的敌人，目标每损失2%最大生命就会增加强化燕返1%伤害，并且每命中一名敌方单位即可减少【细雪】1秒冷却时间（非英雄单位减半）。",
+      "skillData1": "基础伤害|330|396|462|528|594|660",
+      "skillData2": "冷却时间|7|6.7|6.4|6.1|5.8|5.5",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "o1467hlmmfo",
+      "gameLabelList": [
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 16320,
+      "heroId": 163,
+      "heroTitle": "橘右京",
+      "title": "居合",
+      "icon": "0.3ab583aadce1b4bb17fd93bd6758f7a8",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 10,
+      "loss": 0,
+      "desc": "橘右京快速拔刀，对路径上的敌人造成580<span style=\"color:#ff6600\">(+190%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，路径末端的敌人<span style=\"color:#0dafeb\">晕眩0.75秒</span>。",
+      "skillData1": "基础伤害|580|696|812|928|1044|1160",
+      "skillData2": "冷却时间|10|9.5|9|8.5|8|7.5",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "r1467mictjg",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 16330,
+      "heroId": 163,
+      "heroTitle": "橘右京",
+      "title": "细雪",
+      "icon": "0.995733311605272457d28a2d2291f35c",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 12.5,
+      "loss": 0,
+      "desc": "橘右京连续拔刀四次，每次命中造成210<span style=\"color:#ff6600\">(+65%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，每次命中敌方英雄时，<span style=\"color:#30b13a\">回复</span>300<span style=\"color:#30b13a\">(+4.5%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>(命中非英雄单位效果减半)。",
+      "skillData1": "基础伤害|210|315|420",
+      "skillData2": "冷却时间|12.5|11.25|10",
+      "skillData3": "回复生命|300|450|600",
+      "skillData4": "",
+      "heroVideo": "z1467cz0p1k",
+      "gameLabelList": [
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 163,
+      "showRate": "0.351",
+      "winRate": "0.5861",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 9,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 1,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 163,
+      "showRate": "0.2726",
+      "winRate": "0.5648",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 163,
+      "showRate": "0.1495",
+      "winRate": "0.5682",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 9,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1519,
+          "num": 1,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}

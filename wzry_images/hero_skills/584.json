@@ -1,0 +1,322 @@
+{
+  "skillList1": [
+    {
+      "skillId": 58400,
+      "heroId": 584,
+      "heroTitle": "元流之子",
+      "title": "万物为流",
+      "icon": "0.74b21bb41b5cf2d9c16b91d0996cf8e2",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "元流之子在泉水中可以将“流”引入体内淬炼自身，获得<span style=\"color:#30b13a\">10%~20%攻击速度</span>(随英雄等级成长)并强化以下四种属性之一：</br>生机：额外获得<span style=\"color:#30b13a\">300最大生命</span></br>穿心：额外获得<span style=\"color:#30b13a\">30物理攻击</span></br>迅疾：额外获得<span style=\"color:#30b13a\">3.5%移动速度</span></br>凝神：额外获得<span style=\"color:#30b13a\">5%冷却缩减</span></br>强化普攻：发射贯穿弩箭对路径上敌人额外造成<span style=\"color:#ff6600\">(80+20%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>；命中敌人将延长飞行距离但衰减30%的伤害</br>可消耗1层“流”使用强化普攻",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "r118490epya",
+      "gameLabelList": [
+        {
+          "text": "切换",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 58410,
+      "heroId": 584,
+      "heroTitle": "元流之子",
+      "title": "汇流为一",
+      "icon": "0.f76a51e1804bcf4fedf3e401106c5536",
+      "type": "主动",
+      "label": "",
+      "coolDown": 12.5,
+      "loss": 50,
+      "desc": "元流之子汇集“流”对附近敌人造成<span style=\"color:#ff6600\">(100+25%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>和<span style=\"color:#0dafeb\">击退</span>(无控制效果)并获得<span style=\"color:#30b13a\">(150+4%额外<span style=\"color: #30B13A;\">生命值</span>回复)</span>和5层“流”同时减少【破釜之箭】和【万箭齐发】1/2冷却时间</br>附近的友方英雄和小兵提供额外回复(最大100%)和“流”(最大9层)",
+      "skillData1": "基础伤害|100|120|140|160|180|200",
+      "skillData2": "基础回复|150|180|210|240|270|300",
+      "skillData3": "冷却时间|12.5|12|11.5|11|10.5|10",
+      "skillData4": "",
+      "heroVideo": "n11844sopa5",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "击退",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 58420,
+      "heroId": 584,
+      "heroTitle": "元流之子",
+      "title": "破釜之箭",
+      "icon": "0.47ea18fd8daaee17c6fe45a711e75642",
+      "type": "主动",
+      "label": "",
+      "coolDown": 7.5,
+      "loss": 25,
+      "desc": "元流之子朝指定目标发射巨型弩箭(可被敌方英雄阻挡)造成<span style=\"color:#ff6600\">(480+120%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>并<span style=\"color:#0dafeb\">击退</span>非英雄单位，释放后可位移一段距离(1.5秒内再次释放获得强化)</br>第二次使用：强化25%弩箭伤害</br>第三次使用：<span style=\"color:#f7b400\">浮空</span>同时强化50%弩箭伤害</br>可消耗4层“流”使用额外的【破釜之箭】</br><span style=\"color:#f7b400\">释放速度随攻速提升</span>",
+      "skillData1": "基础伤害|480|576|672|768|864|960",
+      "skillData2": "冷却时间|7.5|7.2|6.9|6.6|6.3|6",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "f11841nkai3",
+      "gameLabelList": [
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 58430,
+      "heroId": 584,
+      "heroTitle": "元流之子",
+      "title": "万箭齐发",
+      "icon": "0.6e2d6d48ec146008217d893e28fddbf9",
+      "type": "主动",
+      "label": "",
+      "coolDown": 25,
+      "loss": 60,
+      "desc": "元流之子朝指定区域发射7轮轻型弩箭(施法速度随攻速成长)对指定范围(锁定范围内目标)造成<span style=\"color:#ff6600\">(50+24%<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>(每3支弩箭视为1次普攻行为)同时获得<span style=\"color:#30b13a\">10%加速</span>(再次使用获得<span style=\"color:#f7b400\">浮空</span>)</br>可消耗5层“流”使用额外的【万箭齐发】",
+      "skillData1": "基础伤害|50|75|100",
+      "skillData2": "冷却时间|25|22.5|20",
+      "skillData3": "弩箭数量|7|10|13",
+      "skillData4": "",
+      "heroVideo": "k11849lkqax",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 584,
+      "showRate": "0.1972",
+      "winRate": "0.5622",
+      "runeList": [
+        {
+          "runeId": 1519,
+          "num": 10,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2504,
+          "num": 5,
+          "iId": 1196,
+          "iRuneId": 2504,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:夺萃",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2504.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 5,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 584,
+      "showRate": "0.1776",
+      "winRate": "0.5511",
+      "runeList": [
+        {
+          "runeId": 1519,
+          "num": 10,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2504,
+          "num": 8,
+          "iId": 1196,
+          "iRuneId": 2504,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:夺萃",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2504.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 2,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 584,
+      "showRate": "0.1513",
+      "winRate": "0.5638",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}

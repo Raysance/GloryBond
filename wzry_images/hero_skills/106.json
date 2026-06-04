@@ -1,0 +1,280 @@
+{
+  "skillList1": [
+    {
+      "skillId": 10600,
+      "heroId": 106,
+      "heroTitle": "小乔",
+      "title": "治愈微笑",
+      "icon": "0.5c85f2a3b648d54cffd8ee91240acd6e",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "小乔释放技能命中敌人时，会增加<span style=\"color:#30b13a\">25%移速</span>，持续2秒。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "g14673fubmb",
+      "gameLabelList": [
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 10610,
+      "heroId": 106,
+      "heroTitle": "小乔",
+      "title": "绽放之舞",
+      "icon": "0.f1cc2fb164f2309c225c97e9aa156529",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 5,
+      "loss": 30,
+      "desc": "小乔向前扔出一把回旋飞行的扇子，对首个命中的敌人造成585<span style=\"color:#f264ff\">(+80%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害)</span>。</br>每命中一个目标伤害衰减20%，最多衰减至初始伤害的50%。",
+      "skillData1": "基础伤害|585|635|685|735|785|835",
+      "skillData2": "冷却时间|5|4.8|4.6|4.4|4.2|4",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "k1467y2x865",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 10620,
+      "heroId": 106,
+      "heroTitle": "小乔",
+      "title": "甜蜜恋风",
+      "icon": "0.efa01edb44130079b12e13b48556e00a",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 10,
+      "loss": 70,
+      "desc": "小乔召唤一道旋风，造成300<span style=\"color:#f264ff\">(+50%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和1.5秒<span style=\"color:#0dafeb\">击飞</span>。",
+      "skillData1": "基础伤害|300|340|380|420|460|500",
+      "skillData2": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "l1467h0t5xa",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 10630,
+      "heroId": 106,
+      "heroTitle": "小乔",
+      "title": "星华缭乱",
+      "icon": "0.28ad22c71731a6a40d375ba5e805d8a6",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 35,
+      "loss": 120,
+      "desc": "小乔召唤流星不断向敌人坠落，召唤持续6秒，每颗流星造成400<span style=\"color:#f264ff\">(+100%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。</br>释放期间持续获得【治愈微笑】的加速效果。当多颗流星命中同一目标时，后续流星只造成50%伤害，每个目标最多承受4次攻击。",
+      "skillData1": "基础伤害|400|500|600",
+      "skillData2": "冷却时间|35|31.5|28",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "m1467innlpz",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 106,
+      "showRate": "0.3315",
+      "winRate": "0.5287",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 106,
+      "showRate": "0.214",
+      "winRate": "0.5334",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 106,
+      "showRate": "0.0908",
+      "winRate": "0.5451",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2503,
+          "num": 10,
+          "iId": 1195,
+          "iRuneId": 2503,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:贪婪",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2503.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}

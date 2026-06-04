@@ -1,0 +1,334 @@
+{
+  "skillList1": [
+    {
+      "skillId": 18300,
+      "heroId": 183,
+      "heroTitle": "雅典娜",
+      "title": "真神觉醒",
+      "icon": "0.1e3a592a6dab3f82e72a62ec13097d71",
+      "type": "被动",
+      "label": "物理",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "死亡后以<span style=\"color:#f7b400\">真神</span>形态获得<span style=\"color:#30b13a\">30移速</span>自由移动，获得全新的<span style=\"color:#f7b400\">真神</span>守护技能帮助队友战斗</br>复活时会飞向距离最近的友方防御塔，对起飞范围内敌人造成<span style=\"color:#ff6600\">(600+180%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>和<span style=\"color:#0dafeb\">击飞</span>(3/4秒)",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "b1493n6ejhu",
+      "gameLabelList": [
+        {
+          "text": "真身",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 18310,
+      "heroId": 183,
+      "heroTitle": "雅典娜",
+      "title": "神圣进军",
+      "icon": "0.cb0978d77e6bfc401566036a08c03ae6",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 5,
+      "loss": 35,
+      "desc": "举盾突进获得500+6%<span style=\"color: #30B13A;\">生命值</span>护盾(1秒免控)并对敌人造成<span style=\"color:#f264ff\">375</span><span style=\"color:#ff6600\">(+125%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和击退\n",
+      "skillData1": "基础伤害|375|450|525|600|675|750",
+      "skillData2": "冷却时间|5|4.8|4.6|4.4|4.2|4",
+      "skillData3": "护盾抵免|500|600|700|800|900|1000",
+      "skillData4": "",
+      "heroVideo": "q1493047atx",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "护盾",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 18320,
+      "heroId": 183,
+      "heroTitle": "雅典娜",
+      "title": "贯穿之枪",
+      "icon": "0.321312cff64ae045aed72943ad48ba71",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 6,
+      "loss": 30,
+      "desc": "向指定方向跳跃并<span style=\"color:#30b13a\">强化</span>下次普攻，使用强化普攻会向敌人发起冲锋，额外造成<span style=\"color:#ff6600\">(180+65%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，并对非机关单位附带<span style=\"color:#ff6600\">目标6%已损生命的物理伤害</span>(对野怪上限300点)</br>【神圣进军】和【敬畏圣盾】命中敌人时刷新【贯穿之枪】</br>强化普攻对非英雄单位额外造成40%伤害",
+      "skillData1": "基础伤害|180|216|252|288|324|360",
+      "skillData2": "冷却时间|6|5.8|5.6|5.4|5.2|5",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "k1493xz2m4n",
+      "gameLabelList": [
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 18330,
+      "heroId": 183,
+      "heroTitle": "雅典娜",
+      "title": "敬畏圣盾",
+      "icon": "0.a61c45e7a5497f1ec011b0840291d7c8",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 25,
+      "loss": 70,
+      "desc": "雅典娜举起圣盾获得<span style=\"color:#30b13a\">(1200+16%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">护盾</span>(期间免控)，1.5秒后使用圣盾反击，对范围内敌人造成<span style=\"color:#f264ff\">450</span><span style=\"color:#ff6600\">(+150%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，举盾期间每受到一次敌方英雄攻击，圣盾反击伤害增加10%，施法时间减少10%(最多5层)",
+      "skillData1": "基础伤害|450|675|900",
+      "skillData2": "冷却时间|25|22.5|20",
+      "skillData3": "护盾抵免|1200|1800|2400",
+      "skillData4": "",
+      "heroVideo": "p14938dyxch",
+      "gameLabelList": [
+        {
+          "text": "护盾",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "霸体",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 183,
+      "showRate": "0.2543",
+      "winRate": "0.612",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 8,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 2,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 183,
+      "showRate": "0.1897",
+      "winRate": "0.6034",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 7,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 3,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 183,
+      "showRate": "0.1056",
+      "winRate": "0.6213",
+      "runeList": [
+        {
+          "runeId": 1505,
+          "num": 10,
+          "iId": 1272,
+          "iRuneId": 1505,
+          "szCate": "攻击|吸血",
+          "szTitle": "5级铭文:纷争",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2.5|物理吸血+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1505.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}
