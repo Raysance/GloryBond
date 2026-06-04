@@ -1,8 +1,13 @@
 
 from .zutil import *
+from dotenv import load_dotenv
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.util import timezone
+
+
+env_path = "/QQBot/.env"
+load_dotenv(dotenv_path=env_path)
 
 # 引入Redis配置
 nginx_path=str(os.environ.get('NGINX_HTML')) # 依赖环境变量
