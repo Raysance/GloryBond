@@ -1,0 +1,299 @@
+{
+  "skillList1": [
+    {
+      "skillId": 31200,
+      "heroId": 312,
+      "heroTitle": "沈梦溪",
+      "title": "暴躁节奏",
+      "icon": "0.9edb8abe0c85c1cf102d9d1a4fed971f",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "沈梦溪的技能会点燃敌人并暴露其视野，持续2秒。技能命中被点燃的敌人会造成65+13%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害，普攻引爆伤害减半。</br>沈梦溪死亡复活后会补满炸弹。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "l1116ygixna",
+      "gameLabelList": [
+        {
+          "text": "视野",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 31210,
+      "heroId": 312,
+      "heroTitle": "沈梦溪",
+      "title": "猫咪炸弹",
+      "icon": "0.d2dbac880e55f63ead5f6d2a78ec74e7",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 3.5,
+      "loss": 1,
+      "desc": "蓄力状态下每0.75秒朝目标位置投掷炸弹造成225<span style=\"color:#f264ff\">(+45%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。</br><span style=\"color:#f7b400\">自燃状态：每0.75秒朝指定方向投掷造成</span>125<span style=\"color:#f264ff\">(+25%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span><span style=\"color:#f7b400\">，同时炸弹会弹落爆炸再造成200%投掷伤害</span></br>沈梦溪投掷时增加自身60移速，最多拥有10颗炸弹，每次投掷消耗1颗，最多可以连续投掷5颗。炸弹每4~3.2秒获得一枚，受冷却影响。",
+      "skillData1": "基础伤害|225|270|315|360|405|450",
+      "skillData2": "自燃伤害|125|150|175|200|225|250",
+      "skillData3": "增加移速|60|72|84|96|108|120",
+      "skillData4": "充能时长|4|3.84|3.68|3.52|3.36|3.2",
+      "heroVideo": "z11160h7jca",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "冷却时间|3.5|3.36|3.22|3.08|2.94|2.8",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": "冷却时间|3.5|3.36|3.22|3.08|2.94|2.8"
+    },
+    {
+      "skillId": 31220,
+      "heroId": 312,
+      "heroTitle": "沈梦溪",
+      "title": "正常操作",
+      "icon": "0.2093e59561c213501e203bff25a1db8e",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 10,
+      "loss": 1,
+      "desc": "点燃一颗炸弹，增加20%移速并持续衰减，4.5秒内可主动引爆炸弹朝指定方向冲刺，使命中单位击飞并造成450+90%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害，同时自身飞到空中。如果自燃期间没有主动引爆，在4.5秒后以自身为圆心爆炸使命中单位击飞并造成450+90%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害，同时自身飞到空中。</br>自燃期间【猫咪炸弹】的投掷方式和冷却将会发生变化。",
+      "skillData1": "基础伤害|450|540|630|720|810|900",
+      "skillData2": "移速加成|20%|24%|28%|32%|36%|40%",
+      "skillData3": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData4": "",
+      "heroVideo": "c1116h1wisb",
+      "gameLabelList": [
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 31230,
+      "heroId": 312,
+      "heroTitle": "沈梦溪",
+      "title": "综合爆款",
+      "icon": "0.5cb84172304ab09d2b8040029faf6adc",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 30,
+      "loss": 0,
+      "desc": "投掷一枚混合炸弹对敌人造成440<span style=\"color:#f264ff\">(+80%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，同时分裂出3枚猫咪炸弹朝四周散落，对敌人造成220<span style=\"color:#f264ff\">(+40%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。",
+      "skillData1": "基础伤害|440|660|880",
+      "skillData2": "二段伤害|220|330|440",
+      "skillData3": "冷却时间|30|27.5|25",
+      "skillData4": "",
+      "heroVideo": "i1116d855k6",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 312,
+      "showRate": "0.4465",
+      "winRate": "0.5122",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 312,
+      "showRate": "0.2419",
+      "winRate": "0.5124",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2503,
+          "num": 10,
+          "iId": 1195,
+          "iRuneId": 2503,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:贪婪",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2503.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 312,
+      "showRate": "0.1324",
+      "winRate": "0.5215",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2512,
+          "num": 1,
+          "iId": 1200,
+          "iRuneId": 2512,
+          "szCate": "攻击|吸血",
+          "szTitle": "5级铭文:轮回",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+2.4|法术吸血+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2512.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 9,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}

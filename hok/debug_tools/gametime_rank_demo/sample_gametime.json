@@ -1,0 +1,47 @@
+{
+  "days": 0,
+  "players": [
+    {
+      "player": "",
+      "games": {
+        "王者荣耀": 0,
+        "Dota 2": 0
+      }
+    },
+    {
+      "player": "",
+      "games": {
+        "王者荣耀": 0,
+        "Counter-Strike 2": 0
+      }
+    },
+    {
+      "player": "",
+      "games": {
+        "王者荣耀": 0,
+        "ELDEN RING": 0
+      }
+    },
+    {
+      "player": "",
+      "games": {
+        "王者荣耀": 0,
+        "Hades": 0
+      }
+    },
+    {
+      "player": "",
+      "games": {
+        "王者荣耀": 0,
+        "Apex Legends": 0
+      }
+    },
+    {
+      "player": "",
+      "games": {
+        "王者荣耀": 0,
+        "Apex Legends": 0
+      }
+    }
+  ]
+}
