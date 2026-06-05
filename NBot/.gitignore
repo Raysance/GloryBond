@@ -1,0 +1,21 @@
+# ENV
+/.venv/
+
+# TEMP LOG
+**/__pycache__/
+*.pyc
+**/.mypy_cache/
+*.log
+
+# UNNECESSARY
+/data/history/personal/
+/data/history/battles/
+/data/history/doubt/
+/resources/wzry_images/skins/
+/resources/wzry_images/generated/
+/resources/wzry_images/kpl/
+/resources/wzry_images/tmp/
+/data/herorank/
+emojiref.json
+src/plugins/qbot/debug_tools/
+
