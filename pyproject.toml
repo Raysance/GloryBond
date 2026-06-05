@@ -1,7 +1,7 @@
 [project]
-name = "NBot"
+name = "GloryBond"
 version = "0.1.0"
-description = "NBot"
+description = "QQ Agent for Honor of Kings: Track Stats & Interactive Engagement."
 readme = "README.md"
 requires-python = ">=3.9, <4.0"
 
