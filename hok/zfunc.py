@@ -3322,9 +3322,10 @@ def history_query_handler(rcv_msg):
         try:
             start_date = str_to_time(query_target["DateRange"][0])
             end_date = str_to_time(query_target["DateRange"][1])
-            # 设置为当天的开始和结束
-            fetch_start = start_date.replace(hour=0, minute=0, second=0)
-            fetch_end = end_date.replace(hour=23, minute=59, second=59)
+            start_date = start_date.replace(hour=0, minute=0, second=0)
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+            fetch_start = start_date
+            fetch_end = end_date
         except: pass
     elif query_target.get("FuzzyTime"):
         try:
