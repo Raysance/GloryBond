@@ -34,7 +34,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             yesterday_sul = time_sul() - datetime.timedelta(days=1)
         yesterday_str = yesterday_sul.strftime("%Y-%m-%d")
         
-        json_files = get_file_list("history",".json")
+        json_files = get_file_list(os.path.join("data","history"),".json")
         def extract_date(filename):
             try:
                 base_name = os.path.basename(filename)

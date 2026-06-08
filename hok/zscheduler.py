@@ -217,14 +217,14 @@ def init_fetch_hero_tier():
     return _fetch_hero_tier_impl()
 
 
-@scheduler.scheduled_job(
-    "interval",
-    minutes=getattr(dmc, "KplPushIntervalMinutes", 2),
-    coalesce=False,
-    max_instances=20,
-    misfire_grace_time=3600,
-    id="kpl_match_push",
-)
+# @scheduler.scheduled_job(
+#     "interval",
+#     minutes=getattr(dmc, "KplPushIntervalMinutes", 2),
+#     coalesce=False,
+#     max_instances=20,
+#     misfire_grace_time=3600,
+#     id="kpl_match_push",
+# )
 async def kpl_match_push():
     from .zfunc import kpl_check_and_push
     try:
