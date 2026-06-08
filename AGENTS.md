@@ -14,27 +14,28 @@
    - 软编码：路径、API-Key、模型名、用户 ID、QQ群号、服务域名、阈值与可变策略等，必须来自配置文件/静态变量/动态变量。
    - 硬编码：稳定且不会随环境变化的常量（例如固定协议字段名、固定枚举值）可硬编码，但要确保不与配置冲突。
 
-## 1. 目录与文件职责（`src/plugins/qbot/`）
+## 1. 目录与文件职责（`hok/`）
 
-以下规则适用于 `D:\Desktop\BotTest\camp_data\HOK_QQBot\src\plugins\qbot\` 下所有代码（后续若出现 `NBot/` 目录，以本目录职责为准）。
+以下规则适用于 `hok/` 下所有代码。
 
-- `src/plugins/qbot/config.py`：保留位/当前无实际用途；除非明确需要，否则不要新增依赖或逻辑。
-- `src/plugins/qbot/zdynamic.py`：**动态变量**导入与初始化必须放在这里；其他模块通过 `from . import zdynamic as dmc` 读写动态变量。
-- `src/plugins/qbot/zevent.py`：所有消息收发的**最初层**与路由层；只做初步解析、分发与调用接口，不在此实现具体业务算法/流程细节。
-- `src/plugins/qbot/zfile.py`：文件/IO 读写统一入口；所有 IO（读写文件、落盘缓存、路径拼接等）必须通过此模块提供的接口完成。
-- `src/plugins/qbot/zfunc.py`：业务函数的**具体执行流程**（面向 `zevent.py` 暴露接口）；业务流程编排、调用工具、组装输出在此完成。
-- `src/plugins/qbot/zmemory.py`：所有 AI 对话记忆/摘要/长期记忆相关的读写与策略接口。
-- `src/plugins/qbot/zscheduler.py`：所有定时/间隔任务的声明、注册与定义（不要在别处私自创建 scheduler 任务）。
-- `src/plugins/qbot/zstatic.py`：**静态变量**导入必须放在这里（从文件与系统环境变量导入）；其他模块通过 `from .zstatic import *` 获取静态变量。
-- `src/plugins/qbot/ztime.py`：时间工具与日期处理统一入口；任何时间计算/格式化/时间窗口判断都应调用这里的接口。
-- `src/plugins/qbot/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
-- `src/plugins/qbot/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
-- `src/plugins/qbot/zapi.py`：与外部服务/API 交互的适配层（请求封装、签名、响应解析）；业务编排仍应留在 `zfunc.py`。
-- `src/plugins/qbot/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
+- `hok/__init__.py`：NoneBot 插件入口；注册插件元信息并集中加载配置、静态变量、动态变量、API、事件、文件、业务函数、定时任务与时间工具。
+- `hok/config.py`：Pydantic 配置模型定义；除非明确需要，否则不要新增依赖或复杂逻辑。
+- `hok/zdynamic.py`：**动态变量**导入与初始化必须放在这里；其他模块通过 `from . import zdynamic as dmc` 读写动态变量。
+- `hok/zevent.py`：所有消息收发的**最初层**与路由层；只做初步解析、分发与调用接口，不在此实现具体业务算法/流程细节。
+- `hok/zfile.py`：文件/IO 读写统一入口；所有 IO（读写文件、落盘缓存、路径拼接等）必须通过此模块提供的接口完成。
+- `hok/zfunc.py`：业务函数的**具体执行流程**（面向 `zevent.py` 暴露接口）；业务流程编排、调用工具、组装输出在此完成。
+- `hok/zmemory.py`：所有 AI 对话记忆、摘要、长期记忆、表情记忆相关的读写与策略接口。
+- `hok/zscheduler.py`：所有定时/间隔任务的声明、注册与定义（不要在别处私自创建 scheduler 任务）。
+- `hok/zstatic.py`：**静态变量**导入必须放在这里（从文件与系统环境变量导入）；其他模块通过 `from .zstatic import *` 获取静态变量。
+- `hok/ztime.py`：时间工具与日期处理统一入口；任何时间计算、格式化、时间窗口判断都应调用这里的接口。
+- `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
+- `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
+- `hok/zapi.py`：与外部服务/API 交互的适配层（请求封装、签名、响应解析）；业务编排仍应留在 `zfunc.py`。
+- `hok/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
-### 1.1 Tools（`src/plugins/qbot/tools/`）
+### 1.1 Tools（`hok/tools/`）
 
-`src/plugins/qbot/tools/` 目录用于放置可复用、可抽象的“工具”模块：
+`hok/tools/` 目录用于放置可复用、可抽象的“工具”模块：
 
 1. **可封装的函数视为工具**：例如编码/解码、图表生成、数据格式转换、外部 API 适配器等，应当在 `tools/` 下单独建文件。
 2. **工具模块要求**：
@@ -47,13 +48,32 @@
 - 工具文件以动词或名词短语命名，避免 `tmp.py`、`test2.py` 这类不可维护命名。
 - 若工具围绕某一类产物生成（如战报图、统计图），建议使用 `gen_*.py` 前缀并保持输入输出一致。
 
-### 1.2 Debug Tools（`src/plugins/qbot/debug_tools/`）
+当前工具文件职责索引：
 
-`src/plugins/qbot/debug_tools/` 仅用于**调试工具脚本**与实验性验证；上线逻辑不得长期停留在此目录。调试工具必须以文件夹为单位组织，每个调试目标对应 `debug_tools/` 下的一个独立文件夹，文件夹内再放置该调试工具的具体脚本、测试数据、样例输入输出等内容。调试脚本应模块化、最精简地调用项目中已有函数，不得复制业务实现或绕开项目既有接口。
+- `hok/tools/endecoder.py`：王者营地接口加解密与请求参数生成工具。
+- `hok/tools/emoji_renderer.py`：emoji 文本拆分与图片文字渲染辅助。
+- `hok/tools/gen_battle_res.py`：单局战绩详情长图生成器。
+- `hok/tools/gen_battle_shot.py`：RTMP 监听与对局截图工具。
+- `hok/tools/gen_coplayer_analyses.py`：共玩关系、头像、胜率、评价等图表生成器。
+- `hok/tools/gen_emoji_image.py`：表情包生成链路与风格模板维护工具。
+- `hok/tools/gen_gametime_table.py`：游戏时长表格聚合与渲染辅助。
+- `hok/tools/gen_grade_chart.py`：评分/星数趋势图生成工具。
+- `hok/tools/kpl_match_collector.py`：B 站 KPL 赛事赛程与单场数据采集工具。
+- `hok/tools/PowerAnalyzeEvaluator.py`：战力分析结果一致性评估脚本。
+
+### 1.2 Debug Tools（`hok/debug_tools/`）
+
+`hok/debug_tools/` 仅用于**调试工具脚本**与实验性验证；上线逻辑不得长期停留在此目录。调试工具必须以文件夹为单位组织，每个调试目标对应 `debug_tools/` 下的一个独立文件夹，文件夹内再放置该调试工具的具体脚本、测试数据、样例输入输出等内容。调试脚本应模块化、最精简地调用项目中已有函数，不得复制业务实现或绕开项目既有接口。
+
+当前调试工具索引：
+
+- `hok/debug_tools/gametime_rank_demo/gen_demo.py`：游戏时长排行演示数据生成脚本。
+- `hok/debug_tools/image_gen/run_apimart_image.py`：图片生成接口调试脚本。
+- `hok/debug_tools/kpl_match_collector_cli.py`：KPL 赛事采集命令行调试入口。
 
 ## 2. 配置与变量的来源（必须遵守）
 
-### 2.1 配置文件（仓库根目录）
+### 2.1 配置文件（``）
 
 - `config.yaml`：王者荣耀/Steam/AI 的 API-Key、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
 - `variables_static.json`：用户 QQ 号、王者荣耀 roleid/userid、用户昵称、SteamID、常见俚语缩写、赛季起止时间、英雄 ID 映射、部分功能 prompt 等稳定数据。
@@ -63,13 +83,13 @@
 1. **任何可能变化的值**不得硬编码在业务逻辑里，必须进入上述文件或对应的静态/动态变量模块。
 2. `zstatic.py` 负责加载静态配置；`zdynamic.py` 负责加载动态配置并提供可写入口。
 
-### 2.2 Linux 环境变量（在 `zstatic.py` 导入）
+### 2.2 Linux 环境变量（在 `hok/zstatic.py` 导入）
 
 部署环境下预计存在以下环境变量（缺失时的处理策略以现有代码为准，禁止凭空新增“变量不存在”的冗余判断链）：
 
-- `REDIS_CONF="/QQBot/redis.conf"`
-- `NGINX_HTML="/usr/local/nginx/html/"`
-- `BOT_PATH="/QQBot/NBot/"`
+- `REDIS_CONF`：Redis 配置文件路径。
+- `NGINX_HTML`：Web 静态产物目录。
+- `BOT_PATH`：Bot 部署目录。
 
 ## 3. 代码结构与改动边界
 
