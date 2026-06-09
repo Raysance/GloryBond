@@ -38,7 +38,7 @@ reload_variables()
 
 templates = Jinja2Templates(directory="templates")
 # 引入Redis变量
-nginx_path=str(os.environ.get('NGINX_HTML'))
+file_path_root=os.path.join(str(os.environ.get('BOT_PATH')),"file_transfer")
 redis_path=str(os.environ.get('REDIS_CONF'))
 with open(redis_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
@@ -63,7 +63,7 @@ VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])
 def key_to_filename(key: str, reqtype: str):
     try:
         content = json.loads(r_com.get(key).decode('utf-8'))
-        local_path=os.path.join("wzry_history",content["filename"]+".json")
+        local_path=os.path.join("file_transfer","temp_files",content["filename"]+".json")
         return content,local_path
     except:
         raise Exception()
@@ -196,13 +196,13 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query
         )
     res={"btlist":btlist_res,"profile":profile_res}
     file_name=secrets.token_hex(8)+".json"
-    save_path=os.path.join(nginx_path,"wzry_history", file_name)
+    save_path=os.path.join(file_path_root,"temp_files", file_name)
     writerl(save_path,res)
     return templates.TemplateResponse(
         "CommonPages/SingleBattleList.html",
         {
             "request": request,
-            "filename": os.path.join("wzry_history",file_name),
+            "filename": os.path.join("file_transfer","temp_files",file_name),
             "key": final_key,
         }
     )
@@ -214,7 +214,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
     if (check_battle_local_exist(gameSeq,targetRoleId)):
-        web_path=os.path.join("wzry_history","battles",gameSeq+".json")
+        web_path=os.path.join("file_transfer","battles",gameSeq+".json")
     else:
         try:
             res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
@@ -223,8 +223,8 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
                 "ErrorPages/expired.html",{"request": request,"message":f"对局已过期或id无效 {str(e)}"}
             )
         file_name=secrets.token_hex(8)+".json"
-        save_path=os.path.join(nginx_path,"wzry_history", file_name)
-        web_path=os.path.join("wzry_history",file_name)
+        save_path=os.path.join(file_path_root,"temp_files", file_name)
+        web_path=os.path.join("file_transfer","temp_files",file_name)
         writerl(save_path,res)
     return templates.TemplateResponse(
         "CommonPages/BattleDetail.html",
