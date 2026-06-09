@@ -52,6 +52,11 @@ r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QU
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 
+app.mount(
+    "/benefitvisualizer",
+    StaticFiles(directory=os.path.join("templates", "CommonPages", "BenefitVisualizer")),
+    name="benefitvisualizer",
+)
 # app.mount("/btldefaultjson", StaticFiles(directory="default_json_templates"), name="default_json_templates")
 
 confs = {}
@@ -176,6 +181,38 @@ async def show_btldetail(request:Request,key: str):
             "key": key,
         }
     )
+
+def benefit_debug_payload_path(key: str):
+    filename = os.path.basename(key)
+    if filename != key or filename in ("", ".", ".."):
+        raise HTTPException(status_code=404)
+    if not filename.endswith(".json"):
+        filename = filename + ".json"
+
+    candidate = os.path.join(file_path_root, "temp_files", filename)
+    if os.path.exists(candidate):
+        return candidate
+    raise HTTPException(status_code=404)
+
+@app.get("/benefit", response_class=HTMLResponse)
+async def show_benefit_visualizer(request: Request, key: str = Query(None)):
+    return templates.TemplateResponse(
+        "CommonPages/BenefitVisualizer/index.html",
+        {
+            "request": request,
+            "key": key or "",
+        }
+    )
+
+@app.get("/wzry_benefit_debug/{key}", response_class=JSONResponse)
+async def get_benefit_debug_payload(key: str):
+    payload_path = benefit_debug_payload_path(key)
+    try:
+        with open(payload_path, 'r', encoding='utf-8') as file:
+            return JSONResponse(json.load(file))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="benefit debug payload is not valid JSON")
+
 def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>受益受害贝叶斯收缩明细</title>
+  <link rel="stylesheet" href="/benefitvisualizer/styles.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">HOK_QQBot</p>
+        <h1>受益受害贝叶斯收缩明细</h1>
+        <p id="subtitle" class="subtitle">正在加载计算数据</p>
+      </div>
+      <div class="formula-card">
+        <span>排序指标</span>
+        <strong id="formula">posterior_avg_grade² / exp(posterior_win_rate)</strong>
+      </div>
+    </section>
+    <section class="summary-grid">
+      <article>
+        <span>近期窗口</span>
+        <strong id="recent-window">-</strong>
+      </article>
+      <article>
+        <span>历史先验窗口</span>
+        <strong id="prior-window">-</strong>
+      </article>
+      <article>
+        <span>先验强度</span>
+        <strong id="prior-strength">-</strong>
+      </article>
+      <article>
+        <span>玩家数量</span>
+        <strong id="row-count">-</strong>
+      </article>
+    </section>
+    <section class="toolbar">
+      <input id="search" type="search" placeholder="搜索玩家或昵称">
+      <select id="sort">
+        <option value="posterior_metric">按受益受害值升序</option>
+        <option value="metric_delta">按收缩变化升序</option>
+        <option value="recent_count">按近期场次降序</option>
+        <option value="prior_weight">按先验权重降序</option>
+      </select>
+    </section>
+    <section class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>玩家</th>
+            <th>近期</th>
+            <th>历史先验</th>
+            <th>权重</th>
+            <th>胜率收缩</th>
+            <th>均分收缩</th>
+            <th>指标收缩</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+    <section id="empty" class="empty" hidden>没有可展示的数据</section>
+  </main>
+  <script src="/benefitvisualizer/app.js"></script>
+</body>
+</html>
