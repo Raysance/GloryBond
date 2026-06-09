@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>受益受害贝叶斯收缩明细</title>
-  <link rel="stylesheet" href="/benefitvisualizer/styles.css">
+  <style>
+{% include "CommonPages/BenefitVisualizer/styles.css" %}
+  </style>
 </head>
 <body>
   <main class="page">
@@ -45,25 +47,41 @@
         <option value="recent_count">按近期场次降序</option>
         <option value="prior_weight">按先验权重降序</option>
       </select>
+      <button id="replay" type="button">重播收缩动画</button>
     </section>
-    <section class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>玩家</th>
-            <th>近期</th>
-            <th>历史先验</th>
-            <th>权重</th>
-            <th>胜率收缩</th>
-            <th>均分收缩</th>
-            <th>指标收缩</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+    <section class="visual-layout">
+      <article class="chart-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Shrinkage Map</p>
+            <h2>近期表现 → 贝叶斯后验</h2>
+          </div>
+          <div class="legend">
+            <span><i class="dot recent"></i>近期</span>
+            <span><i class="dot posterior"></i>后验</span>
+            <span><i class="line"></i>收缩方向</span>
+          </div>
+        </div>
+        <svg id="chart" viewBox="0 0 1000 560" role="img" aria-label="受益受害收缩动态图"></svg>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </article>
+      <aside class="ranking-panel">
+        <div class="panel-head compact">
+          <div>
+            <p class="eyebrow">Players</p>
+            <h2>动态图例排行</h2>
+          </div>
+        </div>
+        <div id="cards" class="cards"></div>
+      </aside>
     </section>
     <section id="empty" class="empty" hidden>没有可展示的数据</section>
   </main>
-  <script src="/benefitvisualizer/app.js"></script>
+  <script>
+    window.BENEFIT_DATA_URL = "{{filename}}";
+  </script>
+  <script>
+{% include "CommonPages/BenefitVisualizer/app.js" %}
+  </script>
 </body>
 </html>
