@@ -2153,13 +2153,31 @@ class Analyses:
         return analyzed_infos
 
     @staticmethod
+    def summarize_player_benefit_infos(analyzed_infos):
+        summary={}
+        for k,v in analyzed_infos.items():
+            if (len(v["hero_info"])==0): continue
+            count=sum(heroinfo[1] for heroname,heroinfo in v["hero_info"].items())
+            if (count==0): continue
+            wins=sum(heroinfo[0] for heroname,heroinfo in v["hero_info"].items())
+            grade_sum=sum(sum(heroinfo[2]) for heroname,heroinfo in v["hero_info"].items())
+            summary[k]={"count":count,"wins":wins,"grade_sum":grade_sum,"win_rate":float(wins)/count,"avg_grade":float(grade_sum)/count}
+        return summary
+
+    @staticmethod
     def get_benefit_data(userid=None,time_gap=analyze_time_gap): # 评分^2/exp(胜率)： exp防止胜率0附近斜率过大 # 值越大越受害 值越小越受益
         from .ztime import time_r
         from .ztime import time_r_delta
+        from .ztime import time_delta
 
         end_date=time_r()
         start_date=time_r_delta(time_gap)
-        analyzed_infos=Analyses.analyze_history(userid=None,start_date=start_date,end_date=end_date)
+        prior_end_date=time_delta(start_date,-1)
+        prior_start_date=time_r_delta(time_gap+benefit_history_gap)
+        analyzed_infos=Analyses.analyze_history(userid=userid,start_date=start_date,end_date=end_date)
+        prior_analyzed_infos=Analyses.analyze_history(userid=userid,start_date=prior_start_date,end_date=prior_end_date)
+        recent_summary=Analyses.summarize_player_benefit_infos(analyzed_infos)
+        prior_summary=Analyses.summarize_player_benefit_infos(prior_analyzed_infos)
         # print(analyzed_infos)
 
         user_low_grade_winrate_ratio="" # 评分胜率比最低
@@ -2167,10 +2185,14 @@ class Analyses:
         low_grade_winrate_ratio=10000
         high_grade_winrate_ratio=0
         player_benefit={}
-        for k,v in analyzed_infos.items(): # 为了评判机制受益程度，或许评分与上星比值更为合理（评分：实力，上星：受益），胜率与上星无必然关联
-            if (len(v["hero_info"])==0): continue
-            win_rate=sum(heroinfo[0] for heroname,heroinfo in v["hero_info"].items())/sum(heroinfo[1] for heroname,heroinfo in v["hero_info"].items())
-            aver_grade=sum(sum(heroinfo[2]) for heroname,heroinfo in v["hero_info"].items())/sum(heroinfo[1] for heroname,heroinfo in v["hero_info"].items())
+        for k,v in recent_summary.items(): # 为了评判机制受益程度，或许评分与上星比值更为合理（评分：实力，上星：受益），胜率与上星无必然关联
+            win_rate=v["win_rate"]
+            aver_grade=v["avg_grade"]
+            if (k in prior_summary):
+                prior_info=prior_summary[k]
+                prior_weight=min(prior_info["count"],max(benefit_prior_min_games,v["count"]),benefit_prior_max_games)
+                win_rate=(v["wins"]+prior_info["win_rate"]*prior_weight)/(v["count"]+prior_weight)
+                aver_grade=(v["grade_sum"]+prior_info["avg_grade"]*prior_weight)/(v["count"]+prior_weight)
             grade_winrate_ratio=pow(aver_grade,2)/(math.exp(win_rate))
             # grade_winrate_ratio=math.exp((math.log(aver_grade)-math.log(2))/(math.log(14)-math.log(2)))/(math.exp(win_rate))
             # grade_winrate_ratio=math.exp((aver_grade-2)/(14-2))/(math.exp(win_rate))
