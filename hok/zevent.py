@@ -436,7 +436,7 @@ async def f_group_poke(bot, event):
             if (not dmc.repair):
                 if (dmc.RTMPStatus):
                     res=dmc.RTMPListener.screenshot()
-                    pic_path="/usr/local/nginx/html/wzry_btl_shot/"+str(dmc.RTMPPlayer)+".png"
+                    pic_path=os.path.join(temp_path,"wzry_btl_shot",str(dmc.RTMPPlayer)+".png")
                     
                     if (res and await asyncio.to_thread(file_exist, pic_path)): snd_msg = MessageSegment.image(pic_path)
                     else: snd_msg=MessageSegment.text("最快10秒ob一次")
@@ -939,7 +939,7 @@ async def f_recentgames(event):
 
 @_history_query.handle()
 async def f_history_query(event: Event):
-    from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, create_website
+    from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, WebArtifacts
     import traceback
     import json
     import time
@@ -985,7 +985,6 @@ async def f_history_query(event: Event):
         elif len(matches) > 1:
             packed_data = []
             now_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            exact_now_time = str(round(time.time()*1000000))
             for detail, realname in matches:
                 gameseq = detail['GameSeq']
                 roleid = roleidlist[realname]
@@ -1016,10 +1015,9 @@ async def f_history_query(event: Event):
                 }
                 packed_data.append(info)
                 
-            filename_hashed = hashlib.sha256(exact_now_time.encode()).hexdigest()[:16]
-            filepath = os.path.join(nginx_path, "wzry_history", filename_hashed + ".json")
+            filename_hashed,filepath = WebArtifacts.history_artifact(round(time.time()*1000000))
             await asyncio.to_thread(writerl, filepath, packed_data)
-            website_link = await asyncio.to_thread(create_website, json.dumps({"filename": filename_hashed, "caller": query_target, "time": now_time}), "query_select")
+            website_link = await asyncio.to_thread(WebArtifacts.history_route_link, filename_hashed, "query_select", query_target, now_time)
             add_msg(prefix + f"找到 {len(matches)} 局符合条件的战绩，点击链接查看详情：(视角随机)\n" + website_link, event=event)
         else:
             add_msg(prefix + "未找到符合条件的战绩。", event=event)
@@ -1085,3 +1083,4 @@ async def f_chat(bot,event):
 
     add_msg(snd_msg, event=event)
     return
+

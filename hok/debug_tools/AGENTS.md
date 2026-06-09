@@ -27,4 +27,5 @@
 - `gametime_rank_demo/`：游戏时长排行演示工具，用于生成演示数据与排行效果验证。
 - `image_gen/`：图片生成接口调试工具，用于验证 APIMart 等图片生成链路。
 - `history_map_export_cli/`：历史汇总导出 CLI，用于从 `data/history/YYYY-MM-DD.json` 导出玩家每日各地图局数与胜场。
+- `benefit_debug_page/`：受益受害贝叶斯收缩计算过程可视化页面模板。
 - `kpl_match_collector_cli.py`：KPL 赛事采集调试入口，用于命令行验证赛事赛程、单场数据与采集适配结果；这是历史遗留的根目录 CLI，后续新增同类工具应改为独立子文件夹。

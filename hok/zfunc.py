@@ -340,22 +340,64 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
         zm.save_active_chat(user_query[6], user_query[0], ai_back)
     return ai_back
 
-def create_website(contents,sitetype):
-    hash_key = hashlib.sha256(secrets.token_hex(16).encode()).hexdigest()[:16]
-    dmc.redis_deamon.set(hash_key, contents, ex=REDIS_TEXT_EXPIRE_SECONDS)
-    if (sitetype=="all"):
-        url=f"https://hok.{confs["WebService"]["server_domain"]}/all?key={hash_key}"
-    elif (sitetype=="single_oneday"):
-        url=f"https://hok.{confs["WebService"]["server_domain"]}/person?key={hash_key}"
-    elif (sitetype=="single_period"):
-        url=f"https://hok.{confs["WebService"]["server_domain"]}/period?key={hash_key}"
-    elif (sitetype=="btldetail"):
-        url=f"https://hok.{confs["WebService"]["server_domain"]}/battle?key={hash_key}"
-    elif (sitetype=="query_select"):
-        url=f"https://hok.{confs["WebService"]["server_domain"]}/query?key={hash_key}"
-    else:
-        url=f""
-    return url
+class WebArtifacts:
+    @staticmethod
+    def make_hash(seed=None):
+        """Create a short stable hash from seed or a random token."""
+        source=str(seed) if seed is not None else secrets.token_hex(16)
+        return hashlib.sha256(source.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def history_json_path(filename_hashed):
+        """Build the public history JSON path."""
+        return os.path.join(temp_path,"temp_files",filename_hashed+".json")
+
+    @staticmethod
+    def history_artifact(seed=None):
+        """Create a public history JSON filename and path pair."""
+        filename_hashed=WebArtifacts.make_hash(seed)
+        return filename_hashed,WebArtifacts.history_json_path(filename_hashed)
+
+    @staticmethod
+    def route_url(sitetype,hash_key):
+        """Build a public route URL for a stored web payload."""
+        routes={
+            "all":"all",
+            "single_oneday":"person",
+            "single_period":"period",
+            "btldetail":"battle",
+            "query_select":"query",
+            "benefit":"benefit",
+        }
+        route=routes.get(sitetype)
+        if (not route): return ""
+        return f"https://hok.{confs["WebService"]["server_domain"]}/{route}?key={hash_key}"
+
+    @staticmethod
+    def create_route_link(contents,sitetype):
+        """Store route contents in Redis and return the public URL."""
+        hash_key=WebArtifacts.make_hash()
+        dmc.redis_deamon.set(hash_key,contents,ex=REDIS_TEXT_EXPIRE_SECONDS)
+        return WebArtifacts.route_url(sitetype,hash_key)
+
+    @staticmethod
+    def history_route_link(filename_hashed,sitetype,caller="",time_text="",extra=None):
+        """Create a route link for a history JSON artifact."""
+        payload={"filename":filename_hashed,"caller":caller,"time":time_text}
+        if (extra): payload.update(extra)
+        return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),sitetype)
+
+    @staticmethod
+    def publish_history_json_route(payload,sitetype):
+        """Publish a JSON payload to the history JSON path, then return a route URL."""
+        from .zfile import ensure_dir
+        from .zfile import writerl
+
+        filename_hashed,json_path=WebArtifacts.history_artifact()
+        data_filename=filename_hashed+".json"
+        ensure_dir(os.path.dirname(json_path))
+        writerl(json_path,payload)
+        return WebArtifacts.route_url(sitetype,data_filename)
 
 def online_process():
     from .zapi import wzry_get_official
@@ -502,7 +544,6 @@ def online_process():
     return snd_msg
 def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=False):
     if (caller==None): caller=""
-    from .zfunc import create_website
     from .zfunc import wzry_data
     from .zfunc import ai_parser
     from .zfunc import Analyses
@@ -517,10 +558,8 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     today_date=str(time_r().strftime("%Y-%m-%d"))
     today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
     now_time=str(time_r().strftime("%Y-%m-%d %H:%M:%S"))
-    exact_now_time=str(round(time.time()*1000000))
-    filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
-    filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
-    website_link=create_website(json.dumps({"filename":filename_hashed,"caller":caller,"time":now_time}),"all")
+    filename_hashed,filepath=WebArtifacts.history_artifact(round(time.time()*1000000))
+    website_link=WebArtifacts.history_route_link(filename_hashed,"all",caller=caller,time_text=now_time)
     gameinfo=[]
 
     def visit_wzry_data(key):
@@ -608,7 +647,6 @@ def single_process(rcv_msg):
     from .ztime import time_delta
     from .ztime import str_to_time
     from .ztime import time_to_str
-    from .zfunc import create_website
     from .zfile import readerl
     from .zfile import copyfile
     from .zfile import file_exist
@@ -636,11 +674,9 @@ def single_process(rcv_msg):
 
         today_date=str(time_r().strftime("%Y-%m-%d"))
         exhibit_date_woyear=str(time_sul().strftime("%m-%d"))
-        exact_now_time=str(round(time.time()*1000000))
         yesterday_date=str(time_r()-datetime.timedelta(days=1))
 
-        filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
-        website_filepath=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
+        filename_hashed,website_filepath=WebArtifacts.history_artifact(round(time.time()*1000000))
         history_query=extract_history_query(rcv_msg)
         battle_visible=True
         if (history_query[0]==1): # 追溯过去某一天
@@ -663,7 +699,7 @@ def single_process(rcv_msg):
                 copyfile(detail_filepath,website_filepath)
             except Exception as e:
                 exhibit_date_woyear+=" 链接失效"
-            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_oneday")
+            website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
         elif (history_query[0]==2): # 追溯时间段
             ai_feedback=False
             show_map_cnt_total=True
@@ -696,7 +732,7 @@ def single_process(rcv_msg):
             writerl(website_filepath,gameinfo_raw)
             # 前后两句顺序不要改, merge_crossday_gamedata会修改可变字典gameinfo_raw
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
-            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")}),"single_period")
+            website_link=WebArtifacts.history_route_link(filename_hashed,"single_period",extra={"DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")})
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath)
             
@@ -729,7 +765,7 @@ def single_process(rcv_msg):
                     "realname": matching_name,
                     "battleID": gameinfo["gaming_info"]["battle_id"],
                 }
-            website_link=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"single_oneday")
+            website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
         
         win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
                     for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
@@ -795,6 +831,8 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
         snd_msg+="受益受害：(排位巅峰战队)\n"
         for k,v in benefit_data.items():
             snd_msg+=f"{namenick[k]}：\n    {str(round(v[0],2))} {str(round(v[1]*100,1))}% {str(round(v[2],2))}\n"
+        payload=Analyses.get_benefit_debug_payload(time_gap=time_gap)
+        snd_msg+=WebArtifacts.publish_history_json_route(payload,"benefit")+"\n"
     if ("e" in rcv_msg):
         extreme_data=Analyses.get_extreme_data(time_gap=time_gap)
         snd_msg+=f"近{time_gap}天最高最低评分：\n"
@@ -833,7 +871,6 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
 def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False,strict_filter=True):
     from .zapi import wzry_get_official
     from .zfile import writerl
-    from .zfunc import create_website
     from .zfunc import check_btl_official_with_matching
     from .tools import gen_battle_res
     import json
@@ -894,14 +931,12 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
         for info in our_player_infos_all:
             our_player_text_all+=f"{info[0]}({info[1]}) "
         our_player_text_all+="\n"
-    exact_now_time=str(round(time.time()*1000000))
-    filename_hashed = str(hashlib.sha256((exact_now_time).encode()).hexdigest()[:16])
-    json_output_path=os.path.join(nginx_path,"wzry_history",filename_hashed+".json")
-    linkurl=create_website(json.dumps({"filename":filename_hashed,"caller":"","time":""}),"btldetail")
+    filename_hashed,json_output_path=WebArtifacts.history_artifact(round(time.time()*1000000))
+    linkurl=WebArtifacts.history_route_link(filename_hashed,"btldetail")
     picpath=""
     writerl(json_output_path,res)
     if (gen_image):
-        picpath=os.path.join(nginx_path,"wzry_history","exhibit.png")
+        picpath=os.path.join(temp_path,"temp_files","exhibit.png")
         gen_battle_res.generate_battle_ui_image(json_output_path,picpath)
     snd_message=""
     if (individual_show):
@@ -1383,7 +1418,7 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
         
         skin_file = random.choice(skin_files)
         skin_name=os.path.splitext(skin_file)[0]
-        pic_path = os.path.abspath(os.path.join(os.getcwd(),hero_path, skin_file))
+        pic_path = os.path.join(project_root,hero_path,skin_file)
         return hero_name, skin_name,pic_path,selected_info
     def get_hero_skin(realname,ignore_limit):
         import redis
@@ -1477,8 +1512,8 @@ def gradeanalyze_process(realname):
 
     userid=userlist[realname]
     data_path=os.path.join("data","history")
-    pic_visit_path=f"/usr/local/nginx/html/wzry_grade_chart/grade_chart.png"
-    pic_save_path=f"/usr/local/nginx/html/wzry_grade_chart/"
+    pic_visit_path=os.path.join(temp_path,"wzry_grade_chart","grade_chart.png")
+    pic_save_path=os.path.join(temp_path,"wzry_grade_chart")
     analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
     
     return pic_visit_path,analyze_msg
@@ -1498,7 +1533,7 @@ def watchbattle_process(realname):
     mapName=res["mapName"]
     duration=res["duration"]
 
-    save_path="/usr/local/nginx/html/wzry_btl_shot/"+str(roleid)+".png"
+    save_path=os.path.join(temp_path,"wzry_btl_shot",str(roleid)+".png")
     if(dmc.RTMPListener): dmc.RTMPListener.stop()
     dmc.RTMPListener = gen_battle_shot.RTMPListener(dmc.streamurl,save_path=save_path,roleid=roleid)
     dmc.RTMPListener.start()  # 开始后台监听
@@ -1895,7 +1930,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
         f"对方底蕴：{round(op_side_total_level,2) if op_side_total_level else "unknown"}\n"
         f"对方英雄梯度：{round(op_side_total_tier,2)}\n"
     )
-    save_path=os.path.join(nginx_path,"wzry_history","coplayer_analyses.png")
+    save_path=os.path.join(temp_path,"temp_files","coplayer_analyses.png")
 
     pic_title="对局预言" if is_spoiler else "对局底蕴"
     out_path, ok = gen_inst.gen(save_path,title=pic_title)
@@ -2076,7 +2111,7 @@ def gametime_rank_process(days=14):
         return f"最近{days}天没有可用的时长记录", ""
 
     ts = str(round(time.time() * 1000000))
-    filename_hashed = hashlib.sha256(ts.encode()).hexdigest()[:16]
+    filename_hashed = WebArtifacts.make_hash(ts)
     out_dir = ensure_dir(os.path.join("resources","wzry_images", "tmp"))
     pic_path = os.path.join(out_dir, f"gametime_rank_{filename_hashed}.png")
 
@@ -2165,10 +2200,11 @@ class Analyses:
         return summary
 
     @staticmethod
-    def get_benefit_data(userid=None,time_gap=analyze_time_gap): # 评分^2/exp(胜率)： exp防止胜率0附近斜率过大 # 值越大越受害 值越小越受益
+    def build_benefit_shrinkage_rows(userid=None,time_gap=analyze_time_gap):
         from .ztime import time_r
         from .ztime import time_r_delta
         from .ztime import time_delta
+        from .ztime import time_to_str
 
         end_date=time_r()
         start_date=time_r_delta(time_gap)
@@ -2178,6 +2214,64 @@ class Analyses:
         prior_analyzed_infos=Analyses.analyze_history(userid=userid,start_date=prior_start_date,end_date=prior_end_date)
         recent_summary=Analyses.summarize_player_benefit_infos(analyzed_infos)
         prior_summary=Analyses.summarize_player_benefit_infos(prior_analyzed_infos)
+        rows=[]
+        for k,v in recent_summary.items():
+            recent_win_rate=v["win_rate"]
+            recent_avg_grade=v["avg_grade"]
+            posterior_win_rate=recent_win_rate
+            posterior_avg_grade=recent_avg_grade
+            prior_info=prior_summary.get(k)
+            prior_weight=0
+            if (prior_info):
+                prior_weight=min(prior_info["count"],max(benefit_prior_min_games,v["count"]),benefit_prior_max_games)
+                posterior_win_rate=(v["wins"]+prior_info["win_rate"]*prior_weight)/(v["count"]+prior_weight)
+                posterior_avg_grade=(v["grade_sum"]+prior_info["avg_grade"]*prior_weight)/(v["count"]+prior_weight)
+            posterior_metric=pow(posterior_avg_grade,2)/(math.exp(posterior_win_rate))
+            recent_metric=pow(recent_avg_grade,2)/(math.exp(recent_win_rate))
+            rows.append({
+                "player": k,
+                "nickname": namenick.get(k,k),
+                "recent_count": v["count"],
+                "recent_wins": v["wins"],
+                "recent_win_rate": recent_win_rate,
+                "recent_avg_grade": recent_avg_grade,
+                "recent_metric": recent_metric,
+                "prior_count": prior_info["count"] if prior_info else 0,
+                "prior_wins": prior_info["wins"] if prior_info else 0,
+                "prior_win_rate": prior_info["win_rate"] if prior_info else None,
+                "prior_avg_grade": prior_info["avg_grade"] if prior_info else None,
+                "prior_weight": prior_weight,
+                "posterior_win_rate": posterior_win_rate,
+                "posterior_avg_grade": posterior_avg_grade,
+                "posterior_metric": posterior_metric,
+                "metric_delta": posterior_metric-recent_metric,
+            })
+        rows=sorted(rows,key=lambda item:item["posterior_metric"])
+        meta={
+            "time_gap": time_gap,
+            "benefit_history_gap": benefit_history_gap,
+            "benefit_prior_min_games": benefit_prior_min_games,
+            "benefit_prior_max_games": benefit_prior_max_games,
+            "recent_start": time_to_str(start_date,"%Y-%m-%d"),
+            "recent_end": time_to_str(end_date,"%Y-%m-%d"),
+            "prior_start": time_to_str(prior_start_date,"%Y-%m-%d"),
+            "prior_end": time_to_str(prior_end_date,"%Y-%m-%d"),
+            "formula": "posterior_avg_grade^2 / exp(posterior_win_rate)",
+        }
+        return rows,meta
+
+    @staticmethod
+    def get_benefit_debug_payload(userid=None,time_gap=analyze_time_gap):
+        from .ztime import time_r
+        from .ztime import time_to_str
+
+        rows,meta=Analyses.build_benefit_shrinkage_rows(userid=userid,time_gap=time_gap)
+        meta["generated_at"]=time_to_str(time_r())
+        return {"meta":meta,"rows":rows}
+
+    @staticmethod
+    def get_benefit_data(userid=None,time_gap=analyze_time_gap): # 评分^2/exp(胜率)： exp防止胜率0附近斜率过大 # 值越大越受害 值越小越受益
+        rows,meta=Analyses.build_benefit_shrinkage_rows(userid=userid,time_gap=time_gap)
         # print(analyzed_infos)
 
         user_low_grade_winrate_ratio="" # 评分胜率比最低
@@ -2185,15 +2279,11 @@ class Analyses:
         low_grade_winrate_ratio=10000
         high_grade_winrate_ratio=0
         player_benefit={}
-        for k,v in recent_summary.items(): # 为了评判机制受益程度，或许评分与上星比值更为合理（评分：实力，上星：受益），胜率与上星无必然关联
-            win_rate=v["win_rate"]
-            aver_grade=v["avg_grade"]
-            if (k in prior_summary):
-                prior_info=prior_summary[k]
-                prior_weight=min(prior_info["count"],max(benefit_prior_min_games,v["count"]),benefit_prior_max_games)
-                win_rate=(v["wins"]+prior_info["win_rate"]*prior_weight)/(v["count"]+prior_weight)
-                aver_grade=(v["grade_sum"]+prior_info["avg_grade"]*prior_weight)/(v["count"]+prior_weight)
-            grade_winrate_ratio=pow(aver_grade,2)/(math.exp(win_rate))
+        for item in rows: # 为了评判机制受益程度，或许评分与上星比值更为合理（评分：实力，上星：受益），胜率与上星无必然关联
+            k=item["player"]
+            win_rate=item["posterior_win_rate"]
+            aver_grade=item["posterior_avg_grade"]
+            grade_winrate_ratio=item["posterior_metric"]
             # grade_winrate_ratio=math.exp((math.log(aver_grade)-math.log(2))/(math.log(14)-math.log(2)))/(math.exp(win_rate))
             # grade_winrate_ratio=math.exp((aver_grade-2)/(14-2))/(math.exp(win_rate))
             player_benefit[k]=[grade_winrate_ratio,win_rate,aver_grade]
@@ -3755,3 +3845,4 @@ def history_query_handler(rcv_msg):
         }
 
     return [query_target, matches, query_desc, stats]
+

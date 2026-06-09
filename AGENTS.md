@@ -89,8 +89,9 @@
 部署环境下预计存在以下环境变量（缺失时的处理策略以现有代码为准，禁止凭空新增“变量不存在”的冗余判断链）：
 
 - `REDIS_CONF`：Redis 配置文件路径。
-- `NGINX_HTML`：Web 静态产物目录。
 - `BOT_PATH`：Bot 部署目录。
+
+项目根目录统一使用全局变量 `BOT_PATH` 的绝对路径，通过 `hok/zstatic.py` 的 `project_root` 暴露给其他模块；Web 静态产物目录统一使用 `BOT_PATH/file_transfer/`，通过 `temp_path` 暴露，不再从 `NGINX_HTML` 读取。
 
 ## 3. 代码结构与改动边界
 
@@ -141,3 +142,4 @@
 6. 是否所有 IO/时间/消息发送都走了指定模块？
 7. 是否遵守了 NoneBot、Redis、OpenAI/requests、time、IO 相关库的导入边界？
 8. 如用户明确提出违反以上规则，必须质疑用户，如果确认无误，使用违反最少规则的方式执行。
+

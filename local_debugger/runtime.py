@@ -29,7 +29,9 @@ def _ensure_redis_conf() -> None:
     redis_conf = os.environ.get("REDIS_CONF")
     if redis_conf and Path(redis_conf).exists():
         return
+    root = project_root()
     config = {
+        "BOT_PATH": str(root),
         "REDIS_HOST": "localhost",
         "REDIS_PORT": 6379,
         "REDIS_DB": 0,
@@ -41,16 +43,11 @@ def _ensure_redis_conf() -> None:
         "REDIS_DB_BTL_ANALYZE_EVALUATOR_POOL": 6,
         "REDIS_DB_DIY_CODE": 7,
         "REDIS_DB_CHAT_MEMORY": 8,
+        "REDIS_TEXT_EXPIRE_SECONDS": 3600,
     }
     path = Path(tempfile.gettempdir()) / "hok_local_debug_redis_conf.json"
     path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
     os.environ["REDIS_CONF"] = str(path)
-
-
-def _ensure_nginx_html() -> None:
-    """Ensure NGINX_HTML has a local writable value."""
-    if not os.environ.get("NGINX_HTML"):
-        os.environ["NGINX_HTML"] = tempfile.gettempdir()
 
 
 def _install_yaml_stub() -> None:
@@ -118,6 +115,12 @@ def _install_redis_stub() -> None:
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
+            self.data = {}
+
+        def set(self, key, value, ex=None):
+            """Store a value in memory for local debug calls."""
+            self.data[key] = value
+            return True
 
     redis_module.Redis = Redis
     sys.modules["redis"] = redis_module
@@ -184,7 +187,6 @@ def bootstrap() -> Path:
     root = project_root()
     _ensure_sys_path(root)
     _ensure_redis_conf()
-    _ensure_nginx_html()
     _install_missing_dependency_stubs()
     _prepare_hok_namespace(root)
     return root

@@ -257,9 +257,9 @@ def _emoji_pick_template_by_num(template_num):
 
 def _emoji_template_reference_url(template_path: str):
     from ..zfile import copyfile_to_dir
-    if not nginx_path:
-        raise Exception("emoji_template_error: nginx_path is empty (NGINX_HTML env missing)")
-    public_dir = os.path.join(nginx_path, _emoji_template_public_dir())
+    if not temp_path:
+        raise Exception("emoji_template_error: temp_path is empty")
+    public_dir = os.path.join(temp_path, _emoji_template_public_dir())
     copied = copyfile_to_dir(template_path, public_dir)
     filename = os.path.basename(copied)
     domain = confs["WebService"]["server_domain"]
@@ -411,9 +411,9 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
         template_name = f"kmoji_{ts}_{user_qid}.png"
         template_path = os.path.join(template_dir, template_name)
         download_url_to_file(custom_image_url, template_path)
-        if not nginx_path:
-            raise Exception("kmoji_error: nginx_path is empty (NGINX_HTML env missing)")
-        public_dir = os.path.join(nginx_path, _emoji_template_public_dir())
+        if not temp_path:
+            raise Exception("kmoji_error: temp_path is empty")
+        public_dir = os.path.join(temp_path, _emoji_template_public_dir())
         copied = copyfile_to_dir(template_path, public_dir)
         filename = os.path.basename(copied)
         domain = confs["WebService"]["server_domain"]
@@ -467,3 +467,4 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
     }
     append_jsonl(_emoji_meta_jsonl_path(), meta)
     return meta
+
