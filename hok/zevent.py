@@ -109,7 +109,6 @@ _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
-_kmoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
@@ -136,6 +135,7 @@ _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
 _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
+_emoji_gen = on_keyword({"emoji"},rule=judge_to_me,priority=4, block=True)
 
 _rnk=on_keyword(set(rnk_keywords),rule=Rule(judge_to_me,judge_not_duration_rank),priority=5, block=True)
 _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
@@ -380,10 +380,10 @@ async def f_emoji_gen(event):
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
     await _emoji_gen.finish()
 
-@_kmoji_gen.handle()
-async def f_kmoji_gen(event):
+@_emoji_gen.handle()
+async def f_emoji_gen(event):
     from .tools.gen_emoji_image import generate_user_kmoji_image
-    raw_tail = event.get_plaintext().replace("##kmoji", "").strip()
+    raw_tail = event.get_plaintext().replace("#kmoji", "").strip()
     template_num = None
     prompt_tail = raw_tail
     if raw_tail:
@@ -417,7 +417,7 @@ async def f_kmoji_gen(event):
     except Exception as e:
         add_msg(f"kmoji_gen_error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    await _kmoji_gen.finish()
+    await _emoji_gen.finish()
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):

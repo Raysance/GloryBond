@@ -88,4 +88,5 @@ jobs:
       - name: Restart Nonebot
         run: |
           cd /QQBot/NBot
-          RUNNER_TRACKING_ID=0 nohup nb run > nbot_thisrun.log 2>&1 &
+          chmod +x deploy_runner.sh
+          nohup ./deploy_runner.sh &
