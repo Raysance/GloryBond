@@ -111,7 +111,7 @@ _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
 
-_sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
+_sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
 
 _show_code=on_fullmatch("code",rule=judge_to_me,priority=3, block=True)
