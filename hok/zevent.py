@@ -20,18 +20,34 @@ from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command
 require("nonebot_plugin_apscheduler")
 driver = nonebot.get_driver()
 
-# 全局钩子：记录所有用户的发言（只要是 Bot 处理的消息）
 _all_messages = on_message(priority=0, block=False)
+
+def is_registered_qid(user_qid):
+    return str(user_qid) in {str(item) for item in qid.values()}
+
+def is_battle_visible_qid_enabled(user_qid):
+    disabled_qids = getattr(dmc, "BattleInvisibleDisabledQids", [])
+    return str(user_qid) not in {str(item) for item in disabled_qids}
+
+def is_bot_request_message(event):
+    raw_msg = event.get_plaintext().strip()
+    return raw_msg.startswith("#") or raw_msg.startswith("＃")
+
+async def judge_qid_blocked(event)->bool:
+    if not is_bot_request_message(event):
+        return False
+    return (not is_registered_qid(event.get_user_id())) or (not is_battle_visible_qid_enabled(event.get_user_id()))
 
 @_all_messages.handle()
 async def handle_all_messages(event: MessageEvent):
     from .zmemory import instance as zm
     user_id = event.get_user_id()
+    if (not is_registered_qid(user_id)) or (not is_battle_visible_qid_enabled(user_id)):
+        return
     msg_text = event.get_plaintext().strip()
     if msg_text and not msg_text.startswith("#"):
         for k in sorted(common_expr.keys(), key=len, reverse=True):
             msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
-        # 记录用户的被动发言 (用于后期提炼)
         await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
 async def judge_to_me(event)->bool:
@@ -99,6 +115,7 @@ async def check_sleep(event)->bool:
 
 # EVENT
 _group_poke = on_notice()
+_qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
 _repair=on_keyword({"##r"},rule=judge_super,priority=1, block=True)
 _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
@@ -142,6 +159,13 @@ _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
+@_qid_blocked.handle()
+async def f_qid_blocked(event):
+    user_qid = event.get_user_id()
+    log_message(f"QID_ACCESS_DENIED: {user_qid}")
+    add_msg("access denied", event=event)
+    await _qid_blocked.finish()
+
 @_exporthistory.handle()
 async def f_exporthistory(event):
     from .zfunc import dump_specific_user

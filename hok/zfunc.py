@@ -16,6 +16,29 @@ def _to_pinyin(s):
     return "".join(lazy_pinyin(str(s))).lower()
 
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None): # 单人的战绩parser
+    def sync_battle_visibility_qid(visible):
+        from .zfile import update_dynamic_variable
+
+        user_qid = qid.get(realname)
+        if not user_qid:
+            log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
+            return
+        disabled_qids = [str(item) for item in getattr(dmc, "BattleInvisibleDisabledQids", [])]
+        user_qid = str(user_qid)
+        changed = False
+        if visible:
+            if user_qid in disabled_qids:
+                disabled_qids.remove(user_qid)
+                changed = True
+                log_message(f"WZRY_VISIBILITY_ENABLE_QID: {realname} {user_qid}")
+        elif user_qid not in disabled_qids:
+            disabled_qids.append(user_qid)
+            changed = True
+            log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
+        dmc.BattleInvisibleDisabledQids = disabled_qids
+        if changed:
+            update_dynamic_variable("BattleInvisibleDisabledQids", disabled_qids)
+
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
             if (detail["MapType"]==1):
@@ -94,6 +117,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
     # winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
     BtlVisible=not res["btlist"]["invisible"]
+    sync_battle_visibility_qid(BtlVisible)
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()

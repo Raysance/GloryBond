@@ -37,6 +37,17 @@ def writerl(filepath,data):
         return None
     except Exception as e:
         return None
+def update_dynamic_variable(key, value):
+    filepath = "variables_dynamic.json"
+    data = readerl(filepath)
+    if not isinstance(data, dict):
+        raise Exception(f"update_dynamic_variable_error: invalid variables_dynamic.json key={key}")
+    data[key] = value
+    tmp_filepath = filepath + ".tmp"
+    with open(tmp_filepath, 'w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
+    os.replace(tmp_filepath, filepath)
+    return None
 def chats_dumper(qid, question, answer): # 输出各自的chat
     from .ztime import time_r
     current_time = time_r().strftime("%Y-%m-%d %H:%M:%S")
