@@ -2022,124 +2022,208 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
             from .ztime import time_r
 
             power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-            save_battle_power_history(power_data)
+            BattlePowerHistory.save(power_data)
         return snd_msg,save_path,stats,power_data
 
     return snd_msg,save_path,stats
 
-def build_power_message_from_data(power_data):
-    my_side = power_data.get("mySide", {})
-    op_side = power_data.get("opSide", {})
-    my_side_level = my_side.get("level") or 0
-    op_side_level = op_side.get("level") or 0
-    my_side_tier = my_side.get("tier") or 0
-    op_side_tier = op_side.get("tier") or 0
-    delta_level = my_side_level - op_side_level
-    return (
-        f"实力天平倾斜度：{round(delta_level,2) if op_side_level else "unknown"}\n"
-        f"我方底蕴：{round(my_side_level,2) if my_side_level else "unknown"}\n"
-        f"我方英雄梯度：{round(my_side_tier,2)}\n"
-        f"对方底蕴：{round(op_side_level,2) if op_side_level else "unknown"}\n"
-        f"对方英雄梯度：{round(op_side_tier,2)}\n"
-    )
+class BattlePowerHistory:
+    @staticmethod
+    def path(gameseq):
+        return os.path.join("data","history","power",f"{gameseq}.json")
 
-def build_power_stats_from_data(power_data):
-    my_side = power_data.get("mySide", {})
-    op_side = power_data.get("opSide", {})
-    return {
-        "my_side_level": my_side.get("level") or 0,
-        "op_side_level": op_side.get("level") or 0,
-        "my_side_tier": my_side.get("tier") or 0,
-        "op_side_tier": op_side.get("tier") or 0
-    }
+    @staticmethod
+    def failed_path(gameseq):
+        return os.path.join("data","history","power_failed",f"{gameseq}.json")
 
-def history_power_path(gameseq):
-    return os.path.join("data","history","power",f"{gameseq}.json")
+    @staticmethod
+    def side(power_data, side_key):
+        return power_data.get(side_key, {}) if isinstance(power_data, dict) else {}
 
-def history_power_failed_path(gameseq):
-    return os.path.join("data","history","power_failed",f"{gameseq}.json")
+    @staticmethod
+    def display_value(value):
+        return round(value, 2) if value else "unknown"
 
-def round_power_history_numbers(data):
-    if isinstance(data, float):
-        return round(data, 3)
-    if isinstance(data, list):
-        return [round_power_history_numbers(item) for item in data]
-    if isinstance(data, dict):
-        return {key: round_power_history_numbers(value) for key, value in data.items()}
-    return data
+    @staticmethod
+    def message(power_data):
+        my_side = BattlePowerHistory.side(power_data, "mySide")
+        op_side = BattlePowerHistory.side(power_data, "opSide")
+        my_side_level = my_side.get("level") or 0
+        op_side_level = op_side.get("level") or 0
+        my_side_tier = my_side.get("tier") or 0
+        op_side_tier = op_side.get("tier") or 0
+        delta_level = my_side_level - op_side_level
+        return (
+            f"实力天平倾斜度：{BattlePowerHistory.display_value(delta_level) if op_side_level else "unknown"}\n"
+            f"我方底蕴：{BattlePowerHistory.display_value(my_side_level)}\n"
+            f"我方英雄梯度：{round(my_side_tier,2)}\n"
+            f"对方底蕴：{BattlePowerHistory.display_value(op_side_level)}\n"
+            f"对方英雄梯度：{round(op_side_tier,2)}\n"
+        )
 
-def save_battle_power_history(power_data):
-    from .zfile import ensure_dir
-    from .zfile import writerl
-    from .zfile import file_exist
+    @staticmethod
+    def stats(power_data):
+        my_side = BattlePowerHistory.side(power_data, "mySide")
+        op_side = BattlePowerHistory.side(power_data, "opSide")
+        return {
+            "my_side_level": my_side.get("level") or 0,
+            "op_side_level": op_side.get("level") or 0,
+            "my_side_tier": my_side.get("tier") or 0,
+            "op_side_tier": op_side.get("tier") or 0
+        }
 
-    gameseq = power_data.get("GameSeq")
-    if not gameseq:
-        raise Exception("save_battle_power_history_error: missing GameSeq")
-    map_name = power_data.get("mapName", "")
-    if not check_btl_official(map_name):
-        log_message(f"SKIP_SAVE_BATTLE_POWER_NON_OFFICIAL: GameSeq={gameseq} mapName={map_name}")
-        return None
-    ensure_dir(os.path.join("data","history","power"))
-    power_data = round_power_history_numbers(power_data)
-    writerl(history_power_path(gameseq), power_data)
-    if not file_exist(history_power_path(gameseq)):
-        raise Exception(f"save_battle_power_history_error: write failed GameSeq={gameseq}")
-    return history_power_path(gameseq)
+    @staticmethod
+    def add_player_to_image(gen_inst, player):
+        hero_show_cnt = int(player.get("heroShowCnt") or 0)
+        win_rate = float(player.get("heroWinRate") or 0)
+        win_num = int(round(hero_show_cnt * win_rate))
+        lose_num = max(hero_show_cnt - win_num, 0)
+        gen_inst.add_player(
+            nickname=player.get("nickname", "未知玩家"),
+            is_auth=bool(player.get("isAuth")),
+            is_my_side=player.get("side") == "my",
+            winNum=win_num,
+            loseNum=lose_num,
+            avgScore=float(player.get("heroAvgScore") or 0),
+            winRate=win_rate,
+            starNum=player.get("starNum"),
+            peakScore=player.get("peakScore"),
+            PowerNum=player.get("powerNum"),
+            TotalCnt=player.get("totalCnt"),
+            MVPCnt=player.get("mvpCnt"),
+            rankName=player.get("rankName"),
+            rankStar=player.get("rankStar"),
+            single_level=player.get("singleLevel"),
+            HeroPower=player.get("heroPower"),
+        )
 
-def mark_battle_power_failed(gameseq, reason, candidate=None):
-    from .zfile import ensure_dir
-    from .zfile import writerl
-    from .ztime import time_r
+    @staticmethod
+    def image(power_data):
+        from .tools.gen_coplayer_analyses import CoPlayerProcess
 
-    if not gameseq:
-        raise Exception("mark_battle_power_failed_error: missing GameSeq")
-    ensure_dir(os.path.join("data","history","power_failed"))
-    failed_data = {
-        "GameSeq": str(gameseq),
-        "failedAt": time_r().strftime("%Y-%m-%d %H:%M:%S"),
-        "reason": str(reason),
-        "candidate": candidate or {},
-    }
-    writerl(history_power_failed_path(gameseq), failed_data)
-    return history_power_failed_path(gameseq)
+        gen_inst = CoPlayerProcess()
+        for player in power_data.get("players", []):
+            BattlePowerHistory.add_player_to_image(gen_inst, player)
+        save_path=os.path.join(temp_path,"temp_files","coplayer_analyses.png")
+        gen_inst.gen(save_path,title="对局底蕴")
+        return save_path
 
-def load_battle_power_history(gameseq):
-    from .zfile import readerl
-    from .zfile import file_exist
+    @staticmethod
+    def rounded(data):
+        if isinstance(data, float):
+            return round(data, 3)
+        if isinstance(data, list):
+            return [BattlePowerHistory.rounded(item) for item in data]
+        if isinstance(data, dict):
+            return {key: BattlePowerHistory.rounded(value) for key, value in data.items()}
+        return data
 
-    if gameseq and file_exist(history_power_path(gameseq)):
-        saved_power_data = readerl(history_power_path(gameseq))
+    @staticmethod
+    def load(gameseq):
+        from .zfile import readerl
+        from .zfile import file_exist
+
+        if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
+            return None
+        saved_power_data = readerl(BattlePowerHistory.path(gameseq))
         if isinstance(saved_power_data, dict):
             return saved_power_data
         raise Exception(f"load_battle_power_history_error: invalid saved data GameSeq={gameseq}")
-    return None
+
+    @staticmethod
+    def save(power_data):
+        from .zfile import ensure_dir
+        from .zfile import writerl
+        from .zfile import file_exist
+
+        gameseq = power_data.get("GameSeq")
+        if not gameseq:
+            raise Exception("save_battle_power_history_error: missing GameSeq")
+        map_name = power_data.get("mapName", "")
+        if not check_btl_official(map_name):
+            log_message(f"SKIP_SAVE_BATTLE_POWER_NON_OFFICIAL: GameSeq={gameseq} mapName={map_name}")
+            return None
+        ensure_dir(os.path.join("data","history","power"))
+        power_data = BattlePowerHistory.rounded(power_data)
+        writerl(BattlePowerHistory.path(gameseq), power_data)
+        if not file_exist(BattlePowerHistory.path(gameseq)):
+            raise Exception(f"save_battle_power_history_error: write failed GameSeq={gameseq}")
+        return BattlePowerHistory.path(gameseq)
+
+    @staticmethod
+    def failed_exists(gameseq):
+        from .zfile import file_exist
+
+        return bool(gameseq and file_exist(BattlePowerHistory.failed_path(gameseq)))
+
+    @staticmethod
+    def mark_failed(gameseq, reason, candidate=None):
+        from .zfile import ensure_dir
+        from .zfile import writerl
+        from .ztime import time_r
+
+        if not gameseq:
+            raise Exception("mark_battle_power_failed_error: missing GameSeq")
+        ensure_dir(os.path.join("data","history","power_failed"))
+        failed_data = {
+            "GameSeq": str(gameseq),
+            "failedAt": time_r().strftime("%Y-%m-%d %H:%M:%S"),
+            "reason": str(reason),
+            "candidate": candidate or {},
+        }
+        writerl(BattlePowerHistory.failed_path(gameseq), failed_data)
+        return BattlePowerHistory.failed_path(gameseq)
+
+    @staticmethod
+    def normalize_params(game_params):
+        params = dict(game_params)
+        if "gameseq" not in params and "GameSeq" in params:
+            params["gameseq"] = params["GameSeq"]
+        return params
+
+    @staticmethod
+    def saved_response(power_data, gen_image):
+        stats = BattlePowerHistory.stats(power_data)
+        pic_path = BattlePowerHistory.image(power_data) if gen_image else ""
+        return BattlePowerHistory.message(power_data),pic_path,stats,power_data
+
+    @staticmethod
+    def parse_game_time(detail, gameseq):
+        import datetime
+
+        game_time = detail.get("GameTime_Timestamp")
+        if not game_time:
+            return None
+        try:
+            return datetime.datetime.fromtimestamp(int(game_time))
+        except Exception as e:
+            log_message(f"HISTORY_POWER_TIME_PARSE_ERROR: {gameseq} {str(e)}")
+            return None
+
+    @staticmethod
+    def should_skip_candidate(gameseq, excluded_gameseqs):
+        from .zfile import file_exist
+
+        if not gameseq or gameseq in excluded_gameseqs:
+            return True
+        if file_exist(BattlePowerHistory.path(gameseq)):
+            return True
+        if BattlePowerHistory.failed_exists(gameseq):
+            return True
+        return False
+
+def mark_battle_power_failed(gameseq, reason, candidate=None):
+    return BattlePowerHistory.mark_failed(gameseq, reason, candidate)
 
 def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True):
-    from .zfile import file_exist
     from .ztime import time_r
 
     spoiler_info = spoiler_info or {}
     if (not spoiler_info):
-        saved_power_data = load_battle_power_history(gameseq)
+        saved_power_data = BattlePowerHistory.load(gameseq)
         if saved_power_data:
-            stats = build_power_stats_from_data(saved_power_data)
-            if gen_image:
-                snd_msg,pic_path,_,power_data = coplayer_process(
-                    gameSvrId,
-                    relaySvrId,
-                    gameseq,
-                    pvptype,
-                    roleid,
-                    spoiler_info={},
-                    from_web=from_web,
-                    return_power_data=True,
-                    official_priority=official_priority,
-                    save_power_history=False,
-                )
-                return snd_msg,pic_path,stats,saved_power_data
-            return build_power_message_from_data(saved_power_data), "", stats, saved_power_data
-        if gameseq and file_exist(history_power_failed_path(gameseq)):
+            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
+        if BattlePowerHistory.failed_exists(gameseq):
             raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
     ret = coplayer_process(
         gameSvrId,
@@ -2156,21 +2240,18 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
     snd_msg,pic_path,stats,power_data = ret
     if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
         power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-        save_battle_power_history(power_data)
+        BattlePowerHistory.save(power_data)
     return snd_msg,pic_path,stats,power_data
 
 def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
-    from .zfile import file_exist
     from .ztime import time_r
 
-    params = dict(game_params)
-    if "gameseq" not in params and "GameSeq" in params:
-        params["gameseq"] = params["GameSeq"]
+    params = BattlePowerHistory.normalize_params(game_params)
     gameseq = params.get("gameseq")
-    saved_power_data = load_battle_power_history(gameseq)
+    saved_power_data = BattlePowerHistory.load(gameseq)
     if saved_power_data:
         return saved_power_data
-    if gameseq and file_exist(history_power_failed_path(gameseq)):
+    if BattlePowerHistory.failed_exists(gameseq):
         raise Exception(f"evaluate_battle_power_history_skipped_failed: GameSeq={gameseq}")
     _, _, _, power_data = battle_power_process(
         params.get("gameSvrId"),
@@ -2184,11 +2265,10 @@ def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
     )
     if not power_data.get("evaluatedAt"):
         power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-        save_battle_power_history(power_data)
+        BattlePowerHistory.save(power_data)
     return power_data
 
 def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None):
-    from .zfile import file_exist
     from .ztime import time_r
     import datetime
 
@@ -2203,25 +2283,17 @@ def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None):
         if not roleid:
             continue
         for detail in details:
-            gameseq = detail.get("GameSeq")
+            gameseq = str(detail.get("GameSeq") or "")
             if not gameseq or gameseq in seen:
                 continue
             seen.add(gameseq)
-            if str(gameseq) in excluded_gameseqs:
+            if BattlePowerHistory.should_skip_candidate(gameseq, excluded_gameseqs):
                 continue
             game_time = detail.get("GameTime_Timestamp")
-            if not game_time:
-                continue
-            try:
-                game_time_obj = datetime.datetime.fromtimestamp(int(game_time))
-            except Exception as e:
-                log_message(f"HISTORY_POWER_TIME_PARSE_ERROR: {gameseq} {str(e)}")
+            game_time_obj = BattlePowerHistory.parse_game_time(detail, gameseq)
+            if not game_time_obj:
                 continue
             if game_time_obj < start_date or game_time_obj > end_date:
-                continue
-            if file_exist(history_power_path(gameseq)):
-                continue
-            if file_exist(history_power_failed_path(gameseq)):
                 continue
             params = detail.get("Params") or {}
             if not params:
@@ -2254,10 +2326,10 @@ def recent_power_process(realname, days=7):
     missing = 0
     for detail in valid_details:
         gameseq = detail.get("GameSeq")
-        if not gameseq or not file_exist(history_power_path(gameseq)):
+        if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
             missing += 1
             continue
-        power_data = readerl(history_power_path(gameseq))
+        power_data = readerl(BattlePowerHistory.path(gameseq))
         if not isinstance(power_data, dict):
             missing += 1
             continue
