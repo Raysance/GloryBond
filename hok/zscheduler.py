@@ -354,3 +354,55 @@ async def run_web_analyze_btls_processor():
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
     return
+
+@scheduler.scheduled_job("interval", minutes=5, id="history_power_idle_processor", max_instances=1, coalesce=True)
+async def run_history_power_idle_processor():
+    from .zfunc import find_pending_battle_power_candidate
+    from .zfunc import evaluate_battle_power_history
+    from .zfunc import mark_battle_power_failed
+
+    def has_higher_priority_task():
+        active_until = getattr(dmc, "OfficialForegroundActiveUntil", 0)
+        if active_until and time.time() < active_until:
+            return True
+        try:
+            return bool(dmc.redis_deamon_share_btl.llen("Shared_queue") or dmc.redis_deamon_analyze_btl.llen("Analyze_queue"))
+        except Exception as e:
+            log_message(f"HISTORY_POWER_QUEUE_CHECK_ERROR: {str(e)}")
+            return False
+
+    if getattr(dmc, "HistoryPowerIdleRunning", False):
+        return
+    dmc.HistoryPowerIdleRunning = True
+    try:
+        skipped_gameseqs = set()
+        while True:
+            if has_higher_priority_task():
+                log_message("HISTORY_POWER_YIELD: higher priority task found")
+                return
+            candidate = await asyncio.to_thread(find_pending_battle_power_candidate, 24, skipped_gameseqs)
+            if not candidate:
+                log_message("HISTORY_POWER_IDLE_EMPTY")
+                return
+            try:
+                power_data = await asyncio.to_thread(
+                    evaluate_battle_power_history,
+                    candidate["Params"],
+                    candidate["roleid"],
+                    "low",
+                )
+                log_message(f"HISTORY_POWER_DONE: {power_data.get('GameSeq')}")
+            except Exception as e:
+                gameseq = candidate.get("GameSeq")
+                error_msg = f"HISTORY_POWER_ERROR: {gameseq} {str(e)}"
+                log_message(error_msg)
+                try:
+                    await asyncio.to_thread(mark_battle_power_failed, gameseq, str(e), candidate)
+                except Exception as mark_error:
+                    error_msg += f"\nmark_failed_error: {str(mark_error)}"
+                    log_message(f"HISTORY_POWER_MARK_FAILED_ERROR: {gameseq} {str(mark_error)}")
+                add_msg(error_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                skipped_gameseqs.add(str(gameseq))
+            await asyncio.sleep(0)
+    finally:
+        dmc.HistoryPowerIdleRunning = False

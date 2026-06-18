@@ -255,6 +255,42 @@ def _emoji_pick_template_by_num(template_num):
                 pass
     raise Exception(f"emoji_template_error: template num not found num={template_num}")
 
+def _emoji_pick_template_by_name(template_name):
+    from ..zfile import get_file_list
+
+    key = str(template_name or "").strip().casefold()
+    if not key:
+        raise Exception("emoji_template_error: empty template name")
+    candidates = []
+    template_dirs = [_emoji_template_local_dir()] + _emoji_template_extra_dirs()
+    for template_dir in template_dirs:
+        for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+            candidates.extend(get_file_list(template_dir, ext))
+    if not candidates:
+        raise Exception("emoji_template_error: no templates found in template dirs")
+    exact_matches = []
+    fuzzy_matches = []
+    for p in candidates:
+        base = os.path.basename(p)
+        stem = os.path.splitext(base)[0]
+        normalized_base = base.casefold()
+        normalized_stem = stem.casefold()
+        if key in {normalized_base, normalized_stem}:
+            exact_matches.append(p)
+        elif key in normalized_stem:
+            fuzzy_matches.append(p)
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    if len(exact_matches) > 1:
+        names = [os.path.basename(p) for p in exact_matches]
+        raise Exception(f"emoji_template_error: ambiguous template name name={template_name} matches={names}")
+    if len(fuzzy_matches) == 1:
+        return fuzzy_matches[0]
+    if len(fuzzy_matches) > 1:
+        names = [os.path.basename(p) for p in fuzzy_matches[:10]]
+        raise Exception(f"emoji_template_error: ambiguous template name name={template_name} matches={names}")
+    raise Exception(f"emoji_template_error: template name not found name={template_name}")
+
 def _emoji_template_reference_url(template_path: str):
     from ..zfile import copyfile_to_dir
     if not temp_path:
@@ -375,14 +411,14 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
     append_jsonl(_emoji_meta_jsonl_path(), meta)
     return meta
 
-def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, template_num: int = None, prompt_tail: str = "", size=None):
+def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, template_num: int = None, template_name: str = None, prompt_tail: str = "", size=None):
     from ..zapi import apimart_images_generate
     from ..zfile import download_url_to_file, append_jsonl, ensure_dir, copyfile_to_dir
     from ..zmemory import instance as zm
     from ..ztime import time_r
 
     use_default_template = False
-    if not custom_image_url and template_num is None:
+    if not custom_image_url and template_num is None and not template_name:
         use_default_template = True
 
     style_template = EmojiKmojiFixedStyleTemplate
@@ -404,6 +440,9 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
         reference_url, _ = _emoji_template_reference_url(template_path)
     elif template_num is not None:
         template_path = _emoji_pick_template_by_num(template_num)
+        reference_url, _ = _emoji_template_reference_url(template_path)
+    elif template_name:
+        template_path = _emoji_pick_template_by_name(template_name)
         reference_url, _ = _emoji_template_reference_url(template_path)
     else:
         template_dir = _emoji_template_local_dir()
@@ -461,6 +500,7 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
         "prompt_tail": (prompt_tail or "").strip(),
         "custom_image_url": custom_image_url,
         "template_num": template_num,
+        "template_name": template_name,
         "use_default_template": use_default_template,
         "request": request_payload,
         "image_url": image_url,

@@ -149,6 +149,7 @@ _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
+_recentpower=on_keyword({"底蕴"},rule=judge_to_me,priority=4, block=True)
 _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
@@ -394,23 +395,46 @@ async def f_show_code(bot,event):
 
 @_emoji_gen.handle()
 async def f_emoji_gen(event):
-    from .tools.gen_emoji_image import generate_user_emoji_image
-    try:
-        meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=event.get_user_id())
-        add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
-        add_msg(MessageSegment.image(meta["image_path"]), event=event)
-    except Exception as e:
-        add_msg(f"emoji_gen_error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    await _emoji_gen.finish()
-
-@_emoji_gen.handle()
-async def f_emoji_gen(event):
     from .tools.gen_emoji_image import generate_user_kmoji_image
-    raw_tail = event.get_plaintext().replace("#kmoji", "").strip()
+
+    def strip_emoji_command(raw_text):
+        text = raw_text.strip()
+        for prefix in ["#emoji", "＃emoji", "##emoji", "＃＃emoji"]:
+            if text.lower().startswith(prefix.lower()):
+                return text[len(prefix):].strip()
+        return text.replace("emoji", "", 1).strip()
+
+    def split_named_arg(text, names):
+        for name in names:
+            for sep in ["=", "：", ":"]:
+                token = name + sep
+                idx = text.find(token)
+                if idx < 0:
+                    continue
+                value_start = idx + len(token)
+                next_positions = []
+                for other in ["template=", "模板=", "模板名=", "prompt=", "提示=", "提示词=", "template:", "模板:", "模板名:", "prompt:", "提示:", "提示词:", "template：", "模板：", "模板名：", "prompt：", "提示：", "提示词："]:
+                    other_idx = text.find(other, value_start)
+                    if other_idx >= 0:
+                        next_positions.append(other_idx)
+                value_end = min(next_positions) if next_positions else len(text)
+                value = text[value_start:value_end].strip()
+                new_text = (text[:idx] + text[value_end:]).strip()
+                return value, new_text
+        return None, text
+
+    raw_tail = strip_emoji_command(event.get_plaintext())
     template_num = None
-    prompt_tail = raw_tail
-    if raw_tail:
+    template_name = None
+    template_value, raw_tail = split_named_arg(raw_tail, ["template", "模板", "模板名"])
+    prompt_value, raw_tail = split_named_arg(raw_tail, ["prompt", "提示", "提示词"])
+    prompt_tail = prompt_value if prompt_value is not None else raw_tail
+    if template_value:
+        if template_value.isdigit():
+            template_num = int(template_value)
+        else:
+            template_name = template_value
+    elif raw_tail:
         first = raw_tail.split()[0].strip()
         if first.isdigit():
             template_num = int(first)
@@ -430,6 +454,7 @@ async def f_emoji_gen(event):
             user_qid=event.get_user_id(),
             custom_image_url=image_url,
             template_num=template_num,
+            template_name=template_name,
             prompt_tail=prompt_tail,
         )
         add_msg(
@@ -439,7 +464,7 @@ async def f_emoji_gen(event):
         )
         add_msg(MessageSegment.image(meta["image_path"]), event=event)
     except Exception as e:
-        add_msg(f"kmoji_gen_error: {str(e)}", event=event)
+        add_msg(f"emoji_gen_error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
     await _emoji_gen.finish()
 
@@ -913,6 +938,20 @@ async def f_spoiler(bot, event):
         add_msg(snd_msg, event=event)
     except Exception as e:
         add_msg(f"底蕴计算失败: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+@_recentpower.handle()
+async def f_recentpower(bot,event):
+    from .zfunc import recent_power_process
+
+    matching_name = get_validated_name(event)
+    if not matching_name: return
+
+    try:
+        snd_msg = await asyncio.to_thread(recent_power_process, matching_name, 7)
+        add_msg(snd_msg, event=event)
+    except Exception as e:
+        add_msg(f"底蕴统计失败: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 @_diycode.handle()
