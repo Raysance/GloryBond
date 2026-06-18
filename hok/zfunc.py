@@ -2059,6 +2059,15 @@ def history_power_path(gameseq):
 def history_power_failed_path(gameseq):
     return os.path.join("data","history","power_failed",f"{gameseq}.json")
 
+def round_power_history_numbers(data):
+    if isinstance(data, float):
+        return round(data, 3)
+    if isinstance(data, list):
+        return [round_power_history_numbers(item) for item in data]
+    if isinstance(data, dict):
+        return {key: round_power_history_numbers(value) for key, value in data.items()}
+    return data
+
 def save_battle_power_history(power_data):
     from .zfile import ensure_dir
     from .zfile import writerl
@@ -2072,6 +2081,7 @@ def save_battle_power_history(power_data):
         log_message(f"SKIP_SAVE_BATTLE_POWER_NON_OFFICIAL: GameSeq={gameseq} mapName={map_name}")
         return None
     ensure_dir(os.path.join("data","history","power"))
+    power_data = round_power_history_numbers(power_data)
     writerl(history_power_path(gameseq), power_data)
     if not file_exist(history_power_path(gameseq)):
         raise Exception(f"save_battle_power_history_error: write failed GameSeq={gameseq}")
@@ -2106,6 +2116,7 @@ def load_battle_power_history(gameseq):
     return None
 
 def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True):
+    from .zfile import file_exist
     from .ztime import time_r
 
     spoiler_info = spoiler_info or {}
@@ -2113,6 +2124,20 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
         saved_power_data = load_battle_power_history(gameseq)
         if saved_power_data:
             stats = build_power_stats_from_data(saved_power_data)
+            if gen_image:
+                snd_msg,pic_path,_,power_data = coplayer_process(
+                    gameSvrId,
+                    relaySvrId,
+                    gameseq,
+                    pvptype,
+                    roleid,
+                    spoiler_info={},
+                    from_web=from_web,
+                    return_power_data=True,
+                    official_priority=official_priority,
+                    save_power_history=False,
+                )
+                return snd_msg,pic_path,stats,saved_power_data
             return build_power_message_from_data(saved_power_data), "", stats, saved_power_data
         if gameseq and file_exist(history_power_failed_path(gameseq)):
             raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
@@ -2135,6 +2160,7 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
     return snd_msg,pic_path,stats,power_data
 
 def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
+    from .zfile import file_exist
     from .ztime import time_r
 
     params = dict(game_params)
@@ -2161,13 +2187,13 @@ def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
         save_battle_power_history(power_data)
     return power_data
 
-def find_pending_battle_power_candidate(hours=24, excluded_gameseqs=None):
+def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None):
     from .zfile import file_exist
     from .ztime import time_r
     import datetime
 
     end_date = time_r()
-    start_date = end_date - datetime.timedelta(hours=hours)
+    start_date = end_date - datetime.timedelta(days=days)
     history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
     candidates = []
     seen = set()

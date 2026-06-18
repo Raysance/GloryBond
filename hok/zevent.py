@@ -396,6 +396,7 @@ async def f_show_code(bot,event):
 @_emoji_gen.handle()
 async def f_emoji_gen(event):
     from .tools.gen_emoji_image import generate_user_kmoji_image
+    import re
 
     def strip_emoji_command(raw_text):
         text = raw_text.strip()
@@ -424,21 +425,21 @@ async def f_emoji_gen(event):
         return None, text
 
     raw_tail = strip_emoji_command(event.get_plaintext())
-    template_num = None
+    template_prefix = None
     template_name = None
     template_value, raw_tail = split_named_arg(raw_tail, ["template", "模板", "模板名"])
     prompt_value, raw_tail = split_named_arg(raw_tail, ["prompt", "提示", "提示词"])
     prompt_tail = prompt_value if prompt_value is not None else raw_tail
     if template_value:
-        if template_value.isdigit():
-            template_num = int(template_value)
+        if re.fullmatch(r"[A-Za-z0-9_]+", template_value):
+            template_prefix = template_value
         else:
             template_name = template_value
     elif raw_tail:
-        first = raw_tail.split()[0].strip()
-        if first.isdigit():
-            template_num = int(first)
-            prompt_tail = raw_tail[len(first):].strip()
+        parts = raw_tail.split(maxsplit=1)
+        if len(parts) == 2 and re.fullmatch(r"[A-Za-z0-9_]+", parts[0]):
+            template_prefix = parts[0]
+            prompt_tail = parts[1].strip()
     image_url = None
     try:
         for seg in event.message:
@@ -453,7 +454,7 @@ async def f_emoji_gen(event):
             generate_user_kmoji_image,
             user_qid=event.get_user_id(),
             custom_image_url=image_url,
-            template_num=template_num,
+            template_prefix=template_prefix,
             template_name=template_name,
             prompt_tail=prompt_tail,
         )

@@ -357,7 +357,14 @@ async def run_web_analyze_btls_processor():
 
     return
 
-@scheduler.scheduled_job("interval", minutes=5, id="history_power_idle_processor", max_instances=1, coalesce=True)
+@scheduler.scheduled_job(
+    "interval",
+    minutes=5,
+    id="history_power_idle_processor",
+    max_instances=1,
+    coalesce=True,
+    next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=30),
+)
 async def run_history_power_idle_processor():
     from .zfunc import find_pending_battle_power_candidate
     from .zfunc import evaluate_battle_power_history
@@ -377,12 +384,13 @@ async def run_history_power_idle_processor():
         return
     dmc.HistoryPowerIdleRunning = True
     try:
+        log_message("HISTORY_POWER_BEGIN")
         skipped_gameseqs = set()
         while True:
             if has_higher_priority_task():
                 log_message("HISTORY_POWER_YIELD: higher priority task found")
                 return
-            candidate = await asyncio.to_thread(find_pending_battle_power_candidate, 24, skipped_gameseqs)
+            candidate = await asyncio.to_thread(find_pending_battle_power_candidate, 7, skipped_gameseqs)
             if not candidate:
                 log_message("HISTORY_POWER_IDLE_EMPTY")
                 return
