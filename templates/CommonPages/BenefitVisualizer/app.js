@@ -55,6 +55,38 @@ const renderMeta = () => {
   setText("row-count", `${state.rows.length}`);
 };
 
+const average = (rows, key) => {
+  const values = rows.map(row => Number(row[key])).filter(Number.isFinite);
+  if (!values.length) {
+    return null;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+};
+
+const renderInsights = rows => {
+  if (!rows.length) {
+    setText("best-benefit", "-");
+    setText("best-benefit-detail", "暂无可分析玩家");
+    setText("most-harmed", "-");
+    setText("most-harmed-detail", "暂无可分析玩家");
+    setText("avg-metric", "-");
+    setText("avg-metric-detail", "暂无可分析玩家");
+    return;
+  }
+  const sortedByMetric = [...rows].sort((left, right) => Number(left.posterior_metric) - Number(right.posterior_metric));
+  const benefit = sortedByMetric[0];
+  const harmed = sortedByMetric[sortedByMetric.length - 1];
+  const avgMetric = average(rows, "posterior_metric");
+  const avgWinRate = average(rows, "posterior_win_rate");
+
+  setText("best-benefit", benefit.nickname || benefit.player);
+  setText("best-benefit-detail", `后验指标 ${formatNumber(benefit.posterior_metric)}，后验胜率 ${formatPercent(benefit.posterior_win_rate)}，近期 ${benefit.recent_count} 场`);
+  setText("most-harmed", harmed.nickname || harmed.player);
+  setText("most-harmed-detail", `后验指标 ${formatNumber(harmed.posterior_metric)}，后验胜率 ${formatPercent(harmed.posterior_win_rate)}，近期 ${harmed.recent_count} 场`);
+  setText("avg-metric", formatNumber(avgMetric));
+  setText("avg-metric-detail", `全体后验平均胜率 ${formatPercent(avgWinRate)}，共 ${rows.length} 名玩家`);
+};
+
 const sortRows = rows => {
   const sortKey = state.sort;
   const descKeys = new Set(["recent_count", "prior_weight"]);
@@ -111,8 +143,14 @@ const createSvgElement = (tag, attrs = {}) => {
 const colorForMetric = (row, extent) => {
   const [min, max] = extent;
   const ratio = clamp((Number(row.posterior_metric) - min) / (max - min), 0, 1);
-  const hue = 142 - ratio * 200;
-  return `hsl(${hue}, 78%, 66%)`;
+  if (ratio < 0.5) {
+    const local = ratio / 0.5;
+    const hue = 158 - local * 120;
+    return `hsl(${hue}, 72%, 38%)`;
+  }
+  const local = (ratio - 0.5) / 0.5;
+  const hue = 38 - local * 36;
+  return `hsl(${hue}, 72%, 46%)`;
 };
 
 const drawAxis = (svg, xScale, yScale, xExtent, yExtent) => {
@@ -297,11 +335,32 @@ const renderCards = rows => {
   }).join("");
 };
 
+const renderTable = rows => {
+  const tbody = document.getElementById("detail-rows");
+  tbody.innerHTML = rows.slice(0, 64).map(row => {
+    const metricDelta = row.posterior_metric - row.recent_metric;
+    const metricClass = metricDelta >= 0 ? "delta-bad" : "delta-good";
+    return `
+      <tr>
+        <td>${escapeHtml(row.nickname || row.player)}<div class="muted">${escapeHtml(row.player)}</div></td>
+        <td>${row.recent_count ?? "-"}</td>
+        <td>${formatPercent(row.recent_win_rate)}</td>
+        <td>${formatPercent(row.posterior_win_rate)}</td>
+        <td>${formatNumber(row.posterior_avg_grade)}</td>
+        <td>${formatNumber(row.posterior_metric)}</td>
+        <td class="${metricClass}">${formatDelta(metricDelta)}</td>
+      </tr>
+    `;
+  }).join("");
+};
+
 const renderRows = () => {
   const rows = getVisibleRows();
   document.getElementById("empty").hidden = rows.length > 0;
+  renderInsights(rows);
   renderChart(rows);
   renderCards(rows);
+  renderTable(rows);
 };
 
 const bindControls = () => {

@@ -23,16 +23,6 @@
 - `key` 表示 `temp_files` 下对应 JSON 文件名；如未带 `.json`，可在后端补齐 `.json`。
 - 对 `key` 做路径穿越防护，只允许纯文件名，不允许目录分隔符、空文件名、`.` 或 `..`。
 
-## BenefitVisualizer 接入规范
-
-- `BenefitVisualizer` 是单页面模板，应通过 `/benefit?key=<json-key>` 接入主 app。
-- `/benefit` 路由只负责渲染 `templates/CommonPages/BenefitVisualizer/index.html` 并传入 `filename`。
-- 禁止添加 `/wzry_benefit_debug/{key}` 这类旧接口或调试接口。
-- 禁止添加 `/app.js`、`/styles.css` 等全局资源路由。
-- 禁止在 `app.py` 中为该单页面单独挂载静态目录，例如 `app.mount("/benefitvisualizer", ...)`。
-- 页面资源应保持在 `templates/CommonPages/BenefitVisualizer/` 内，并由 `index.html` 使用 Jinja `{% include %}` 内联 `styles.css` 和 `app.js`。
-- 前端 `app.js` 只能读取模板注入的 `window.BENEFIT_DATA_URL`，不要再读取 `data=`、`sample.json` 或其他 fallback。
-
 ## 路由与模板风格
 
 - 新增普通页面时优先遵循现有模式：`@app.get(...)` -> `templates.TemplateResponse(...)` -> 向模板传入 `request` 和必要数据路径。
@@ -46,6 +36,8 @@
 - 保持变更最小化，优先修正根因，不做无关重构。
 - 项目现有代码大量使用单文件 HTML/CSS/JS；修改模板时保持当前风格，不引入构建工具。
 - 不要因为浏览器资源 404 就在 `app.py` 中补全局资源路由；应修正模板资源引用或使用 Jinja include。
+- 发生用户可见页面、功能入口或公开使用方式变更时，必须同步更新上级 `README.md`；路由、模板、配置、部署方式、目录职责等实现细节只记录在 `AGENTS.md` 或开发文档中。
+- `Web/.gitignore` 只忽略本地缓存、编译产物、临时 HTML、日志等不必要文件；密钥、真实配置、私有数据等敏感忽略规则统一维护在根目录 `.gitignore`。
 - 不要提交 `__pycache__/`、临时 JSON、运行时生成文件或本地环境文件。
 - 如需读取中文模板内容，注意 PowerShell 默认编码可能显示乱码；优先用 Python 按 UTF-8 读取或只做结构性检查。
 
