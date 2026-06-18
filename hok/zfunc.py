@@ -1685,7 +1685,7 @@ def spoiler_process(battle_id,roleid,userid):
     # ret_txt=describe_txt + win_rate_str + coplayer_txt
     ret_txt=describe_txt + coplayer_txt
     return ret_txt,pic_path
-def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal"):
+def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal",save_power_history=False):
     from .zapi import wzry_get_official
     from .zfunc import check_btl_official_with_matching
     from .tools.gen_coplayer_analyses import CoPlayerProcess
@@ -2018,9 +2018,40 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
             },
             "players": my_side_power_data + op_side_power_data,
         }
+        if (save_power_history and not is_spoiler):
+            from .ztime import time_r
+
+            power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
+            save_battle_power_history(power_data)
         return snd_msg,save_path,stats,power_data
 
     return snd_msg,save_path,stats
+
+def build_power_message_from_data(power_data):
+    my_side = power_data.get("mySide", {})
+    op_side = power_data.get("opSide", {})
+    my_side_level = my_side.get("level") or 0
+    op_side_level = op_side.get("level") or 0
+    my_side_tier = my_side.get("tier") or 0
+    op_side_tier = op_side.get("tier") or 0
+    delta_level = my_side_level - op_side_level
+    return (
+        f"实力天平倾斜度：{round(delta_level,2) if op_side_level else "unknown"}\n"
+        f"我方底蕴：{round(my_side_level,2) if my_side_level else "unknown"}\n"
+        f"我方英雄梯度：{round(my_side_tier,2)}\n"
+        f"对方底蕴：{round(op_side_level,2) if op_side_level else "unknown"}\n"
+        f"对方英雄梯度：{round(op_side_tier,2)}\n"
+    )
+
+def build_power_stats_from_data(power_data):
+    my_side = power_data.get("mySide", {})
+    op_side = power_data.get("opSide", {})
+    return {
+        "my_side_level": my_side.get("level") or 0,
+        "op_side_level": op_side.get("level") or 0,
+        "my_side_tier": my_side.get("tier") or 0,
+        "op_side_tier": op_side.get("tier") or 0
+    }
 
 def history_power_path(gameseq):
     return os.path.join("data","history","power",f"{gameseq}.json")
@@ -2036,6 +2067,10 @@ def save_battle_power_history(power_data):
     gameseq = power_data.get("GameSeq")
     if not gameseq:
         raise Exception("save_battle_power_history_error: missing GameSeq")
+    map_name = power_data.get("mapName", "")
+    if not check_btl_official(map_name):
+        log_message(f"SKIP_SAVE_BATTLE_POWER_NON_OFFICIAL: GameSeq={gameseq} mapName={map_name}")
+        return None
     ensure_dir(os.path.join("data","history","power"))
     writerl(history_power_path(gameseq), power_data)
     if not file_exist(history_power_path(gameseq)):
@@ -2059,35 +2094,71 @@ def mark_battle_power_failed(gameseq, reason, candidate=None):
     writerl(history_power_failed_path(gameseq), failed_data)
     return history_power_failed_path(gameseq)
 
-def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
+def load_battle_power_history(gameseq):
     from .zfile import readerl
     from .zfile import file_exist
+
+    if gameseq and file_exist(history_power_path(gameseq)):
+        saved_power_data = readerl(history_power_path(gameseq))
+        if isinstance(saved_power_data, dict):
+            return saved_power_data
+        raise Exception(f"load_battle_power_history_error: invalid saved data GameSeq={gameseq}")
+    return None
+
+def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True):
+    from .ztime import time_r
+
+    spoiler_info = spoiler_info or {}
+    if (not spoiler_info):
+        saved_power_data = load_battle_power_history(gameseq)
+        if saved_power_data:
+            stats = build_power_stats_from_data(saved_power_data)
+            return build_power_message_from_data(saved_power_data), "", stats, saved_power_data
+        if gameseq and file_exist(history_power_failed_path(gameseq)):
+            raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
+    ret = coplayer_process(
+        gameSvrId,
+        relaySvrId,
+        gameseq,
+        pvptype,
+        roleid,
+        spoiler_info=spoiler_info,
+        from_web=from_web,
+        return_power_data=True,
+        official_priority=official_priority,
+        save_power_history=save_power_history,
+    )
+    snd_msg,pic_path,stats,power_data = ret
+    if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
+        power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
+        save_battle_power_history(power_data)
+    return snd_msg,pic_path,stats,power_data
+
+def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
     from .ztime import time_r
 
     params = dict(game_params)
     if "gameseq" not in params and "GameSeq" in params:
         params["gameseq"] = params["GameSeq"]
     gameseq = params.get("gameseq")
-    if gameseq and file_exist(history_power_path(gameseq)):
-        saved_power_data = readerl(history_power_path(gameseq))
-        if isinstance(saved_power_data, dict):
-            return saved_power_data
-        raise Exception(f"evaluate_battle_power_history_error: invalid saved data GameSeq={gameseq}")
+    saved_power_data = load_battle_power_history(gameseq)
+    if saved_power_data:
+        return saved_power_data
     if gameseq and file_exist(history_power_failed_path(gameseq)):
         raise Exception(f"evaluate_battle_power_history_skipped_failed: GameSeq={gameseq}")
-    ret = coplayer_process(
+    _, _, _, power_data = battle_power_process(
         params.get("gameSvrId"),
         params.get("relaySvrId"),
         params.get("gameseq"),
         params.get("pvptype"),
         roleid,
         spoiler_info={},
-        return_power_data=True,
         official_priority=official_priority,
+        save_power_history=True,
     )
-    _, _, _, power_data = ret
-    power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-    save_battle_power_history(power_data)
+    if not power_data.get("evaluatedAt"):
+        power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
+        save_battle_power_history(power_data)
     return power_data
 
 def find_pending_battle_power_candidate(hours=24, excluded_gameseqs=None):

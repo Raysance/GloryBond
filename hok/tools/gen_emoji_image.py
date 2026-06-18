@@ -237,6 +237,8 @@ def _emoji_pick_template_path():
 
 def _emoji_pick_template_by_num(template_num):
     from ..zfile import get_file_list
+    import re
+
     candidates = []
     template_dirs = [_emoji_template_local_dir()] + _emoji_template_extra_dirs()
     for template_dir in template_dirs:
@@ -244,15 +246,16 @@ def _emoji_pick_template_by_num(template_num):
             candidates.extend(get_file_list(template_dir, ext))
     if not candidates:
         raise Exception("emoji_template_error: no templates found in template dirs")
-    for p in candidates:
+    for p in sorted(candidates):
         base = os.path.basename(p)
-        head = base.split("_", 1)[0].split(".", 1)[0]
-        if head.isdigit():
-            try:
-                if int(head) == int(template_num):
-                    return p
-            except Exception:
-                pass
+        match = re.match(r"^(\d+)", base)
+        if not match:
+            continue
+        try:
+            if int(match.group(1)) == int(template_num):
+                return p
+        except Exception:
+            pass
     raise Exception(f"emoji_template_error: template num not found num={template_num}")
 
 def _emoji_pick_template_by_name(template_name):

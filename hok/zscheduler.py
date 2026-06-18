@@ -319,7 +319,7 @@ async def run_web_shared_btls_processor():
 
 @scheduler.scheduled_job("interval", seconds=3, id="web_analyze_processor")
 async def run_web_analyze_btls_processor():
-    from .zfunc import coplayer_process
+    from .zfunc import battle_power_process
     from .zfunc import btldetail_process
     from .ztime import wait
 
@@ -339,8 +339,10 @@ async def run_web_analyze_btls_processor():
 
         snd_msg += "\n\n"
 
-        btl_msg, pic_path,_ = await asyncio.to_thread(coplayer_process, **game_params,spoiler_info={},from_web=True)
-        snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
+        btl_msg, pic_path,_,_ = await asyncio.to_thread(battle_power_process, **game_params,spoiler_info={},from_web=True)
+        snd_msg += MessageSegment.text(btl_msg)
+        if pic_path:
+            snd_msg += MessageSegment.image(pic_path)
         snd_msg += "\n\n───来自网页分享───"
         
         if (Special):
