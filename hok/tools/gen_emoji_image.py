@@ -364,7 +364,7 @@ def _emoji_build_prompt_with_message(*, recent_msg: str, summary_2d: str, style_
 def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_tail: str, style_template: str = ""):
     tail = (prompt_tail or "").strip()
     if tail:
-        return tail + "\n文案内容只需要：" + tail
+        return "\n文案内容只需要：" + tail
 
     return _emoji_build_prompt(last_user_text=last_user_text, summary_2d=summary_2d, style_template=style_template)
 
