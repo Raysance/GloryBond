@@ -1,0 +1,319 @@
+{
+  "skillList1": [
+    {
+      "skillId": 51503,
+      "heroId": 515,
+      "heroTitle": "嫦娥",
+      "title": "月盈",
+      "icon": "0.068f4ebfd312f0c91a6696d20d4cfe4b",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "嫦娥引动游离在身边的能量，可以在移动中普攻。每5~4秒（随英雄等级成长）获得一次射程提升并造成法术伤害的<span style=\"color:#30b13a\">强化普攻</span>，命中后额外对范围敌人造成100+<span style=\"color:#f264ff\">20%<span style=\"color: #F264FF;\">法术攻击</span></span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">25%~50%减速</span>，持续0.5秒，并<span style=\"color:#30b13a\">回复</span>50<span style=\"color:#f264ff\">(+6.5%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#30b13a\">(+0.3%额外<span style=\"color: #30B13A;\">生命值</span>)</span>法力。</br>满蓝时，嫦娥技能回复的法力值会转换为等额的<span style=\"color:#30b13a\">生命回复</span>。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "w1469wpynxi",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51520,
+      "heroId": 515,
+      "heroTitle": "嫦娥",
+      "title": "月辰",
+      "icon": "0.5d6e4e899a75648a620e4ba4961dff2e",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 10,
+      "loss": 0,
+      "desc": "嫦娥朝指定方向推出能量球，能量球到达最大距离后会返回自身。能量球对首个命中的英雄造成200<span style=\"color:#f264ff\">(+35%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">1.5秒定身</span>，并且自身获得一次额外的<span style=\"color:#30b13a\">强化普攻</span>及增加<span style=\"color:#30b13a\">20%移速</span>，持续2秒。</br>能量球每次穿过非英雄单位，会减少0.5~0.25秒定身时间，最多4次。",
+      "skillData1": "基础伤害|200|240|280|320|360|400",
+      "skillData2": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "增加移速|20%|24%|28%|32%|36%|40%",
+      "skillData4": "减少时长|0.5|0.45|0.4|0.35|0.3|0.25",
+      "heroVideo": "i1469jjqfsr",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51540,
+      "heroId": 515,
+      "heroTitle": "嫦娥",
+      "title": "月璇",
+      "icon": "0.83cb8852c3ab84128f18bab52ad71612",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 7.5,
+      "loss": 0,
+      "desc": "嫦娥在身边和指定位置召唤法力旋涡持续5秒，每次对范围内敌人造成75<span style=\"color:#f264ff\">(+15%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，消耗15点法力(不足消耗部分转为等额<span style=\"color:#f264ff\">法术伤害</span>)，并为自身<span style=\"color:#30b13a\">回复</span>10<span style=\"color:#30b13a\">(+0.15%额外<span style=\"color: #30B13A;\">生命值</span>)</span>法力，并且指定位置处的法力旋涡会吸附附近的兵线。</br>法力旋涡为嫦娥提供<span style=\"color:#f7b400\">6%伤害减免</span>。</br>再次使用可以提前关闭法力漩涡。多个法力漩涡对同一单位只产生一次效果",
+      "skillData1": "基础伤害|75|90|105|120|135|150",
+      "skillData2": "抽取法力|15|18|21|24|27|30",
+      "skillData3": "冷却时间|7.5|7.2|6.9|6.6|6.3|6",
+      "skillData4": "法力回复|10|12|14|16|18|20",
+      "heroVideo": "c1469wxihtl",
+      "gameLabelList": [
+        {
+          "text": "吸收",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "减伤",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "伤害减免|6%|7.2%|8.4%|9.6%|10.8%|12%",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": "伤害减免|6%|7.2%|8.4%|9.6%|10.8%|12%"
+    },
+    {
+      "skillId": 51530,
+      "heroId": 515,
+      "heroTitle": "嫦娥",
+      "title": "月芒",
+      "icon": "0.7d0be9306ac6ff02bae056451f6dedf7",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 12.5,
+      "loss": 0,
+      "desc": "嫦娥随机向周围持续倾泻法力弹幕，对命中的敌人造成70<span style=\"color:#f264ff\">(+9%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，倾泻法力期间自身增加<span style=\"color:#30b13a\">30%移速</span>。</br>法力值足够时会产生额外子弹，每颗子弹消耗50点法力，造成等额伤害并<span style=\"color:#30b13a\">回复</span>80<span style=\"color:#30b13a\">(+1.2%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>。</br>3秒内持续按压释放，取消按压后会在0.5秒内持续发射子弹，期间可以使用技能和强化普攻。",
+      "skillData1": "每秒弹幕|4|6|8",
+      "skillData2": "额外弹幕|4|6|8",
+      "skillData3": "冷却时间|12.5|11.25|10",
+      "skillData4": "",
+      "heroVideo": "d1469oa6llt",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 515,
+      "showRate": "0.5501",
+      "winRate": "0.5491",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 515,
+      "showRate": "0.1481",
+      "winRate": "0.5158",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3516,
+          "num": 10,
+          "iId": 1208,
+          "iRuneId": 3516,
+          "szCate": "功能",
+          "szTitle": "5级铭文:怜悯",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "冷却缩减+1%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3516.png"
+        }
+      ]
+    },
+    {
+      "heroId": 515,
+      "showRate": "0.0819",
+      "winRate": "0.5634",
+      "runeList": [
+        {
+          "runeId": 1501,
+          "num": 1,
+          "iId": 1269,
+          "iRuneId": 1501,
+          "szCate": "攻击",
+          "szTitle": "5级铭文:圣人",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+5.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1501.png"
+        },
+        {
+          "runeId": 1514,
+          "num": 9,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}

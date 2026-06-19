@@ -1,0 +1,386 @@
+{
+  "skillList1": [
+    {
+      "skillId": 12300,
+      "heroId": 123,
+      "heroTitle": "吕布",
+      "title": "饕餮血统",
+      "icon": "0.125189d18c1beb963c870c6bce53071d",
+      "type": "被动",
+      "label": "真实",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "吕布挥斩方天画戟的技能命中敌方英雄后会给武器附魔，持续8秒。方天画戟在附魔状态下普攻和技能都会造成等额的<span style=\"color:#7c7c7c\">真实伤害</span>，未附魔状态下的普攻和技能附带30%物理穿透。</br>附魔状态下，吕布每次普攻命中敌人，<span style=\"color:#30b13a\">回复</span>65<span style=\"color:#30b13a\">(+1.25%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "m1437vj75oc",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#d9d9d9"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12310,
+      "heroId": 123,
+      "heroTitle": "吕布",
+      "title": "方天画斩",
+      "icon": "0.2cb8ff054ed79d1c3d2904469e49b794",
+      "type": "主动",
+      "label": "真实",
+      "coolDown": 5,
+      "loss": 0,
+      "desc": "吕布向前挥斩方天画戟，造成550<span style=\"color:#ff6600\">(+220%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>。附魔状态下，【方天画斩】每命中一名敌方英雄，<span style=\"color:#30b13a\">回复</span>130<span style=\"color:#30b13a\">(+2.5%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>。如果挥斩没有命中敌方英雄，则方天画戟会立即失去附魔。",
+      "skillData1": "基础伤害|550|660|770|880|990|1100",
+      "skillData2": "生命回复|130|156|182|208|234|260",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "c1437b2028d",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12320,
+      "heroId": 123,
+      "heroTitle": "吕布",
+      "title": "贪狼之握",
+      "icon": "0.65c79c8fe760a6df38288de82e9457af",
+      "type": "主动",
+      "label": "控制",
+      "coolDown": 8.5,
+      "loss": 0,
+      "desc": "吕布夺取范围内敌人的魂灵，造成100<span style=\"color:#ff6600\">(+35%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>和<span style=\"color:#0dafeb\">15%减速</span>，持续3秒。</br>每夺取一个魂灵，吕布获得<span style=\"color:#30b13a\">350</span><span style=\"color:#30b13a\">(+7%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">护盾</span>，护盾最多叠加3层。吕布每秒将当前25%的护盾转化为生命，每2点护盾转化为1点生命。",
+      "skillData1": "冷却时间|8.5|8.2|7.9|7.6|7.3|7",
+      "skillData2": "基础伤害|100|120|140|160|180|200",
+      "skillData3": "护盾抵免|350|420|490|560|630|700",
+      "skillData4": "减速效果|15%|18%|21%|24%|27%|30%",
+      "heroVideo": "i14375pzt5z",
+      "gameLabelList": [
+        {
+          "text": "护盾",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12330,
+      "heroId": 123,
+      "heroTitle": "吕布",
+      "title": "魔神降世",
+      "icon": "0.73de7b5f328694926f5dbe69920df740",
+      "type": "主动",
+      "label": "真实/控制",
+      "coolDown": 50,
+      "loss": 0,
+      "desc": "吕布从天而降，圈定杀戮场展开杀戮，对范围内的敌人造成<span style=\"color:#0dafeb\">1秒击飞</span>。落地后吕布奋力挥斩方天画戟，造成650<span style=\"color:#ff6600\">(+240%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>。附魔状态下，【魔神降世】每命中一名敌方英雄<span style=\"color:#30b13a\">回复</span>130<span style=\"color:#30b13a\">(+2.5%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>。</br>吕布在杀戮场内获得<span style=\"color:#30b13a\">150点物理和法术防御</span>。触碰场地边缘的敌人会受到150<span style=\"color:#ff6600\">(+75%额外<span style=\"color: #ff6600;\">物理攻击</span>物理伤害)</span>和<span style=\"color:#0dafeb\">30%减速</span>，持续2秒，若为英雄则还会为吕布额外<span style=\"color:#30b13a\">回复</span>130<span style=\"color:#30b13a\">(+2.5%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>。",
+      "skillData1": "基础伤害|650|975|1300",
+      "skillData2": "触碰伤害|150|225|300",
+      "skillData3": "提升双抗|150|225|300",
+      "skillData4": "生命回复|130|195|260",
+      "heroVideo": "y1437dnyuek",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "减速效果|30%|45%|60%",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": "减速效果|30%|45%|60%"
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 123,
+      "showRate": "0.2615",
+      "winRate": "0.5392",
+      "runeList": [
+        {
+          "runeId": 1503,
+          "num": 9,
+          "iId": 1270,
+          "iRuneId": 1503,
+          "szCate": "攻击",
+          "szTitle": "5级铭文:传承",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+3.2",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1503.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 1,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 9,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 1,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 123,
+      "showRate": "0.2372",
+      "winRate": "0.5348",
+      "runeList": [
+        {
+          "runeId": 1503,
+          "num": 8,
+          "iId": 1270,
+          "iRuneId": 1503,
+          "szCate": "攻击",
+          "szTitle": "5级铭文:传承",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+3.2",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1503.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 2,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 9,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 1,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 123,
+      "showRate": "0.2081",
+      "winRate": "0.5341",
+      "runeList": [
+        {
+          "runeId": 1503,
+          "num": 9,
+          "iId": 1270,
+          "iRuneId": 1503,
+          "szCate": "攻击",
+          "szTitle": "5级铭文:传承",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+3.2",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1503.png"
+        },
+        {
+          "runeId": 1520,
+          "num": 1,
+          "iId": 1193,
+          "iRuneId": 1520,
+          "szCate": "攻速|暴击",
+          "szTitle": "5级铭文:红月",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1.6%|暴击率+0.5%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1520.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 9,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 1,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3501,
+          "num": 10,
+          "iId": 1201,
+          "iRuneId": 3501,
+          "szCate": "防御",
+          "szTitle": "5级铭文:霸者",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "物理防御+14",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3501.png"
+        }
+      ]
+    }
+  ]
+}

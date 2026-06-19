@@ -1,0 +1,296 @@
+{
+  "skillList1": [
+    {
+      "skillId": 12400,
+      "heroId": 124,
+      "heroTitle": "周瑜",
+      "title": "引燃",
+      "icon": "0.cb4e9b1f9521ebca054896d93a4768b0",
+      "type": "被动",
+      "label": "法术/控制",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "周瑜普攻和技能会对敌人和敌方建筑叠加引燃印记，持续4秒。叠满4层后目标将被引燃，在4秒内每秒承受125<span style=\"color:#f264ff\">(+17%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，并减少其<span style=\"color:#0dafeb\">15%移速</span>持续1秒。</br>引燃期间目标不会再被叠加印记。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "v0807sdlzkz",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "印记",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12410,
+      "heroId": 124,
+      "heroTitle": "周瑜",
+      "title": "东风浩荡",
+      "icon": "0.676bc9d09ed61e0b239d0117e49f1f8b",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 5,
+      "loss": 30,
+      "desc": "周瑜召唤狂风形成风区，风区内己方英雄<span style=\"color:#30b13a\">加速5%</span>(至多5名，对自身效果翻倍)，敌方英雄<span style=\"color:#0dafeb\">减速10%</span>，持续3秒，狂风吹起瞬间，会将身边敌人击退并造成200+<span style=\"color:#f264ff\">30%<span style=\"color: #F264FF;\">法术攻击</span></span><span style=\"color:#f264ff\">法术伤害</span>。</br>火区若被风区持续覆盖1秒，会蔓延出新的火区，新火区与旧火区可以重复叠加伤害，火区每0.5秒对敌人造成一次100+<span style=\"color:#f264ff\">25%<span style=\"color: #F264FF;\">法术攻击</span></span><span style=\"color:#f264ff\">法术伤害</span>。",
+      "skillData1": "击退伤害|200|240|280|320|360|400",
+      "skillData2": "火焰伤害|100|120|140|160|180|200",
+      "skillData3": "冷却时间|5|4.8|4.6|4.4|4.2|4",
+      "skillData4": "增加移速|5%|6%|7%|8%|9%|10%",
+      "heroVideo": "f0807ev8lfw",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12420,
+      "heroId": 124,
+      "heroTitle": "周瑜",
+      "title": "流火之矢",
+      "icon": "0.87113604fbc349e1b8ca759769748e9e",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 0.6,
+      "loss": 50,
+      "desc": "周瑜下令发射火矢轰击目标区域，火矢轰击会造成250<span style=\"color:#f264ff\">(+40%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>并留下一块火区，持续6.5秒，每0.5秒会对火区内敌人造成100+<span style=\"color:#f264ff\">30%<span style=\"color: #F264FF;\">法术攻击</span></span><span style=\"color:#f264ff\">法术伤害</span>。火区的数量若超过6个将清除较早生成的火区。火矢每9秒可储备1次，最多储备3次(技能受减冷却影响)。</br><span style=\"color:#f7b400\">(被动：周瑜处于火区之中每0.5秒回复35+7%<span style=\"color: #F264FF;\">法术攻击</span>+2%额外<span style=\"color: #30B13A;\">生命值</span>)点生命。)</span>",
+      "skillData1": "箭矢伤害|250|300|350|400|450|500",
+      "skillData2": "火焰伤害|100|120|140|160|180|200",
+      "skillData3": "生命回复|35|42|49|56|63|70",
+      "skillData4": "储存间隔|9|8.6|8.2|7.8|7.4|7",
+      "heroVideo": "u08078xaa4n",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12430,
+      "heroId": 124,
+      "heroTitle": "周瑜",
+      "title": "烽火赤壁",
+      "icon": "0.b7d5a23c72c50d80ba6db8c29c7d798d",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 10,
+      "loss": 60,
+      "desc": "周瑜向指定范围方向召唤一片火焰，造成200<span style=\"color:#f264ff\">(+40%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>，火焰掠过火区会激起一道火风，火风会造成额外200<span style=\"color:#f264ff\">(+40%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>并将敌人<span style=\"color:#0dafeb\">晕眩1秒</span>。",
+      "skillData1": "扇形伤害|200|300|400",
+      "skillData2": "火风伤害|200|300|400",
+      "skillData3": "冷却时间|10|9|8",
+      "skillData4": "",
+      "heroVideo": "f0807tbyxgy",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 124,
+      "showRate": "0.3397",
+      "winRate": "0.5747",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 124,
+      "showRate": "0.3058",
+      "winRate": "0.5703",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 124,
+      "showRate": "0.0925",
+      "winRate": "0.5649",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2503,
+          "num": 10,
+          "iId": 1195,
+          "iRuneId": 2503,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:贪婪",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2503.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}

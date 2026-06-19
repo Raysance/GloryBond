@@ -1,0 +1,608 @@
+{
+  "heroId": 0,
+  "avgPerformance": {
+    "grow": 0,
+    "battle": 0,
+    "survive": 0,
+    "hurhero": 0,
+    "kda": 0
+  },
+  "heroInfo": {
+    "IHeroId": 0,
+    "SzTitle": "",
+    "SzAlias": "",
+    "SzHeroIcon": "",
+    "SzHeroPic": "",
+    "SzHeroType": "",
+    "IViability": 0,
+    "IAttack": 0,
+    "ISkillEffect": 0,
+    "IDifficult": 0,
+    "SzHeroSkill": "",
+    "SzHeroSkill2": "",
+    "IHot": 0,
+    "SzTechnic": "",
+    "SzPrice": "",
+    "SzHeroBg": "",
+    "SzHistoryBg": "",
+    "SzAttackAttr": "",
+    "IRenew": 0,
+    "IBuy": 0,
+    "SzHeroSkill3": "",
+    "SzBranchRoad": "",
+    "SVideo": "",
+    "skilledLevel": "",
+    "skilledTitle": "",
+    "skilled": "",
+    "winNum": "",
+    "failNum": "",
+    "mvpCount": 0,
+    "avgGrade": "",
+    "goldCount": "",
+    "silverCount": "",
+    "bestCount": ""
+  },
+  "zjList": [
+    {
+      "pvptype": "",
+      "dteventtime": "",
+      "gametype": "",
+      "usedtime": "",
+      "wincamp": "",
+      "gamesvrentity": "",
+      "relaysvrentity": "",
+      "gameseq": "",
+      "gametime": "",
+      "playerid": "",
+      "pvplevel": "",
+      "killcnt": "",
+      "deadcnt": "",
+      "assistcnt": "",
+      "ispkai": "",
+      "gameresult": "",
+      "mvpcnt": "",
+      "levelid": "",
+      "losemvp": "",
+      "MapType": "",
+      "SelfDisconnNum": "",
+      "HeroID1": "",
+      "AcntCamp": "",
+      "MultiCampRank": "",
+      "mapName": "",
+      "grade": "",
+      "formatXTime": "",
+      "detailUrl": "",
+      "matchDesc": "",
+      "fightvalue": "",
+      "branchEvaluate": "",
+      "grow": "",
+      "battle": "",
+      "survive": "",
+      "hurthero": "",
+      "kda": "",
+      "battleType": "",
+      "BattleRoyaleEvaluate": "",
+      "hero1TripleKillCnt": "",
+      "hero1UltraKillCnt": "",
+      "hero1RampageCnt": "",
+      "godLikeCnt": "",
+      "supportPro": 0,
+      "evaluateUrlV2": "",
+      "mvpUrlV2": "",
+      "heroIcon": "",
+      "evaluateUrlV3": "",
+      "mvpUrlV3": ""
+    },
+    {
+      "pvptype": "",
+      "dteventtime": "",
+      "gametype": "",
+      "usedtime": "",
+      "wincamp": "",
+      "gamesvrentity": "",
+      "relaysvrentity": "",
+      "gameseq": "",
+      "gametime": "",
+      "playerid": "",
+      "pvplevel": "",
+      "killcnt": "",
+      "deadcnt": "",
+      "assistcnt": "",
+      "ispkai": "",
+      "gameresult": "",
+      "mvpcnt": "",
+      "levelid": "",
+      "losemvp": "",
+      "MapType": "",
+      "SelfDisconnNum": "",
+      "HeroID1": "",
+      "AcntCamp": "",
+      "MultiCampRank": "",
+      "mapName": "",
+      "grade": "",
+      "formatXTime": "",
+      "detailUrl": "",
+      "matchDesc": "",
+      "fightvalue": "",
+      "branchEvaluate": "",
+      "grow": "",
+      "battle": "",
+      "survive": "",
+      "hurthero": "",
+      "kda": "",
+      "battleType": "",
+      "BattleRoyaleEvaluate": "",
+      "hero1TripleKillCnt": "",
+      "hero1UltraKillCnt": "",
+      "hero1RampageCnt": "",
+      "godLikeCnt": "",
+      "supportPro": 0,
+      "evaluateUrlV2": "",
+      "mvpUrlV2": "",
+      "heroIcon": "",
+      "evaluateUrlV3": "",
+      "mvpUrlV3": ""
+    },
+    {
+      "pvptype": "",
+      "dteventtime": "",
+      "gametype": "",
+      "usedtime": "",
+      "wincamp": "",
+      "gamesvrentity": "",
+      "relaysvrentity": "",
+      "gameseq": "",
+      "gametime": "",
+      "playerid": "",
+      "pvplevel": "",
+      "killcnt": "",
+      "deadcnt": "",
+      "assistcnt": "",
+      "ispkai": "",
+      "gameresult": "",
+      "mvpcnt": "",
+      "levelid": "",
+      "losemvp": "",
+      "MapType": "",
+      "SelfDisconnNum": "",
+      "HeroID1": "",
+      "AcntCamp": "",
+      "MultiCampRank": "",
+      "mapName": "",
+      "grade": "",
+      "formatXTime": "",
+      "detailUrl": "",
+      "matchDesc": "",
+      "fightvalue": "",
+      "branchEvaluate": "",
+      "grow": "",
+      "battle": "",
+      "survive": "",
+      "hurthero": "",
+      "kda": "",
+      "battleType": "",
+      "BattleRoyaleEvaluate": "",
+      "hero1TripleKillCnt": "",
+      "hero1UltraKillCnt": "",
+      "hero1RampageCnt": "",
+      "godLikeCnt": "",
+      "supportPro": 0,
+      "evaluateUrlV2": "",
+      "mvpUrlV2": "",
+      "heroIcon": "",
+      "evaluateUrlV3": "",
+      "mvpUrlV3": ""
+    },
+    {
+      "pvptype": "",
+      "dteventtime": "",
+      "gametype": "",
+      "usedtime": "",
+      "wincamp": "",
+      "gamesvrentity": "",
+      "relaysvrentity": "",
+      "gameseq": "",
+      "gametime": "",
+      "playerid": "",
+      "pvplevel": "",
+      "killcnt": "",
+      "deadcnt": "",
+      "assistcnt": "",
+      "ispkai": "",
+      "gameresult": "",
+      "mvpcnt": "",
+      "levelid": "",
+      "losemvp": "",
+      "MapType": "",
+      "SelfDisconnNum": "",
+      "HeroID1": "",
+      "AcntCamp": "",
+      "MultiCampRank": "",
+      "mapName": "",
+      "grade": "",
+      "formatXTime": "",
+      "detailUrl": "",
+      "matchDesc": "",
+      "fightvalue": "",
+      "branchEvaluate": "",
+      "grow": "",
+      "battle": "",
+      "survive": "",
+      "hurthero": "",
+      "kda": "",
+      "battleType": "",
+      "BattleRoyaleEvaluate": "",
+      "hero1TripleKillCnt": "",
+      "hero1UltraKillCnt": "",
+      "hero1RampageCnt": "",
+      "godLikeCnt": "",
+      "supportPro": 0,
+      "evaluateUrlV2": "",
+      "mvpUrlV2": "",
+      "heroIcon": "",
+      "evaluateUrlV3": "",
+      "mvpUrlV3": ""
+    },
+    {
+      "pvptype": "",
+      "dteventtime": "",
+      "gametype": "",
+      "usedtime": "",
+      "wincamp": "",
+      "gamesvrentity": "",
+      "relaysvrentity": "",
+      "gameseq": "",
+      "gametime": "",
+      "playerid": "",
+      "pvplevel": "",
+      "killcnt": "",
+      "deadcnt": "",
+      "assistcnt": "",
+      "ispkai": "",
+      "gameresult": "",
+      "mvpcnt": "",
+      "levelid": "",
+      "losemvp": "",
+      "MapType": "",
+      "SelfDisconnNum": "",
+      "HeroID1": "",
+      "AcntCamp": "",
+      "MultiCampRank": "",
+      "mapName": "",
+      "grade": "",
+      "formatXTime": "",
+      "detailUrl": "",
+      "matchDesc": "",
+      "fightvalue": "",
+      "branchEvaluate": "",
+      "grow": "",
+      "battle": "",
+      "survive": "",
+      "hurthero": "",
+      "kda": "",
+      "battleType": "",
+      "BattleRoyaleEvaluate": "",
+      "hero1TripleKillCnt": "",
+      "hero1UltraKillCnt": "",
+      "hero1RampageCnt": "",
+      "godLikeCnt": "",
+      "supportPro": 0,
+      "evaluateUrlV2": "",
+      "mvpUrlV2": "",
+      "heroIcon": "",
+      "evaluateUrlV3": "",
+      "mvpUrlV3": ""
+    }
+  ],
+  "powerData": [
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    },
+    {
+      "data": "",
+      "value": 0
+    }
+  ],
+  "isHideMatch": 0,
+  "medalList": [
+    {
+      "UserMedalInfo": "",
+      "TitleType": 0
+    },
+    {
+      "UserMedalInfo": "",
+      "TitleType": 0
+    }
+  ],
+  "isHideMatchDetail": 0,
+  "isMe": false
+}
