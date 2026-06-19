@@ -185,6 +185,7 @@ def _prepare_hok_namespace(root: Path) -> None:
 def bootstrap() -> Path:
     """Prepare environment variables, dependency stubs, import paths, and the hok namespace."""
     root = project_root()
+    os.environ["BOT_PATH"] = str(root)
     _ensure_sys_path(root)
     _ensure_redis_conf()
     _install_missing_dependency_stubs()

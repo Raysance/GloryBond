@@ -1872,7 +1872,13 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
                 "nickname": nickname,
                 "isAuth": is_auth,
                 "heroName": heroName,
+                "playerAvatarUrl": player_avatar_url,
+                "heroAvatarUrl": heroAvatar,
                 "heroPower": heroPower,
+                "heroTag": heroTag,
+                "maxHeroTag": MaxHeroTag,
+                "winNum": winNum,
+                "loseNum": loseNum,
                 "heroShowCnt": HeroShowCnt,
                 "heroAvgScore": avgScore,
                 "heroWinRate": winRate,
@@ -2076,16 +2082,20 @@ class BattlePowerHistory:
     def add_player_to_image(gen_inst, player):
         hero_show_cnt = int(player.get("heroShowCnt") or 0)
         win_rate = float(player.get("heroWinRate") or 0)
-        win_num = int(round(hero_show_cnt * win_rate))
-        lose_num = max(hero_show_cnt - win_num, 0)
+        win_num = player.get("winNum")
+        lose_num = player.get("loseNum")
+        if win_num is None or lose_num is None:
+            win_num = int(round(hero_show_cnt * win_rate))
+            lose_num = max(hero_show_cnt - win_num, 0)
         gen_inst.add_player(
             nickname=player.get("nickname", "未知玩家"),
             is_auth=bool(player.get("isAuth")),
             is_my_side=player.get("side") == "my",
-            winNum=win_num,
-            loseNum=lose_num,
+            winNum=int(win_num or 0),
+            loseNum=int(lose_num or 0),
             avgScore=float(player.get("heroAvgScore") or 0),
             winRate=win_rate,
+            avatarUrl=player.get("playerAvatarUrl", ""),
             starNum=player.get("starNum"),
             peakScore=player.get("peakScore"),
             PowerNum=player.get("powerNum"),
@@ -2094,7 +2104,10 @@ class BattlePowerHistory:
             rankName=player.get("rankName"),
             rankStar=player.get("rankStar"),
             single_level=player.get("singleLevel"),
+            HeroAvatar=player.get("heroAvatarUrl", ""),
             HeroPower=player.get("heroPower"),
+            HeroTag=player.get("heroTag", ""),
+            MaxHeroTag=player.get("maxHeroTag", ""),
         )
 
     @staticmethod
@@ -2374,24 +2387,20 @@ def recent_power_process(realname, days=7):
     avg_single = sum(row["singleLevel"] for row in rows) / count
     win_count = sum(1 for row in rows if row["Result"] == "胜利")
     display_name = namenick.get(realname, realname)
-    msg = (
-        f"【{display_name}】最近{days}天官方对局底蕴统计\n"
-        f"已评估/官方对局：{count}/{len(valid_details)}（待评估{missing}）\n"
-        f"胜率：{round(win_count / count * 100, 1)}%（{win_count}胜{count - win_count}负）\n"
-        f"平均己方底蕴：{round(avg_own, 2)}\n"
-        f"平均对方底蕴：{round(avg_rival, 2)}\n"
-        f"平均底蕴差：{round(avg_diff, 2)}\n"
-        f"平均己方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}\n"
-        f"个人平均单人底蕴：{round(avg_single, 2)}\n\n"
-        "最近评估对局："
-    )
-    for row in rows[:5]:
-        msg += (
-            f"\n{row['HeroName']} {row['Result']} {row['GameGrade']}分 "
-            f"己方{round(row['ownLevel'], 1)} 对方{round(row['rivalLevel'], 1)} "
-            f"差{round(row['levelDiff'], 1)}"
-        )
-    return msg
+    lines = [
+        f"【{display_name}】最近{days}天官方对局底蕴统计",
+    ]
+    if missing:
+        lines.append(f"已评估/官方对局：{count}/{len(valid_details)}（待评估{missing}）")
+    lines.extend([
+        f"胜率：{round(win_count / count * 100, 1)}%（{win_count}胜{count - win_count}负）",
+        f"平均己方底蕴：{round(avg_own, 2)}",
+        f"平均对方底蕴：{round(avg_rival, 2)}",
+        f"平均底蕴差：{round(avg_diff, 2)}",
+        f"平均己方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
+        f"个人平均单人底蕴：{round(avg_single, 2)}",
+    ])
+    return "\n".join(lines)
 
 def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True): # 所有历史数据
     from .zfile import readerl
