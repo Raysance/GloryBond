@@ -945,12 +945,24 @@ async def f_spoiler(bot, event):
 
 @_recentpower.handle()
 async def f_recentpower(bot,event):
-    from .zfunc import recent_power_process
+    from .zfunc import recent_power_process, power_rank_process, qid2nick
 
-    matching_name = get_validated_name(event)
-    if not matching_name: return
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(event.get_user_id()))
+    if ("排行" in rcv_msg or "排名" in rcv_msg):
+        try:
+            txt_msg, pic_path = await asyncio.to_thread(power_rank_process, 7)
+            if pic_path:
+                add_msg(MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
+            else:
+                add_msg(txt_msg, event=event)
+        except Exception as e:
+            add_msg(f"底蕴排行失败: {str(e)}", event=event)
+            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        return
 
     try:
+        matching_name = get_validated_name(event)
+        if not matching_name: return
         snd_msg = await asyncio.to_thread(recent_power_process, matching_name, 7)
         add_msg(snd_msg, event=event)
     except Exception as e:

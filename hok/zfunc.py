@@ -2281,12 +2281,15 @@ def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
         BattlePowerHistory.save(power_data)
     return power_data
 
-def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None):
+def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None, start_date_str=None):
     from .ztime import time_r
     import datetime
 
     end_date = time_r()
-    start_date = end_date - datetime.timedelta(days=days)
+    if start_date_str:
+        start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+    else:
+        start_date = end_date - datetime.timedelta(days=days)
     history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
     candidates = []
     seen = set()
@@ -2360,6 +2363,13 @@ def recent_power_process(realname, days=7):
         rival_side = power_data.get(rival_key, {})
         own_level = float(own_side.get("level") or 0)
         rival_level = float(rival_side.get("level") or 0)
+        single_level = float(player_record.get("singleLevel") or 0)
+        battle_player_levels = [
+            float(player.get("singleLevel") or 0)
+            for player in power_data.get("players", [])
+            if float(player.get("singleLevel") or 0) > 0
+        ]
+        battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
         rows.append({
             "GameSeq": gameseq,
             "HeroName": detail.get("HeroName"),
@@ -2368,12 +2378,14 @@ def recent_power_process(realname, days=7):
             "MapName": detail.get("MapName"),
             "ownLevel": own_level,
             "rivalLevel": rival_level,
+            "battlePlayerAvgLevel": battle_player_avg_level,
+            "singleLevelPercent": single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0,
             "levelDiff": own_level - rival_level,
             "ownTier": float(own_side.get("tier") or 0),
             "rivalTier": float(rival_side.get("tier") or 0),
             "ownAuthCnt": int(own_side.get("authCnt") or 0),
             "rivalAuthCnt": int(rival_side.get("authCnt") or 0),
-            "singleLevel": float(player_record.get("singleLevel") or 0),
+            "singleLevel": single_level,
         })
     if not rows:
         return f"最近{days}天没有可用的底蕴历史数据（官方对局{len(valid_details)}局，待后台评估{missing}局）"
@@ -2385,22 +2397,106 @@ def recent_power_process(realname, days=7):
     avg_own_tier = sum(row["ownTier"] for row in rows) / count
     avg_rival_tier = sum(row["rivalTier"] for row in rows) / count
     avg_single = sum(row["singleLevel"] for row in rows) / count
+    avg_single_percent = sum(row["singleLevelPercent"] for row in rows) / count
     win_count = sum(1 for row in rows if row["Result"] == "胜利")
     display_name = namenick.get(realname, realname)
     lines = [
-        f"【{display_name}】最近{days}天官方对局底蕴统计",
+        f"【{display_name}】最近{days}天对局底蕴统计",
     ]
     if missing:
         lines.append(f"已评估/官方对局：{count}/{len(valid_details)}（待评估{missing}）")
     lines.extend([
         f"胜率：{round(win_count / count * 100, 1)}%（{win_count}胜{count - win_count}负）",
-        f"平均己方底蕴：{round(avg_own, 2)}",
-        f"平均对方底蕴：{round(avg_rival, 2)}",
-        f"平均底蕴差：{round(avg_diff, 2)}",
-        f"平均己方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
-        f"个人平均单人底蕴：{round(avg_single, 2)}",
+        f"我方底蕴：{round(avg_own, 2)}",
+        f"对方底蕴：{round(avg_rival, 2)}",
+        f"底蕴差：{round(avg_diff, 2)}",
+        f"个人底蕴/队友对手底蕴：{round(avg_single_percent, 1)}%",
+        f"个人单人底蕴：{round(avg_single, 2)}",
+        f"我方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
     ])
     return "\n".join(lines)
+
+def power_rank_process(days=7):
+    from .ztime import time_r
+    from .zfile import ensure_dir
+    from .zfile import readerl
+    from .zfile import file_exist
+    from .tools import gen_power_rank_table
+    import datetime
+
+    end_date = time_r()
+    start_date = end_date - datetime.timedelta(days=days)
+    history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
+
+    rows = []
+    columns = ["总局数", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
+    metric_keys = ["平均底蕴", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
+    for realname, details in history_data.items():
+        roleid = roleidlist.get(realname)
+        if not roleid:
+            continue
+        accum = {key: 0.0 for key in metric_keys}
+        count = 0
+        for detail in details:
+            gameseq = detail.get("GameSeq")
+            if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
+                continue
+            power_data = readerl(BattlePowerHistory.path(gameseq))
+            if not isinstance(power_data, dict):
+                continue
+            player_record = None
+            for player in power_data.get("players", []):
+                if str(player.get("roleId")) == str(roleid):
+                    player_record = player
+                    break
+            if not player_record:
+                continue
+            own_key = "mySide" if player_record.get("side") == "my" else "opSide"
+            rival_key = "opSide" if own_key == "mySide" else "mySide"
+            own_side = power_data.get(own_key, {})
+            rival_side = power_data.get(rival_key, {})
+            own_level = float(own_side.get("level") or 0)
+            rival_level = float(rival_side.get("level") or 0)
+            own_tier = float(own_side.get("tier") or 0)
+            rival_tier = float(rival_side.get("tier") or 0)
+            single_level = float(player_record.get("singleLevel") or 0)
+            battle_player_levels = [
+                float(player.get("singleLevel") or 0)
+                for player in power_data.get("players", [])
+                if float(player.get("singleLevel") or 0) > 0
+            ]
+            battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
+            accum["平均底蕴"] += (own_level + rival_level) / 2
+            accum["我方底蕴"] += own_level
+            accum["对方底蕴"] += rival_level
+            accum["个人底蕴/队友对手底蕴"] += single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0
+            accum["个人单人底蕴"] += single_level
+            accum["我方英雄梯度"] += own_tier
+            accum["对方英雄梯度"] += rival_tier
+            count += 1
+        if not count:
+            continue
+        games = {key: accum[key] / count for key in accum}
+        games["总局数"] = count
+        rows.append({
+            "realname": realname,
+            "player": namenick.get(realname, realname),
+            "total": games["平均底蕴"],
+            "games": games,
+            "rank_value": games["平均底蕴"],
+            "subs": [],
+        })
+
+    if not rows:
+        return f"最近{days}天没有可用的底蕴排行数据", ""
+    rows.sort(key=lambda item: float(item.get("rank_value") or 0), reverse=True)
+
+    ts = str(round(time.time() * 1000000))
+    filename_hashed = WebArtifacts.make_hash(ts)
+    out_dir = ensure_dir(os.path.join("resources","wzry_images", "tmp"))
+    pic_path = os.path.join(out_dir, f"power_rank_{filename_hashed}.png")
+    gen_power_rank_table.gen(rows, columns, pic_path, title=f"最近{days}天底蕴排行（排位、巅峰、战队赛）")
+    return "", pic_path
 
 def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True): # 所有历史数据
     from .zfile import readerl
