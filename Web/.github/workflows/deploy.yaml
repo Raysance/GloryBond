@@ -18,6 +18,6 @@ jobs:
           git fetch
           git reset --hard origin/main
 
-          RUNNER_TRACKING_ID=0 nohup python app.py > fastapi.log 2>&1 &
+          RUNNER_TRACKING_ID=0 nohup python app.py > fastapi_thisrun.log 2>&1 &
           
           echo "success"

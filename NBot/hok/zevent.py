@@ -1,4 +1,4 @@
-
+﻿
 from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
@@ -20,18 +20,34 @@ from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command
 require("nonebot_plugin_apscheduler")
 driver = nonebot.get_driver()
 
-# 全局钩子：记录所有用户的发言（只要是 Bot 处理的消息）
 _all_messages = on_message(priority=0, block=False)
+
+def is_registered_qid(user_qid):
+    return str(user_qid) in {str(item) for item in qid.values()}
+
+def is_battle_visible_qid_enabled(user_qid):
+    disabled_qids = getattr(dmc, "BattleInvisibleDisabledQids", [])
+    return str(user_qid) not in {str(item) for item in disabled_qids}
+
+def is_bot_request_message(event):
+    raw_msg = event.get_plaintext().strip()
+    return raw_msg.startswith("#") or raw_msg.startswith("＃")
+
+async def judge_qid_blocked(event)->bool:
+    if not is_bot_request_message(event):
+        return False
+    return (not is_registered_qid(event.get_user_id())) or (not is_battle_visible_qid_enabled(event.get_user_id()))
 
 @_all_messages.handle()
 async def handle_all_messages(event: MessageEvent):
     from .zmemory import instance as zm
     user_id = event.get_user_id()
+    if (not is_registered_qid(user_id)) or (not is_battle_visible_qid_enabled(user_id)):
+        return
     msg_text = event.get_plaintext().strip()
     if msg_text and not msg_text.startswith("#"):
         for k in sorted(common_expr.keys(), key=len, reverse=True):
             msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
-        # 记录用户的被动发言 (用于后期提炼)
         await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
 async def judge_to_me(event)->bool:
@@ -99,6 +115,7 @@ async def check_sleep(event)->bool:
 
 # EVENT
 _group_poke = on_notice()
+_qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
 _repair=on_keyword({"##r"},rule=judge_super,priority=1, block=True)
 _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
@@ -109,10 +126,9 @@ _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
-_kmoji_gen = on_keyword({"##kmoji"},rule=judge_super,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
 
-_sleep_blocked = on_message(rule=check_sleep, priority=2, block=True)
+_sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
 
 _show_code=on_fullmatch("code",rule=judge_to_me,priority=3, block=True)
@@ -133,15 +149,24 @@ _showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
 _gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
 _watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
 _spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
+_recentpower=on_keyword({"底蕴"},rule=judge_to_me,priority=4, block=True)
 _recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
 _diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
 _exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
+_emoji_gen = on_keyword({"emoji"},rule=judge_to_me,priority=4, block=True)
 
 _rnk=on_keyword(set(rnk_keywords),rule=Rule(judge_to_me,judge_not_duration_rank),priority=5, block=True)
 _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
+@_qid_blocked.handle()
+async def f_qid_blocked(event):
+    user_qid = event.get_user_id()
+    log_message(f"QID_ACCESS_DENIED: {user_qid}")
+    add_msg("access denied", event=event)
+    await _qid_blocked.finish()
+
 @_exporthistory.handle()
 async def f_exporthistory(event):
     from .zfunc import dump_specific_user
@@ -370,27 +395,51 @@ async def f_show_code(bot,event):
 
 @_emoji_gen.handle()
 async def f_emoji_gen(event):
-    from .tools.gen_emoji_image import generate_user_emoji_image
-    try:
-        meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=event.get_user_id())
-        add_msg("PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2), event=event)
-        add_msg(MessageSegment.image(meta["image_path"]), event=event)
-    except Exception as e:
-        add_msg(f"emoji_gen_error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    await _emoji_gen.finish()
-
-@_kmoji_gen.handle()
-async def f_kmoji_gen(event):
     from .tools.gen_emoji_image import generate_user_kmoji_image
-    raw_tail = event.get_plaintext().replace("##kmoji", "").strip()
-    template_num = None
-    prompt_tail = raw_tail
-    if raw_tail:
-        first = raw_tail.split()[0].strip()
-        if first.isdigit():
-            template_num = int(first)
-            prompt_tail = raw_tail[len(first):].strip()
+    import re
+
+    def strip_emoji_command(raw_text):
+        text = raw_text.strip()
+        for prefix in ["#emoji", "＃emoji", "##emoji", "＃＃emoji"]:
+            if text.lower().startswith(prefix.lower()):
+                return text[len(prefix):].strip()
+        return text.replace("emoji", "", 1).strip()
+
+    def split_named_arg(text, names):
+        for name in names:
+            for sep in ["=", "：", ":"]:
+                token = name + sep
+                idx = text.find(token)
+                if idx < 0:
+                    continue
+                value_start = idx + len(token)
+                next_positions = []
+                for other in ["template=", "模板=", "模板名=", "prompt=", "提示=", "提示词=", "template:", "模板:", "模板名:", "prompt:", "提示:", "提示词:", "template：", "模板：", "模板名：", "prompt：", "提示：", "提示词："]:
+                    other_idx = text.find(other, value_start)
+                    if other_idx >= 0:
+                        next_positions.append(other_idx)
+                value_end = min(next_positions) if next_positions else len(text)
+                value = text[value_start:value_end].strip()
+                new_text = (text[:idx] + text[value_end:]).strip()
+                return value, new_text
+        return None, text
+
+    raw_tail = strip_emoji_command(event.get_plaintext())
+    template_prefix = None
+    template_name = None
+    template_value, raw_tail = split_named_arg(raw_tail, ["template", "模板", "模板名"])
+    prompt_value, raw_tail = split_named_arg(raw_tail, ["prompt", "提示", "提示词"])
+    prompt_tail = prompt_value if prompt_value is not None else raw_tail
+    if template_value:
+        if re.fullmatch(r"[A-Za-z0-9_]+", template_value):
+            template_prefix = template_value
+        else:
+            template_name = template_value
+    elif raw_tail:
+        parts = raw_tail.split(maxsplit=1)
+        if len(parts) == 2 and re.fullmatch(r"[A-Za-z0-9_]+", parts[0]):
+            template_prefix = parts[0]
+            prompt_tail = parts[1].strip()
     image_url = None
     try:
         for seg in event.message:
@@ -405,7 +454,8 @@ async def f_kmoji_gen(event):
             generate_user_kmoji_image,
             user_qid=event.get_user_id(),
             custom_image_url=image_url,
-            template_num=template_num,
+            template_prefix=template_prefix,
+            template_name=template_name,
             prompt_tail=prompt_tail,
         )
         add_msg(
@@ -415,16 +465,16 @@ async def f_kmoji_gen(event):
         )
         add_msg(MessageSegment.image(meta["image_path"]), event=event)
     except Exception as e:
-        add_msg(f"kmoji_gen_error: {str(e)}", event=event)
+        add_msg(f"emoji_gen_error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    await _kmoji_gen.finish()
+    await _emoji_gen.finish()
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
     from .zfunc import qid2nick
     from .zfunc import ai_parser
     from .zfunc import get_emoji_url
-    from .zfunc import coplayer_process
+    from .zfunc import battle_power_process
     from .ztime import time_r
     from .ztime import str_to_time,time_to_str
     from .ztime import calc_gap
@@ -436,7 +486,7 @@ async def f_group_poke(bot, event):
             if (not dmc.repair):
                 if (dmc.RTMPStatus):
                     res=dmc.RTMPListener.screenshot()
-                    pic_path="/usr/local/nginx/html/wzry_btl_shot/"+str(dmc.RTMPPlayer)+".png"
+                    pic_path=os.path.join(temp_path,"wzry_btl_shot",str(dmc.RTMPPlayer)+".png")
                     
                     if (res and await asyncio.to_thread(file_exist, pic_path)): snd_msg = MessageSegment.image(pic_path)
                     else: snd_msg=MessageSegment.text("最快10秒ob一次")
@@ -446,13 +496,15 @@ async def f_group_poke(bot, event):
                     dmc.LastBtlMsgStatus=False
                     dmc.LastBtlMsgCoolDownTime=time_to_str(add_second(time_r(),30))
                     try:
-                        ret_msg = await asyncio.to_thread(coplayer_process, **dmc.LastBtlParams, roleid=dmc.LastBtlRoleId,spoiler_info={})
+                        ret_msg = await asyncio.to_thread(battle_power_process, **dmc.LastBtlParams, roleid=dmc.LastBtlRoleId,spoiler_info={})
                     except Exception as e:
                         add_msg(str(e), event=event)
                         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
                         return
-                    txt_msg,pic_path,_=ret_msg
-                    snd_msg=MessageSegment.text(txt_msg)+MessageSegment.image(pic_path)
+                    txt_msg,pic_path,_,_=ret_msg
+                    snd_msg=MessageSegment.text(txt_msg)
+                    if pic_path:
+                        snd_msg+=MessageSegment.image(pic_path)
                     add_msg(snd_msg, event=event)
                     return
                 elif (time_r()<str_to_time(dmc.LastBtlMsgCoolDownTime)):# 若两条戳一戳时间较近，防止误触发戳一戳消息，直接屏蔽
@@ -891,6 +943,32 @@ async def f_spoiler(bot, event):
         add_msg(f"底蕴计算失败: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
+@_recentpower.handle()
+async def f_recentpower(bot,event):
+    from .zfunc import recent_power_process, power_rank_process, qid2nick
+
+    rcv_msg = event.get_plaintext().replace("我", qid2nick(event.get_user_id()))
+    if ("排行" in rcv_msg or "排名" in rcv_msg):
+        try:
+            txt_msg, pic_path = await asyncio.to_thread(power_rank_process, 7)
+            if pic_path:
+                add_msg(MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
+            else:
+                add_msg(txt_msg, event=event)
+        except Exception as e:
+            add_msg(f"底蕴排行失败: {str(e)}", event=event)
+            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        return
+
+    try:
+        matching_name = get_validated_name(event)
+        if not matching_name: return
+        snd_msg = await asyncio.to_thread(recent_power_process, matching_name, 7)
+        add_msg(snd_msg, event=event)
+    except Exception as e:
+        add_msg(f"底蕴统计失败: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
 @_diycode.handle()
 async def f_diycode(bot: Bot, event: Event):
     from .zdiy import handle_diy_request
@@ -939,7 +1017,7 @@ async def f_recentgames(event):
 
 @_history_query.handle()
 async def f_history_query(event: Event):
-    from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, create_website
+    from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, WebArtifacts
     import traceback
     import json
     import time
@@ -985,7 +1063,6 @@ async def f_history_query(event: Event):
         elif len(matches) > 1:
             packed_data = []
             now_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            exact_now_time = str(round(time.time()*1000000))
             for detail, realname in matches:
                 gameseq = detail['GameSeq']
                 roleid = roleidlist[realname]
@@ -1016,10 +1093,9 @@ async def f_history_query(event: Event):
                 }
                 packed_data.append(info)
                 
-            filename_hashed = hashlib.sha256(exact_now_time.encode()).hexdigest()[:16]
-            filepath = os.path.join(nginx_path, "wzry_history", filename_hashed + ".json")
+            filename_hashed,filepath = WebArtifacts.history_artifact(round(time.time()*1000000))
             await asyncio.to_thread(writerl, filepath, packed_data)
-            website_link = await asyncio.to_thread(create_website, json.dumps({"filename": filename_hashed, "caller": query_target, "time": now_time}), "query_select")
+            website_link = await asyncio.to_thread(WebArtifacts.history_route_link, filename_hashed, "query_select", query_target, now_time)
             add_msg(prefix + f"找到 {len(matches)} 局符合条件的战绩，点击链接查看详情：(视角随机)\n" + website_link, event=event)
         else:
             add_msg(prefix + "未找到符合条件的战绩。", event=event)
@@ -1085,3 +1161,4 @@ async def f_chat(bot,event):
 
     add_msg(snd_msg, event=event)
     return
+

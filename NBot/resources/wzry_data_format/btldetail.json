@@ -1,0 +1,3337 @@
+{
+  "head": {
+    "gameResult": true,
+    "acntCamp": 1,
+    "mapName": "巅峰赛",
+    "gradeGame": "10.5",
+    "kda": "6.90",
+    "labels": [
+      "关键群控"
+    ],
+    "killCnt": 0,
+    "deadCnt": 5,
+    "assistCnt": 23,
+    "roleId": "2926074892",
+    "roleIcon": "https://thirdqq.qlogo.cn/ek_qqapp/AQUvMhGAF6w9jLMgbX4FLAZ723hh0ScOicR7YWEpD00wq0MPcrU01m54Uu5DyWuWgibLLksPOuA6tItVJYgIChiczhAmcTIczDrTazH2hDmAvXt5QZ2icYpWK0mBEDgwjA/100",
+    "roleName": "LYG.蒿芸",
+    "bgImg": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_D1/afc3dce8470aed76da0cbfa2a7820d11.png",
+    "teamNum": 1,
+    "matchDesc": "伯仲局",
+    "tips": "",
+    "userId": "1602907600",
+    "heroId": 171,
+    "heroName": "张飞",
+    "playerId": "12622270964263371410",
+    "is10v10": false
+  },
+  "battle": {
+    "gameType": 14,
+    "usedTime": 1795,
+    "dtEventTime": "01-03 12:35",
+    "mapName": "巅峰赛",
+    "startTime": "01-03 12:05"
+  },
+  "redTeam": {
+    "acntCamp": 2,
+    "banHeros": [
+      {
+        "heroId": 194,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/b178e1b41920a618eb65c3d62baaa1b6.jpg",
+        "heroName": "苏烈",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 550,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/e68e7a0ea447ceb3c27c63491c163189.jpg",
+        "heroName": "空空儿",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 509,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9d39f1a6665a19813fb7ae6a245f044a.jpg",
+        "heroName": "盾山",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 585,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/584a2fd93aaee26017f41b46f7bd4567.jpg",
+        "heroName": "元流之子(辅助)",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 312,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/12ede0c09be06b26dd0dd84ab2354ebf.jpg",
+        "heroName": "沈梦溪",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "pickHeros": [
+      {
+        "heroId": 193,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/6b0811ba0ade67dc92b4b74475f01e78.jpg",
+        "heroName": "铠",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 176,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f74c9511de7e0f170fea3e3d9175d4d5.jpg",
+        "heroName": "杨玉环",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 523,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/1863f06a948ecfd416f1b894a4e24f73.jpg",
+        "heroName": "西施",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 536,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9bb39b568d4c39a6d219f2df34e2184b.jpg",
+        "heroName": "夏洛特",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 519,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/d6ffb6dc14b8fb862cd1ef0350d9d797.jpg",
+        "heroName": "敖隐",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "killCnt": 35,
+    "deadCnt": 33,
+    "assistCnt": 75,
+    "money": 88831,
+    "moneyTrend": [],
+    "towerCnt": 8,
+    "ldragon1": 0,
+    "ldragon2": 1,
+    "bdragon1": 1,
+    "bdragon2": 1,
+    "bdragon3": 0,
+    "gameResult": false,
+    "banCnt": 3
+  },
+  "blueTeam": {
+    "acntCamp": 1,
+    "banHeros": [
+      {
+        "heroId": 577,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/65ebf60d43956209a471b4ca17787384.jpg",
+        "heroName": "少司缘",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 521,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/3977c930da067d6319f2eae8594073dd.jpg",
+        "heroName": "海月",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 150,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/1cde30a805ea2bd7d2815649a124d80c.jpg",
+        "heroName": "韩信",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 550,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/e68e7a0ea447ceb3c27c63491c163189.jpg",
+        "heroName": "空空儿",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 191,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/1a0a6a7c4cd8ec6fbcb6edd4e0ede629.jpg",
+        "heroName": "大乔",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "pickHeros": [
+      {
+        "heroId": 171,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/88d1265a17d72a077d6c642b034a8834.jpg",
+        "heroName": "张飞",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 182,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/73575285afa555915f65bcbd7011913c.jpg",
+        "heroName": "干将莫邪",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 537,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/326b2c2c3a5b305ac2819b09ae30fd94.jpg",
+        "heroName": "司空震",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 172,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f4b2ae49cb70dc7f5ab5f4ff983d6d8d.jpg",
+        "heroName": "蚩奼",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      },
+      {
+        "heroId": 538,
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9f40d6872ff179f006f8291688f0c141.jpg",
+        "heroName": "云缨",
+        "heroOriginSkin": "",
+        "extraAvatar": "",
+        "verticalIcon": "",
+        "heroPicUrl": "",
+        "skinIcon128128": ""
+      }
+    ],
+    "killCnt": 33,
+    "deadCnt": 35,
+    "assistCnt": 69,
+    "money": 93973,
+    "moneyTrend": [],
+    "towerCnt": 7,
+    "ldragon1": 2,
+    "ldragon2": 0,
+    "bdragon1": 1,
+    "bdragon2": 1,
+    "bdragon3": 1,
+    "gameResult": true,
+    "banCnt": 3
+  },
+  "redRoles": [
+    {
+      "basicInfo": {
+        "roleId": "148254698",
+        "roleName": "月落-东山",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 1,
+        "serverId": 1156,
+        "acntCamp": 2,
+        "userId": "481564094",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "12525973533492024478",
+        "isMe": false,
+        "dimGender": 1
+      },
+      "heroBehavior": {
+        "winNum": 311,
+        "loseNum": 196,
+        "avgScore": "8.7",
+        "winRate": "61.3%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/48-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/42-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "参团率",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/4-3.png",
+          "value1": "68%",
+          "value2": ""
+        },
+        {
+          "title": "死亡",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/12-3.png",
+          "value1": "6",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/37-4.png",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 8,
+        "deadCnt": 6,
+        "assistCnt": 16,
+        "money": 20465,
+        "exp": 2202,
+        "towerCnt": 2,
+        "evaluateIcon": "",
+        "gradeGame": "9.1",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "s",
+        "sabcbattle": "a",
+        "sabcgrow": "a",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "60.0",
+        "totalHurtCnt": "1088543",
+        "totalHeroHurtCnt": "277270",
+        "hurtTransRate": "1",
+        "totalBehurtCnt": "163438",
+        "totalBeheroHurtCnt": "120962",
+        "behurtPerDeath": "20160",
+        "joinGamePercent": "0.686",
+        "healCnt": "61754",
+        "ctrlTime": "14",
+        "buildingDamage": "17880",
+        "monsterCoin": "2765",
+        "killSoldier": "73",
+        "oldMasterMatchScore": 1902,
+        "newMasterMatchScore": 1889,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 5917,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 1,
+        "heroLevel": 15,
+        "kda": "6.00",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 910,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 1,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 519,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/d6ffb6dc14b8fb862cd1ef0350d9d797.jpg",
+          "heroName": "敖隐",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/0/71920db1b2aae02f88a08740c31f0906/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/d6ffb6dc14b8fb862cd1ef0350d9d797.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/9430e8279594476dc5180de69f892ed4.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/d6ffb6dc14b8fb862cd1ef0350d9d797.jpg"
+        },
+        "usedSkin": null,
+        "position": 2,
+        "inBattleObjid": 1245,
+        "finalEquips": [
+          {
+            "equipId": 1133,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1133.png",
+            "equipName": "无尽战刃"
+          },
+          {
+            "equipId": 1127,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1127.png",
+            "equipName": "名刀·司命"
+          },
+          {
+            "equipId": 1155,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1155.png",
+            "equipName": "仁者破晓"
+          },
+          {
+            "equipId": 1138,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1138.png",
+            "equipName": "强者破军"
+          },
+          {
+            "equipId": 1131,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1131.png",
+            "equipName": "碎星锤"
+          },
+          {
+            "equipId": 1134,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1134.png",
+            "equipName": "宗师之力"
+          }
+        ],
+        "skill": {
+          "skillId": 80115,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/eb3386a58bce7cc31773de8cf7fce8fd.png",
+          "skillName": "闪现"
+        },
+        "highLight": [
+          {
+            "id": "25",
+            "name": "单带偷塔",
+            "desc": "在敌方多名英雄存活时独自摧毁高地防御塔",
+            "icon": "Battle_PerfectMoment_Icon_BlueChaidan",
+            "times": 1,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 5,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/7219469326212933551/gametalk_9946117414786804459.jpg",
+          "desc": "<span id=\"root\">s41赛季敖隐黑科技出装，双冰减速流</span>",
+          "title": "s41赛季敖隐黑科技出装，双冰减速流",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18933805",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18933805"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/063375e55927c3282ccbc1ffbfc6cba2.png",
+          "dataCounts": [
+            {
+              "data": "13.0",
+              "name": "经济转有效伤害",
+              "dataHighlight": true,
+              "dataNote": "5%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "24%",
+              "name": "有效伤害",
+              "dataHighlight": true,
+              "dataNote": "7%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "405",
+              "name": "对位经济差",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/c5504036e6d43af33b57cb5aa70261a5.png",
+          "dataCounts": [
+            {
+              "data": "68%",
+              "name": "参团率",
+              "dataHighlight": false,
+              "dataNote": "13%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "16",
+              "name": "助攻数",
+              "dataHighlight": false,
+              "dataNote": "34%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "38",
+              "name": "视野价值",
+              "dataHighlight": false,
+              "dataNote": "42%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "6",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "18%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "2",
+              "name": "多杀次数",
+              "dataHighlight": false,
+              "dataNote": "34%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "73",
+              "name": "补兵数",
+              "dataHighlight": false,
+              "dataNote": "39%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "764710032",
+        "roleName": "无忧小念⁠ㅤ",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 1,
+        "serverId": 1048,
+        "acntCamp": 2,
+        "userId": "1857089438",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "4043037412881561136",
+        "isMe": false,
+        "dimGender": 2
+      },
+      "heroBehavior": {
+        "winNum": 208,
+        "loseNum": 130,
+        "avgScore": "9.9",
+        "winRate": "61.5%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/48-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/42-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/140-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "参团率",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/4-3.png",
+          "value1": "68%",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/86-3.png",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 11,
+        "deadCnt": 4,
+        "assistCnt": 13,
+        "money": 17159,
+        "exp": 2202,
+        "towerCnt": 0,
+        "evaluateIcon": "http://camp.qq.com/meta-data/evaluate-v2/silver_mage_2.png",
+        "gradeGame": "11.1",
+        "mvp": true,
+        "godLikeCnt": 0,
+        "sabchurthero": "s",
+        "sabcbattle": "a",
+        "sabcgrow": "a",
+        "sabcKDA": "a",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "85.0",
+        "totalHurtCnt": "565159",
+        "totalHeroHurtCnt": "242297",
+        "hurtTransRate": "1.1",
+        "totalBehurtCnt": "115050",
+        "totalBeheroHurtCnt": "106141",
+        "behurtPerDeath": "26535",
+        "joinGamePercent": "0.686",
+        "healCnt": "12103",
+        "ctrlTime": "46",
+        "buildingDamage": "2829",
+        "monsterCoin": "952",
+        "killSoldier": "57",
+        "oldMasterMatchScore": 1913,
+        "newMasterMatchScore": 1906,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 10462,
+        "maxKill": 1,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "9.00",
+        "evaluateType": 4,
+        "addFightPower": 0,
+        "mvpScoreTth": 1110,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "https://camp.qq.com/battle/common/evaluateV3/silver_mage.png",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/a2c96893471637e5cf5c0a1e2c9829f3.png",
+        "branchEvaluateType": 13
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 523,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/1863f06a948ecfd416f1b894a4e24f73.jpg",
+          "heroName": "西施",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/3869/8e69924b929ef4caf618d3ce7c5453b1/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/1863f06a948ecfd416f1b894a4e24f73.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/3afe96612b580866bd6bae3c89a4a689.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/1863f06a948ecfd416f1b894a4e24f73.jpg"
+        },
+        "usedSkin": {
+          "skinId": 52304,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/499f3b2134c126a0750709e50a0fa239/0",
+          "skinName": "游龙清影",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/a58ab301cd3a7fe035b775168f405d27.jpg"
+        },
+        "position": 1,
+        "inBattleObjid": 1168,
+        "finalEquips": [
+          {
+            "equipId": 1424,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1424.png",
+            "equipName": "秘法之靴"
+          },
+          {
+            "equipId": 1234,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1234.png",
+            "equipName": "凝冰之息"
+          },
+          {
+            "equipId": 1238,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1238.png",
+            "equipName": "贤者天书"
+          },
+          {
+            "equipId": 1227,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1227.png",
+            "equipName": "炽热支配"
+          },
+          {
+            "equipId": 1727,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1727.png",
+            "equipName": "日暮之流"
+          },
+          {
+            "equipId": 1232,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1232.png",
+            "equipName": "博学者之怒"
+          }
+        ],
+        "skill": {
+          "skillId": 80115,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/eb3386a58bce7cc31773de8cf7fce8fd.png",
+          "skillName": "闪现"
+        },
+        "highLight": [
+          {
+            "id": "82",
+            "name": "换装达人",
+            "desc": "快速更换保命装备后反杀敌方英雄",
+            "icon": "Battle_PerfectMoment_Icon_BlueHuanzhuang",
+            "times": 1,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 3,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/12020778052649806992/gametalk_16107923366651767098.jpg",
+          "desc": "<span id=\"root\">【西施进阶教学】100%拉到人！学会至少万战！</span>",
+          "title": "【西施进阶教学】100%拉到人！学会至少万战！",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18918908",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18918908"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/499f3b2134c126a0750709e50a0fa239/0",
+          "desc": "<span id=\"root\">西施传说皮肤-游龙清影喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D52304%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "52304"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/fb0d687a3151a859846638f552df602a.png",
+          "dataCounts": [
+            {
+              "data": "13.5",
+              "name": "经济转有效伤害",
+              "dataHighlight": true,
+              "dataNote": "4%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "21%",
+              "name": "有效伤害",
+              "dataHighlight": true,
+              "dataNote": "8%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "58",
+              "name": "对线期对位经济差",
+              "dataHighlight": false,
+              "dataNote": "48%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/c5504036e6d43af33b57cb5aa70261a5.png",
+          "dataCounts": [
+            {
+              "data": "862",
+              "name": "反野总经济",
+              "dataHighlight": true,
+              "dataNote": "10%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "68%",
+              "name": "参团率",
+              "dataHighlight": false,
+              "dataNote": "15%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "8%",
+              "name": "对塔伤害",
+              "dataHighlight": false,
+              "dataNote": "48%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/cd9b523a8e9b5be276de58cf63904f83.png",
+          "dataCounts": [
+            {
+              "data": "2",
+              "name": "全局单杀次数",
+              "dataHighlight": false,
+              "dataNote": "24%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "11",
+              "name": "击杀数",
+              "dataHighlight": false,
+              "dataNote": "26%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "1",
+              "name": "多杀次数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "2001137357",
+        "roleName": "然烧最后一舞",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 2,
+        "serverId": 2153,
+        "acntCamp": 2,
+        "userId": "1833290269",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "1700285211839549210",
+        "isMe": false,
+        "dimGender": 2
+      },
+      "heroBehavior": {
+        "winNum": 276,
+        "loseNum": 264,
+        "avgScore": "8.1",
+        "winRate": "51.1%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/42-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/48-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "控制效果",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/5-2.png",
+          "value1": "46.6%",
+          "value2": "01:37"
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/32-3.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "死亡",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/12-3.png",
+          "value1": "7",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 7,
+        "deadCnt": 7,
+        "assistCnt": 14,
+        "money": 21029,
+        "exp": 2202,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "9.3",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "s",
+        "sabcbattle": "a",
+        "sabcgrow": "s",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "60.0",
+        "totalHurtCnt": "1459834",
+        "totalHeroHurtCnt": "278796",
+        "hurtTransRate": "1",
+        "totalBehurtCnt": "249881",
+        "totalBeheroHurtCnt": "197705",
+        "behurtPerDeath": "28243",
+        "joinGamePercent": "0.600",
+        "healCnt": "119530",
+        "ctrlTime": "97",
+        "buildingDamage": "3210",
+        "monsterCoin": "6063",
+        "killSoldier": "49",
+        "oldMasterMatchScore": 1899,
+        "newMasterMatchScore": 1887,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 10187,
+        "maxKill": 0,
+        "maxHurt": 1,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "4.50",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 930,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 1,
+        "maxBeheroHurt": 0,
+        "maxMoney": 1,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 1,
+        "maxMonsterCoin": 1,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 193,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/6b0811ba0ade67dc92b4b74475f01e78.jpg",
+          "heroName": "铠",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/16547/0b2b962357a6ff678478a30ef471d82b/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/6b0811ba0ade67dc92b4b74475f01e78.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/e2e4dded8405117f88e5d27f9357e7c7.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/6b0811ba0ade67dc92b4b74475f01e78.jpg"
+        },
+        "usedSkin": {
+          "skinId": 19305,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/dfe979186199bc75da8bb33a33598725/0",
+          "skinName": "银白咏叹调",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/cb72ae802f43f3dc694f99f6d1cad7c8.jpg"
+        },
+        "position": 3,
+        "inBattleObjid": 708,
+        "finalEquips": [
+          {
+            "equipId": 1533,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1533.png",
+            "equipName": "贪婪之噬"
+          },
+          {
+            "equipId": 1328,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1328.png",
+            "equipName": "血魔之怒"
+          },
+          {
+            "equipId": 1137,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1137.png",
+            "equipName": "暗影战斧"
+          },
+          {
+            "equipId": 1327,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1327.png",
+            "equipName": "反伤刺甲"
+          },
+          {
+            "equipId": 1134,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1134.png",
+            "equipName": "宗师之力"
+          },
+          {
+            "equipId": 1335,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1335.png",
+            "equipName": "魔女斗篷"
+          }
+        ],
+        "skill": {
+          "skillId": 80104,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/818cfdc9dc9ac1c9ccb91f7911a45ef7.png",
+          "skillName": "惩击"
+        },
+        "highLight": [],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 2,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/110933313636638366/gametalk_3002066740802596923.jpg",
+          "desc": "<span id=\"root\">铠爹三段格挡并非BUG！版本热门打野最新玩法教学！</span>",
+          "title": "铠爹三段格挡并非BUG！版本热门打野最新玩法教学！",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18918633",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18918633"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/dfe979186199bc75da8bb33a33598725/0",
+          "desc": "<span id=\"root\">铠荣耀典藏皮肤-银白咏叹调喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D19305%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "19305"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/d4fe60833b91124a23311e6efe3322f0.png",
+          "dataCounts": [
+            {
+              "data": "23%",
+              "name": "有效伤害",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "12.5",
+              "name": "经济转有效伤害",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "6150",
+              "name": "带线总经济",
+              "dataHighlight": false,
+              "dataNote": "27%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/c5504036e6d43af33b57cb5aa70261a5.png",
+          "dataCounts": [
+            {
+              "data": "97S",
+              "name": "控制时长",
+              "dataHighlight": true,
+              "dataNote": "9%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "4S",
+              "name": "经济转控制",
+              "dataHighlight": false,
+              "dataNote": "17%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "14",
+              "name": "助攻数",
+              "dataHighlight": false,
+              "dataNote": "30%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "7",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "18%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "2",
+              "name": "全局单杀次数",
+              "dataHighlight": false,
+              "dataNote": "50%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "7",
+              "name": "击杀数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "2481971675",
+        "roleName": "⁢哼忘记你⁢",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 2,
+        "serverId": 2095,
+        "acntCamp": 2,
+        "userId": "1859047855",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "7496577407290156468",
+        "isMe": false,
+        "dimGender": 2
+      },
+      "heroBehavior": {
+        "winNum": 71,
+        "loseNum": 87,
+        "avgScore": "7.0",
+        "winRate": "44.9%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/31-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/47-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "返还血量",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/25-2.png",
+          "value1": "0",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/48-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "死亡",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/12-3.png",
+          "value1": "7",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 5,
+        "deadCnt": 7,
+        "assistCnt": 20,
+        "money": 14990,
+        "exp": 2202,
+        "towerCnt": 2,
+        "evaluateIcon": "",
+        "gradeGame": "7.6",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "a",
+        "sabcbattle": "a",
+        "sabcgrow": "b",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "0.0",
+        "totalHurtCnt": "357156",
+        "totalHeroHurtCnt": "156172",
+        "hurtTransRate": "0.8",
+        "totalBehurtCnt": "248549",
+        "totalBeheroHurtCnt": "219355",
+        "behurtPerDeath": "31336",
+        "joinGamePercent": "0.714",
+        "healCnt": "182150",
+        "ctrlTime": "28",
+        "buildingDamage": "3731",
+        "monsterCoin": "426",
+        "killSoldier": "21",
+        "oldMasterMatchScore": 1932,
+        "newMasterMatchScore": 1918,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 5261,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 1,
+        "maxTower": 1,
+        "heroLevel": 15,
+        "kda": "5.36",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 760,
+        "maxJoinGamePercent": 1,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 1,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 1,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 176,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f74c9511de7e0f170fea3e3d9175d4d5.jpg",
+          "heroName": "杨玉环",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/17647/253e6035f571f0fcb7298deb11d5ae09/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f74c9511de7e0f170fea3e3d9175d4d5.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/7845cac2ba69ff880b95bd7858ea2815.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f74c9511de7e0f170fea3e3d9175d4d5.jpg"
+        },
+        "usedSkin": {
+          "skinId": 17605,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/aa7a20ebc31f19e23b48eadd3b3cd954/0",
+          "skinName": "银翎春语",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/ff16d1570edd16fe3d0b6141edb778e4.jpg"
+        },
+        "position": 4,
+        "inBattleObjid": 348,
+        "finalEquips": [
+          {
+            "equipId": 1232,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1232.png",
+            "equipName": "博学者之怒"
+          },
+          {
+            "equipId": 1236,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1236.png",
+            "equipName": "巫术法杖"
+          },
+          {
+            "equipId": 1234,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1234.png",
+            "equipName": "凝冰之息"
+          },
+          {
+            "equipId": 12211,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/12211.png",
+            "equipName": "梦魇之牙"
+          },
+          {
+            "equipId": 1238,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1238.png",
+            "equipName": "贤者天书"
+          }
+        ],
+        "skill": {
+          "skillId": 80115,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/eb3386a58bce7cc31773de8cf7fce8fd.png",
+          "skillName": "闪现"
+        },
+        "highLight": [],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 4,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/7558831619339178878/gametalk_51281430985900750.jpg",
+          "desc": "<span id=\"root\">杨玉环进阶指南：如何精准切换蓝绿环？</span>",
+          "title": "杨玉环进阶指南：如何精准切换蓝绿环？",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18921970",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18921970"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/aa7a20ebc31f19e23b48eadd3b3cd954/0",
+          "desc": "<span id=\"root\">杨玉环史诗皮肤-银翎春语喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D17605%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "17605"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/8177c04272be85e84c1ad8520a344d00.png",
+          "dataCounts": [
+            {
+              "data": "12.2",
+              "name": "经济转治疗",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "182150",
+              "name": "有效治疗",
+              "dataHighlight": true,
+              "dataNote": "7%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "71%",
+              "name": "参团率",
+              "dataHighlight": false,
+              "dataNote": "24%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/3933a6fad951fb45e1abed0419475ddd.png",
+          "dataCounts": [
+            {
+              "data": "14.1",
+              "name": "经济转有效承伤",
+              "dataHighlight": true,
+              "dataNote": "6%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "9.7",
+              "name": "经济转有效伤害",
+              "dataHighlight": true,
+              "dataNote": "8%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "13%",
+              "name": "有效伤害",
+              "dataHighlight": false,
+              "dataNote": "25%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "7",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "18%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "5",
+              "name": "击杀数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "2",
+              "name": "最多连杀",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "3293669828",
+        "roleName": "废就去补位",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 1,
+        "serverId": 1420,
+        "acntCamp": 2,
+        "userId": "1657062316",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "4475488039091349285",
+        "isMe": false,
+        "dimGender": 2
+      },
+      "heroBehavior": {
+        "winNum": 116,
+        "loseNum": 100,
+        "avgScore": "8.0",
+        "winRate": "53.7%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/48-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/47-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/42-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "视野价值",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/27-3.png",
+          "value1": "29.8%",
+          "value2": "64"
+        },
+        {
+          "title": "控制效果",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/5-3.png",
+          "value1": "11.1%",
+          "value2": "00:23"
+        }
+      ],
+      "battleStats": {
+        "killCnt": 4,
+        "deadCnt": 9,
+        "assistCnt": 12,
+        "money": 15188,
+        "exp": 2202,
+        "towerCnt": 0,
+        "evaluateIcon": "",
+        "gradeGame": "7.8",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "s",
+        "sabcbattle": "a",
+        "sabcgrow": "b",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "50.0",
+        "totalHurtCnt": "579525",
+        "totalHeroHurtCnt": "235387",
+        "hurtTransRate": "1.2",
+        "totalBehurtCnt": "267063",
+        "totalBeheroHurtCnt": "225115",
+        "behurtPerDeath": "25012",
+        "joinGamePercent": "0.457",
+        "healCnt": "109291",
+        "ctrlTime": "23",
+        "buildingDamage": "5442",
+        "monsterCoin": "652",
+        "killSoldier": "57",
+        "oldMasterMatchScore": 1940,
+        "newMasterMatchScore": 1927,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 4067,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 1,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "2.67",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 780,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 1,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 1,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 536,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9bb39b568d4c39a6d219f2df34e2184b.jpg",
+          "heroName": "夏洛特",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/5475/14df16ffb5b24acef029299ce9d1f49e/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9bb39b568d4c39a6d219f2df34e2184b.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/1ed5122bab095f45b9fd23017c196e25.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9bb39b568d4c39a6d219f2df34e2184b.jpg"
+        },
+        "usedSkin": {
+          "skinId": 53601,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/f9a129106d641a7771087a4ceee91446/0",
+          "skinName": "永昼",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/ba766b012281c42d48e5dd0b4a904761.jpg"
+        },
+        "position": 0,
+        "inBattleObjid": 1339,
+        "finalEquips": [
+          {
+            "equipId": 11311,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/11311.png",
+            "equipName": "纯净苍穹"
+          },
+          {
+            "equipId": 1341,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1341.png",
+            "equipName": "冰霜冲击"
+          },
+          {
+            "equipId": 1137,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1137.png",
+            "equipName": "暗影战斧"
+          },
+          {
+            "equipId": 1335,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1335.png",
+            "equipName": "魔女斗篷"
+          },
+          {
+            "equipId": 13310,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/13310.png",
+            "equipName": "冰痕之握"
+          },
+          {
+            "equipId": 1338,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1338.png",
+            "equipName": "暴烈之甲"
+          }
+        ],
+        "skill": {
+          "skillId": 80115,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/eb3386a58bce7cc31773de8cf7fce8fd.png",
+          "skillName": "闪现"
+        },
+        "highLight": [
+          {
+            "id": "103",
+            "name": "瞬闪控制",
+            "desc": "使用技能后衔接闪现控制敌人并为队友创造击败",
+            "icon": "Battle_PerfectMoment_Icon_BlueGaoduan",
+            "times": 1,
+            "appearTime": []
+          },
+          {
+            "id": "1",
+            "name": "关键群控",
+            "desc": "团战中使用技能控制敌方多名英雄并造成击败",
+            "icon": "Battle_PerfectMoment_Icon_Gold",
+            "times": 1,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 1,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/16547808028650966387/gametalk_6468889506737295407.jpg",
+          "desc": "<span id=\"root\">比镜还超标的打野？1分13秒即可出野区！两发强普就秒人！</span>",
+          "title": "比镜还超标的打野？1分13秒即可出野区！两发强普就秒人！",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18923070",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18923070"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/f9a129106d641a7771087a4ceee91446/0",
+          "desc": "<span id=\"root\">夏洛特史诗皮肤-永昼喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D53601%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "53601"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/09029fa1efa1e834ab057642596715c2.png",
+          "dataCounts": [
+            {
+              "data": "14.2",
+              "name": "经济转有效伤害",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "14.6",
+              "name": "经济转有效承伤",
+              "dataHighlight": true,
+              "dataNote": "5%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "19%",
+              "name": "有效伤害",
+              "dataHighlight": true,
+              "dataNote": "8%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/8177c04272be85e84c1ad8520a344d00.png",
+          "dataCounts": [
+            {
+              "data": "64",
+              "name": "视野价值",
+              "dataHighlight": false,
+              "dataNote": "18%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "23S",
+              "name": "控制时长",
+              "dataHighlight": false,
+              "dataNote": "19%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "12",
+              "name": "助攻数",
+              "dataHighlight": false,
+              "dataNote": "43%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "9",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "24%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "2",
+              "name": "高血量以上击杀",
+              "dataHighlight": false,
+              "dataNote": "45%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "57",
+              "name": "补兵数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "blueRoles": [
+    {
+      "basicInfo": {
+        "roleId": "2926074892",
+        "roleName": "LYG.蒿芸",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 2,
+        "serverId": 2104,
+        "acntCamp": 1,
+        "userId": "1602907600",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "12622270964263371410",
+        "isMe": true,
+        "dimGender": 1
+      },
+      "heroBehavior": {
+        "winNum": 127,
+        "loseNum": 112,
+        "avgScore": "8.1",
+        "winRate": "53.1%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/47-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "视野价值",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/27-2.png",
+          "value1": "37.7%",
+          "value2": "80"
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/32-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/90-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/101-2.png",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 0,
+        "deadCnt": 5,
+        "assistCnt": 23,
+        "money": 14949,
+        "exp": 2202,
+        "towerCnt": 0,
+        "evaluateIcon": "http://camp.qq.com/meta-data/evaluate-v2/silver_support_2.png",
+        "gradeGame": "10.5",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "s",
+        "sabcbattle": "a",
+        "sabcgrow": "a",
+        "sabcKDA": "a",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "85.0",
+        "totalHurtCnt": "172548",
+        "totalHeroHurtCnt": "68148",
+        "hurtTransRate": "0.5",
+        "totalBehurtCnt": "416763",
+        "totalBeheroHurtCnt": "388970",
+        "behurtPerDeath": "77794",
+        "joinGamePercent": "0.697",
+        "healCnt": "50552",
+        "ctrlTime": "80",
+        "buildingDamage": "0",
+        "monsterCoin": "598",
+        "killSoldier": "9",
+        "oldMasterMatchScore": 1914,
+        "newMasterMatchScore": 1927,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 10110,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 1,
+        "maxAssist": 1,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "6.90",
+        "evaluateType": 6,
+        "addFightPower": 173,
+        "mvpScoreTth": 1050,
+        "maxJoinGamePercent": 1,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 1,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "https://camp.qq.com/battle/common/evaluateV3/silver_support.png",
+        "maxCtrlTime": 1,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 1,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/977937945942799fd618773e5c378d3a.png",
+        "branchEvaluateType": 15
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 171,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/88d1265a17d72a077d6c642b034a8834.jpg",
+          "heroName": "张飞",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/201603m2/2b609b20204bac595b9fca985ea8c6eb/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/88d1265a17d72a077d6c642b034a8834.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/b0e84dac3fe7e3478343764bade02204.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/88d1265a17d72a077d6c642b034a8834.jpg"
+        },
+        "usedSkin": {
+          "skinId": 17105,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/60479bce90e7e58dd05cf7a8a32b3522/0",
+          "skinName": "百相守梦",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/899d74816fabf27ae8d63d91e4fe4b08.jpg"
+        },
+        "position": 4,
+        "inBattleObjid": 967,
+        "finalEquips": [
+          {
+            "equipId": 1724,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1724.png",
+            "equipName": "近卫·救赎"
+          },
+          {
+            "equipId": 1337,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1337.png",
+            "equipName": "贤者的庇护"
+          },
+          {
+            "equipId": 1341,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1341.png",
+            "equipName": "冰霜冲击"
+          },
+          {
+            "equipId": 1335,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1335.png",
+            "equipName": "魔女斗篷"
+          },
+          {
+            "equipId": 1332,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1332.png",
+            "equipName": "霸者重装"
+          },
+          {
+            "equipId": 1333,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1333.png",
+            "equipName": "不祥征兆"
+          }
+        ],
+        "skill": {
+          "skillId": 80102,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/2bfe8f88808b1566dd979c0b14b766ed.png",
+          "skillName": "治疗术"
+        },
+        "highLight": [
+          {
+            "id": "1",
+            "name": "关键群控",
+            "desc": "团战中使用技能控制敌方多名英雄并造成击败",
+            "icon": "Battle_PerfectMoment_Icon_Gold",
+            "times": 1,
+            "appearTime": []
+          },
+          {
+            "id": "11",
+            "name": "关键团战承伤",
+            "desc": "团战中承受超过敌方全队50%以上输出且造成击败",
+            "icon": "Battle_PerfectMoment_Icon_Gold",
+            "times": 1,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 1,
+        "teamRealFlag": 9,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/773014363100366383/gametalk_2072652520641544233.jpg",
+          "desc": "<span id=\"root\">张飞大招史诗级加强！竟成版本T0辅助？吃尽装备红利！</span>",
+          "title": "张飞大招史诗级加强！竟成版本T0辅助？吃尽装备红利！",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18914471",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18914471"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/60479bce90e7e58dd05cf7a8a32b3522/0",
+          "desc": "<span id=\"root\">张飞传说皮肤-百相守梦喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D17105%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "17105"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/f1ed9556a286aea4a3019e30d2773eef.png",
+          "dataCounts": [
+            {
+              "data": "22.9",
+              "name": "经济转有效承伤",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "79",
+              "name": "视野价值",
+              "dataHighlight": true,
+              "dataNote": "5%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "15.0",
+              "name": "对线期经济转有效承伤",
+              "dataHighlight": true,
+              "dataNote": "7%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/c5504036e6d43af33b57cb5aa70261a5.png",
+          "dataCounts": [
+            {
+              "data": "5S",
+              "name": "经济转控制",
+              "dataHighlight": true,
+              "dataNote": "7%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "7%",
+              "name": "防守野区伤害",
+              "dataHighlight": true,
+              "dataNote": "8%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "80S",
+              "name": "控制时长",
+              "dataHighlight": true,
+              "dataNote": "9%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "5",
+              "name": "死亡数",
+              "dataHighlight": true,
+              "dataNote": "10%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "0",
+              "name": "击杀数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "0",
+              "name": "对线期参与击杀",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "1363371913",
+        "roleName": "剑穿过你的心",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 2,
+        "serverId": 2110,
+        "acntCamp": 1,
+        "userId": "435931503",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "1425432532210122841",
+        "isMe": false,
+        "dimGender": 1
+      },
+      "heroBehavior": {
+        "winNum": 117,
+        "loseNum": 85,
+        "avgScore": "8.9",
+        "winRate": "57.9%"
+      },
+      "dataBehavior": [
+        {
+          "title": "死亡",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/12-3.png",
+          "value1": "8",
+          "value2": ""
+        },
+        {
+          "title": "参团率",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/4-3.png",
+          "value1": "57%",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/44-4.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/33-4.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/142-4.png",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 10,
+        "deadCnt": 8,
+        "assistCnt": 9,
+        "money": 20060,
+        "exp": 2202,
+        "towerCnt": 1,
+        "evaluateIcon": "",
+        "gradeGame": "7.6",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "b",
+        "sabcbattle": "a",
+        "sabcgrow": "a",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "0.0",
+        "totalHurtCnt": "907444",
+        "totalHeroHurtCnt": "158607",
+        "hurtTransRate": "0.9",
+        "totalBehurtCnt": "253332",
+        "totalBeheroHurtCnt": "215632",
+        "behurtPerDeath": "26954",
+        "joinGamePercent": "0.576",
+        "healCnt": "46015",
+        "ctrlTime": "17",
+        "buildingDamage": "8360",
+        "monsterCoin": "2631",
+        "killSoldier": "65",
+        "oldMasterMatchScore": 1903,
+        "newMasterMatchScore": 1915,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 10394,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "3.56",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 760,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 172,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f4b2ae49cb70dc7f5ab5f4ff983d6d8d.jpg",
+          "heroName": "蚩奼",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/0/c05da6c679b8000aaf1b653c479540fa/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f4b2ae49cb70dc7f5ab5f4ff983d6d8d.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/52f6dbfb7d2eb46dd3c6c90ca4ef43a5.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/f4b2ae49cb70dc7f5ab5f4ff983d6d8d.jpg"
+        },
+        "usedSkin": {
+          "skinId": 17201,
+          "skinIcon": "https://wzzsmanager-1255653016.file.myqcloud.com/common-image/compress/goods/16769f5cd3500f31466ea34ebdcbdaa7.jpeg",
+          "skinName": "极光幻客",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/a24090a5c89b66ffa1e2d1a698948044.jpg"
+        },
+        "position": 2,
+        "inBattleObjid": 1789,
+        "finalEquips": [
+          {
+            "equipId": 1135,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1135.png",
+            "equipName": "闪电匕首"
+          },
+          {
+            "equipId": 1328,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1328.png",
+            "equipName": "血魔之怒"
+          },
+          {
+            "equipId": 1126,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1126.png",
+            "equipName": "末世"
+          },
+          {
+            "equipId": 1422,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1422.png",
+            "equipName": "抵抗之靴"
+          },
+          {
+            "equipId": 1155,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1155.png",
+            "equipName": "仁者破晓"
+          },
+          {
+            "equipId": 1335,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1335.png",
+            "equipName": "魔女斗篷"
+          }
+        ],
+        "skill": {
+          "skillId": 80115,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/eb3386a58bce7cc31773de8cf7fce8fd.png",
+          "skillName": "闪现"
+        },
+        "highLight": [],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 10,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/5491420900786920246/gametalk_1724379920155025711.jpg",
+          "desc": "<span id=\"root\">蚩奼有3种形态和7种技能效果，她应该如何出装才能收益最大呢</span>",
+          "title": "蚩奼有3种形态和7种技能效果，她应该如何出装才能收益最大呢",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=180785826",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "180785826"
+        },
+        {
+          "icon": "https://wzzsmanager-1255653016.file.myqcloud.com/common-image/compress/goods/16769f5cd3500f31466ea34ebdcbdaa7.jpeg",
+          "desc": "<span id=\"root\">本局穿戴了皮肤-极光幻客，队友们都羡慕了</span>",
+          "title": "",
+          "buttonText": "去逛逛更多",
+          "jumpUrl": "smobagamehelper://hippy?modulename=mall&path=/mallTypeList&tabId=1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 1,
+          "contentID": "17201"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "8",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "19%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "13%",
+              "name": "高价值死亡占比",
+              "dataHighlight": false,
+              "dataNote": "35%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "65",
+              "name": "补兵数",
+              "dataHighlight": false,
+              "dataNote": "36%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/8177c04272be85e84c1ad8520a344d00.png",
+          "dataCounts": [
+            {
+              "data": "57%",
+              "name": "参团率",
+              "dataHighlight": false,
+              "dataNote": "19%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "36",
+              "name": "视野价值",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "9",
+              "name": "助攻数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/b060bb48fd771582abbf0448f2814859.png",
+          "dataCounts": [
+            {
+              "data": "74%",
+              "name": "对本分路塔伤害占比",
+              "dataHighlight": false,
+              "dataNote": "29%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "6",
+              "name": "参与推塔",
+              "dataHighlight": false,
+              "dataNote": "33%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "21%",
+              "name": "总经济",
+              "dataHighlight": false,
+              "dataNote": "36%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "2082234481",
+        "roleName": "在㄃尽头相遇",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 1,
+        "serverId": 1301,
+        "acntCamp": 1,
+        "userId": "2119590728",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "10779894685063783617",
+        "isMe": false,
+        "dimGender": 1
+      },
+      "heroBehavior": {
+        "winNum": 555,
+        "loseNum": 426,
+        "avgScore": "9.1",
+        "winRate": "56.6%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/98-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/101-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "死亡",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/12-2.png",
+          "value1": "4",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/42-2.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "控制效果",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/5-3.png",
+          "value1": "6.7%",
+          "value2": "00:12"
+        }
+      ],
+      "battleStats": {
+        "killCnt": 11,
+        "deadCnt": 4,
+        "assistCnt": 12,
+        "money": 20882,
+        "exp": 2202,
+        "towerCnt": 0,
+        "evaluateIcon": "http://camp.qq.com/meta-data/evaluate-v2/silver_mage_2.png",
+        "gradeGame": "11.4",
+        "mvp": true,
+        "godLikeCnt": 1,
+        "sabchurthero": "s",
+        "sabcbattle": "s",
+        "sabcgrow": "s",
+        "sabcKDA": "a",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "85.0",
+        "totalHurtCnt": "1038933",
+        "totalHeroHurtCnt": "294987",
+        "hurtTransRate": "1.5",
+        "totalBehurtCnt": "143192",
+        "totalBeheroHurtCnt": "123177",
+        "behurtPerDeath": "30794",
+        "joinGamePercent": "0.697",
+        "healCnt": "4452",
+        "ctrlTime": "12",
+        "buildingDamage": "1959",
+        "monsterCoin": "1734",
+        "killSoldier": "88",
+        "oldMasterMatchScore": 1902,
+        "newMasterMatchScore": 1916,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 10407,
+        "maxKill": 1,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "8.62",
+        "evaluateType": 4,
+        "addFightPower": 0,
+        "mvpScoreTth": 1140,
+        "maxJoinGamePercent": 1,
+        "maxHeroHurt": 1,
+        "maxBeheroHurt": 0,
+        "maxMoney": 1,
+        "ry": 0,
+        "evaluateIconV2": "https://camp.qq.com/battle/common/evaluateV3/silver_mage.png",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 1,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 1,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/a2c96893471637e5cf5c0a1e2c9829f3.png",
+        "branchEvaluateType": 13
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 182,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/73575285afa555915f65bcbd7011913c.jpg",
+          "heroName": "干将莫邪",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/883/9c8fa503a77cb3f45259d15d13c66be8/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/73575285afa555915f65bcbd7011913c.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/46455e057d92d938d019660a96bdeec2.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/73575285afa555915f65bcbd7011913c.jpg"
+        },
+        "usedSkin": {
+          "skinId": 18203,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/d3c8c099c5bd25d4aadd34d8717511db/0",
+          "skinName": "久胜战神",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/e6341135f6840f464c14c2acbdef691a.jpg"
+        },
+        "position": 1,
+        "inBattleObjid": 1823,
+        "finalEquips": [
+          {
+            "equipId": 1239,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1239.png",
+            "equipName": "辉月"
+          },
+          {
+            "equipId": 1227,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1227.png",
+            "equipName": "炽热支配"
+          },
+          {
+            "equipId": 1238,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1238.png",
+            "equipName": "贤者天书"
+          },
+          {
+            "equipId": 1232,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1232.png",
+            "equipName": "博学者之怒"
+          },
+          {
+            "equipId": 1231,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1231.png",
+            "equipName": "虚无法杖"
+          },
+          {
+            "equipId": 1240,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1240.png",
+            "equipName": "噬神之书"
+          }
+        ],
+        "skill": {
+          "skillId": 80115,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/eb3386a58bce7cc31773de8cf7fce8fd.png",
+          "skillName": "闪现"
+        },
+        "highLight": [
+          {
+            "id": "9",
+            "name": "关键团战输出",
+            "desc": "团战中造成超过全队50%以上输出且造成击败",
+            "icon": "Battle_PerfectMoment_Icon_Gold",
+            "times": 1,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 8,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/4608318032558966977/gametalk_13564313012869303729.jpg",
+          "desc": "<span id=\"root\">四剑瞬秒射手！版本最强法核！干将细节教学，满血就是斩杀线！</span>",
+          "title": "四剑瞬秒射手！版本最强法核！干将细节教学，满血就是斩杀线！",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18920989",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18920989"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/d3c8c099c5bd25d4aadd34d8717511db/0",
+          "desc": "<span id=\"root\">干将莫邪传说皮肤-久胜战神喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D18203%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "18203"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/21cd697b3a123ddbfcc924f790f21d49.png",
+          "dataCounts": [
+            {
+              "data": "82%",
+              "name": "对塔内小兵伤害",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "34%",
+              "name": "有效伤害",
+              "dataHighlight": true,
+              "dataNote": "9%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "3723",
+              "name": "对位经济差",
+              "dataHighlight": false,
+              "dataNote": "34%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/c5504036e6d43af33b57cb5aa70261a5.png",
+          "dataCounts": [
+            {
+              "data": "47%",
+              "name": "防守野区伤害",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "12S",
+              "name": "控制时长",
+              "dataHighlight": false,
+              "dataNote": "16%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "0S",
+              "name": "经济转控制",
+              "dataHighlight": false,
+              "dataNote": "20%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/7003dab03e128605a7dfebeedf173b3b.png",
+          "dataCounts": [
+            {
+              "data": "4",
+              "name": "死亡数",
+              "dataHighlight": true,
+              "dataNote": "6%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "7",
+              "name": "高血量以上击杀",
+              "dataHighlight": false,
+              "dataNote": "19%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "9",
+              "name": "最多连杀",
+              "dataHighlight": false,
+              "dataNote": "30%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "2288139577",
+        "roleName": "心上萌呆小馨",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 1,
+        "serverId": 1328,
+        "acntCamp": 1,
+        "userId": "2140247489",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "14858507857004236133",
+        "isMe": false,
+        "dimGender": 1
+      },
+      "heroBehavior": {
+        "winNum": 102,
+        "loseNum": 46,
+        "avgScore": "10.0",
+        "winRate": "68.9%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/42-3.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "死亡",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/12-3.png",
+          "value1": "8",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/34-4.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/32-4.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "参团率",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/4-4.png",
+          "value1": "54%",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 6,
+        "deadCnt": 8,
+        "assistCnt": 12,
+        "money": 18847,
+        "exp": 2202,
+        "towerCnt": 2,
+        "evaluateIcon": "",
+        "gradeGame": "7.4",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "a",
+        "sabcbattle": "a",
+        "sabcgrow": "a",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "0.0",
+        "totalHurtCnt": "1230137",
+        "totalHeroHurtCnt": "182533",
+        "hurtTransRate": "1",
+        "totalBehurtCnt": "230016",
+        "totalBeheroHurtCnt": "186513",
+        "behurtPerDeath": "23314",
+        "joinGamePercent": "0.545",
+        "healCnt": "45823",
+        "ctrlTime": "48",
+        "buildingDamage": "7130",
+        "monsterCoin": "4933",
+        "killSoldier": "40",
+        "oldMasterMatchScore": 1938,
+        "newMasterMatchScore": 1950,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 11267,
+        "maxKill": 0,
+        "maxHurt": 1,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 1,
+        "heroLevel": 15,
+        "kda": "3.38",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 740,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 1,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 0,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 538,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9f40d6872ff179f006f8291688f0c141.jpg",
+          "heroName": "云缨",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/1208/9dc4d259a4a7316bfc8c9394ad79c300/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9f40d6872ff179f006f8291688f0c141.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/767789232ed0961f0436efbf723a2870.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9f40d6872ff179f006f8291688f0c141.jpg"
+        },
+        "usedSkin": {
+          "skinId": 53805,
+          "skinIcon": "https://wzzsmanager-1255653016.file.myqcloud.com/common-image/compress/goods/663b2247c2d3d7583813d232678978b0.jpeg",
+          "skinName": "赞萌露比",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/0ea3ecf92a90c98f56cfe5f725300a63.jpg"
+        },
+        "position": 3,
+        "inBattleObjid": 2093,
+        "finalEquips": [
+          {
+            "equipId": 1533,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1533.png",
+            "equipName": "贪婪之噬"
+          },
+          {
+            "equipId": 1126,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1126.png",
+            "equipName": "末世"
+          },
+          {
+            "equipId": 1137,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1137.png",
+            "equipName": "暗影战斧"
+          },
+          {
+            "equipId": 13310,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/13310.png",
+            "equipName": "冰痕之握"
+          },
+          {
+            "equipId": 1328,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1328.png",
+            "equipName": "血魔之怒"
+          },
+          {
+            "equipId": 1335,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1335.png",
+            "equipName": "魔女斗篷"
+          }
+        ],
+        "skill": {
+          "skillId": 80104,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/818cfdc9dc9ac1c9ccb91f7911a45ef7.png",
+          "skillName": "惩击"
+        },
+        "highLight": [
+          {
+            "id": "1",
+            "name": "关键群控",
+            "desc": "团战中使用技能控制敌方多名英雄并造成击败",
+            "icon": "Battle_PerfectMoment_Icon_Gold",
+            "times": 1,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 7,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/13822297524167247379/gametalk_2325935853726065411.jpg",
+          "desc": "<span id=\"root\">云缨加强胜率暴涨，手感优化实战教学</span>",
+          "title": "云缨加强胜率暴涨，手感优化实战教学",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18933465",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18933465"
+        },
+        {
+          "icon": "https://wzzsmanager-1255653016.file.myqcloud.com/common-image/compress/goods/663b2247c2d3d7583813d232678978b0.jpeg",
+          "desc": "<span id=\"root\">云缨史诗皮肤-赞萌露比喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D53805%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "53805"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/fa6c64a1c1756e733d57e9f074d52e4d.png",
+          "dataCounts": [
+            {
+              "data": "21%",
+              "name": "有效伤害",
+              "dataHighlight": false,
+              "dataNote": "18%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "5",
+              "name": "参与控龙次数",
+              "dataHighlight": false,
+              "dataNote": "28%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "20%",
+              "name": "总经济",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "8",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "22%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "5",
+              "name": "最多连杀",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "6",
+              "name": "击杀数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/8177c04272be85e84c1ad8520a344d00.png",
+          "dataCounts": [
+            {
+              "data": "2S",
+              "name": "经济转控制",
+              "dataHighlight": false,
+              "dataNote": "32%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "54%",
+              "name": "参团率",
+              "dataHighlight": false,
+              "dataNote": "41%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "12",
+              "name": "助攻数",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "basicInfo": {
+        "roleId": "4024349325",
+        "roleName": "有你似清阳",
+        "roleIcon": "",
+        "openId": "",
+        "areaId": 1,
+        "serverId": 1505,
+        "acntCamp": 1,
+        "userId": "1612059325",
+        "isMI": 0,
+        "isGameAuth": true,
+        "playerId": "12576032262767215694",
+        "isMe": false,
+        "dimGender": 1
+      },
+      "heroBehavior": {
+        "winNum": 501,
+        "loseNum": 452,
+        "avgScore": "8.3",
+        "winRate": "52.6%"
+      },
+      "dataBehavior": [
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/47-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/41-1.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "参团率",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/4-3.png",
+          "value1": "57%",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/29-3.png",
+          "value1": "",
+          "value2": ""
+        },
+        {
+          "title": "",
+          "icon": "https://game-1255653016.file.myqcloud.com/HeroAbility_Icon/142-3.png",
+          "value1": "",
+          "value2": ""
+        }
+      ],
+      "battleStats": {
+        "killCnt": 6,
+        "deadCnt": 10,
+        "assistCnt": 13,
+        "money": 19235,
+        "exp": 2202,
+        "towerCnt": 1,
+        "evaluateIcon": "",
+        "gradeGame": "8.0",
+        "mvp": false,
+        "godLikeCnt": 0,
+        "sabchurthero": "a",
+        "sabcbattle": "a",
+        "sabcgrow": "a",
+        "sabcKDA": "b",
+        "sabcsurvive": "a",
+        "tripleKillCnt": 0,
+        "UltraKillCnt": 0,
+        "rampageCnt": 0,
+        "defeatAcntRatio": "50.0",
+        "totalHurtCnt": "1013117",
+        "totalHeroHurtCnt": "165003",
+        "hurtTransRate": "0.9",
+        "totalBehurtCnt": "323823",
+        "totalBeheroHurtCnt": "275630",
+        "behurtPerDeath": "27563",
+        "joinGamePercent": "0.576",
+        "healCnt": "51163",
+        "ctrlTime": "22",
+        "buildingDamage": "6988",
+        "monsterCoin": "2104",
+        "killSoldier": "70",
+        "oldMasterMatchScore": 1923,
+        "newMasterMatchScore": 1936,
+        "disGradeLevelId": "0",
+        "gradeLevelId": 16,
+        "fightPower": 10974,
+        "maxKill": 0,
+        "maxHurt": 0,
+        "maxBehurt": 0,
+        "maxAssist": 0,
+        "maxTower": 0,
+        "heroLevel": 15,
+        "kda": "2.85",
+        "evaluateType": 0,
+        "addFightPower": 0,
+        "mvpScoreTth": 800,
+        "maxJoinGamePercent": 0,
+        "maxHeroHurt": 0,
+        "maxBeheroHurt": 0,
+        "maxMoney": 0,
+        "ry": 0,
+        "evaluateIconV2": "",
+        "maxCtrlTime": 0,
+        "maxMonsterCoin": 0,
+        "maxHurtTransRate": 0,
+        "maxBehurtPerDeath": 0,
+        "maxKillSoldier": 0,
+        "maxHealCnt": 1,
+        "evaluateIcon10v10": "",
+        "eightKillCnt": 0,
+        "nineKillCnt": 0,
+        "tenKillCnt": 0,
+        "sixKillCnt": 0,
+        "sevenKillCnt": 0,
+        "evaluateIconV3": "",
+        "branchEvaluateType": 0
+      },
+      "battleRecords": {
+        "usedHero": {
+          "heroId": 537,
+          "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/326b2c2c3a5b305ac2819b09ae30fd94.jpg",
+          "heroName": "司空震",
+          "heroOriginSkin": "http://shp.qpic.cn/tgos/4792/95fc934a8cae975800d31b4c31e2a4a6/0",
+          "extraAvatar": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/326b2c2c3a5b305ac2819b09ae30fd94.jpg",
+          "verticalIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_C1/6178ecc9eac0905a5a2d8ef98bde0514.jpg",
+          "heroPicUrl": "",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/326b2c2c3a5b305ac2819b09ae30fd94.jpg"
+        },
+        "usedSkin": {
+          "skinId": 53701,
+          "skinIcon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/a9284a379f996387a382fbd7ad2a9ce0/0",
+          "skinName": "启蛰",
+          "skinIcon128128": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/73979632957108bc53f8e26d8da25f3c.jpg"
+        },
+        "position": 0,
+        "inBattleObjid": 1216,
+        "finalEquips": [
+          {
+            "equipId": 1156,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1156.png",
+            "equipName": "迅疾·日渊"
+          },
+          {
+            "equipId": 1135,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1135.png",
+            "equipName": "闪电匕首"
+          },
+          {
+            "equipId": 1136,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1136.png",
+            "equipName": "影刃"
+          },
+          {
+            "equipId": 1333,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1333.png",
+            "equipName": "不祥征兆"
+          },
+          {
+            "equipId": 1159,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1159.png",
+            "equipName": "逐风"
+          },
+          {
+            "equipId": 1327,
+            "equipIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzryequip/1327.png",
+            "equipName": "反伤刺甲"
+          }
+        ],
+        "skill": {
+          "skillId": 80110,
+          "skillIcon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_summonerSkill_icon/d3c417e460de2ad52d778459c50f402f.png",
+          "skillName": "狂暴"
+        },
+        "highLight": [
+          {
+            "id": "84",
+            "name": "雷霆之力",
+            "desc": "司空震短时间内多次使用奔雷疾穿梭战场击败敌方英雄",
+            "icon": "Battle_PerfectMoment_Icon_BlueHuoli",
+            "times": 2,
+            "appearTime": []
+          }
+        ],
+        "teamNum": 1,
+        "teamFlag": 0,
+        "teamRealFlag": 6,
+        "posList": [],
+        "revivePosList": [],
+        "skillUsed": [],
+        "deathPosList": [],
+        "threeKingdom": {
+          "countryIcon": "",
+          "skillIcon": "",
+          "levelIcon": ""
+        }
+      },
+      "recCards": [
+        {
+          "icon": "http://info-1255653016.file.myqcloud.com/12004973804341551918/gametalk_9305335224705564909.jpg",
+          "desc": "<span id=\"root\">四拳秒杀万血猪八戒！纯法司空震回归！全网最细打法思路！</span>",
+          "title": "四拳秒杀万血猪八戒！纯法司空震回归！全网最细打法思路！",
+          "buttonText": "去看看",
+          "jumpUrl": "smobagamehelper://infodetail?id=18938180",
+          "extInfo": [],
+          "type": 3,
+          "skinStatus": 0,
+          "contentID": "18938180"
+        },
+        {
+          "icon": "https://pvppic.kohsocialapp.qq.com/wzzs_pic/0/a9284a379f996387a382fbd7ad2a9ce0/0",
+          "desc": "<span id=\"root\">司空震勇者皮肤-启蛰喜欢就买！早买早享受</span>",
+          "title": "",
+          "buttonText": "去购买",
+          "jumpUrl": "smobagamehelper://web?url=https%3A%2F%2Fcamp.qq.com%2Fh5%2Fwebdist%2Fmall-detail%2Findex.html%3FthirdId%3D53701%26mallType%3D1%26isNavigationBarHidden%3D1",
+          "extInfo": [],
+          "type": 2,
+          "skinStatus": 2,
+          "contentID": "53701"
+        }
+      ],
+      "dataBehaviorV2": [
+        {
+          "title": "分路表现",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/09029fa1efa1e834ab057642596715c2.png",
+          "dataCounts": [
+            {
+              "data": "14.0",
+              "name": "经济转有效承伤",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "24%",
+              "name": "有效承伤",
+              "dataHighlight": true,
+              "dataNote": "1%",
+              "dataNoteHighlight": true
+            },
+            {
+              "data": "5484",
+              "name": "对位资源差",
+              "dataHighlight": false,
+              "dataNote": "25%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "团队贡献",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/8177c04272be85e84c1ad8520a344d00.png",
+          "dataCounts": [
+            {
+              "data": "57%",
+              "name": "参团率",
+              "dataHighlight": false,
+              "dataNote": "21%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "13",
+              "name": "助攻数",
+              "dataHighlight": false,
+              "dataNote": "39%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "1S",
+              "name": "经济转控制",
+              "dataHighlight": false,
+              "dataNote": "100%",
+              "dataNoteHighlight": false
+            }
+          ]
+        },
+        {
+          "title": "战斗操作",
+          "icon": "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_common/4f3d30452ae3034c46041d1c82027bc2.png",
+          "dataCounts": [
+            {
+              "data": "20%",
+              "name": "高价值死亡占比",
+              "dataHighlight": false,
+              "dataNote": "25%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "10",
+              "name": "死亡数",
+              "dataHighlight": false,
+              "dataNote": "36%",
+              "dataNoteHighlight": false
+            },
+            {
+              "data": "70",
+              "name": "补兵数",
+              "dataHighlight": false,
+              "dataNote": "49%",
+              "dataNoteHighlight": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "jumpUrl": ""
+}

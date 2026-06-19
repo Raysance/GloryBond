@@ -7,9 +7,40 @@ from openai import OpenAI
 import requests
 from ratelimit import limits, sleep_and_retry
 
-@sleep_and_retry    # 当达到限制时自动等待
+def _wait_official_low_priority_turn():
+    import time
+
+    while True:
+        active_until = getattr(dmc, "OfficialForegroundActiveUntil", 0)
+        now = time.time()
+        if now < active_until:
+            time.sleep(min(active_until - now, 3))
+            continue
+        shared_queue = getattr(dmc, "redis_deamon_share_btl", None)
+        analyze_queue = getattr(dmc, "redis_deamon_analyze_btl", None)
+        try:
+            if shared_queue and shared_queue.llen("Shared_queue"):
+                time.sleep(3)
+                continue
+            if analyze_queue and analyze_queue.llen("Analyze_queue"):
+                time.sleep(3)
+                continue
+        except Exception as e:
+            log_message(f"OFFICIAL_LOW_PRIORITY_QUEUE_CHECK_ERROR: {str(e)}")
+        return
+
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal"):
+    import time
+
+    if priority == "low":
+        _wait_official_low_priority_turn()
+    else:
+        dmc.OfficialForegroundActiveUntil = time.time() + 5
+    return _wzry_get_official_impl(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id)
+
+@sleep_and_retry
 @limits(calls=1, period=1)
-def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
+def _wzry_get_official_impl(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
     import time
     from .tools.endecoder import decrypt_game_data
     from .tools.endecoder import get_full_request_params
@@ -173,6 +204,9 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
             url=btldetail_url
             data=btldetail_data
         case "btlist":
+            url=btlist_url
+            data=btlist_data
+        case "btlist_url":
             url=btlist_url
             data=btlist_data
         case "profile":

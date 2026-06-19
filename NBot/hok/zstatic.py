@@ -1,4 +1,4 @@
-
+﻿
 from .zutil import *
 from dotenv import load_dotenv
 
@@ -10,11 +10,12 @@ env_path = "/QQBot/.env"
 load_dotenv(dotenv_path=env_path)
 
 # 引入Redis配置
-nginx_path=str(os.environ.get('NGINX_HTML')) # 依赖环境变量
 redis_path=str(os.environ.get('REDIS_CONF'))
 with open(redis_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 globals().update(varia)
+project_root=str(os.environ.get('BOT_PATH'))
+temp_path=os.path.join(project_root,"file_transfer")
 # 引入程序配置
 confs={}
 with open('config.yaml', 'r') as file:
@@ -28,3 +29,4 @@ for heroid,heroname in varia["HeroList"].items():
 for heroid,heroname in varia["HeroName_replacements"].items():
     varia["HeroNames"].append(heroname)
 globals().update(varia)
+

@@ -1,0 +1,150 @@
+{
+  "heroList": [
+    {
+      "basicInfo": {
+        "heroId": 123,
+        "skilledLevel": 0,
+        "winNum": 70,
+        "failNum": 70,
+        "expireTime": "0",
+        "playNum": 140,
+        "winRate": "50.0%",
+        "heroFightPower": 4419,
+        "score": 44190140,
+        "title": "吕布",
+        "alias": "无双之魔",
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/38d3801f4b62a57de1a0ad3f79b98c72.jpg",
+        "heroPic": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_A1/9862713082f6e10147d76c5d3aaa1eab.jpg",
+        "heroBg": "",
+        "heroUrl": "https://camp.qq.com/h5/webdist/hero-detail.html?isNavigationBarHidden=1&heroid=isMI=0",
+        "frequencyHeroUrl": "https://camp.qq.com/h5/webdist/hero-battle-history/index.html?areaId=2&heroid=123&isMI=true&isNavigationBarHidden=1&roleId=3012532577&roleName=%E5%B8%86%E6%9C%97&serverId=2106&sonic_remain_params=heroid%3BtoOpenid%3BserverId%3BareaId&sourceJump=1&summary=%E5%B8%86%E6%9C%97%E7%9A%84%E5%90%95%E5%B8%83%E8%AF%A6%E6%83%85",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_B1/554a9716abb9d1c8f43b5ad448016195.jpg"
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 153,
+        "skilledLevel": 0,
+        "winNum": 236,
+        "failNum": 179,
+        "expireTime": "0",
+        "playNum": 415,
+        "winRate": "56.9%",
+        "heroFightPower": 3593,
+        "score": 35930415,
+        "title": "兰陵王",
+        "alias": "暗影刀锋",
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/972b1c55fde9a0139b79775b73e820d6.jpg",
+        "heroPic": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_A1/0c1b692d98a1a83360660c790fd2d83e.jpg",
+        "heroBg": "",
+        "heroUrl": "https://camp.qq.com/h5/webdist/hero-detail.html?isNavigationBarHidden=1&heroid=isMI=0",
+        "frequencyHeroUrl": "https://camp.qq.com/h5/webdist/hero-battle-history/index.html?areaId=2&heroid=153&isMI=true&isNavigationBarHidden=1&roleId=3012532577&roleName=%E5%B8%86%E6%9C%97&serverId=2106&sonic_remain_params=heroid%3BtoOpenid%3BserverId%3BareaId&sourceJump=1&summary=%E5%B8%86%E6%9C%97%E7%9A%84%E5%85%B0%E9%99%B5%E7%8E%8B%E8%AF%A6%E6%83%85",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_B1/7c8e801bb9e88fd6549ac44ac256a937.jpg"
+      },
+      "honorTitle": {
+        "heroId": 153,
+        "rank": 88,
+        "type": 2,
+        "region": {
+          "provinceName": "广东",
+          "cityName": "中山市",
+          "countyName": "中山市"
+        },
+        "desc": {
+          "abbr": "市级第88兰陵王",
+          "full": "中山市第88兰陵王"
+        }
+      }
+    },
+    {
+      "basicInfo": {
+        "heroId": 144,
+        "skilledLevel": 0,
+        "winNum": 146,
+        "failNum": 122,
+        "expireTime": "0",
+        "playNum": 268,
+        "winRate": "54.5%",
+        "heroFightPower": 2982,
+        "score": 29820268,
+        "title": "程咬金",
+        "alias": "热烈之斧",
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/3b4160f66966e0073dfe8700e9b3f439.jpg",
+        "heroPic": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_A1/bbe59ba8c55f8bdc03aa26ddd1ce89ac.jpg",
+        "heroBg": "",
+        "heroUrl": "https://camp.qq.com/h5/webdist/hero-detail.html?isNavigationBarHidden=1&heroid=isMI=0",
+        "frequencyHeroUrl": "https://camp.qq.com/h5/webdist/hero-battle-history/index.html?areaId=2&heroid=144&isMI=true&isNavigationBarHidden=1&roleId=3012532577&roleName=%E5%B8%86%E6%9C%97&serverId=2106&sonic_remain_params=heroid%3BtoOpenid%3BserverId%3BareaId&sourceJump=1&summary=%E5%B8%86%E6%9C%97%E7%9A%84%E7%A8%8B%E5%92%AC%E9%87%91%E8%AF%A6%E6%83%85",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_B1/3a01073aafaf9623dc709d5c83953056.jpg"
+      },
+      "honorTitle": {
+        "heroId": 144,
+        "rank": 77,
+        "type": 2,
+        "region": {
+          "provinceName": "广东",
+          "cityName": "中山市",
+          "countyName": "中山市"
+        },
+        "desc": {
+          "abbr": "市级第77程咬金",
+          "full": "中山市第77程咬金"
+        }
+      }
+    },
+    {
+      "basicInfo": {
+        "heroId": 135,
+        "skilledLevel": 0,
+        "winNum": 105,
+        "failNum": 104,
+        "expireTime": "0",
+        "playNum": 209,
+        "winRate": "50.2%",
+        "heroFightPower": 2721,
+        "score": 27210209,
+        "title": "项羽",
+        "alias": "霸王",
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/2ee8de3a4c2d4827a7e868491e4eeaf9.jpg",
+        "heroPic": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_A1/2a83a5c51efeddff5e6fe49eb3294805.jpg",
+        "heroBg": "",
+        "heroUrl": "https://camp.qq.com/h5/webdist/hero-detail.html?isNavigationBarHidden=1&heroid=isMI=0",
+        "frequencyHeroUrl": "https://camp.qq.com/h5/webdist/hero-battle-history/index.html?areaId=2&heroid=135&isMI=true&isNavigationBarHidden=1&roleId=3012532577&roleName=%E5%B8%86%E6%9C%97&serverId=2106&sonic_remain_params=heroid%3BtoOpenid%3BserverId%3BareaId&sourceJump=1&summary=%E5%B8%86%E6%9C%97%E7%9A%84%E9%A1%B9%E7%BE%BD%E8%AF%A6%E6%83%85",
+        "url": "",
+        "heroTeachUrl": "",
+        "heroPicV2": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_B1/3bd996179a212f01a6e6e3518a212c1b.jpg"
+      },
+      "honorTitle": null
+    },
+    {
+      "basicInfo": {
+        "heroId": 126,
+        "skilledLevel": 0,
+        "winNum": 111,
+        "failNum": 98,
+        "expireTime": "0",
+        "playNum": 209,
+        "winRate": "53.1%",
+        "heroFightPower": 2334,
+        "score": 23340209,
+        "title": "夏侯惇",
+        "alias": "不羁之风",
+        "heroIcon": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/9b399f21336fdf54c474d83f5c5edcb4.jpg",
+        "heroPic": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_A1/855ef6b9d19638f5a660cf04dd4b2645.jpg",
+        "heroBg": "",
+        "heroUrl": "https://camp.qq.com/h5/webdist/hero-detail.html?isNavigationBarHidden=1&heroid=isMI=0",
+        "frequencyHeroUrl": "https://camp.qq.com/h5/webdist/hero-battle-history/index.html?areaId=2&heroid=126&isMI=true&isNavigationBarHidden=1&roleId=3012532577&roleName=%E5%B8%86%E6%9C%97&serverId=2106&sonic_remain_params=heroid%3BtoOpenid%3BserverId%3BareaId&sourceJump=1&summary=%E5%B8%86%E6%9C%97%E7%9A%84%E5%A4%8F%E4%BE%AF%E6%83%87%E8%AF%A6%E6%83%85",
+        "url": "",
+        "heroTeachUrl": "smobagamehelper://infosubjectdetail?infosubjectid=188",
+        "heroPicV2": "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_B1/378f3792be0d39bd1cc8f2efeaadf45d.jpg"
+      },
+      "honorTitle": null
+    }
+  ]
+}

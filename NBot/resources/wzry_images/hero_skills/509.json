@@ -1,0 +1,315 @@
+{
+  "skillList1": [
+    {
+      "skillId": 50900,
+      "heroId": 509,
+      "heroTitle": "盾山",
+      "title": "一夫当关",
+      "icon": "0.43e7ad3f1c0eff3efd909b098bea5204",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "盾山普攻额外造成135+2.7%<span style=\"color: #30B13A;\">生命值</span>物理伤害</br>【盾甲庇护】生效期间普攻切换为远程范围效果(长按普攻按钮蓄力提升攻击距离并控制方向)额外造成10%减速(持续0.5秒)\n",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "w123833uk12",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 50911,
+      "heroId": 509,
+      "heroTitle": "盾山",
+      "title": "盾甲庇护",
+      "icon": "0.47d8b629f2c0501a5236bde9dc095a6e",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 10,
+      "loss": 60,
+      "desc": "选中友方英雄：盾山向目标冲刺后<span style=\"color:#f7b400\">庇护</span>目标并为双方提供600+12%<span style=\"color: #30B13A;\">生命值</span>护盾(持续6秒)，期间双方的移动由队友操作(队友主动脱离或使用强大位移会中断庇护并根据庇护持续时间返还)</br>选中友方防御塔或任一防御塔废墟：盾山化身炮台(持续6秒)，期间获得<span style=\"color:#f7b400\">不可选中</span>和每秒100+2%<span style=\"color: #30B13A;\">生命值</span>回复，防御塔获得等量回复和600+12%<span style=\"color: #30B13A;\">生命值</span>护盾(再次使用可以脱离炮台状态，独立15秒)",
+      "skillData1": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData2": "护盾效果|600|720|840|960|1080|1200",
+      "skillData3": "炮台回复|100|120|140|160|180|200",
+      "skillData4": "炮台冷却|15|14.4|13.8|13.2|12.6|12",
+      "heroVideo": "i12381gn4xv",
+      "gameLabelList": [
+        {
+          "text": "庇护",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "炮台",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 50920,
+      "heroId": 509,
+      "heroTitle": "盾山",
+      "title": "万夫莫开",
+      "icon": "0.fd2f269a9766f937ea0746e2e259a42e",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 10,
+      "loss": 75,
+      "desc": "盾山向前冲锋并扔回第一个撞到的敌方英雄，落地对周围造成600+150%<span style=\"color: #ff6600;\">物理攻击</span>物理伤害和晕眩(持续1秒)</br>冲锋过程中会击退非英雄单位并造成等量伤害，在【盾甲庇护】庇护期间释放不会扔回敌方英雄",
+      "skillData1": "基础伤害|600|720|840|960|1080|1200",
+      "skillData2": "冷却时间|10|9.6|9.2|8.8|8.4|8",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "c1238m4hwlu",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 50930,
+      "heroId": 509,
+      "heroTitle": "盾山",
+      "title": "天地化盾",
+      "icon": "0.e3a8962b380bb13ede159cde80e27214",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 40,
+      "loss": 100,
+      "desc": "盾山张开巨盾砸向地面获得短暂的<span style=\"color:#f7b400\">霸体</span>，击退范围内的敌人造成450+115%<span style=\"color: #ff6600;\">物理攻击</span>物理伤害和25%减速(持续1秒)，随后巨盾向前移动击飞(持续0.5秒)触碰的敌人造成等量伤害并<span style=\"color:#f7b400\">击落</span>飞行物",
+      "skillData1": "基础伤害|450|675|900",
+      "skillData2": "冷却时间|40|36|32",
+      "skillData3": "降低移速|25%|37.5%|50%",
+      "skillData4": "",
+      "heroVideo": "e1238hbwj51",
+      "gameLabelList": [
+        {
+          "text": "击落",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 509,
+      "showRate": "0.3454",
+      "winRate": "0.5826",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 509,
+      "showRate": "0.292",
+      "winRate": "0.5835",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 5,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 5,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    },
+    {
+      "heroId": 509,
+      "showRate": "0.0802",
+      "winRate": "0.5988",
+      "runeList": [
+        {
+          "runeId": 1512,
+          "num": 10,
+          "iId": 1274,
+          "iRuneId": 1512,
+          "szCate": "生命|防御|攻速",
+          "szTitle": "5级铭文:宿命",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|最大生命+33.7|物理防御+2.3",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1512.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3509,
+          "num": 10,
+          "iId": 1203,
+          "iRuneId": 3509,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:虚空",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+45|冷却缩减+0.5%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3509.png"
+        }
+      ]
+    }
+  ]
+}

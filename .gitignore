@@ -1,8 +1,48 @@
+# Public repository safety boundary.
+# Root rules protect secrets and private runtime data from the public showcase repo.
+# Subproject .gitignore files should only ignore local caches, generated files, and other unnecessary artifacts.
+
+# Python/runtime caches
 __pycache__/
-/NBot/debug_tools
-/NBot/wzry_data_format
-/Web/default_json_templates
-*.json
-*.log
-config.yaml
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Secrets and environment files
 .env
+.env.*
+!.env.example
+!.env.sample
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+**/config.yaml
+**/config.local.yaml
+**/config.*.yaml
+!**/config.example.yaml
+!**/config.sample.yaml
+!**/config.template.yaml
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+*.secret
+*.secrets
+*secret*
+*token*
+*credential*
+
+# Private bot configuration and user data
+**/variables_static.json
+**/variables_dynamic.json
+**/emojiref.json
+NBot/data/
+NBot/file_transfer/
+
+# Logs may contain private identifiers or request details
+*.log
+logs/
+**/logs/

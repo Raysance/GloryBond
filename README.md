@@ -4,61 +4,57 @@
 
 [Click here tο try Demo](https://zhdxlz.top/agent-demo)
 
-
 ## 目录
 
-- [GloryBond (QQ-HOK-Agent) User Manual](#glorybond-qq-hok-agent-user-manual)
-  - [目录](#目录)
-  - [📖 总览](#-总览)
-  - [项目架构与文件职责](#项目架构与文件职责)
-    - [🤖 NBot (逻辑核心)](#-nbot-逻辑核心)
-    - [📊 Tools (自动化生成工具)](#-tools-自动化生成工具)
-    - [🌐 Web (数据展示与管理)](#-web-数据展示与管理)
-    - [📂 其他目录](#-其他目录)
-  - [🎯 功能速查](#-功能速查)
-  - [🎮 核心功能](#-核心功能)
-    - [一、战绩查询](#一战绩查询)
-      - [1. 排行榜查询](#1-排行榜查询)
-      - [2. 个人战绩查询](#2-个人战绩查询)
-      - [3. 在线状态查询](#3-在线状态查询)
-      - [4. 历史对局条件查询](#4-历史对局条件查询)
-    - [二、英雄数据](#二英雄数据)
-      - [1. 英雄战力查询](#1-英雄战力查询)
-      - [2. 单玩家单英雄数据查询](#2-单玩家单英雄数据查询)
-      - [3. 单玩家多英雄数据查询](#3-单玩家多英雄数据查询)
-      - [4. 多玩家单英雄数据查询](#4-多玩家单英雄数据查询)
-      - [5. 多玩家多英雄数据查询](#5-多玩家多英雄数据查询)
-      - [6. 今日英雄](#6-今日英雄)
-    - [三、数据分析](#三数据分析)
-      - [1. 评分分析](#1-评分分析)
-      - [2. 总览](#2-总览)
-      - [3. 实力评估（戳一戳）](#3-实力评估戳一戳)
-      - [4. 对局预言](#4-对局预言)
-      - [5. 游戏时长](#5-游戏时长)
-      - [6. 团队兼容性分析](#6-团队兼容性分析)
-    - [四、智能对话](#四智能对话)
-      - [1. 普通聊天](#1-普通聊天)
-      - [2. 记忆管理](#2-记忆管理)
-        - [1. 主动聊天记忆](#1-主动聊天记忆)
-        - [2. 被动聊天记忆](#2-被动聊天记忆)
-        - [3. 历史聊天提炼记忆](#3-历史聊天提炼记忆)
-        - [4. 主动强制记忆](#4-主动强制记忆)
-        - [5. 清除记忆](#5-清除记忆)
-      - [3. 戳一戳互动](#3-戳一戳互动)
-    - [五、其他](#五其他)
-      - [1. User Manual](#1-user-manual)
-      - [2. 查看源码](#2-查看源码)
-      - [3. 每日推送](#3-每日推送)
-      - [4. 自动播报](#4-自动播报)
-  - [](#)
-      - [5. 智能缺人摇人](#5-智能缺人摇人)
-      - [6. 网页链接](#6-网页链接)
-  - [📞 常见问题](#-常见问题)
-  - [附录：指标计算方法](#附录指标计算方法)
-    - [一、机制受益/受害指标](#一机制受益受害指标)
-    - [二、拿手英雄指标](#二拿手英雄指标)
-    - [三、战局实力评估（底蕴值）](#三战局实力评估底蕴值)
-    - [四、团队贡献度指标](#四团队贡献度指标)
+- [📖 总览](#-总览)
+- [项目架构与文件职责](#项目架构与文件职责)
+  - [🤖 NBot (逻辑核心)](#-nbot-逻辑核心)
+  - [📊 Tools (自动化生成工具)](#-tools-自动化生成工具)
+  - [🌐 Web (数据展示与管理)](#-web-数据展示与管理)
+  - [📂 其他目录](#-其他目录)
+- [🎯 功能速查](#-功能速查)
+- [🎮 核心功能](#-核心功能)
+  - [一、战绩查询](#一战绩查询)
+    - [1. 排行榜查询](#1-排行榜查询)
+    - [2. 个人战绩查询](#2-个人战绩查询)
+    - [3. 在线状态查询](#3-在线状态查询)
+    - [4. 历史对局条件查询](#4-历史对局条件查询)
+  - [二、英雄数据](#二英雄数据)
+    - [1. 英雄战力查询](#1-英雄战力查询)
+    - [2. 单玩家单英雄数据查询](#2-单玩家单英雄数据查询)
+    - [3. 单玩家多英雄数据查询](#3-单玩家多英雄数据查询)
+    - [4. 多玩家单英雄数据查询](#4-多玩家单英雄数据查询)
+    - [5. 多玩家多英雄数据查询](#5-多玩家多英雄数据查询)
+    - [6. 今日英雄](#6-今日英雄)
+  - [三、数据分析](#三数据分析)
+    - [1. 评分分析](#1-评分分析)
+    - [2. 总览](#2-总览)
+    - [3. 实力评估（戳一戳）](#3-实力评估戳一戳)
+    - [4. 对局预言](#4-对局预言)
+    - [5. 游戏时长](#5-游戏时长)
+    - [6. 团队兼容性分析](#6-团队兼容性分析)
+  - [四、智能对话](#四智能对话)
+    - [1. 普通聊天](#1-普通聊天)
+    - [2. 记忆管理](#2-记忆管理)
+      - [1. 主动聊天记忆](#1-主动聊天记忆)
+      - [2. 被动聊天记忆](#2-被动聊天记忆)
+      - [3. 历史聊天提炼记忆](#3-历史聊天提炼记忆)
+      - [4. 主动强制记忆](#4-主动强制记忆)
+      - [5. 清除记忆](#5-清除记忆)
+    - [3. 戳一戳互动](#3-戳一戳互动)
+  - [五、其他](#五其他)
+    - [1. User Manual](#1-user-manual)
+    - [2. 查看源码](#2-查看源码)
+    - [3. 每日推送](#3-每日推送)
+    - [4. 自动播报](#4-自动播报)
+    - [5. 智能缺人摇人](#5-智能缺人摇人)
+    - [6. 网页链接](#6-网页链接)
+- [📞 常见问题](#-常见问题)
+- [附录：指标计算方法](#附录指标计算方法)
+  - [一、机制受益/受害指标](#一机制受益受害指标)
+  - [二、拿手英雄指标](#二拿手英雄指标)
+  - [三、战局实力评估（底蕴值）](#三战局实力评估底蕴值)
+  - [四、团队贡献度指标](#四团队贡献度指标)
 
 ---
 
@@ -70,40 +66,57 @@
 
 ### 🤖 NBot (逻辑核心)
 
-- **[config.py](NBot/config.py)**: 定义插件的基础配置模型，使用 Pydantic 进行配置验证与解析。
-- **[zdebug.py](NBot/zdebug.py)**: 系统调试工具，包含战绩数据的手动持久化 (Dump) 与紧急数据恢复逻辑。
-- **[zdynamic.py](NBot/zdynamic.py)**: 动态状态管理，负责维护 Redis 连接实例并实时同步全局动态变量。
-- **[zevent.py](NBot/zevent.py)**: 核心事件路由，处理指令正则匹配（如战绩查询）及全局消息监听钩子。
-- **[zfile.py](NBot/zfile.py)**: 数据持久化层，封装 JSON 标准读写及本地聊天日志的记录逻辑。
-- **[zfunc.py](NBot/zfunc.py)**: 业务功能库，核心包含王者荣耀战绩解析、数据清洗及玩家统计函数。
-- **[zmemory.py](NBot/zmemory.py)**: 记忆系统模块，利用 Redis 存储用户对话上下文，为 AI 角色提供记忆。
-- **[zscheduler.py](NBot/zscheduler.py)**: 定时任务管理器，负责每日自动备份战绩、生成报表等后台任务。
-- **[zstatic.py](NBot/zstatic.py)**: 静态配置加载，读取环境变量、英雄数据库及段位权重表等常量。
-- **[ztime.py](NBot/ztime.py)**: 时间工具类，处理业务特有的“凌晨归位”逻辑（3:30界限）及格式转换。
-- **[zutil.py](NBot/zutil.py)**: 基础工具集，提供全局日志记录、异常捕获以及底层依赖管理。
-- **[utils/message_sender.py](NBot/utils/message_sender.py)**: 消息发送管道，通过异步队列控制发送频率。
+- **[NBot/hok/](NBot/hok/)**: NoneBot 插件主包，负责 QQ 消息事件、王者荣耀数据拉取、战绩统计、AI 对话、定时任务与消息发送。
+- **[NBot/hok/__init__.py](NBot/hok/__init__.py)**: 插件入口，注册 `PluginMetadata`，集中加载配置、静态变量、API、事件、文件、业务函数、定时器与时间工具。
+- **[NBot/hok/config.py](NBot/hok/config.py)**: Pydantic 配置模型定义，用于 NoneBot 插件配置解析。
+- **[NBot/hok/zapi.py](NBot/hok/zapi.py)**: 外部 API 访问层，封装王者营地接口、B 站赛事接口以及 AI 模型调用。
+- **[NBot/hok/zevent.py](NBot/hok/zevent.py)**: QQBot 事件路由，处理全局消息监听、命令匹配、戳一戳、关键词触发与群聊交互。
+- **[NBot/hok/zfunc.py](NBot/hok/zfunc.py)**: 核心业务逻辑，负责战绩解析、历史对局查询、玩家/英雄统计、战力分析、阵容分析等主要功能。
+- **[NBot/hok/zfile.py](NBot/hok/zfile.py)**: 文件读写与本地持久化工具，统一封装 JSON、文本、日志与战绩文件访问。
+- **[NBot/hok/zmemory.py](NBot/hok/zmemory.py)**: 记忆系统，基于 Redis 管理主动聊天、被动聊天、历史提炼、强制记忆、表情记忆等上下文数据。
+- **[NBot/hok/zscheduler.py](NBot/hok/zscheduler.py)**: 定时任务中心，负责每日战绩备份、自动推送、数据分析、记忆提炼等后台任务。
+- **[NBot/hok/zdynamic.py](NBot/hok/zdynamic.py)**: 动态状态管理，加载 `variables_dynamic.json` 并初始化各类 Redis 连接与队列。
+- **[NBot/hok/zstatic.py](NBot/hok/zstatic.py)**: 静态配置加载，读取 `.env`、Redis 配置、`config.yaml`、`variables_static.json` 与英雄/段位等常量。
+- **[NBot/hok/ztime.py](NBot/hok/ztime.py)**: 时间工具，处理真实时间、业务日期、凌晨归属、时间差计算等逻辑。
+- **[NBot/hok/zdebug.py](NBot/hok/zdebug.py)**: 调试与恢复工具，支持手动 dump、历史数据恢复、调试输出等维护操作。
+- **[NBot/hok/zdiy.py](NBot/hok/zdiy.py)**: 自定义代码/手动 API 扩展模块，包含代码安全检查、手动接口说明与沙箱执行辅助。
+- **[NBot/hok/zutil.py](NBot/hok/zutil.py)**: 通用工具集合，提供日志、异常、随机、正则、集合处理等基础能力。
+- **[NBot/hok/utils/message_sender.py](NBot/hok/utils/message_sender.py)**: 消息发送队列，统一控制异步消息发送与频率。
 
 ### 📊 Tools (自动化生成工具)
-位于 `NBot/tools/`，专注于数据的可视化转化。
+位于 `NBot/hok/tools/`，主要负责图片渲染、接口加解密、赛事采集与离线分析。
 
-- **[gen_battle_res.py](NBot/tools/gen_battle_res.py)**: 单局结果渲染器，将复杂的对局 JSON 数据绘制为美化的长图。
-- **[gen_battle_shot.py](NBot/tools/gen_battle_shot.py)**: 自动化截图工具，支持监听推流并在关键时刻截取游戏画面。
-- **[gen_coplayer_analyses.py](NBot/tools/gen_coplayer_analyses.py)**: 深度关系分析，生成带有头像、胜率及评价的玩家关联图表。
-- **[gen_grade_chart.py](NBot/tools/gen_grade_chart.py)**: 趋势统计工具，利用 Matplotlib 生成玩家星数或评分的赛季走势图。
+- **[NBot/hok/tools/endecoder.py](NBot/hok/tools/endecoder.py)**: 王者营地接口加解密工具，生成请求参数并解密接口返回数据。
+- **[NBot/hok/tools/gen_battle_res.py](NBot/hok/tools/gen_battle_res.py)**: 单局结果图片生成器，将复杂对局 JSON 渲染为可分享的战绩长图。
+- **[NBot/hok/tools/gen_battle_shot.py](NBot/hok/tools/gen_battle_shot.py)**: RTMP 监听与截图工具，用于直播/推流场景下的关键画面截取。
+- **[NBot/hok/tools/gen_coplayer_analyses.py](NBot/hok/tools/gen_coplayer_analyses.py)**: 共玩关系分析图生成器，展示队友关系、胜率、头像与评价信息。
+- **[NBot/hok/tools/gen_grade_chart.py](NBot/hok/tools/gen_grade_chart.py)**: 评分/星数趋势图生成工具，基于历史 JSON 数据输出 Matplotlib 图表。
+- **[NBot/hok/tools/gen_gametime_table.py](NBot/hok/tools/gen_gametime_table.py)**: 游戏时长表格生成工具，支持多账号合并与按玩家聚合展示。
+- **[NBot/hok/tools/gen_emoji_image.py](NBot/hok/tools/gen_emoji_image.py)**: 表情包生成辅助，维护表情风格模板并调用图片生成链路。
+- **[NBot/hok/tools/emoji_renderer.py](NBot/hok/tools/emoji_renderer.py)**: 简易 emoji 文本切分与渲染辅助，用于图片文字绘制。
+- **[NBot/hok/tools/kpl_match_collector.py](NBot/hok/tools/kpl_match_collector.py)**: B 站 KPL 赛事数据采集器，提供赛程、单场内容、评分与热评等结构化数据。
+- **[NBot/hok/tools/PowerAnalyzeEvaluator.py](NBot/hok/tools/PowerAnalyzeEvaluator.py)**: 战力分析结果评估脚本，用于 Redis 中历史分析样本的一致性统计。
 
 ### 🌐 Web (数据展示与管理)
 基于 FastAPI 构建的轻量级展示后端。
 
 - **[app.py](Web/app.py)**: Web 服务主程序，定义所有 HTTP 路由、视图渲染及 API 交互。
 - **[utils.py](Web/utils.py)**: Web 端专用工具，集成 OpenAI 分析能力及单局战绩文件的索引映射。
+- **[default_json_templates/](Web/default_json_templates/)**: 页面默认数据模板，包含战绩详情、个人列表、全员列表、区间列表和查询结果的兜底 JSON。
 - **[templates/](Web/templates/)**: 网页模板目录：
-  - `AdminPages/`: 管理后端页面（登录、聊天查看器、数据同步等）。
-  - `CommonPages/`: 业务前端界面（战绩列表展示、对局详情预览）。
-  - `ErrorPages/`: 异常处理器，如令牌过期或非法访问的友好提示。
+  - `AdminPages/`: 管理后台页面，包括登录、仪表盘、聊天查看器、用户编辑与直接跳转。
+  - `CommonPages/`: 业务展示页面，包括全员战绩、个人战绩、区间战绩、对局详情与条件查询结果。
+  - `ErrorPages/`: 异常页面，包括链接过期和非法访问提示。
+- **[Web/tools/endecoder.py](Web/tools/endecoder.py)**: Web 侧接口编码/解码辅助脚本。
 
 ### 📂 其他目录
-- **assets/**: README需要的静态图片资源。
-- **wzry_images/**: 预存的英雄、装备图标等游戏静态素材数据库。
+- **[NBot/data/](NBot/data/)**: 运行期数据目录，保存历史战绩、单局详情、英雄梯度、聊天日志等本地 JSON 数据。
+- **[NBot/resources/](NBot/resources/)**: 静态资源目录，包含英雄、装备、头像、表情模板、生成图片缓存等素材。
+- **[assets/](assets/)**: README 演示图片资源，用于展示战绩图、网页截图、自动播报、今日英雄等效果。
+- **[NBot/config.yaml](NBot/config.yaml)**: 业务配置文件，集中管理接口、Web 服务、模型与功能开关等配置项。
+- **[NBot/variables_static.json](NBot/variables_static.json)**: 静态业务变量，包含用户映射、昵称、英雄表、别名、段位与规则参数。
+- **[NBot/variables_dynamic.json](NBot/variables_dynamic.json)**: 动态状态变量，保存运行中可能被 Redis 或业务逻辑同步的状态。
+- **[mklink.bat](mklink.bat)**: Windows 符号链接辅助脚本，用于将本仓库与实际部署目录关联。
 
 ---
 
@@ -182,6 +195,16 @@
 <td>对局预言</td>
 <td>评估正在进行的对局的双方底蕴</td>
 <td><code>#小卷王的分析</code></td>
+</tr>
+<tr>
+<td>底蕴统计</td>
+<td>查看最近7天官方对局的平均双方底蕴</td>
+<td><code>#小卷王的底蕴</code></td>
+</tr>
+<tr>
+<td>底蕴排行</td>
+<td>查看最近7天玩家平均底蕴排行</td>
+<td><code>#底蕴排行</code></td>
 </tr>
 <tr>
 <td>对局查询</td>
@@ -677,10 +700,12 @@ MVP×4  牌子×4  KDA 6.5/3.0/4.4
 - 评估最近一局对战双方实力
 - 计算双方底蕴值
 - 显示实力对比
+- 后台会在空闲时评估历史官方对局底蕴，并可通过 `#xx的底蕴` 查看最近7天统计
 
 **使用示例**：
 - 先查询战绩：`#🐷的战绩`
 - 然后戳一戳机器人
+- 查询统计：`#🐷的底蕴`
 
 **返回内容**：
 ```
@@ -851,6 +876,25 @@ A: （电流声像云缨的枪尖划破月色）明白！从此奶龙的帅就�
 - 在特殊情况下有特定功能：
   - 查询战绩后10分钟内：返回实力对比分析
   - 
+---
+
+#### 4. 表情包生成
+**触发方式**：`#emoji`
+
+**功能说明**：
+- 支持随机模板生成表情包
+- 支持通过图片文件名前缀指定参考图，前缀支持数字、字母与下划线，且会保留前导 0
+- 支持通过第二个参数或 `prompt`/`提示词` 指定生成内容
+- 发送图片并使用 `#emoji` 时，会以该图片作为参考模板
+
+**使用示例**：
+```
+#emoji
+#emoji 001 震惊但嘴硬
+#emoji template=奶龙 prompt=委屈地说我没事
+#emoji 模板=E1_001 提示词=做一个开心贴纸
+```
+
 ---
 
 ### 五、其他

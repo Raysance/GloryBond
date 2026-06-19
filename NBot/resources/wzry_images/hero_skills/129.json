@@ -1,0 +1,322 @@
+{
+  "skillList1": [
+    {
+      "skillId": 12900,
+      "heroId": 129,
+      "heroTitle": "典韦",
+      "title": "激怒",
+      "icon": "0.961092cd3b74396f1a3aadbe406c2441",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "典韦的所有技能均可解控，每次成功解控会获得激怒效果，提升自身的物理攻击和攻击距离，持续6秒，最多叠加6层。</br>激怒：每层提供<span style=\"color:#ff6600\">15~29<span style=\"color: #ff6600;\">物理攻击</span></span>和35攻击距离。</br>解除硬控叠加2层，解除软控叠加1层。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "p1447t3s6gh",
+      "gameLabelList": [
+        {
+          "text": "解控",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12910,
+      "heroId": 129,
+      "heroTitle": "典韦",
+      "title": "红眼",
+      "icon": "0.f19460fc632475d6b83eb9fca91c2743",
+      "type": "主动",
+      "label": "物理",
+      "coolDown": 8,
+      "loss": 50,
+      "desc": "典韦增加<span style=\"color:#30b13a\">60%移速</span>，加速会在3秒内持续衰减，同时强化下一次普攻：获得满被动的攻击距离，对附近敌人额外造成200<span style=\"color:#ff6600\">(+50%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，释放时会朝超出常规普攻距离的目标突进。",
+      "skillData1": "基础伤害|200|240|280|320|360|400",
+      "skillData2": "冷却时间|8|7.7|7.4|7.1|6.8|6.5",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "q1447ux9lf9",
+      "gameLabelList": [
+        {
+          "text": "加速",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12920,
+      "heroId": 129,
+      "heroTitle": "典韦",
+      "title": "狂暴",
+      "icon": "0.f40c24327a1c4dccd2e45a2c34b046c3",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 6,
+      "loss": 40,
+      "desc": "典韦践踏大地，对范围内敌人造成320<span style=\"color:#ff6600\">(+100%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>并减少其<span style=\"color:#0dafeb\">25%移速</span>，持续2秒。</br>如果命中敌人，典韦将会突破自身极限，增加<span style=\"color:#30b13a\">200%攻速</span>和<span style=\"color:#30b13a\">20%吸血效果</span>，每次普通攻击命中敌人额外<span style=\"color:#30b13a\">回复30生命</span>，持续3秒。未命中敌人时，典韦只获得一半的攻速，吸血效果和额外回复效果。",
+      "skillData1": "基础伤害|320|384|448|512|576|640",
+      "skillData2": "冷却时间|6|5.8|5.6|5.4|5.2|5",
+      "skillData3": "吸血比例|20%|24%|28%|32%|36%|40%",
+      "skillData4": "额外回复|30|36|42|48|54|60",
+      "heroVideo": "h14470df59w",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12930,
+      "heroId": 129,
+      "heroTitle": "典韦",
+      "title": "嗜血",
+      "icon": "0.88aaeb29d356a5c11cba8c4e37967514",
+      "type": "主动",
+      "label": "真实/控制",
+      "coolDown": 25,
+      "loss": 90,
+      "desc": "典韦对锁定目标发起跳斩，震起对方(无控制效果)，每命中1个敌方英雄增加1层激怒效果，并造成320<span style=\"color:#ff6600\">(+90%额外<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#7c7c7c\">真实伤害</span>并减少其<span style=\"color:#0dafeb\">30%移速</span>，持续3秒。</br>同时典韦强化自身，对敌人造成的所有伤害附带<span style=\"color:#7c7c7c\">目标<span style=\"color:#30b13a\">2.5%<span style=\"color: #30B13A;\">生命值</span></span>真实伤害</span>，持续5秒。",
+      "skillData1": "基础伤害|320|480|640",
+      "skillData2": "冷却时间|25|22.5|20",
+      "skillData3": "降低移速|30%|45%|60%",
+      "skillData4": "",
+      "heroVideo": "v1447nuob6w",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#d9d9d9"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 129,
+      "showRate": "0.4511",
+      "winRate": "0.5443",
+      "runeList": [
+        {
+          "runeId": 1519,
+          "num": 10,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 129,
+      "showRate": "0.3095",
+      "winRate": "0.5585",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 2,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 1519,
+          "num": 8,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 129,
+      "showRate": "0.1126",
+      "winRate": "0.5585",
+      "runeList": [
+        {
+          "runeId": 1510,
+          "num": 3,
+          "iId": 1273,
+          "iRuneId": 1510,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:无双",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+0.7%|暴击效果+3.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1510.png"
+        },
+        {
+          "runeId": 1519,
+          "num": 7,
+          "iId": 1277,
+          "iRuneId": 1519,
+          "szCate": "暴击",
+          "szTitle": "5级铭文:祸源",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "暴击率+1.6%",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1519.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}

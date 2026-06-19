@@ -1,0 +1,330 @@
+{
+  "skillList1": [
+    {
+      "skillId": 51000,
+      "heroId": 510,
+      "heroTitle": "孙策",
+      "title": "怒潮",
+      "icon": "0.137b0f9d1b47bff8f6d293b54f5e81bc",
+      "type": "被动",
+      "label": "物理",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "每过6秒，下次普攻附带额外110<span style=\"color:#ff6600\">(+60%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，并<span style=\"color:#30b13a\">回复</span>55<span style=\"color:#ff6600\">(+30%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#30b13a\">(+3%已损<span style=\"color: #30B13A;\">生命值</span>)</span>点生命。</br>每次受到物理/真实伤害或技能命中目标时，孙策获得1层不屈效果(护甲值提升16~32点，持续6秒，可叠加10层)。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "y1467f8mwa7",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51010,
+      "heroId": 510,
+      "heroTitle": "孙策",
+      "title": "劈风斩浪",
+      "icon": "0.ebfef5ba91eb68d303b5cbca2a3f9569",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 8,
+      "loss": 40,
+      "desc": "向前冲锋，对路径上敌人造成110<span style=\"color:#ff6600\">(+45%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，到终点后造成一次范围220<span style=\"color:#ff6600\">(+90%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>，短暂延迟后该范围再次造成相同伤害和<span style=\"color:#0dafeb\">1秒击飞</span>效果。</br>技能命中敌人获得1层不屈效果。",
+      "skillData1": "路径伤害|110|132|154|176|198|220",
+      "skillData2": "范围伤害|220|264|308|352|396|440",
+      "skillData3": "冷却时间|8|7.8|7.6|7.4|7.2|7",
+      "skillData4": "",
+      "heroVideo": "d146726nh4g",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "位移",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51020,
+      "heroId": 510,
+      "heroTitle": "孙策",
+      "title": "惊涛骇浪",
+      "icon": "0.63036cd4ae28eea1a0cd58400e7b60cd",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 9,
+      "loss": 55,
+      "desc": "连续三次向前踏步并劈砍，每次造成的物理伤害逐渐提高25%，基础造成180<span style=\"color:#ff6600\">(+70%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>。每次命中敌人造成<span style=\"color:#0dafeb\">15%减速</span>，减速效果可叠加。</br>使用技能会重置普攻冷却。技能命中敌人获得1层不屈效果。",
+      "skillData1": "基础伤害|180|242|304|366|428|490",
+      "skillData2": "冷却时间|9|8.4|7.8|7.2|6.6|6",
+      "skillData3": "降低移速|15%|18%|21%|24%|27%|30%",
+      "skillData4": "",
+      "heroVideo": "m1467wjcbn4",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 51030,
+      "heroId": 510,
+      "heroTitle": "孙策",
+      "title": "长帆破浪",
+      "icon": "0.cb0795c91014e172831d5cdddac125fa",
+      "type": "主动",
+      "label": "物理/控制",
+      "coolDown": 40,
+      "loss": 100,
+      "desc": "孙策掌舵行船，在12秒内驾船冲锋，航行速度逐渐提升，行船期间持续<span style=\"color:#f7b400\">霸体</span>。当船撞到墙体、建筑物、远古生物、敌方英雄和航行时间结束时船都会停止前进并爆炸，造成300<span style=\"color:#ff6600\">(+120%<span style=\"color: #ff6600;\">物理攻击</span>)</span><span style=\"color:#ff6600\">物理伤害</span>和<span style=\"color:#0dafeb\">1~1.5秒击飞</span>(与已航行时间成正比)。</br>航行过程中可弃船朝选定方向跳跃，释放后船继续航行固定距离。驾船期间附近一个队友可以通过点击按键上船，队友在上船期间受到控制和使用位移技能以及孙策下船时队友也会一起下船。</br>船爆炸瞬间若命中敌人会获得5层不屈效果。",
+      "skillData1": "基础伤害|300|450|600",
+      "skillData2": "冷却时间|40|35|30",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "u1467zylczi",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#fa863a"
+        },
+        {
+          "text": "登船",
+          "bgColor": "#ffce49"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 510,
+      "showRate": "0.4489",
+      "winRate": "0.5494",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 10,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 510,
+      "showRate": "0.1278",
+      "winRate": "0.5176",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 4,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 6,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    },
+    {
+      "heroId": 510,
+      "showRate": "0.1271",
+      "winRate": "0.5497",
+      "runeList": [
+        {
+          "runeId": 1504,
+          "num": 10,
+          "iId": 1271,
+          "iRuneId": 1504,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:异变",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+2|物理穿透+3.6",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1504.png"
+        },
+        {
+          "runeId": 2517,
+          "num": 1,
+          "iId": 1187,
+          "iRuneId": 2517,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:隐匿",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+1.6|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2517.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 9,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3514,
+          "num": 10,
+          "iId": 1206,
+          "iRuneId": 3514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:鹰眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "物理攻击+0.9|物理穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3514.png"
+        }
+      ]
+    }
+  ]
+}

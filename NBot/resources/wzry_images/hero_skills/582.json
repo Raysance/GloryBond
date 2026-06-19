@@ -1,0 +1,318 @@
+{
+  "skillList1": [
+    {
+      "skillId": 58200,
+      "heroId": 582,
+      "heroTitle": "元流之子",
+      "title": "万物为流",
+      "icon": "0.4155a27e7f2c4c22c5cc2f8cf0d0dec2",
+      "type": "被动",
+      "label": "",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "元流之子在泉水中可以将“流”引入体内淬炼自身，强化以下四种属性之一(随等级成长)：</br>生机：增加<span style=\"color:#30b13a\">50~100法术攻击</span>和<span style=\"color:#30b13a\">300~600最大生命</span>；</br>穿心：增加<span style=\"color:#30b13a\">50~100法术攻击</span>和<span style=\"color:#30b13a\">50~100法术穿透</span>；</br>迅疾：增加<span style=\"color:#30b13a\">50~100法术攻击</span>和<span style=\"color:#30b13a\">3.5%~7%移动速度</span>；</br>凝神：增加<span style=\"color:#30b13a\">50~100法术攻击</span>和<span style=\"color:#30b13a\">5%~10%冷却缩减</span>。</br>元流之子可消耗1层“流”强化普攻，命中后额外对范围敌人造成60<span style=\"color:#f264ff\">(+12%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "x1493an2ziq",
+      "gameLabelList": [
+        {
+          "text": "切换",
+          "bgColor": "#ffce49"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 58210,
+      "heroId": 582,
+      "heroTitle": "元流之子",
+      "title": "汇流为一",
+      "icon": "0.fde943b034a00c2235a49f7cf590677e",
+      "type": "主动",
+      "label": "",
+      "coolDown": 12.5,
+      "loss": 50,
+      "desc": "元流之子汇集“流”，<span style=\"color:#30b13a\">减少50%其他技能的冷却</span>，获得5层“流”并回复150<span style=\"color:#30b13a\">(+4%额外<span style=\"color: #30B13A;\">生命值</span>)</span><span style=\"color:#30b13a\">生命</span>，附近每多1名友方英雄/2个小兵额外增加1层并额外回复生命，至多获得9层“流”和100%额外回复。</br>元流之子对近处的敌人造成100<span style=\"color:#f264ff\">(+20%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">击退</span>(无控制效果)。",
+      "skillData1": "基础回复|150|180|210|240|270|300",
+      "skillData2": "击退伤害|100|120|140|160|180|200",
+      "skillData3": "冷却时间|12.5|12|11.5|11|10.5|10",
+      "skillData4": "",
+      "heroVideo": "l1493csau5b",
+      "gameLabelList": [
+        {
+          "text": "强化",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "回复",
+          "bgColor": "#6fc075"
+        },
+        {
+          "text": "击退",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 58220,
+      "heroId": 582,
+      "heroTitle": "元流之子",
+      "title": "引流为阵",
+      "icon": "0.542adc709b6feb2dd96fc10822afff0c",
+      "type": "主动",
+      "label": "",
+      "coolDown": 7.5,
+      "loss": 40,
+      "desc": "元流之子操纵附近的“流”形成法阵，对范围内的敌人造成325<span style=\"color:#f264ff\">(+65%<span style=\"color: #F264FF;\">法术攻击</span>)</span><span style=\"color:#f264ff\">法术伤害</span>和<span style=\"color:#0dafeb\">30%减速</span>，持续1秒。法阵每0.5秒造成65<span style=\"color:#f264ff\">(+13%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害)</span>，持续1.5秒。</br>1.5秒内连续释放会依次改变技能效果：</br>【滞流为阵】对敌人造成等额的首次伤害和<span style=\"color:#0dafeb\">0.5秒击飞</span>；</br>【陷流为阵】对敌人造成等额的首次伤害和<span style=\"color:#0dafeb\">0.5秒晕眩</span>。</br>这两个技能若释放在初始法阵上，会刷新法阵持续时间并提升50%持续伤害。</br><span style=\"color:#f7b400\">可消耗4层“流”释放技能，使本次技能不进入冷却。</span></br>所有法阵内圈会造成额外50%控制效果。",
+      "skillData1": "基础伤害|325|390|455|520|585|650",
+      "skillData2": "持续伤害|65|78|91|104|117|130",
+      "skillData3": "降低移速|30%|36%|42%|48%|54%|60%",
+      "skillData4": "冷却时间|7.5|7.2|6.9|6.6|6.3|6",
+      "heroVideo": "q1493by37ls",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 58230,
+      "heroId": 582,
+      "heroTitle": "元流之子",
+      "title": "万妙之法",
+      "icon": "0.748cc081a57ffb49a7174dbe76624682",
+      "type": "主动",
+      "label": "",
+      "coolDown": 25,
+      "loss": 70,
+      "desc": "元流之子向前方引导“流”形成光束，对沿途目标造成共计700<span style=\"color:#f264ff\">(+140%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害)</span>。</br>光束可吸附一定范围内最近的敌方英雄，并持续打出能量弹对目标周围造成共计350<span style=\"color:#f264ff\">(+70%<span style=\"color: #F264FF;\">法术攻击</span>法术伤害)</span>。</br><span style=\"color:#f7b400\">可消耗5层“流”释放技能，使本次技能不进入冷却。</span></br>持续期间可同时释放其它技能。",
+      "skillData1": "基础伤害|700|1050|1400",
+      "skillData2": "范围伤害|350|525|700",
+      "skillData3": "冷却时间|25|22.5|20",
+      "skillData4": "",
+      "heroVideo": "d14931dvl25",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 582,
+      "showRate": "0.6178",
+      "winRate": "0.5789",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 582,
+      "showRate": "0.1503",
+      "winRate": "0.5758",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2503,
+          "num": 5,
+          "iId": 1195,
+          "iRuneId": 2503,
+          "szCate": "吸血",
+          "szTitle": "5级铭文:贪婪",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术吸血+1.6%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2503.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 5,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 582,
+      "showRate": "0.0938",
+      "winRate": "0.5773",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3511,
+          "num": 6,
+          "iId": 1205,
+          "iRuneId": 3511,
+          "szCate": "攻击|功能",
+          "szTitle": "5级铭文:献祭",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+2.2|冷却缩减+0.7%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3511.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 4,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}

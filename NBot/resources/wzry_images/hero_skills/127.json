@@ -1,0 +1,288 @@
+{
+  "skillList1": [
+    {
+      "skillId": 12700,
+      "heroId": 127,
+      "heroTitle": "甄姬",
+      "title": "凝泪成冰",
+      "icon": "0.f39cb6002e4afa1b7a69dc895ae89654",
+      "type": "被动",
+      "label": "法术/控制",
+      "coolDown": 0,
+      "loss": 0,
+      "desc": "甄姬的每次技能伤害都会对敌人叠加冰冻印记，持续7秒，叠加满3层后造成250<span style=\"color:#f264ff\">(+48%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>并<span style=\"color:#0dafeb\">冰冻0.75秒</span>，重复冰冻时则衰减为0.5秒。",
+      "skillData1": "",
+      "skillData2": "",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "z14002cqqtt",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12710,
+      "heroId": 127,
+      "heroTitle": "甄姬",
+      "title": "泪如泉涌",
+      "icon": "0.dd8224839cfd88d9130b19cc7d3c10b3",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 9,
+      "loss": 55,
+      "desc": "甄姬在指定位置召唤冰柱冲出地面阻拦英雄单位通过，并对范围内敌人造成450<span style=\"color:#f264ff\">(+85%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>并<span style=\"color:#0dafeb\">击飞1秒</span>，冰柱存在8秒并持续对周围造成<span style=\"color:#0dafeb\">10%减速</span>。若产生冰柱时甄姬在范围内，则会被冰封处于<span style=\"color:#f7b400\">无敌</span>状态，持续3秒，当主动解除或冰封结束后，冰柱崩裂对周围敌人造成150<span style=\"color:#f264ff\">(+35%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>并造成<span style=\"color:#0dafeb\">10%减速</span>，持续3秒，爆炸中心伤害翻倍。",
+      "skillData1": "基础伤害|450|540|630|720|810|900",
+      "skillData2": "冷却时间|9|8.6|8.2|7.8|7.4|7",
+      "skillData3": "减速效果|10%|12%|14%|16%|18%|20%",
+      "skillData4": "爆炸伤害|150|180|210|240|270|300",
+      "heroVideo": "p14003ib0p2",
+      "gameLabelList": [
+        {
+          "text": "控制",
+          "bgColor": "#50c1eb"
+        },
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "免疫",
+          "bgColor": "#ffce49"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12720,
+      "heroId": 127,
+      "heroTitle": "甄姬",
+      "title": "叹息水流",
+      "icon": "0.44296fd78a7fc05487ece6aa22f7b7fb",
+      "type": "主动",
+      "label": "法术",
+      "coolDown": 8,
+      "loss": 45,
+      "desc": "甄姬引导指定方向的水流，水流会锁定敌人并在敌人间弹射，最多弹射5~7次（在技能等级达到3,5级时提升），每个敌人最多被弹射2次。每次弹射会对敌人造成230<span style=\"color:#f264ff\">(+45%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>。</br>可以选择冰柱为目标。若无法继续弹射则会在目标身上延迟3秒消失。",
+      "skillData1": "基础伤害|230|276|322|368|414|460",
+      "skillData2": "冷却时间|8|7.7|7.4|7.1|6.8|6.5",
+      "skillData3": "",
+      "skillData4": "",
+      "heroVideo": "q1400ddmpxc",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    },
+    {
+      "skillId": 12730,
+      "heroId": 127,
+      "heroTitle": "甄姬",
+      "title": "洛神降临",
+      "icon": "0.b1ddf93537bc7b4de1be85fbfab970b2",
+      "type": "主动",
+      "label": "法术/控制",
+      "coolDown": 45,
+      "loss": 100,
+      "desc": "甄姬释放水之精魄不断向前推进并<span style=\"color:#0dafeb\">击退</span>非英雄单位，当命中敌方英雄或达到最远距离时将形成水域，第一个直接被命中的英雄受到300<span style=\"color:#f264ff\">(+65%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>。</br>水之精魄形成的水域持续5秒，每秒对触碰的敌人造成150<span style=\"color:#f264ff\">(+32%)</span><span style=\"color: #F264FF;\">法术攻击</span><span style=\"color:#f264ff\">法术伤害</span>。</br>每次伤害均会减少<span style=\"color:#0dafeb\">25%移速</span>，持续1.5秒。",
+      "skillData1": "基础伤害|300|450|600",
+      "skillData2": "冷却时间|45|40|35",
+      "skillData3": "持续伤害|150|225|300",
+      "skillData4": "持续减速|25%|37.5%|50%",
+      "heroVideo": "x1400jy5li9",
+      "gameLabelList": [
+        {
+          "text": "伤害",
+          "bgColor": "#db70d0"
+        },
+        {
+          "text": "减速",
+          "bgColor": "#50c1eb"
+        }
+      ],
+      "skillData5": "",
+      "skillData": "",
+      "belongDesc": "",
+      "szSkillData5": ""
+    }
+  ],
+  "skillList2": [],
+  "skillList3": [],
+  "RuneSetList": [
+    {
+      "heroId": 127,
+      "showRate": "0.355",
+      "winRate": "0.5503",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    },
+    {
+      "heroId": 127,
+      "showRate": "0.3237",
+      "winRate": "0.5412",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2520,
+          "num": 10,
+          "iId": 1188,
+          "iRuneId": 2520,
+          "szCate": "功能|攻速",
+          "szTitle": "5级铭文:狩猎",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+1%|移速+1%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2520.png"
+        },
+        {
+          "runeId": 3516,
+          "num": 10,
+          "iId": 1208,
+          "iRuneId": 3516,
+          "szCate": "功能",
+          "szTitle": "5级铭文:怜悯",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "冷却缩减+1%",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3516.png"
+        }
+      ]
+    },
+    {
+      "heroId": 127,
+      "showRate": "0.1144",
+      "winRate": "0.5423",
+      "runeList": [
+        {
+          "runeId": 1514,
+          "num": 10,
+          "iId": 1275,
+          "iRuneId": 1514,
+          "szCate": "攻击|穿透",
+          "szTitle": "5级铭文:梦魇",
+          "iLevel": 5,
+          "szColor": "红色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "法术攻击+4.2|法术穿透+2.4",
+          "szAdveAttr": "物理攻击+180|法术攻击+300",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/1514.png"
+        },
+        {
+          "runeId": 2515,
+          "num": 10,
+          "iId": 1186,
+          "iRuneId": 2515,
+          "szCate": "生命|功能",
+          "szTitle": "5级铭文:调和",
+          "iLevel": 5,
+          "szColor": "蓝色铭文",
+          "iImpChip": 99999,
+          "iExpChip": 800,
+          "szCommAttr": "最大生命+40|每5秒回血+5|移速+0.5%",
+          "szAdveAttr": "法术攻击+300|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/2515.png"
+        },
+        {
+          "runeId": 3515,
+          "num": 10,
+          "iId": 1207,
+          "iRuneId": 3515,
+          "szCate": "攻速|穿透",
+          "szTitle": "5级铭文:心眼",
+          "iLevel": 5,
+          "szColor": "绿色铭文",
+          "iImpChip": 1200,
+          "iExpChip": 800,
+          "szCommAttr": "攻击速度+0.6%|法术穿透+6.4",
+          "szAdveAttr": "物理攻击+180|最大生命+2835",
+          "szIcon": "https://image.ttwz.qq.com/web/rune/3515.png"
+        }
+      ]
+    }
+  ]
+}
