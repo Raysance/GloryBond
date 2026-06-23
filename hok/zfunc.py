@@ -3361,13 +3361,14 @@ def kpl_build_match_image_prompt(*, match_content: dict):
             return s
 
     raw = match_content.get("raw") or {}
-    raw_data = raw.get("data") or {}
-    home_team = raw_data.get("home_team") or {}
-    away_team = raw_data.get("away_team") or {}
-    home_name = home_team.get("name") or ""
-    away_name = away_team.get("name") or ""
-    home_score = raw_data.get("home_score")
-    away_score = raw_data.get("away_score")
+    raw_data = raw.get("data") or (raw.get("overall_grade") or {}).get("data") or {}
+    home_team = match_content.get("home_team") or raw_data.get("home_team") or {}
+    away_team = match_content.get("away_team") or raw_data.get("away_team") or {}
+    home_name = home_team.get("name") or home_team.get("title") or ""
+    away_name = away_team.get("name") or away_team.get("title") or ""
+    score_data = match_content.get("score") or {}
+    home_score = score_data.get("home", raw_data.get("home_score"))
+    away_score = score_data.get("away", raw_data.get("away_score"))
     total_score = None
     if home_score is not None and away_score is not None:
         total_score = f"{home_score}-{away_score}"
@@ -3408,6 +3409,20 @@ def kpl_build_match_image_prompt(*, match_content: dict):
                 item["hot"] = hot
             team_players[team_name].append(item)
 
+    if not team_players:
+        for team in match_content.get("overall_ratings") or []:
+            team_name = team.get("name") or ""
+            if not team_name:
+                continue
+            team_players[team_name] = [
+                {
+                    "name": player.get("name"),
+                    "pos": player.get("position"),
+                    "score": player.get("rating"),
+                }
+                for player in team.get("players") or []
+            ]
+
     teams_payload = []
     for name in [home_name, away_name]:
         if not name:
@@ -3427,8 +3442,8 @@ def kpl_build_match_image_prompt(*, match_content: dict):
 
     payload = {
         "match_name": match_name,
-        "start_time": _strip_timezone(match_content.get("start_time_iso") or ""),
-        "end_time": _strip_timezone(match_content.get("end_time_iso") or ""),
+        "start_time": _strip_timezone(match_content.get("start_time_text") or match_content.get("start_time_iso") or ""),
+        "end_time": _strip_timezone(match_content.get("end_time_text") or match_content.get("end_time_iso") or ""),
         "total_score": total_score or "-",
         "teams": teams_payload,
     }
@@ -4399,4 +4414,3 @@ def history_query_handler(rcv_msg):
         }
 
     return [query_target, matches, query_desc, stats]
-

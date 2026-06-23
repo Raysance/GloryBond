@@ -6,6 +6,8 @@
 *.pyc
 **/.mypy_cache/
 *.log
+.DS_Store
+__MACOSX/
 
 # UNNECESSARY
 /data/history/personal/

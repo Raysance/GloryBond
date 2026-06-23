@@ -514,3 +514,80 @@ def steam_api_recent_games(api_key, steam_id):
 
     except Exception as e:
         raise Exception("STEAM Exception: "+str(e))
+
+
+KPL_API_BASE = "https://api.bilibili.com/x/esports"
+KPL_REQUEST_HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "Referer": "https://www.bilibili.com/v/game/match/",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+    ),
+}
+
+
+def _kpl_get_json(url, *, params=None):
+    """Request and validate a Bilibili esports JSON response."""
+    response = requests.get(url, params=params, headers=KPL_REQUEST_HEADERS, timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise Exception(f"kpl_api_error: non-dict response url={url} params={params}")
+    if payload.get("code") not in (0, "0", None):
+        raise Exception(
+            f"kpl_api_error: url={url} params={params} "
+            f"code={payload.get('code')} message={payload.get('message')!r}"
+        )
+    return payload
+
+
+def kpl_fetch_match_list_raw(*, mid=94, gid=0, tid=0, stime, etime, pn=1, ps=50):
+    """Fetch one page of matches for the selected calendar date range."""
+    return _kpl_get_json(
+        f"{KPL_API_BASE}/matchs/list",
+        params={
+            "mid": mid,
+            "gid": gid,
+            "tid": tid,
+            "pn": pn,
+            "ps": ps,
+            "contest_status": "",
+            "stime": stime,
+            "etime": etime,
+        },
+    )
+
+
+def kpl_fetch_match_info_raw(*, match_id):
+    """Fetch series metadata and the detail JSON URL for every game."""
+    return _kpl_get_json(
+        f"{KPL_API_BASE}/match/info",
+        params={"cid": int(match_id), "platform": 2},
+    )
+
+
+def kpl_fetch_match_grade_raw(*, match_id, bo=None):
+    """Fetch the Bilibili rating block for a series or a selected game."""
+    params = {"cid": int(match_id)}
+    if bo is not None:
+        params["bo"] = int(bo)
+    return _kpl_get_json(f"{KPL_API_BASE}/grade/info", params=params)
+
+
+def kpl_fetch_game_detail_raw(*, detail_url):
+    """Fetch one detail-wrap data document referenced by match/info."""
+    url = str(detail_url or "").replace("http://", "https://", 1)
+    if not url:
+        raise ValueError("kpl_game_detail_error: empty detail_url")
+    return _kpl_get_json(url)
+
+
+def kpl_fetch_asset_bytes(*, asset_url):
+    """Fetch an image asset referenced by KPL detail JSON."""
+    url = str(asset_url or "").replace("http://", "https://", 1)
+    if not url:
+        raise ValueError("kpl_asset_error: empty asset_url")
+    response = requests.get(url, headers=KPL_REQUEST_HEADERS, timeout=20)
+    response.raise_for_status()
+    return response.content

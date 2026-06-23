@@ -67,6 +67,18 @@ def date_start_epoch_ms(time_real=None):
     day_start = time_real.replace(hour=0, minute=0, second=0, microsecond=0)
     return int(day_start.timestamp() * 1000)
 
+
+def epoch_ms_to_date(timestamp_ms):
+    """Convert an epoch-millisecond value to the local YYYY-MM-DD date."""
+    return datetime.datetime.fromtimestamp(int(timestamp_ms) / 1000).strftime("%Y-%m-%d")
+
+
+def epoch_to_text(timestamp, format_str="%Y-%m-%d %H:%M:%S"):
+    """Format an epoch-second value in the deployment host timezone."""
+    if timestamp in (None, ""):
+        return None
+    return datetime.datetime.fromtimestamp(int(timestamp)).strftime(format_str)
+
 def parse_fuzzy_time(fuzzy_str):
     """
     解析模糊时间描述，返回(start_time, end_time)

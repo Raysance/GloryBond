@@ -29,3 +29,4 @@
 - `history_map_export_cli/`：历史汇总导出 CLI，用于从 `data/history/YYYY-MM-DD.json` 导出玩家每日各地图局数与胜场。
 - `benefit_debug_page/`：受益受害贝叶斯收缩计算过程可视化页面模板。
 - `kpl_match_collector_cli.py`：KPL 赛事采集调试入口，用于命令行验证赛事赛程、单场数据与采集适配结果；这是历史遗留的根目录 CLI，后续新增同类工具应改为独立子文件夹。
+- `kpl_match_cli/`：KPL 赛程、完整比赛详情与长图生成的菜单式 CLI，直接调用 `zkpl.py` 和 `tools/gen_kpl_match_card.py`。
