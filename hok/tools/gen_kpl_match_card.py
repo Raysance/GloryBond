@@ -31,8 +31,8 @@ def gen(match_detail: dict, save_path: str, title: str = "KPL 对局详情"):
     """Generate a long PNG containing the series score and every game field."""
     from PIL import Image, ImageDraw, ImageFont
 
-    from ..zapi import kpl_fetch_asset_bytes
     from ..zfile import first_existing_path, pil_image_from_bytes, save_pil_image
+    from ..zkpl import load_match_asset_bytes
 
     font_path = first_existing_path(
         [
@@ -84,7 +84,7 @@ def gen(match_detail: dict, save_path: str, title: str = "KPL 对局详情"):
         key = (url, size)
         if key not in asset_cache:
             try:
-                icon = pil_image_from_bytes(kpl_fetch_asset_bytes(asset_url=url)).convert("RGBA")
+                icon = pil_image_from_bytes(load_match_asset_bytes(url)).convert("RGBA")
                 icon.thumbnail((size, size))
                 asset_cache[key] = icon
             except Exception:

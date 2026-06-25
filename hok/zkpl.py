@@ -8,6 +8,64 @@ of those two JSON-serializable return values.
 from .zstatic import *
 
 
+def _fetch_match_list_raw(*, mid=94, gid=0, tid=0, stime, etime, pn=1, ps=50):
+    """Fetch one page of matches for the selected calendar date range."""
+    from .zapi import bilibili_esports_get_json
+
+    return bilibili_esports_get_json(
+        "/matchs/list",
+        params={
+            "mid": mid,
+            "gid": gid,
+            "tid": tid,
+            "pn": pn,
+            "ps": ps,
+            "contest_status": "",
+            "stime": stime,
+            "etime": etime,
+        },
+    )
+
+
+def _fetch_match_info_raw(*, match_id):
+    """Fetch series metadata and the detail JSON URL for every game."""
+    from .zapi import bilibili_esports_get_json
+
+    return bilibili_esports_get_json("/match/info", params={"cid": int(match_id), "platform": 2})
+
+
+def _fetch_match_grade_raw(*, match_id, bo=None):
+    """Fetch the Bilibili rating block for a series or a selected game."""
+    from .zapi import bilibili_esports_get_json
+
+    params = {"cid": int(match_id)}
+    if bo is not None:
+        params["bo"] = int(bo)
+    return bilibili_esports_get_json("/grade/info", params=params)
+
+
+def _fetch_game_detail_raw(*, detail_url):
+    """Fetch one detail-wrap data document referenced by match/info."""
+    url = str(detail_url or "").replace("http://", "https://", 1)
+    if not url:
+        raise ValueError("kpl_game_detail_error: empty detail_url")
+
+    from .zapi import bilibili_esports_get_json
+
+    return bilibili_esports_get_json(url)
+
+
+def load_match_asset_bytes(asset_url):
+    """Fetch an image asset referenced by normalized KPL match detail JSON."""
+    url = str(asset_url or "").replace("http://", "https://", 1)
+    if not url:
+        raise ValueError("kpl_asset_error: empty asset_url")
+
+    from .zapi import bilibili_esports_get_bytes
+
+    return bilibili_esports_get_bytes(url)
+
+
 def _safe_int(value, default=None):
     try:
         if value in (None, ""):
@@ -164,12 +222,10 @@ def get_match_list_json(*, mid=94, gid=0, tid=0, time_ms=None, date=None, ps=50,
     if raw_response is not None:
         pages = [raw_response]
     else:
-        from .zapi import kpl_fetch_match_list_raw
-
         pages = []
         pn = 1
         while True:
-            page_payload = kpl_fetch_match_list_raw(
+            page_payload = _fetch_match_list_raw(
                 mid=mid, gid=gid, tid=tid, stime=selected_date, etime=selected_date, pn=pn, ps=ps
             )
             pages.append(page_payload)
@@ -201,10 +257,9 @@ def get_match_detail_json(match_params=None, *, match_id=None, raw_info=None, ra
         raise ValueError("match_params 缺少必要字段 match_id/cid")
     match_id = int(match_id)
 
-    from .zapi import kpl_fetch_game_detail_raw, kpl_fetch_match_grade_raw, kpl_fetch_match_info_raw
     from .ztime import epoch_to_text
 
-    info_payload = raw_info if raw_info is not None else kpl_fetch_match_info_raw(match_id=match_id)
+    info_payload = raw_info if raw_info is not None else _fetch_match_info_raw(match_id=match_id)
     info = (info_payload or {}).get("data") or {}
     contest = info.get("contest") or {}
     detail_refs = info.get("detail") or []
@@ -215,10 +270,10 @@ def get_match_detail_json(match_params=None, *, match_id=None, raw_info=None, ra
     for index, detail_ref in enumerate(detail_refs, start=1):
         if not isinstance(detail_ref, dict):
             continue
-        game_raw = raw_games[index - 1] if index <= len(raw_games) else kpl_fetch_game_detail_raw(
+        game_raw = raw_games[index - 1] if index <= len(raw_games) else _fetch_game_detail_raw(
             detail_url=detail_ref.get("bfs_url")
         )
-        grade_payload = raw_grades[index - 1] if index <= len(raw_grades) else kpl_fetch_match_grade_raw(
+        grade_payload = raw_grades[index - 1] if index <= len(raw_grades) else _fetch_match_grade_raw(
             match_id=match_id, bo=index
         )
         grade_data = (grade_payload or {}).get("data") or {}
@@ -248,7 +303,7 @@ def get_match_detail_json(match_params=None, *, match_id=None, raw_info=None, ra
 
     home = _team(contest.get("home_team") or contest.get("home"), score=contest.get("home_score"))
     away = _team(contest.get("away_team") or contest.get("away"), score=contest.get("away_score"))
-    overall_grade_payload = kpl_fetch_match_grade_raw(match_id=match_id)
+    overall_grade_payload = _fetch_match_grade_raw(match_id=match_id)
     start_time = _safe_int(contest.get("stime") or contest.get("start_time"))
     end_time = _safe_int(contest.get("etime") or contest.get("end_time"))
     return {
