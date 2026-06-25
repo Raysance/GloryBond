@@ -3775,6 +3775,8 @@ def history_query_handler(rcv_msg):
         "当前赛季": f"{this_season_start_date}到{today_str}",
         "上个赛季": f"{last_season_start_date}到{last_season_end_date}",
         "上赛季": f"{last_season_start_date}到{last_season_end_date}",
+        "上上个赛季": f"{pre_last_season_start_date}到{pre_last_season_end_date}",
+        "上上赛季": f"{pre_last_season_start_date}到{pre_last_season_end_date}",
         "这周": f"{date_7_days_ago_str}到{today_str}",
         "本周": f"{date_7_days_ago_str}到{today_str}",
         "上周": f"{date_14_days_ago_str}到{date_7_days_ago_str}",

@@ -357,14 +357,14 @@ async def run_web_analyze_btls_processor():
 
     return
 
-# @scheduler.scheduled_job(
-#     "interval",
-#     minutes=5,
-#     id="history_power_idle_processor",
-#     max_instances=1,
-#     coalesce=True,
-#     next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=30),
-# )
+@scheduler.scheduled_job(
+    "interval",
+    minutes=5,
+    id="history_power_idle_processor",
+    max_instances=1,
+    coalesce=True,
+    next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=30),
+)
 async def run_history_power_idle_processor():
     from .zfunc import find_pending_battle_power_candidate
     from .zfunc import evaluate_battle_power_history
@@ -392,8 +392,8 @@ async def run_history_power_idle_processor():
                 return
             candidate = await asyncio.to_thread(
                 find_pending_battle_power_candidate,
+                days=1,
                 excluded_gameseqs=skipped_gameseqs,
-                start_date_str="2026-04-01",
             )
             if not candidate:
                 log_message("HISTORY_POWER_IDLE_EMPTY")
