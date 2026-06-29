@@ -15,6 +15,12 @@ def _to_pinyin(s):
     
     return "".join(lazy_pinyin(str(s))).lower()
 
+def safe_hero_name(hero_id, default=None):
+    if hero_id is None:
+        return default or "未知英雄"
+    hero_id = str(hero_id)
+    return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
+
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None): # 单人的战绩parser
     def sync_battle_visibility_qid(visible):
         from .zfile import update_dynamic_variable
@@ -137,7 +143,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         today_details=[{\
             'GameTime':game['gametime'],\
             'GameTime_Timestamp':int(game['dtEventTime']),\
-            'HeroName':HeroList.get(str(game['heroId']),"Unknown"),\
+            'HeroName':safe_hero_name(game.get('heroId')),\
             'MapName':game['mapName'],\
             'MapType':1 if '排位' in game['mapName'] else (-1 if '巅峰' in game['mapName'] else 0),\
             'StarAfterGame': -1 if '排位' not in game['mapName'] else (ranklist[game['roleJobName']]+game['stars']),\
@@ -201,7 +207,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         gaming_info={
                     "in_game":True,\
                     "map_name":res["btlist"]["gaming"]["mapName"],\
-                    "hero_name":HeroList.get(str(res["btlist"]["gaming"]["heroId"]),"Unknown"),\
+                    "hero_name":safe_hero_name(res["btlist"]["gaming"].get("heroId")),\
                     "duration_minute":res["btlist"]["gaming"]["duration"],\
                     "battle_num_this_hero":res["btlist"]["gaming"]["gameNum"],\
                     "win_rate_this_hero":res["btlist"]["gaming"]["winRate"],\
@@ -452,7 +458,7 @@ def online_process():
                         'battleId': btlist_res['gaming'].get('battleId', ''),
                         'job': role_info['shortRoleJobName'],
                         'mapName': btlist_res['gaming']['mapName'],
-                        'heroName': HeroList[str(btlist_res['gaming']['heroId'])],
+                        'heroName': safe_hero_name(btlist_res['gaming'].get('heroId')),
                         'duration': btlist_res['gaming']['duration']
                     }
                 else:
@@ -3193,6 +3199,9 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, 
     from nonebot.adapters.onebot.v11 import MessageSegment
     from .zfile import download_url_to_file
     from .zfile import ensure_dir
+    if not preview_only and not getattr(dmc, "KplPushEnabled", True):
+        return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH paused by KplPushEnabled=false"}
+
     lock_key = "kpl:push_lock"
     pending_key = "kpl:push_pending"
     if force:
@@ -3712,14 +3721,14 @@ def extract_heroname(origin_text,precise=False):
         heroid=-1
         while(True):
             heroid = random.choice(list(HeroList))
-            heroname=HeroList[heroid]
+            heroname=safe_hero_name(heroid)
             if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元流之子(射手)","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
     if txt_contain("下水道",origin_text,precise,True):
         heroid=-2
         while(True):
             heroid = random.choice(list(HeroList))
-            heroname=HeroList[heroid]
+            heroname=safe_hero_name(heroid)
             if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
         return heroid,heroname
     for is_origin in [True,False]:
@@ -3728,7 +3737,7 @@ def extract_heroname(origin_text,precise=False):
                 return heroid,heroname
         for heroid,heroname in HeroName_replacements.items():
             if txt_contain(heroname,origin_text,precise,is_origin):
-                return heroid,HeroList[heroid]
+                return heroid,safe_hero_name(heroid)
     return None
 def txt_contain(x,y,p,ori):
     if (ori):
