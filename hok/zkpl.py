@@ -301,6 +301,12 @@ def get_match_detail_json(match_params=None, *, match_id=None, raw_info=None, ra
             }
         )
 
+    data_warnings = []
+    if not detail_refs:
+        data_warnings.append(
+            "KPL_DETAIL_EMPTY: Bilibili match/info.detail is empty; per-game detail-wrap data is unavailable."
+        )
+
     home = _team(contest.get("home_team") or contest.get("home"), score=contest.get("home_score"))
     away = _team(contest.get("away_team") or contest.get("away"), score=contest.get("away_score"))
     overall_grade_payload = _fetch_match_grade_raw(match_id=match_id)
@@ -321,6 +327,7 @@ def get_match_detail_json(match_params=None, *, match_id=None, raw_info=None, ra
         "score": {"home": home.get("score"), "away": away.get("score")},
         "overall_ratings": _rating_teams((overall_grade_payload or {}).get("data") or {}),
         "games": games,
+        "data_warnings": data_warnings,
         "links": {
             "detail": f"https://www.bilibili.com/v/game/match/singledata/{match_id}?tab=2",
             "playback": contest.get("playback") or contest.get("collection_url") or "",

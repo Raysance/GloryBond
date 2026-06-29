@@ -63,7 +63,8 @@ def gen(match_detail: dict, save_path: str, title: str = "KPL 对局详情"):
     for game in games:
         player_count = max((len(team.get("players") or []) for team in game.get("teams") or []), default=0)
         game_heights.append(285 + player_count * 126)
-    height = 350 + overall_height + sum(game_heights) + 38 * len(games) + margin
+    empty_games_height = 170 if not games else 0
+    height = 350 + overall_height + sum(game_heights) + 38 * len(games) + empty_games_height + margin
 
     image = Image.new("RGB", (width, max(height, 700)), "#F4F7FB")
     draw = ImageDraw.Draw(image)
@@ -187,6 +188,19 @@ def gen(match_detail: dict, save_path: str, title: str = "KPL 对局详情"):
             draw.text((x + 20, py), line, fill="#45546A", font=f_text)
             py += 42
     y += overall_height + 38
+
+    if not games:
+        section_h = empty_games_height
+        draw.rounded_rectangle((margin + 7, y + 8, width - margin + 7, y + section_h + 8), 24, fill="#D8E0EB")
+        draw.rounded_rectangle((margin, y, width - margin, y + section_h), 24, fill="#FFFFFF", outline="#D7E0EC", width=2)
+        draw.text((margin + 28, y + 24), "GAME DETAIL", fill="#8B9AAF", font=f_small)
+        draw.text((margin + 28, y + 54), "小局数据未返回", fill="#25334A", font=f_h1)
+        warning = "Bilibili match/info.detail 为空，当前只能展示总比分与评分数据。"
+        warnings = match_detail.get("data_warnings") or []
+        if warnings:
+            warning = warnings[0]
+        draw.text((margin + 28, y + 104), warning, fill="#7B899E", font=f_text)
+        y += section_h + 38
 
     for game, section_h in zip(games, game_heights):
         draw.rounded_rectangle((margin + 7, y + 8, width - margin + 7, y + section_h + 8), 24, fill="#D8E0EB")
