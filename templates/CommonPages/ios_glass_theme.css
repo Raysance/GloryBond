@@ -100,21 +100,145 @@ body.ios-glass-page .battle-item {
 
 body.ios-glass-page .battle-item.win-bg {
     background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
-        radial-gradient(circle at 8% 12%, rgba(52, 199, 89, 0.18), transparent 42%);
+        linear-gradient(90deg, rgba(52, 199, 89, 0.18), rgba(52, 199, 89, 0.08) 48%, rgba(52, 199, 89, 0.30) 100%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
+        radial-gradient(circle at 8% 12%, rgba(52, 199, 89, 0.30), transparent 46%);
+    border-color: rgba(52, 199, 89, 0.28);
 }
 
 body.ios-glass-page .battle-item.lose-bg {
     background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.22)),
-        radial-gradient(circle at 8% 12%, rgba(255, 59, 48, 0.16), transparent 42%);
+        linear-gradient(90deg, rgba(255, 59, 48, 0.16), rgba(255, 59, 48, 0.07) 48%, rgba(255, 59, 48, 0.28) 100%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
+        radial-gradient(circle at 8% 12%, rgba(255, 59, 48, 0.28), transparent 46%);
+    border-color: rgba(255, 59, 48, 0.26);
 }
 
 body.ios-glass-page .battle-item:hover {
-    background-color: rgba(255, 255, 255, 0.74);
     box-shadow:
         0 14px 30px rgba(44, 62, 80, 0.14),
         inset 0 1px 1px rgba(255, 255, 255, 0.78);
+}
+
+body.ios-glass-page.glass-top-fixed .container {
+    padding-top: var(--glass-top-space, 196px);
+    transition: padding-top 0.24s ease;
+}
+
+body.ios-glass-page .glass-top-bar {
+    position: fixed;
+    top: 16px;
+    left: 80px;
+    right: 16px;
+    z-index: 1090;
+    display: grid;
+    gap: 10px;
+    max-width: 1120px;
+    margin: 0 auto;
+}
+
+body.ios-glass-page .glass-meta-card {
+    background: var(--ios-glass-bg);
+    border: 1px solid var(--ios-glass-border);
+    border-radius: 22px;
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    overflow: hidden;
+}
+
+body.ios-glass-page .glass-meta-header {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px 10px 16px;
+    border: 0;
+    background: transparent;
+    color: var(--dark-color, var(--ios-glass-text));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+body.ios-glass-page .glass-meta-title {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--dark-color, var(--ios-glass-text));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.ios-glass-page .glass-meta-toggle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow:
+        0 8px 18px rgba(44, 62, 80, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.82);
+}
+
+body.ios-glass-page .glass-meta-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: rgba(44, 62, 80, 0.68);
+    transition: transform 0.2s ease;
+}
+
+body.ios-glass-page .glass-meta-body {
+    padding: 0 16px 16px;
+}
+
+body.ios-glass-page .glass-meta-card.collapsed .glass-meta-body {
+    display: none;
+}
+
+body.ios-glass-page .glass-meta-card.collapsed .glass-meta-toggle svg {
+    transform: rotate(180deg);
+}
+
+body.ios-glass-page .glass-top-bar .filter-control-area,
+body.ios-glass-page .glass-top-bar .player-profile,
+body.ios-glass-page .glass-top-bar .query-target-section,
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    margin: 0;
+}
+
+body.ios-glass-page .glass-top-bar .status-section {
+    margin: 0;
+}
+
+body.ios-glass-page .glass-top-bar .player-profile.glass-meta-card,
+body.ios-glass-page .glass-top-bar .query-target-section.glass-meta-card {
+    display: block;
+    padding: 0;
+}
+
+body.ios-glass-page .glass-meta-header .query-target-title {
+    margin-bottom: 0;
+}
+
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    display: none;
+}
+
+body.ios-glass-page .period-meta-body {
+    display: flex;
+    align-items: center;
+    gap: 20px;
 }
 
 body.ios-glass-page .floating-back-btn {
@@ -273,6 +397,34 @@ body.ios-glass-page .modal-link-loading-spinner {
 }
 
 @media (max-width: 768px) {
+    body.ios-glass-page.glass-top-fixed .container {
+        padding-top: var(--glass-top-space, 176px);
+    }
+
+    body.ios-glass-page .glass-top-bar {
+        top: 10px;
+        left: 56px;
+        right: 10px;
+        gap: 8px;
+    }
+
+    body.ios-glass-page .glass-meta-header {
+        min-height: 38px;
+        padding: 8px 10px 8px 12px;
+    }
+
+    body.ios-glass-page .glass-meta-title {
+        font-size: 0.88rem;
+    }
+
+    body.ios-glass-page .glass-meta-body {
+        padding: 0 12px 12px;
+    }
+
+    body.ios-glass-page .period-meta-body {
+        gap: 12px;
+    }
+
     body.ios-glass-page .floating-back-btn {
         top: 10px;
         left: 10px;

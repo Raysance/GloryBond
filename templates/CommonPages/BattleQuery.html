@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>单人详情-笙煎守味🤖</title>
     <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script> -->
-    <!-- NOTE: `components/gesture-lock/gesture-lock-trigger.js` is not shipped in this repo.
-         Disabled to avoid 404 errors in production. -->
-    <!-- <script type="module" src="components/gesture-lock/gesture-lock-trigger.js"></script> -->
     <style>
         :root {
             --primary-color: #6c9bd1;
@@ -417,46 +414,6 @@
             justify-content: center;
         }
 
-        .gesture-lock-trigger {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            width: 48px;
-            height: 48px;
-            padding: 0;
-            border-radius: 50%;
-            border: 1px solid rgba(79, 195, 247, 0.4);
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.95), rgba(79, 195, 247, 0.95));
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.35);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-            z-index: 1200;
-            line-height: 0;
-        }
-
-        .gesture-lock-trigger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 40px rgba(79, 195, 247, 0.45);
-        }
-
-        .gesture-lock-trigger:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: 0 6px 20px rgba(79, 195, 247, 0.25);
-        }
-
-        .gesture-lock-trigger svg {
-            width: 22px;
-            height: 22px;
-            fill: currentColor;
-        }
-
-
         .floating-back-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
@@ -804,13 +761,6 @@
             .floating-back-btn svg {
                 width: 20px;
                 height: 20px;
-            }
-
-            .gesture-lock-trigger {
-                top: 14px;
-                right: 14px;
-                width: 44px;
-                height: 44px;
             }
 
         }
@@ -1431,33 +1381,25 @@
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
 </head>
-<body class="ios-glass-page">
-    <button
-        id="gestureLockTrigger"
-        class="gesture-lock-trigger"
-        type="button"
-        aria-expanded="false"
-        aria-label="打开手势验证面板"
-        data-gesture-lock-trigger
-        data-gesture-timeout="120000"
-        data-gesture-use-toast="true"
-    >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M17 9h-1V7a4 4 0 00-8 0v2H7a2 2 0 00-2 2v9a2 2 0 002 2h10a2 2 0 002-2v-9a2 2 0 00-2-2zm-6.5 0V7a1.5 1.5 0 113 0v2z"/>
-        </svg>
-    </button>
+<body class="ios-glass-page glass-top-fixed">
     <div class="container">
+        <div id="queryTopBar" class="glass-top-bar">
         <!-- 新增: 顶部筛选条件展示 (query_target) -->
         {% if query_target %}
-        <div id="queryTargetSection" class="query-target-section">
-            <div class="query-target-title">
-                <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: var(--primary-color);">
-                    <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"></path>
-                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                </svg>
-                筛选条件
-            </div>
-            <div id="queryTargetContent" class="query-target-content">
+        <div id="queryTargetSection" class="query-target-section glass-meta-card">
+            <button class="glass-meta-header" type="button" onclick="toggleQueryMeta()" aria-expanded="true" aria-controls="queryTargetContent">
+                <span class="query-target-title glass-meta-title">
+                    <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: var(--primary-color);">
+                        <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"></path>
+                        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                    筛选条件
+                </span>
+                <span class="glass-meta-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
+                </span>
+            </button>
+            <div id="queryTargetContent" class="query-target-content glass-meta-body">
                 <!-- 动态生成筛选标签 -->
                 {% if query_target.PlayerName %}
                 <div class="query-tag"><span class="tag-label">玩家:</span><span class="tag-value">{{ query_target.PlayerName }}</span></div>
@@ -1520,6 +1462,7 @@
                 </button>
             </div>
             <div id="mapFilterBar" class="map-filter-bar"></div>
+        </div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>
@@ -1998,9 +1941,41 @@
         }
 
 
+        let glassTopResizeObserver = null;
+
+        function updateGlassTopSpace() {
+            const topBar = document.getElementById('queryTopBar');
+            if (!topBar) return;
+            const rect = topBar.getBoundingClientRect();
+            const extraGap = window.innerWidth <= 768 ? 14 : 18;
+            document.documentElement.style.setProperty('--glass-top-space', `${Math.ceil(rect.top + rect.height + extraGap)}px`);
+        }
+
+        function initGlassTopBar() {
+            const topBar = document.getElementById('queryTopBar');
+            if (!topBar) return;
+            if (glassTopResizeObserver) glassTopResizeObserver.disconnect();
+            if ('ResizeObserver' in window) {
+                glassTopResizeObserver = new ResizeObserver(updateGlassTopSpace);
+                glassTopResizeObserver.observe(topBar);
+            }
+            window.addEventListener('resize', updateGlassTopSpace);
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
+        function toggleQueryMeta() {
+            const card = document.getElementById('queryTargetSection');
+            if (!card) return;
+            const collapsed = card.classList.toggle('collapsed');
+            const button = card.querySelector('.glass-meta-header');
+            if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             setupBackButton();
+            initGlassTopBar();
             initGamingCardLongPress(); // 初始化长按事件
             loadHeroMap(); // 预加载英雄数据
             const filename = '{{filename}}';
@@ -3146,6 +3121,7 @@
                 }
 
                 statusSection.style.display = hasAnyStatus ? 'flex' : 'none';
+                requestAnimationFrame(updateGlassTopSpace);
 
             } catch (error) {
                 console.error('更新状态信息失败:', error);
@@ -3161,6 +3137,7 @@
             
             if (!battles || battles.length === 0) {
                 filterControlArea.style.display = 'none';
+                requestAnimationFrame(updateGlassTopSpace);
                 return;
             }
             
@@ -3190,6 +3167,7 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                requestAnimationFrame(updateGlassTopSpace);
             };
             
             // 设置今日筛选复选框事件
@@ -3210,6 +3188,7 @@
             };
             
             filterControlArea.style.display = 'block';
+            requestAnimationFrame(updateGlassTopSpace);
         }
         
         // 应用所有筛选条件

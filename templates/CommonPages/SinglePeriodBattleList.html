@@ -1397,20 +1397,29 @@
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
 </head>
-<body class="ios-glass-page">
+<body class="ios-glass-page glass-top-fixed">
     <div class="container">
+        <div id="periodTopBar" class="glass-top-bar">
         <!-- 玩家头部与原 SingleBattleList 完全一致 -->
-        <div class="player-profile">
-            <div class="player-avatar-column">
-                <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
-                <button id="heroStatsToggle" class="hero-stats-toggle" type="button" style="margin-top:10px;">
-                    英雄统计 <span class="arrow">▼</span>
-                </button>
-            </div>
-            <div class="player-info">
-                <h2 id="playerName" class="player-name">未知玩家</h2>
-                <span id="playerTitle" class="player-title">无称号</span>
-                <div id="playerStats" class="player-stats"></div>
+        <div id="periodMetaCard" class="player-profile glass-meta-card">
+            <button class="glass-meta-header" type="button" onclick="togglePeriodMeta()" aria-expanded="true" aria-controls="periodMetaBody">
+                <span id="periodMetaSummary" class="glass-meta-title">未知玩家</span>
+                <span class="glass-meta-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
+                </span>
+            </button>
+            <div id="periodMetaBody" class="glass-meta-body period-meta-body">
+                <div class="player-avatar-column">
+                    <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
+                    <button id="heroStatsToggle" class="hero-stats-toggle" type="button" style="margin-top:10px;">
+                        英雄统计 <span class="arrow">▼</span>
+                    </button>
+                </div>
+                <div class="player-info">
+                    <h2 id="playerName" class="player-name">未知玩家</h2>
+                    <span id="playerTitle" class="player-title">无称号</span>
+                    <div id="playerStats" class="player-stats"></div>
+                </div>
             </div>
         </div>
         <div id="heroStatsSection" class="hero-stats-section" style="display:none;">
@@ -1461,6 +1470,7 @@
                 </div>
             </div>
             <div id="mapFilterBar" class="map-filter-bar"></div>
+        </div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>
@@ -1620,8 +1630,40 @@
             card.style.removeProperty('pointer-events');
         }
 
+        let glassTopResizeObserver = null;
+
+        function updateGlassTopSpace() {
+            const topBar = document.getElementById('periodTopBar');
+            if (!topBar) return;
+            const rect = topBar.getBoundingClientRect();
+            const extraGap = window.innerWidth <= 768 ? 14 : 18;
+            document.documentElement.style.setProperty('--glass-top-space', `${Math.ceil(rect.top + rect.height + extraGap)}px`);
+        }
+
+        function initGlassTopBar() {
+            const topBar = document.getElementById('periodTopBar');
+            if (!topBar) return;
+            if (glassTopResizeObserver) glassTopResizeObserver.disconnect();
+            if ('ResizeObserver' in window) {
+                glassTopResizeObserver = new ResizeObserver(updateGlassTopSpace);
+                glassTopResizeObserver.observe(topBar);
+            }
+            window.addEventListener('resize', updateGlassTopSpace);
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
+        function togglePeriodMeta() {
+            const card = document.getElementById('periodMetaCard');
+            if (!card) return;
+            const collapsed = card.classList.toggle('collapsed');
+            const button = card.querySelector('.glass-meta-header');
+            if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             setupBackButton();
+            initGlassTopBar();
             loadGameData(filename);
             checkFirstVisit();
             setupHeroStatsToggle();
@@ -1935,11 +1977,14 @@
 
         function setupHeroStatsToggle() {
             const toggle = document.getElementById('heroStatsToggle');
+            const section = document.getElementById('heroStatsSection');
             const panel = document.getElementById('heroStatsPanel');
             if (!toggle || !panel) return;
             toggle.addEventListener('click', () => {
                 const expanded = toggle.classList.toggle('expanded');
-                panel.style.display = expanded ? 'block' : 'none';
+                if (section) section.style.display = expanded ? 'block' : 'none';
+                panel.style.display = 'block';
+                requestAnimationFrame(updateGlassTopSpace);
             });
         }
 
@@ -1954,6 +1999,8 @@
 
                 document.getElementById('playerName').textContent = roleName;
                 document.getElementById('playerTitle').textContent = roleJobName;
+                const metaSummary = document.getElementById('periodMetaSummary');
+                if (metaSummary) metaSummary.textContent = roleJobName && roleJobName !== '无称号' ? `${roleName} · ${roleJobName}` : roleName;
 
                 const avatarElement = document.getElementById('playerAvatar');
                 if (avatar) {
@@ -2004,6 +2051,7 @@
                         statsContainer.innerHTML = '';
                     }
                 }
+                requestAnimationFrame(updateGlassTopSpace);
             } catch (error) {
                 console.error('更新玩家资料失败:', error);
             }
@@ -2016,9 +2064,13 @@
             if (!stats || !stats.length) {
                 section.style.display = 'none';
                 tbody.innerHTML = '';
+                requestAnimationFrame(updateGlassTopSpace);
                 return;
             }
-            section.style.display = 'block';
+            const toggle = document.getElementById('heroStatsToggle');
+            section.style.display = toggle && toggle.classList.contains('expanded') ? 'block' : 'none';
+            const panel = document.getElementById('heroStatsPanel');
+            if (panel) panel.style.display = 'block';
             tbody.innerHTML = stats.map(s => `
                 <tr>
                     <td>
@@ -2036,6 +2088,7 @@
                     <td>${s.avgAssists}</td>
                 </tr>
             `).join('');
+            requestAnimationFrame(updateGlassTopSpace);
         }
 
         function renderMapFilterBar(battles) {
@@ -2054,6 +2107,7 @@
 
             if (!battles || battles.length === 0) {
                 filterControlArea.style.display = 'none';
+                requestAnimationFrame(updateGlassTopSpace);
                 return;
             }
 
@@ -2203,6 +2257,7 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                requestAnimationFrame(updateGlassTopSpace);
             };
 
             if (dateFilterToggle && dateFilterBar) {
@@ -2213,10 +2268,12 @@
                     } else {
                         dateFilterBar.classList.remove('expanded');
                     }
+                    requestAnimationFrame(updateGlassTopSpace);
                 };
             }
 
             filterControlArea.style.display = 'block';
+            requestAnimationFrame(updateGlassTopSpace);
         }
 
         function applyFilters() {
