@@ -779,40 +779,6 @@
             }
         }
 
-        #loading {
-            width: min(320px, calc(100vw - 48px));
-            margin: 72px auto 0;
-            padding: 22px 28px;
-            border-radius: 24px;
-            background:
-                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22)),
-                radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.88), transparent 52%);
-            border: 1px solid rgba(255, 255, 255, 0.66);
-            box-shadow:
-                0 18px 42px rgba(44, 62, 80, 0.18),
-                inset 0 1px 1px rgba(255, 255, 255, 0.88),
-                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
-            backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
-            -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            font-size: 15px;
-            font-weight: 700;
-            color: rgba(44, 62, 80, 0.76);
-        }
-
-        #loading::before {
-            content: "";
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            border: 3px solid rgba(108, 155, 209, 0.22);
-            border-top-color: rgba(108, 155, 209, 0.88);
-            animation: modal-link-spin 0.8s linear infinite;
-        }
-
         .error {
             text-align: center;
             padding: 50px;
@@ -1101,35 +1067,6 @@
             transform: rotate(180deg);
         }
 
-        /* 顶部悬浮返回按钮样式 */
-        .floating-back-btn {
-            position: fixed;
-            top: 24px;
-            left: 24px;
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background:
-                linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
-                radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
-            border: 1px solid rgba(255, 255, 255, 0.58);
-            color: #666;
-            cursor: pointer;
-            box-shadow:
-                0 9px 24px rgba(44, 62, 80, 0.22),
-                inset 0 1px 1px rgba(255, 255, 255, 0.85),
-                inset 0 -1px 1px rgba(255, 255, 255, 0.18);
-            transition: all 0.3s ease;
-            z-index: 1100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
-            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
-            overflow: hidden;
-        }
-
-        .floating-back-btn::before,
         .floating-toggle-btn::before,
         .favorite-btn::before,
         .share-btn::before,
@@ -1143,37 +1080,6 @@
             border-radius: 999px;
             background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.08));
             pointer-events: none;
-        }
-
-        .floating-back-btn:hover {
-            background:
-                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
-                radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
-            color: #4fc3f7;
-            transform: translateY(-1px) scale(1.04);
-            box-shadow:
-                0 12px 28px rgba(44, 62, 80, 0.22),
-                inset 0 1px 0 rgba(255, 255, 255, 0.65);
-        }
-
-        .floating-back-btn:active {
-            transform: translateY(0);
-        }
-
-        .floating-back-btn svg {
-            width: 18px;
-            height: 18px;
-            fill: currentColor;
-            transition: transform 0.3s ease;
-        }
-
-        .floating-back-btn.loading {
-            cursor: wait;
-            opacity: 0.75;
-        }
-
-        .floating-back-btn.loading svg {
-            transform: translateX(-2px);
         }
 
         /* 悬浮球按钮样式 */
@@ -1245,18 +1151,6 @@
                 width: 172px;
                 height: 44px;
                 border-radius: 22px;
-            }
-
-            .floating-back-btn {
-                top: 10px;
-                left: 10px;
-                width: 36px;
-                height: 36px;
-            }
-
-            .floating-back-btn svg {
-                width: 16px;
-                height: 16px;
             }
 
             .floating-toggle-btn {
@@ -1347,88 +1241,6 @@
             cursor: wait;
             opacity: 0.65;
             text-decoration: none;
-        }
-
-        .modal-link-loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(246, 248, 251, 0.36);
-            backdrop-filter: blur(18px) saturate(180%);
-            -webkit-backdrop-filter: blur(18px) saturate(180%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 15000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.25s ease;
-        }
-
-        .modal-link-loading-overlay.show {
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        .modal-link-loading-content {
-            background:
-                linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.24)),
-                radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.88), transparent 54%);
-            padding: 24px 36px;
-            border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.66);
-            box-shadow:
-                0 18px 42px rgba(44, 62, 80, 0.18),
-                inset 0 1px 1px rgba(255, 255, 255, 0.88),
-                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
-            backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
-            -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            color: var(--dark-color);
-            font-weight: 600;
-            min-width: 220px;
-        }
-
-        .modal-link-loading-overlay.data-fetch-loading .modal-link-loading-content {
-            min-width: 190px;
-            padding: 20px 28px;
-            border-radius: 24px;
-            background:
-                linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.18)),
-                radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.92), transparent 54%),
-                radial-gradient(circle at 82% 10%, rgba(108, 155, 209, 0.18), transparent 48%);
-            border-color: rgba(255, 255, 255, 0.72);
-            box-shadow:
-                0 18px 42px rgba(44, 62, 80, 0.20),
-                0 1px 0 rgba(255, 255, 255, 0.42),
-                inset 0 1px 1px rgba(255, 255, 255, 0.92),
-                inset 0 -1px 2px rgba(255, 255, 255, 0.24);
-        }
-
-        .modal-link-loading-overlay.data-fetch-loading .modal-link-loading-text {
-            color: rgba(44, 62, 80, 0.78);
-            font-size: 0.95rem;
-            font-weight: 800;
-        }
-
-        .modal-link-loading-spinner {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 4px solid rgba(108, 155, 209, 0.25);
-            border-top-color: var(--primary-color);
-            animation: modal-link-spin 0.8s linear infinite;
-        }
-
-        @keyframes modal-link-spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
         }
 
         /* 新功能提示对话框样式 */
@@ -1809,7 +1621,7 @@
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
 </head>
-<body>
+<body class="ios-glass-page">
     <div class="container">
         <div class="loading" id="loading">正在加载战局数据...</div>
         <div id="content" style="display: none;">
