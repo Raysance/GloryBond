@@ -3096,7 +3096,8 @@
                     
                     // 获取段位信息
                     const roleJobName = battle.roleJobName || '';
-                    const rankInfo = roleJobName;
+                    const stars = battle.stars ?? '';
+                    const rankInfo = roleJobName ? `${roleJobName} ${stars}⭐` : '';
                     
                     // 获取巅峰分信息
                     const oldMasterScore = parseInt(battle.oldMasterMatchScore) || 0;

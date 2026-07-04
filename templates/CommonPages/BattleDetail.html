@@ -703,25 +703,29 @@
         /* 顶部悬浮返回按钮样式 */
         .floating-back-btn {
             position: fixed;
-            top: 30px;
-            left: 30px;
-            width: 56px;
-            height: 56px;
+            top: 24px;
+            left: 24px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+            background: rgba(255, 255, 255, 0.9);
             border: none;
+            color: #666;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(250, 128, 114, 0.35);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
             z-index: 1100;
             display: flex;
             align-items: center;
             justify-content: center;
+            backdrop-filter: blur(10px);
         }
 
         .floating-back-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
+            background: rgba(255, 255, 255, 1);
+            color: #4fc3f7;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         .floating-back-btn:active {
@@ -729,9 +733,9 @@
         }
 
         .floating-back-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
             transition: transform 0.3s ease;
         }
 
@@ -748,24 +752,28 @@
         .floating-toggle-btn {
             position: fixed;
             top: 24px;
-            right: 166px;
+            right: 180px;
             width: 44px;
             height: 44px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: rgba(255, 255, 255, 0.9);
             border: none;
+            color: #666;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             transition: all 0.3s ease;
             z-index: 1100;
             display: flex;
             align-items: center;
             justify-content: center;
+            backdrop-filter: blur(10px);
         }
 
         .floating-toggle-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+            background: rgba(255, 255, 255, 1);
+            color: #4fc3f7;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         .floating-toggle-btn:active {
@@ -775,7 +783,7 @@
         .floating-toggle-btn svg {
             width: 18px;
             height: 18px;
-            fill: white;
+            fill: currentColor;
             transition: transform 0.3s ease;
         }
 
@@ -785,22 +793,22 @@
 
         @media (max-width: 768px) {
             .floating-back-btn {
-                top: 16px;
-                left: 16px;
-                width: 48px;
-                height: 48px;
+                top: 10px;
+                left: 10px;
+                width: 36px;
+                height: 36px;
             }
 
             .floating-back-btn svg {
-                width: 20px;
-                height: 20px;
+                width: 16px;
+                height: 16px;
             }
 
             .floating-toggle-btn {
                 width: 36px;
                 height: 36px;
                 top: 10px;
-                right: 128px;
+                right: 136px;
             }
 
             .floating-toggle-btn svg {
@@ -1051,12 +1059,12 @@
         }
 
         .favorite-btn {
-            width: 36px;
-            height: 36px;
+            width: 44px;
+            height: 44px;
             border: none;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.9);
-            color: #ccc;
+            color: #666;
             font-size: 14px;
             cursor: pointer;
             display: flex;
@@ -1070,7 +1078,7 @@
 
         .favorite-btn:hover {
             background: rgba(255, 255, 255, 1);
-            color: #ff6b6b;
+            color: #4fc3f7;
             transform: scale(1.1);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
@@ -1093,8 +1101,8 @@
         }
 
         .share-btn {
-            width: 36px;
-            height: 36px;
+            width: 44px;
+            height: 44px;
             border: none;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.9);
@@ -1122,15 +1130,15 @@
         }
 
         .share-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             fill: currentColor;
             transition: all 0.3s ease;
         }
 
         .analyze-btn {
-            width: 36px;
-            height: 36px;
+            width: 44px;
+            height: 44px;
             border: none;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.9);
@@ -1147,7 +1155,7 @@
 
         .analyze-btn:hover {
             background: rgba(255, 255, 255, 1);
-            color: #9c27b0;
+            color: #4fc3f7;
             transform: scale(1.1);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
@@ -1158,8 +1166,8 @@
         }
 
         .analyze-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             fill: currentColor;
             transition: all 0.3s ease;
         }
@@ -1172,18 +1180,13 @@
             }
 
             .favorite-btn, .share-btn, .analyze-btn {
-                width: 32px;
-                height: 32px;
+                width: 36px;
+                height: 36px;
             }
 
-            .favorite-btn svg {
+            .favorite-btn svg, .share-btn svg, .analyze-btn svg {
                 width: 16px;
                 height: 16px;
-            }
-
-            .share-btn svg {
-                width: 14px;
-                height: 14px;
             }
         }
 
