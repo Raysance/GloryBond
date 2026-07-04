@@ -2001,6 +2001,16 @@
                 const expanded = toggle.classList.toggle('expanded');
                 if (section) section.style.display = expanded ? 'block' : 'none';
                 panel.style.display = 'block';
+                if (expanded) {
+                    const mapFilterToggle = document.getElementById('mapFilterToggle');
+                    const mapFilterBar = document.getElementById('mapFilterBar');
+                    const dateFilterToggle = document.getElementById('dateFilterToggle');
+                    const dateFilterBar = document.getElementById('dateFilterBar');
+                    if (mapFilterToggle) mapFilterToggle.classList.remove('expanded');
+                    if (mapFilterBar) mapFilterBar.classList.remove('expanded');
+                    if (dateFilterToggle) dateFilterToggle.classList.remove('expanded');
+                    if (dateFilterBar) dateFilterBar.classList.remove('expanded');
+                }
                 requestAnimationFrame(updateGlassTopSpace);
             });
         }
@@ -2276,6 +2286,10 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                const heroStatsToggle = document.getElementById('heroStatsToggle');
+                const heroStatsSection = document.getElementById('heroStatsSection');
+                if (heroStatsToggle) heroStatsToggle.classList.remove('expanded');
+                if (heroStatsSection) heroStatsSection.style.display = 'none';
                 if (dateFilterToggle && dateFilterBar) {
                     dateFilterToggle.classList.remove('expanded');
                     dateFilterBar.classList.remove('expanded');
@@ -2288,6 +2302,10 @@
                     const expanded = dateFilterToggle.classList.toggle('expanded');
                     if (expanded) {
                         dateFilterBar.classList.add('expanded');
+                        const heroStatsToggle = document.getElementById('heroStatsToggle');
+                        const heroStatsSection = document.getElementById('heroStatsSection');
+                        if (heroStatsToggle) heroStatsToggle.classList.remove('expanded');
+                        if (heroStatsSection) heroStatsSection.style.display = 'none';
                         mapFilterToggle.classList.remove('expanded');
                         mapFilterBar.classList.remove('expanded');
                     } else {
