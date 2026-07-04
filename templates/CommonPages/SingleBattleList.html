@@ -441,8 +441,8 @@
             content: '';
             position: absolute;
             top: 3px;
-            left: 6px;
-            right: 6px;
+            left: 7px;
+            right: 7px;
             height: 38%;
             border-radius: 999px;
             background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.08));
@@ -453,8 +453,8 @@
             position: fixed;
             top: 24px;
             left: 24px;
-            width: 56px;
-            height: 56px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             background:
                 linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
@@ -481,7 +481,7 @@
                 linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
                 radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
             color: #4fc3f7;
-            transform: translateY(-2px) scale(1.03);
+            transform: translateY(-1px) scale(1.04);
             box-shadow:
                 0 12px 28px rgba(44, 62, 80, 0.22),
                 inset 0 1px 0 rgba(255, 255, 255, 0.65);
@@ -492,8 +492,8 @@
         }
 
         .floating-back-btn svg {
-            width: 24px;
-            height: 24px;
+            width: 18px;
+            height: 18px;
             fill: currentColor;
             transition: transform 0.3s ease;
         }
@@ -820,15 +820,47 @@
             }
 
             .floating-back-btn {
-                top: 14px;
-                left: 14px;
-                width: 48px;
-                height: 48px;
+                top: 10px;
+                left: 10px;
+                width: 36px;
+                height: 36px;
             }
 
             .floating-back-btn svg {
-                width: 20px;
-                height: 20px;
+                width: 16px;
+                height: 16px;
+            }
+
+            .player-profile-header {
+                padding: 10px 12px;
+                gap: 8px;
+            }
+
+            .player-profile-title {
+                font-size: 0.86rem;
+            }
+
+            .player-profile-summary {
+                font-size: 0.8rem;
+            }
+
+            .player-profile-body {
+                padding: 0 14px 16px;
+                gap: 12px;
+            }
+
+            .player-avatar {
+                width: 56px;
+                height: 56px;
+            }
+
+            .player-name {
+                font-size: 1.2rem;
+            }
+
+            .player-title {
+                font-size: 0.78rem;
+                padding: 3px 9px;
             }
 
         }
@@ -911,29 +943,113 @@
         }
         
         .player-profile {
+            margin-bottom: 20px;
+            padding: 0;
+            border-radius: 18px;
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.12)),
+                radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.16) 42%, transparent 64%);
+            backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            border: 1px solid rgba(255, 255, 255, 0.64);
+            box-shadow:
+                0 14px 34px rgba(44, 62, 80, 0.18),
+                inset 0 1px 1px rgba(255, 255, 255, 0.86),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+            color: var(--dark-color);
+            overflow: hidden;
+        }
+
+        .player-profile-header {
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--dark-color);
+            cursor: pointer;
             display: flex;
             align-items: center;
-            margin-bottom: 20px;
-            padding: 24px;
-            border-radius: 15px;
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            color: var(--dark-color);
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            text-align: left;
+        }
+
+        .player-profile-title {
+            font-size: 0.92rem;
+            font-weight: 800;
+            color: rgba(44, 62, 80, 0.76);
+            white-space: nowrap;
+        }
+
+        .player-profile-summary {
+            min-width: 0;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: right;
+            color: rgba(44, 62, 80, 0.58);
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .player-profile-toggle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.50);
+            color: rgba(44, 62, 80, 0.70);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow:
+                inset 0 1px 1px rgba(255, 255, 255, 0.76),
+                0 5px 14px rgba(44, 62, 80, 0.10);
+        }
+
+        .player-profile-toggle svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+            transition: transform 0.25s ease;
+        }
+
+        .player-profile-body {
+            display: flex;
+            align-items: center;
+            padding: 0 24px 22px;
+        }
+
+        .player-profile.collapsed .player-profile-body {
+            display: none;
+        }
+
+        .player-profile.collapsed .player-profile-toggle svg {
+            transform: rotate(180deg);
         }
 
         /* 调整子元素文字颜色 */
-        .player-profile .player-name,
-        .player-profile .player-title {
+        .player-profile .player-name {
             color: var(--dark-color);
+            text-shadow: none;
+        }
+
+        .player-profile .player-title {
+            color: var(--primary-color);
             text-shadow: none;
         }
 
         /* 可选：微调头像边框颜色 */
         .player-avatar {
-            border: 3px solid rgba(108, 155, 209, 0.3); 
-            /* 原为 var(--secondary-color) */
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.76);
+            box-shadow: 0 8px 20px rgba(31, 35, 41, 0.16);
         }
         
         .player-info {
@@ -1401,25 +1517,36 @@
 </head>
 <body>
     <div class="container">
-        <div class="player-profile">
-            <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
-            <div class="player-info">
-                <h2 id="playerName" class="player-name">未知玩家</h2>
-                <span id="playerTitle" class="player-title">无称号</span>
-                <!-- <div class="player-stats">
-                    <div class="player-stat">
-                        <div class="stat-value" id="totalBattles">0</div>
-                        <div class="stat-label">总场数</div>
-                    </div>
-                    <div class="player-stat">
-                        <div class="stat-value" id="mvpCount">0</div>
-                        <div class="stat-label">MVP次数</div>
-                    </div>
-                    <div class="player-stat">
-                        <div class="stat-value" id="winRate">0%</div>
-                        <div class="stat-label">胜率</div>
-                    </div>
-                </div> -->
+        <div id="playerProfileCard" class="player-profile">
+            <button class="player-profile-header" type="button" onclick="togglePlayerProfile()" aria-label="折叠玩家信息" title="折叠玩家信息">
+                <span class="player-profile-title">玩家信息</span>
+                <span id="playerProfileSummary" class="player-profile-summary">未知玩家</span>
+                <span class="player-profile-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                    </svg>
+                </span>
+            </button>
+            <div class="player-profile-body">
+                <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
+                <div class="player-info">
+                    <h2 id="playerName" class="player-name">未知玩家</h2>
+                    <span id="playerTitle" class="player-title">无称号</span>
+                    <!-- <div class="player-stats">
+                        <div class="player-stat">
+                            <div class="stat-value" id="totalBattles">0</div>
+                            <div class="stat-label">总场数</div>
+                        </div>
+                        <div class="player-stat">
+                            <div class="stat-value" id="mvpCount">0</div>
+                            <div class="stat-label">MVP次数</div>
+                        </div>
+                        <div class="player-stat">
+                            <div class="stat-value" id="winRate">0%</div>
+                            <div class="stat-label">胜率</div>
+                        </div>
+                    </div> -->
+                </div>
             </div>
         </div>
 
@@ -1669,6 +1796,19 @@
                     navigateBack();
                 }
             });
+        }
+
+        function togglePlayerProfile() {
+            const card = document.getElementById('playerProfileCard');
+            if (!card) return;
+
+            card.classList.toggle('collapsed');
+            const isCollapsed = card.classList.contains('collapsed');
+            const header = card.querySelector('.player-profile-header');
+            if (header) {
+                header.title = isCollapsed ? '展开玩家信息' : '折叠玩家信息';
+                header.setAttribute('aria-label', isCollapsed ? '展开玩家信息' : '折叠玩家信息');
+            }
         }
 
         function showModalLinkLoading(message = '正在跳转，请稍候...') {
@@ -2832,6 +2972,12 @@
                 // 设置玩家信息
                 document.getElementById('playerName').textContent = roleName;
                 document.getElementById('playerTitle').textContent = roleJobName;
+                const profileSummary = document.getElementById('playerProfileSummary');
+                if (profileSummary) {
+                    profileSummary.textContent = roleJobName && roleJobName !== '无称号'
+                        ? `${roleName} · ${roleJobName}`
+                        : roleName;
+                }
                 
                 // 设置头像
                 const avatarElement = document.getElementById('playerAvatar');
