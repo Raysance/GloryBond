@@ -143,6 +143,16 @@ body.ios-glass-page .glass-top-bar {
     align-items: start;
 }
 
+body.ios-glass-page #periodTopBar {
+    grid-template-columns: minmax(180px, 1fr) auto;
+    grid-template-areas:
+        "meta filter"
+        "body body"
+        "hero hero"
+        "date date"
+        "map map";
+}
+
 body.ios-glass-page .glass-meta-card {
     background: var(--ios-glass-bg);
     border: 1px solid var(--ios-glass-border);
@@ -275,6 +285,43 @@ body.ios-glass-page .glass-top-bar .filter-header {
     flex-wrap: nowrap;
 }
 
+body.ios-glass-page .glass-top-bar .today-filter-checkbox,
+body.ios-glass-page .glass-top-bar .map-filter-toggle,
+body.ios-glass-page .glass-top-bar .date-filter-toggle,
+body.ios-glass-page .glass-top-bar .hero-stats-toggle {
+    height: 44px;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding-top: 0;
+    padding-bottom: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+body.ios-glass-page .glass-top-bar .status-card {
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+body.ios-glass-page .glass-top-bar .status-card .label,
+body.ios-glass-page .glass-top-bar .status-card .value,
+body.ios-glass-page .glass-top-bar .gaming-title,
+body.ios-glass-page .glass-top-bar .gaming-detail-label,
+body.ios-glass-page .glass-top-bar .gaming-detail-value {
+    line-height: 1;
+}
+
+body.ios-glass-page .glass-top-bar .date-filter-toggle #dateFilterLabel {
+    display: inline-block;
+    max-width: 94px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 body.ios-glass-page .glass-top-bar .map-filter-bar,
 body.ios-glass-page .glass-top-bar .date-filter-bar,
 body.ios-glass-page .glass-top-bar .hero-stats-section {
@@ -330,6 +377,79 @@ body.ios-glass-page .period-meta-body {
     display: flex;
     align-items: center;
     gap: 20px;
+}
+
+body.ios-glass-page .period-profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+body.ios-glass-page .period-date-range-pill {
+    min-height: 36px;
+    padding: 0 12px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    color: rgba(44, 62, 80, 0.68);
+    font-size: 0.82rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.30);
+    border: 1px solid rgba(255, 255, 255, 0.52);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.70);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-avatar {
+    width: 68px;
+    height: 68px;
+    border-radius: 20px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 0 10px 22px rgba(31, 35, 41, 0.16);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-avatar-column {
+    margin-right: 0;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-info {
+    text-align: left;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-name {
+    text-align: left;
+    font-size: 1.35rem;
+    line-height: 1.2;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-title {
+    margin-top: 6px;
+    border-radius: 999px;
+    background: rgba(108, 155, 209, 0.12);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat {
+    min-width: 0;
+    padding: 7px 8px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.26);
+    border: 1px solid rgba(255, 255, 255, 0.44);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat .stat-value {
+    font-size: 0.98rem;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat .stat-label {
+    font-size: 0.72rem;
+    color: rgba(44, 62, 80, 0.58);
 }
 
 body.ios-glass-page .glass-top-bar .gaming-status-card {
@@ -527,6 +647,25 @@ body.ios-glass-page .modal-link-loading-spinner {
 
     body.ios-glass-page .period-meta-body {
         gap: 12px;
+        align-items: flex-start;
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-name {
+        font-size: 1.12rem;
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    body.ios-glass-page .period-profile-actions {
+        justify-content: flex-start;
     }
 
     body.ios-glass-page .floating-back-btn {

@@ -1416,6 +1416,12 @@
                     <h2 id="playerName" class="player-name">未知玩家</h2>
                     <span id="playerTitle" class="player-title">无称号</span>
                     <div id="playerStats" class="player-stats"></div>
+                    <div class="period-profile-actions">
+                        <button id="heroStatsToggle" class="hero-stats-toggle" type="button">
+                            英雄统计 <span class="arrow">▼</span>
+                        </button>
+                        <span class="period-date-range-pill">区间：{{DateFrom}} ~ {{DateTo}}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1440,9 +1446,6 @@
         </div>
         <div id="filterControlArea" class="filter-control-area" style="display:none;">
             <div class="filter-header">
-                <button id="heroStatsToggle" class="hero-stats-toggle" type="button">
-                    英雄统计 <span class="arrow">▼</span>
-                </button>
                 <button id="mapFilterToggle" class="map-filter-toggle">
                     <span>地图筛选</span>
                     <span class="arrow">▼</span>
@@ -1451,7 +1454,6 @@
                     <span id="dateFilterLabel">日期筛选</span>
                     <span class="arrow">▼</span>
                 </button>
-                <span class="date-range-label">区间：{{DateFrom}} ~ {{DateTo}}</span>
             </div>
         </div>
         <div id="dateFilterBar" class="date-filter-bar">

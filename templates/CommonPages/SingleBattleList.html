@@ -1547,6 +1547,22 @@
             color: var(--dark-color);
         }
 {% include "CommonPages/ios_glass_theme.css" %}
+        body.ios-glass-page .top-info-bar .today-filter-checkbox,
+        body.ios-glass-page .top-info-bar .map-filter-toggle {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.22);
+            box-shadow: none;
+            backdrop-filter: blur(18px) saturate(160%);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+        }
+
+        body.ios-glass-page .top-info-bar .today-filter-checkbox:hover,
+        body.ios-glass-page .top-info-bar .map-filter-toggle:hover,
+        body.ios-glass-page .top-info-bar .map-filter-toggle.expanded {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.28);
+            box-shadow: 0 6px 18px rgba(44, 62, 80, 0.08);
+        }
     </style>
 </head>
 <body class="ios-glass-page">
