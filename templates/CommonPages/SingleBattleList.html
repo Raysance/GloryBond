@@ -42,11 +42,13 @@
             left: 80px;
             right: 16px;
             z-index: 1090;
+            --profile-panel-offset: 64px;
             display: grid;
             grid-template-columns: minmax(180px, 1fr) auto;
             grid-template-areas:
                 "profile filter"
-                "body body";
+                "body body"
+                "map map";
             gap: 10px;
             align-items: start;
         }
@@ -193,10 +195,13 @@
 
         /* 地图筛选按钮栏样式 */
         .map-filter-bar {
+            grid-area: map;
             display: none;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 8px;
+            width: calc(100% + var(--profile-panel-offset));
+            box-sizing: border-box;
+            margin: 0 0 0 calc(-1 * var(--profile-panel-offset));
             padding: 10px;
             border-top: 1px solid rgba(108, 155, 209, 0.2);
             border-radius: 16px;
@@ -778,12 +783,14 @@
                 top: 10px;
                 left: 56px;
                 right: 10px;
-            grid-template-columns: minmax(0, 1fr) auto;
-            grid-template-areas:
-                "profile filter"
-                "body body";
-            gap: 6px;
-        }
+                --profile-panel-offset: 46px;
+                grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-areas:
+                    "profile filter"
+                    "body body"
+                    "map map";
+                gap: 6px;
+            }
 
             .battle-item {
                 padding: 6px 8px;
@@ -1045,8 +1052,9 @@
 
         .player-profile-body {
             grid-area: body;
-            width: 100%;
+            width: calc(100% + var(--profile-panel-offset));
             box-sizing: border-box;
+            margin-left: calc(-1 * var(--profile-panel-offset));
             display: flex;
             align-items: center;
             gap: 16px;
@@ -1699,8 +1707,8 @@
                     <span class="arrow">▼</span>
                 </button>
             </div>
-            <div id="mapFilterBar" class="map-filter-bar"></div>
         </div>
+        <div id="mapFilterBar" class="map-filter-bar"></div>
     </div>
 
     <div class="container">
@@ -3290,6 +3298,8 @@
             
             if (!battles || battles.length === 0) {
                 filterControlArea.style.display = 'none';
+                mapFilterBar.classList.remove('expanded');
+                mapFilterToggle.classList.remove('expanded');
                 return;
             }
             
