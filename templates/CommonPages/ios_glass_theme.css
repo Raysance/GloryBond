@@ -96,6 +96,8 @@ body.ios-glass-page .battle-item {
         inset 0 1px 1px rgba(255, 255, 255, 0.70);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
+    content-visibility: auto;
+    contain-intrinsic-size: 96px;
 }
 
 body.ios-glass-page .battle-item.win-bg {
@@ -739,6 +741,57 @@ body.ios-glass-page .modal-link-loading-spinner {
 }
 
 @media (max-width: 768px) {
+    body.ios-glass-page header,
+    body.ios-glass-page .filter-control-area,
+    body.ios-glass-page .player-profile,
+    body.ios-glass-page .hero-stats-panel,
+    body.ios-glass-page .date-range-controls,
+    body.ios-glass-page .card,
+    body.ios-glass-page .chart-container,
+    body.ios-glass-page .glass-meta-card,
+    body.ios-glass-page .glass-top-bar .glass-meta-body,
+    body.ios-glass-page .modal-link-loading-content {
+        backdrop-filter: blur(14px) saturate(170%) contrast(1.02);
+        -webkit-backdrop-filter: blur(14px) saturate(170%) contrast(1.02);
+        box-shadow:
+            0 10px 24px rgba(44, 62, 80, 0.12),
+            inset 0 1px 1px rgba(255, 255, 255, 0.76);
+    }
+
+    body.ios-glass-page .today-filter-checkbox,
+    body.ios-glass-page .map-filter-toggle,
+    body.ios-glass-page .date-filter-toggle,
+    body.ios-glass-page .hero-stats-toggle,
+    body.ios-glass-page .map-filter-btn,
+    body.ios-glass-page .modal-btn,
+    body.ios-glass-page .floating-back-btn,
+    body.ios-glass-page .glass-top-bar .glass-meta-header {
+        backdrop-filter: blur(12px) saturate(165%) contrast(1.02);
+        -webkit-backdrop-filter: blur(12px) saturate(165%) contrast(1.02);
+        box-shadow:
+            0 7px 18px rgba(44, 62, 80, 0.11),
+            inset 0 1px 1px rgba(255, 255, 255, 0.78);
+    }
+
+    body.ios-glass-page .battle-item {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow:
+            0 7px 16px rgba(44, 62, 80, 0.08),
+            inset 0 1px 1px rgba(255, 255, 255, 0.62);
+        contain-intrinsic-size: 88px;
+    }
+
+    body.ios-glass-page #periodTopBar .date-filter-bar,
+    body.ios-glass-page #periodTopBar .map-filter-bar,
+    body.ios-glass-page #periodTopBar .hero-stats-section {
+        backdrop-filter: blur(16px) saturate(175%);
+        -webkit-backdrop-filter: blur(16px) saturate(175%);
+        box-shadow:
+            0 12px 28px rgba(44, 62, 80, 0.14),
+            inset 0 1px 1px rgba(255, 255, 255, 0.78);
+    }
+
     body.ios-glass-page.glass-top-fixed .container {
         padding-top: var(--glass-top-space, 176px);
     }
@@ -813,4 +866,54 @@ body.ios-glass-page .modal-link-loading-spinner {
         width: 16px;
         height: 16px;
     }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    body.ios-glass-page header,
+    body.ios-glass-page .filter-control-area,
+    body.ios-glass-page .player-profile,
+    body.ios-glass-page .hero-stats-panel,
+    body.ios-glass-page .date-range-controls,
+    body.ios-glass-page .card,
+    body.ios-glass-page .chart-container,
+    body.ios-glass-page .glass-meta-card,
+    body.ios-glass-page .glass-top-bar .glass-meta-body,
+    body.ios-glass-page .glass-top-bar .glass-meta-header,
+    body.ios-glass-page .modal-link-loading-content,
+    body.ios-glass-page .floating-back-btn,
+    body.ios-glass-page #periodTopBar .date-filter-bar,
+    body.ios-glass-page #periodTopBar .map-filter-bar,
+    body.ios-glass-page #periodTopBar .hero-stats-section {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: rgba(255, 255, 255, 0.88);
+    }
+}
+
+html.ios-lite-effects body.ios-glass-page header,
+html.ios-lite-effects body.ios-glass-page .filter-control-area,
+html.ios-lite-effects body.ios-glass-page .player-profile,
+html.ios-lite-effects body.ios-glass-page .hero-stats-panel,
+html.ios-lite-effects body.ios-glass-page .date-range-controls,
+html.ios-lite-effects body.ios-glass-page .card,
+html.ios-lite-effects body.ios-glass-page .chart-container,
+html.ios-lite-effects body.ios-glass-page .glass-meta-card,
+html.ios-lite-effects body.ios-glass-page .glass-top-bar .glass-meta-body,
+html.ios-lite-effects body.ios-glass-page .glass-top-bar .glass-meta-header,
+html.ios-lite-effects body.ios-glass-page .modal-link-loading-content,
+html.ios-lite-effects body.ios-glass-page .floating-back-btn,
+html.ios-lite-effects body.ios-glass-page #periodTopBar .date-filter-bar,
+html.ios-lite-effects body.ios-glass-page #periodTopBar .map-filter-bar,
+html.ios-lite-effects body.ios-glass-page #periodTopBar .hero-stats-section {
+    backdrop-filter: blur(8px) saturate(135%);
+    -webkit-backdrop-filter: blur(8px) saturate(135%);
+    box-shadow:
+        0 6px 16px rgba(44, 62, 80, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.62);
+}
+
+html.ios-lite-effects body.ios-glass-page .battle-item {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 5px 12px rgba(44, 62, 80, 0.07);
 }

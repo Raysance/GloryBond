@@ -1564,6 +1564,18 @@
             box-shadow: 0 6px 18px rgba(44, 62, 80, 0.08);
         }
     </style>
+    <script>
+        (function() {
+            try {
+                const isMobileLike = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+                const memory = navigator.deviceMemory || 8;
+                const cores = navigator.hardwareConcurrency || 8;
+                if (isMobileLike && (memory <= 4 || cores <= 4)) {
+                    document.documentElement.classList.add('ios-lite-effects');
+                }
+            } catch (error) {}
+        })();
+    </script>
 </head>
 <body class="ios-glass-page">
     <div class="top-info-bar">
@@ -3291,14 +3303,14 @@
         function handleImageLoad(imgElement, fallbackText, timeout = 2000) {
             if (!imgElement) return;
 
-            const timer = setTimeout(() => {
+            const timer = imgElement.loading === 'lazy' ? null : setTimeout(() => {
                 if (!imgElement.complete || imgElement.naturalWidth === 0) {
                     switchToFallback(imgElement, fallbackText);
                 }
             }, timeout);
 
             imgElement.onload = () => {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 imgElement.style.display = 'block';
                 if (imgElement.nextElementSibling && imgElement.nextElementSibling.classList.contains('img-placeholder')) {
                     imgElement.nextElementSibling.remove();
@@ -3306,7 +3318,7 @@
             };
 
             imgElement.onerror = () => {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 switchToFallback(imgElement, fallbackText);
             };
         }
@@ -3349,6 +3361,14 @@
             return `${month}-${day} ${hours}:${minutes}`;
         }
 
+        function scheduleBattleListRender(callback) {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(callback, { timeout: 220 });
+            } else {
+                setTimeout(callback, 16);
+            }
+        }
+
         // 分析比赛数据（支持地图筛选和今日筛选）
         function analyzeBattles(battles, mapFilter = '全部', todayOnly = false) {
             try {
@@ -3369,6 +3389,8 @@
                 const recentBattles = filteredBattles;
                 const battleItemsContainer = document.getElementById('battleItems');
                 battleItemsContainer.innerHTML = '';
+                const renderToken = String(Date.now());
+                battleItemsContainer.dataset.renderToken = renderToken;
                 
                 let totalWins = 0;
                 let totalKills = 0;
@@ -3376,7 +3398,15 @@
                 let totalAssists = 0;
                 let totalMvp = 0;
                 
-                recentBattles.forEach((battle, index) => {
+                let renderIndex = 0;
+                function renderBattleBatch() {
+                    if (battleItemsContainer.dataset.renderToken !== renderToken) return;
+                    const fragment = document.createDocumentFragment();
+                    const batchSize = renderIndex === 0 ? 16 : (window.innerWidth <= 768 ? 8 : 14);
+                    const end = Math.min(renderIndex + batchSize, recentBattles.length);
+                    for (; renderIndex < end; renderIndex++) {
+                    const battle = recentBattles[renderIndex];
+                    const index = renderIndex;
                     // 创建比赛项目
                     const battleItem = document.createElement('div');
                     const gameResult = parseInt(battle.gameresult) || 0;
@@ -3458,7 +3488,7 @@
                     
                     battleItem.innerHTML = `
                         <div class="hero-icon-container" style="position: relative; width: 45px; height: 45px; margin-right: 10px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background-color: #eee;">
-                            <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" data-fallback="${heroName}">
+                            <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" loading="lazy" decoding="async" data-fallback="${heroName}">
                         </div>
                         <div class="battle-info">
                             <div class="battle-header">
@@ -3515,7 +3545,7 @@
                         </button>
                     `;
                     
-                    battleItemsContainer.appendChild(battleItem);
+                    fragment.appendChild(battleItem);
 
                     // 为该项中的所有图片处理加载
                     const itemImgs = battleItem.querySelectorAll('img[data-fallback]');
@@ -3558,14 +3588,21 @@
                         handleAnalyze(battle, profileData, this);
                     });
                     
-                    battleItemsContainer.appendChild(battleItem);
+                    fragment.appendChild(battleItem);
                     // 统计数据
                     if (gameResult === 1) totalWins++;
                     totalKills += killcnt;
                     totalDeaths += deadcnt;
                     totalAssists += assistcnt;
                     if (mvpcnt > 0 || losemvp > 0) totalMvp++;
-                });
+                    }
+                    battleItemsContainer.appendChild(fragment);
+                    if (renderIndex < recentBattles.length) {
+                        scheduleBattleListRender(renderBattleBatch);
+                    }
+                }
+
+                renderBattleBatch();
                 // const children = Array.from(battleItemsContainer.children);
                 // battleItemsContainer.innerHTML = ''; // 清空容器
                 // children.reverse().forEach(child => battleItemsContainer.appendChild(child));

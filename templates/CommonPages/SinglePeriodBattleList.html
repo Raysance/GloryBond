@@ -1396,6 +1396,18 @@
         }
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
+    <script>
+        (function() {
+            try {
+                const isMobileLike = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+                const memory = navigator.deviceMemory || 8;
+                const cores = navigator.hardwareConcurrency || 8;
+                if (isMobileLike && (memory <= 4 || cores <= 4)) {
+                    document.documentElement.classList.add('ios-lite-effects');
+                }
+            } catch (error) {}
+        })();
+    </script>
 </head>
 <body class="ios-glass-page glass-top-fixed">
     <div class="container">
@@ -2102,7 +2114,7 @@
                 <tr>
                     <td>
                         <div class="hero-stats-hero-cell">
-                            ${s.heroIcon ? `<img src="${s.heroIcon}" alt="${s.heroName}" onerror="this.style.display='none'">` : ''}
+                            ${s.heroIcon ? `<img src="${s.heroIcon}" alt="${s.heroName}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
                             <span>${s.heroName}</span>
                         </div>
                     </td>
@@ -2341,6 +2353,14 @@
             return `${m}-${day} ${h}:${min}`;
         }
 
+        function scheduleBattleListRender(callback) {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(callback, { timeout: 220 });
+            } else {
+                setTimeout(callback, 16);
+            }
+        }
+
         function analyzeBattles(battles, mapFilter = '全部') {
             try {
                 let filteredBattles = battles;
@@ -2361,8 +2381,18 @@
                 const recentBattles = filteredBattles;
                 const battleItemsContainer = document.getElementById('battleItems');
                 battleItemsContainer.innerHTML = '';
+                const renderToken = String(Date.now());
+                battleItemsContainer.dataset.renderToken = renderToken;
 
-                recentBattles.forEach((battle, index) => {
+                let renderIndex = 0;
+                function renderBattleBatch() {
+                    if (battleItemsContainer.dataset.renderToken !== renderToken) return;
+                    const fragment = document.createDocumentFragment();
+                    const batchSize = renderIndex === 0 ? 16 : (window.innerWidth <= 768 ? 8 : 14);
+                    const end = Math.min(renderIndex + batchSize, recentBattles.length);
+                    for (; renderIndex < end; renderIndex++) {
+                    const battle = recentBattles[renderIndex];
+                    const index = renderIndex;
                     const battleItem = document.createElement('div');
                     const gameResult = parseInt(battle.gameresult) || 0;
                     const bgClass = gameResult === 1 ? 'win-bg' : 'lose-bg';
@@ -2381,7 +2411,7 @@
                     const gameTimeText = usedTime > 0 ? `${Math.floor(usedTime / 60)}分${usedTime % 60}秒` : '';
 
                     battleItem.innerHTML = `
-                        <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" onerror="this.style.display='none'">
+                        <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" loading="lazy" decoding="async" onerror="this.style.display='none'">
                         <div class="battle-info">
                             <div class="battle-header">
                                 <div class="battle-title">
@@ -2452,8 +2482,15 @@
                         handleAnalyze(battle, profileData, this);
                     });
 
-                    battleItemsContainer.appendChild(battleItem);
-                });
+                    fragment.appendChild(battleItem);
+                    }
+                    battleItemsContainer.appendChild(fragment);
+                    if (renderIndex < recentBattles.length) {
+                        scheduleBattleListRender(renderBattleBatch);
+                    }
+                }
+
+                renderBattleBatch();
 
                 if (recentBattles.length === 0) {
                     battleItemsContainer.innerHTML = '<p>该地图暂无比赛记录</p>';
