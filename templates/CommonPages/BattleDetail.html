@@ -23,18 +23,22 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background: #f5f7fa;
-            color: #333;
+            background: #f2f3f5;
+            color: #1c1c1e;
             line-height: 1.6;
             min-height: 100vh;
         }
 
         body.victory {
-            background: linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(46, 204, 113, 0.15) 50%, rgba(39, 174, 96, 0.1) 100%) !important;
+            background:
+                radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.14), transparent 30%),
+                linear-gradient(180deg, #f6f8f7 0%, #eef1f4 100%) !important;
         }
 
         body.defeat {
-            background: linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(255, 107, 107, 0.15) 50%, rgba(231, 76, 60, 0.1) 100%) !important;
+            background:
+                radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.13), transparent 30%),
+                linear-gradient(180deg, #f8f7f7 0%, #eef1f4 100%) !important;
         }
 
         .container {
@@ -77,40 +81,47 @@
         }
 
         .team {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.68);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow:
+                0 16px 34px rgba(31, 35, 41, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            overflow: hidden;
         }
 
         .team.red {
-            border-left: 3px solid #e74c3c;
+            border-top: 3px solid rgba(255, 59, 48, 0.34);
         }
 
         .team.blue {
-            border-left: 3px solid #3498db;
+            border-top: 3px solid rgba(0, 122, 255, 0.32);
         }
 
         .team-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #f1f2f6;
+            margin-bottom: 10px;
+            padding: 2px 2px 10px;
+            border-bottom: 1px solid rgba(60, 60, 67, 0.12);
         }
 
         .team-name {
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0;
         }
 
         .team.red .team-name {
-            color: #e74c3c;
+            color: #ff3b30;
         }
 
         .team.blue .team-name {
-            color: #3498db;
+            color: #007aff;
         }
 
         .team-stats {
@@ -121,62 +132,72 @@
         }
 
         .win-indicator {
-            background: transparent;
-            color: #27ae60;
-            padding: 4px 8px;
-            border-radius: 0;
-            font-size: 14px;
+            background: rgba(52, 199, 89, 0.12);
+            color: #1f8f45;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 13px;
             font-weight: 700;
-            border: none;
+            border: 1px solid rgba(52, 199, 89, 0.16);
             box-shadow: none;
         }
 
         .lose-indicator {
-            background: transparent;
-            color: #e74c3c;
-            padding: 4px 8px;
-            border-radius: 0;
-            font-size: 14px;
+            background: rgba(255, 59, 48, 0.12);
+            color: #c9362d;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 13px;
             font-weight: 700;
-            border: none;
+            border: 1px solid rgba(255, 59, 48, 0.16);
             box-shadow: none;
         }
 
         .players-grid {
             display: grid;
-            gap: 4px;
+            gap: 8px;
         }
 
         .player-card {
-            background: transparent;
-            padding: 8px 0;
-            border-bottom: 1px solid #e9ecef;
-            transition: background-color 0.2s ease;
+            background: rgba(255, 255, 255, 0.56);
+            padding: 8px 10px;
+            border: 1px solid rgba(60, 60, 67, 0.07);
+            border-radius: 14px;
+            transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
             position: relative;
             overflow: hidden;
             min-height: 72px;
             display: flex;
             align-items: stretch;
             cursor: pointer;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
         }
 
         .player-card:hover {
-            background-color: rgba(0, 123, 255, 0.05);
+            background-color: rgba(255, 255, 255, 0.76);
+            transform: translateY(-1px);
+            box-shadow:
+                0 10px 20px rgba(31, 35, 41, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.80);
         }
 
         .player-card::before {
-            content: "👆";
+            content: "›";
             position: absolute;
-            top: 5px;
-            right: 5px;
-            font-size: 12px;
-            opacity: 0;
+            top: 50%;
+            right: 9px;
+            font-size: 22px;
+            line-height: 1;
+            color: rgba(60, 60, 67, 0.28);
+            opacity: 0.7;
+            transform: translateY(-50%);
             transition: opacity 0.2s ease;
             pointer-events: none;
+            z-index: 2;
         }
 
         .player-card:hover::before {
-            opacity: 0.6;
+            opacity: 1;
         }
 
         .player-card.card-loading {
@@ -186,23 +207,18 @@
         }
 
         .player-card.card-loading::before {
-            content: "⏳";
+            content: "...";
             opacity: 0.9;
         }
 
-        /* MVP卡片光彩效果 */
+        /* MVP 卡片保持识别度，但避免强闪光动画 */
         .player-card.mvp-highlight {
-            background: linear-gradient(135deg, 
-                rgba(255, 215, 0, 0.25) 0%, 
-                rgba(255, 193, 7, 0.2) 25%, 
-                rgba(255, 235, 59, 0.15) 50%, 
-                rgba(255, 193, 7, 0.2) 75%, 
-                rgba(255, 215, 0, 0.25) 100%);
-            border: 2px solid rgba(255, 215, 0, 0.6);
-            box-shadow: 0 6px 30px rgba(255, 215, 0, 0.4), 
-                        inset 0 2px 0 rgba(255, 255, 255, 0.3),
-                        0 0 20px rgba(255, 215, 0, 0.3);
-            border-radius: 12px;
+            background: rgba(255, 248, 225, 0.72);
+            border-color: rgba(245, 158, 11, 0.28);
+            box-shadow:
+                0 10px 22px rgba(245, 158, 11, 0.10),
+                inset 0 1px 0 rgba(255, 255, 255, 0.78);
+            border-radius: 14px;
         }
 
         .img-placeholder {
@@ -231,52 +247,12 @@
             overflow: hidden;
             background-color: #eee;
         }
-            animation: mvpGlow 2.5s ease-in-out infinite alternate;
-            transform: scale(1.02);
-            margin: 4px 0;
-        }
-
-        @keyframes mvpGlow {
-            0% {
-                box-shadow: 0 6px 30px rgba(255, 215, 0, 0.4), 
-                           inset 0 2px 0 rgba(255, 255, 255, 0.3),
-                           0 0 20px rgba(255, 215, 0, 0.3);
-                border-color: rgba(255, 215, 0, 0.6);
-            }
-            100% {
-                box-shadow: 0 8px 40px rgba(255, 215, 0, 0.6), 
-                           inset 0 2px 0 rgba(255, 255, 255, 0.4),
-                           0 0 30px rgba(255, 215, 0, 0.5);
-                border-color: rgba(255, 215, 0, 0.8);
-            }
-        }
 
         .player-card.mvp-highlight::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, 
-                transparent 20%, 
-                rgba(255, 255, 255, 0.2) 50%, 
-                transparent 80%);
-            transform: translateX(-100%);
-            animation: shimmer 3s ease-in-out infinite;
-            z-index: 1;
-        }
-
-        @keyframes shimmer {
-            0% {
-                transform: translateX(-100%);
-            }
-            50% {
-                transform: translateX(100%);
-            }
-            100% {
-                transform: translateX(-100%);
-            }
+            content: "›";
+            background: none;
+            animation: none;
+            transform: translateY(-50%);
         }
 
         .player-card::after {
@@ -289,20 +265,20 @@
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            opacity: 0.6;
+            opacity: 0.26;
             z-index: 0;
             background-image: inherit;
             mask: linear-gradient(to left, 
                 rgba(0,0,0,1) 0%, 
-                rgba(0,0,0,0.9) 20%, 
-                rgba(0,0,0,0.6) 50%, 
-                rgba(0,0,0,0.2) 80%, 
+                rgba(0,0,0,0.70) 20%,
+                rgba(0,0,0,0.36) 50%,
+                rgba(0,0,0,0.12) 80%,
                 rgba(0,0,0,0) 100%);
             -webkit-mask: linear-gradient(to left, 
                 rgba(0,0,0,1) 0%, 
-                rgba(0,0,0,0.9) 20%, 
-                rgba(0,0,0,0.6) 50%, 
-                rgba(0,0,0,0.2) 80%, 
+                rgba(0,0,0,0.70) 20%,
+                rgba(0,0,0,0.36) 50%,
+                rgba(0,0,0,0.12) 80%,
                 rgba(0,0,0,0) 100%);
         }
 
@@ -318,7 +294,7 @@
             flex: 1;
             position: relative;
             z-index: 1;
-            padding-right: clamp(36px, 9vw, 132px);
+            padding-right: clamp(34px, 8vw, 116px);
             min-height: 58px;
             min-width: 0;
         }
@@ -329,7 +305,7 @@
             border-radius: 50%;
             object-fit: cover;
             border: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 3px 10px rgba(31, 35, 41, 0.18);
             flex-shrink: 0;
         }
 
@@ -394,14 +370,14 @@
         .player-center-rating {
             font-size: 17px;
             font-weight: 700;
-            color: #667eea;
+            color: #007aff;
             line-height: 1.15;
         }
 
         .player-center-kda {
             font-size: 15px;
             font-weight: 700;
-            color: #d63031;
+            color: #1c1c1e;
             line-height: 1.15;
         }
 
@@ -419,8 +395,9 @@
             text-align: center;
             min-width: 0;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 1px;
             justify-content: center;
             flex: 0 1 auto;
         }
@@ -428,13 +405,15 @@
         .stat-percentage-value {
             font-size: 13px;
             font-weight: 700;
-            color: #2c3e50;
+            color: #1c1c1e;
             line-height: 1.1;
         }
 
         .stat-percentage-icon {
-            font-size: 12px;
-            line-height: 1;
+            font-size: 10px;
+            line-height: 1.1;
+            color: rgba(60, 60, 67, 0.58);
+            font-weight: 600;
         }
 
         .player-left {
@@ -456,8 +435,8 @@
         .player-info h4 {
             font-size: 16px;
             margin-bottom: 0;
-            color: #1a1a1a;
-            font-weight: 600;
+            color: #1c1c1e;
+            font-weight: 700;
             max-width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -488,11 +467,12 @@
         .equipment-item {
             width: 100%;
             aspect-ratio: 1;
-            border-radius: 3px;
+            border-radius: 5px;
             object-fit: cover;
             border: none;
-            background: transparent;
+            background: rgba(118, 118, 128, 0.12);
             min-width: 0;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38);
         }
 
         .equipment-item-img {
@@ -504,12 +484,12 @@
         }
 
         .mvp-badge {
-            background: linear-gradient(45deg, #f39c12, #e67e22);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 8px;
+            background: rgba(245, 158, 11, 0.14);
+            color: #a15c00;
+            padding: 2px 7px;
+            border-radius: 999px;
             font-size: 10px;
-            font-weight: 600;
+            font-weight: 700;
             margin-left: 8px;
         }
 
@@ -2458,15 +2438,15 @@
                                 </div>
 	                                <div class="stats-percentage-row player-detail">
 	                                    <div class="stat-percentage">
-	                                        <span class="stat-percentage-icon">💰</span>
+	                                        <span class="stat-percentage-icon">经济</span>
 	                                        <span class="stat-percentage-value">${moneyPercent}%</span>
 	                                    </div>
 	                                    <div class="stat-percentage">
-	                                        <span class="stat-percentage-icon">⚔️</span>
+	                                        <span class="stat-percentage-icon">伤害</span>
 	                                        <span class="stat-percentage-value">${damagePercent}%</span>
 	                                    </div>
 	                                    <div class="stat-percentage">
-	                                        <span class="stat-percentage-icon">🛡️</span>
+	                                        <span class="stat-percentage-icon">承伤</span>
 	                                        <span class="stat-percentage-value">${tankedPercent}%</span>
 	                                    </div>
                                 </div>
@@ -2616,17 +2596,19 @@
             if (gameResult === true) {
                 body.classList.add('victory');
                 console.log('设置胜利背景色');
-                
+
                 // 直接设置内联样式确保优先级
-                body.style.background = 'linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(46, 204, 113, 0.15) 50%, rgba(39, 174, 96, 0.1) 100%)';
-                body.style.setProperty('background', 'linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(46, 204, 113, 0.15) 50%, rgba(39, 174, 96, 0.1) 100%)', 'important');
+                const victoryBackground = 'radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.14), transparent 30%), linear-gradient(180deg, #f6f8f7 0%, #eef1f4 100%)';
+                body.style.background = victoryBackground;
+                body.style.setProperty('background', victoryBackground, 'important');
             } else {
                 body.classList.add('defeat');
                 console.log('设置失败背景色');
-                
+
                 // 直接设置内联样式确保优先级
-                body.style.background = 'linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(255, 107, 107, 0.15) 50%, rgba(231, 76, 60, 0.1) 100%)';
-                body.style.setProperty('background', 'linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(255, 107, 107, 0.15) 50%, rgba(231, 76, 60, 0.1) 100%)', 'important');
+                const defeatBackground = 'radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.13), transparent 30%), linear-gradient(180deg, #f8f7f7 0%, #eef1f4 100%)';
+                body.style.background = defeatBackground;
+                body.style.setProperty('background', defeatBackground, 'important');
             }
             
             console.log('当前body类名:', body.className);
