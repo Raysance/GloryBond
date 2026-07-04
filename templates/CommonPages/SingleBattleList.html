@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>单人详情-笙煎守味🤖</title>
     <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script> -->
-    <script type="module" src="components/gesture-lock/gesture-lock-trigger.js"></script>
     <style>
         :root {
             --primary-color: #6c9bd1;
@@ -415,46 +414,6 @@
             justify-content: center;
         }
 
-        .gesture-lock-trigger {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            width: 48px;
-            height: 48px;
-            padding: 0;
-            border-radius: 50%;
-            border: 1px solid rgba(79, 195, 247, 0.4);
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.95), rgba(79, 195, 247, 0.95));
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.35);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-            z-index: 1200;
-            line-height: 0;
-        }
-
-        .gesture-lock-trigger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 40px rgba(79, 195, 247, 0.45);
-        }
-
-        .gesture-lock-trigger:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: 0 6px 20px rgba(79, 195, 247, 0.25);
-        }
-
-        .gesture-lock-trigger svg {
-            width: 22px;
-            height: 22px;
-            fill: currentColor;
-        }
-
-
         .floating-back-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
@@ -802,13 +761,6 @@
             .floating-back-btn svg {
                 width: 20px;
                 height: 20px;
-            }
-
-            .gesture-lock-trigger {
-                top: 14px;
-                right: 14px;
-                width: 44px;
-                height: 44px;
             }
 
         }
@@ -1380,20 +1332,6 @@
     </style>
 </head>
 <body>
-    <button
-        id="gestureLockTrigger"
-        class="gesture-lock-trigger"
-        type="button"
-        aria-expanded="false"
-        aria-label="打开手势验证面板"
-        data-gesture-lock-trigger
-        data-gesture-timeout="120000"
-        data-gesture-use-toast="true"
-    >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M17 9h-1V7a4 4 0 00-8 0v2H7a2 2 0 00-2 2v9a2 2 0 002 2h10a2 2 0 002-2v-9a2 2 0 00-2-2zm-6.5 0V7a1.5 1.5 0 113 0v2z"/>
-        </svg>
-    </button>
     <div class="container">
         <div class="player-profile">
             <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
@@ -1754,29 +1692,6 @@
             card.classList.remove('battle-loading');
             card.style.removeProperty('pointer-events');
         }
-
-        // 当手势验证（admin-verify）成功时，后端会返回一个 key，通过自定义事件 gesture-lock-key 派发
-        // 这里监听该事件并跳转到 /admin/dashboard?key=<env key>&AdminKey=<adminKey>
-        window.addEventListener('gesture-lock-key', function(e) {
-            try {
-                const detail = e && e.detail;
-                const adminKey = detail && detail.key;
-                // 页面环境中的 key（模板变量，将在服务端/渲染时替换）
-                const envKey = '{{key}}';
-                if (adminKey) {
-                    const targetUrl = `/admin/dashboard?AdminKey=${encodeURIComponent(adminKey)}`;
-                    window.location.href = targetUrl;
-                } else {
-                    if (typeof showToast === 'function') {
-                        showToast('验证成功，但未返回 AdminKey', 'warning');
-                    } else {
-                        console.warn('验证成功，但未返回 AdminKey');
-                    }
-                }
-            } catch (err) {
-                console.error('处理 gesture-lock-key 事件失败:', err);
-            }
-        });
 
         document.addEventListener('click', function(event) {
             const link = event.target.closest('.modal-overlay a[href]');
@@ -3114,6 +3029,24 @@
             imgElement.parentNode.insertBefore(placeholder, imgElement.nextSibling);
         }
 
+        function formatBattleDisplayTime(battle) {
+            const timestamp = Number(battle.dtEventTime);
+            if (!Number.isFinite(timestamp) || timestamp <= 0) {
+                return battle.gametime || '';
+            }
+
+            const battleDate = new Date(timestamp * 1000);
+            const hours = String(battleDate.getHours()).padStart(2, '0');
+            const minutes = String(battleDate.getMinutes()).padStart(2, '0');
+            if (isTodayBattle(battle)) {
+                return `${hours}:${minutes}`;
+            }
+
+            const month = String(battleDate.getMonth() + 1).padStart(2, '0');
+            const day = String(battleDate.getDate()).padStart(2, '0');
+            return `${month}-${day} ${hours}:${minutes}`;
+        }
+
         // 分析比赛数据（支持地图筛选和今日筛选）
         function analyzeBattles(battles, mapFilter = '全部', todayOnly = false) {
             try {
@@ -3157,14 +3090,13 @@
                     const mvpcnt = parseInt(battle.mvpcnt) || 0;
                     const losemvp = parseInt(battle.losemvp) || 0;
                     const gradeGame = parseFloat(battle.gradeGame) || 0;
-                    const gametime = battle.gametime || "";
+                    const gameTimeDisplay = formatBattleDisplayTime(battle);
                     
                     const kda = (killcnt + assistcnt) / Math.max(deadcnt, 1);
                     
                     // 获取段位信息
                     const roleJobName = battle.roleJobName || '';
-                    const stars = battle.stars || 0;
-                    const rankInfo = roleJobName ? `${roleJobName} ${stars}⭐` : '';
+                    const rankInfo = roleJobName;
                     
                     // 获取巅峰分信息
                     const oldMasterScore = parseInt(battle.oldMasterMatchScore) || 0;
@@ -3177,7 +3109,7 @@
                     // 检查是否为巅峰赛：gametype为4或者有巅峰分数据
                     const isPeakMatch = (battle.gametype === 14);
 
-                    const isTournaMatch = (battle.gametype === 4);
+                    const isRankMatch = (battle.mapName && battle.mapName.includes('排位')) || battle.gametype === 4;
                     
                     if (isPeakMatch) {
                         const scoreChangeText = scoreDiff > 0 ? `+${scoreDiff}` : `${scoreDiff}`;
@@ -3189,7 +3121,7 @@
                             </div>
                         `;
                     } 
-                    else if (isTournaMatch) {
+                    else if (isRankMatch && rankInfo) {
                         gameTypeInfo = `
                             <div class="rank-value">${rankInfo}</div>
                         `;
@@ -3233,7 +3165,7 @@
                             </div>
                             <div class="battle-meta">
                                 <div class="battle-time">
-                                    <div>${gametime}</div>
+                                    <div>${gameTimeDisplay}</div>
                                     ${gameTimeText ? `<div>${gameTimeText}</div>` : ''}
                                 </div>
                                 <div class="game-type-info">

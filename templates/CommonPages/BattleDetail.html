@@ -41,7 +41,7 @@
             max-width: 95%;
             width: 100%;
             margin: 0 auto;
-            padding: 20px;
+            padding: 96px 20px 20px;
             background: transparent;
         }
         
@@ -467,7 +467,7 @@
 
         @media (max-width: 768px) {
             .container {
-                padding: 10px;
+                padding: 76px 10px 10px;
             }
             
             .current-player-info {
@@ -747,17 +747,17 @@
         /* 悬浮球按钮样式 */
         .floating-toggle-btn {
             position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
+            top: 24px;
+            right: 166px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             background: linear-gradient(135deg, #667eea, #764ba2);
             border: none;
             cursor: pointer;
             box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
             transition: all 0.3s ease;
-            z-index: 1000;
+            z-index: 1100;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -773,8 +773,8 @@
         }
 
         .floating-toggle-btn svg {
-            width: 24px;
-            height: 24px;
+            width: 18px;
+            height: 18px;
             fill: white;
             transition: transform 0.3s ease;
         }
@@ -797,15 +797,15 @@
             }
 
             .floating-toggle-btn {
-                width: 50px;
-                height: 50px;
-                bottom: 20px;
-                right: 20px;
+                width: 36px;
+                height: 36px;
+                top: 10px;
+                right: 128px;
             }
 
             .floating-toggle-btn svg {
-                width: 20px;
-                height: 20px;
+                width: 16px;
+                height: 16px;
             }
         }
 
@@ -1042,12 +1042,12 @@
 
         /* 分享和收藏按钮样式 */
         .action-buttons {
-            position: absolute;
-            top: 15px;
-            right: 15px;
+            position: fixed;
+            top: 24px;
+            right: 24px;
             display: flex;
             gap: 8px;
-            z-index: 10;
+            z-index: 1100;
         }
 
         .favorite-btn {
@@ -1171,7 +1171,7 @@
                 gap: 6px;
             }
 
-            .favorite-btn, .share-btn {
+            .favorite-btn, .share-btn, .analyze-btn {
                 width: 32px;
                 height: 32px;
             }
@@ -2426,6 +2426,10 @@
 
                 if (!battleData) {
                     showToast('数据未加载，无法分析', 'error');
+                    return;
+                }
+                if (!'{{gameSeq}}'){
+                    showToast('战局详情已存在于群聊中', 'error');
                     return;
                 }
 
