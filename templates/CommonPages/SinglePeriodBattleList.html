@@ -1403,7 +1403,12 @@
         <!-- 玩家头部与原 SingleBattleList 完全一致 -->
         <div id="periodMetaCard" class="player-profile glass-meta-card">
             <button class="glass-meta-header" type="button" onclick="togglePeriodMeta()" aria-expanded="true" aria-controls="periodMetaBody">
-                <span id="periodMetaSummary" class="glass-meta-title">未知玩家</span>
+                <span class="glass-meta-title">
+                    <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v1.5c0 .28.22.5.5.5h15c.28 0 .5-.22.5-.5V18c0-2.66-5.33-4-8-4z"></path>
+                    </svg>
+                    <span id="periodMetaSummary">未知玩家</span>
+                </span>
                 <span class="glass-meta-toggle" aria-hidden="true">
                     <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
                 </span>
@@ -1418,7 +1423,11 @@
                     <div id="playerStats" class="player-stats"></div>
                     <div class="period-profile-actions">
                         <button id="heroStatsToggle" class="hero-stats-toggle" type="button">
-                            英雄统计 <span class="arrow">▼</span>
+                            <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 19h14v2H5v-2zm2-8h3v6H7v-6zm5-6h3v12h-3V5zm5 3h3v9h-3V8z"></path>
+                            </svg>
+                            <span>英雄</span>
+                            <span class="arrow">▼</span>
                         </button>
                         <span class="period-date-range-pill">区间：{{DateFrom}} ~ {{DateTo}}</span>
                     </div>
@@ -1446,12 +1455,18 @@
         </div>
         <div id="filterControlArea" class="filter-control-area" style="display:none;">
             <div class="filter-header">
-                <button id="mapFilterToggle" class="map-filter-toggle">
-                    <span>地图筛选</span>
+                <button id="mapFilterToggle" class="map-filter-toggle" type="button" aria-label="地图筛选" title="地图筛选">
+                    <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.26-.36.48V20.5c0 .31.29.53.59.44L9 19l6 2.1 5.64-1.9c.21-.07.36-.26.36-.48V3.5c0-.31-.29-.53-.5-.5zM10 5.47l4 1.4v11.66l-4-1.4V5.47zm-5 1.1l3-1.01v11.57l-3 1.04V6.57zm14 11.86l-3 1.01V7.87l3-1.04v11.6z"></path>
+                    </svg>
+                    <span>地图</span>
                     <span class="arrow">▼</span>
                 </button>
-                <button id="dateFilterToggle" class="date-filter-toggle" type="button">
-                    <span id="dateFilterLabel">日期筛选</span>
+                <button id="dateFilterToggle" class="date-filter-toggle" type="button" aria-label="日期筛选" title="日期筛选">
+                    <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7 2h2v2h6V2h2v2h3c.55 0 1 .45 1 1v15c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1h3V2zm12 8H5v9h14v-9zM5 8h14V6H5v2z"></path>
+                    </svg>
+                    <span id="dateFilterLabel">日期</span>
                     <span class="arrow">▼</span>
                 </button>
             </div>
@@ -2002,7 +2017,7 @@
                 document.getElementById('playerName').textContent = roleName;
                 document.getElementById('playerTitle').textContent = roleJobName;
                 const metaSummary = document.getElementById('periodMetaSummary');
-                if (metaSummary) metaSummary.textContent = roleJobName && roleJobName !== '无称号' ? `${roleName} · ${roleJobName}` : roleName;
+                if (metaSummary) metaSummary.textContent = roleName;
 
                 const avatarElement = document.getElementById('playerAvatar');
                 if (avatar) {
@@ -2152,7 +2167,8 @@
                     dateRangeControls.style.display = 'none';
                     if (dateFilterToggle) {
                         dateFilterToggle.style.display = 'inline-flex';
-                        if (dateFilterLabel) dateFilterLabel.textContent = dateLabels[0];
+                        dateFilterToggle.title = dateLabels[0];
+                        if (dateFilterLabel) dateFilterLabel.textContent = '日期';
                     }
                     dateRangeStartIndex = 0;
                     dateRangeEndIndex = 0;
@@ -2222,7 +2238,8 @@
                             const endLabel = dateLabels[idxEnd];
                             const text = (idxStart === 0 && idxEnd === maxIndex) ? '全部日期' : `${startLabel} ~ ${endLabel}`;
                             if (dateRangeText) dateRangeText.textContent = text;
-                            if (dateFilterLabel) dateFilterLabel.textContent = text;
+                            if (dateFilterToggle) dateFilterToggle.title = text;
+                            if (dateFilterLabel) dateFilterLabel.textContent = '日期';
                         }
                     }
 
@@ -2259,6 +2276,10 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                if (dateFilterToggle && dateFilterBar) {
+                    dateFilterToggle.classList.remove('expanded');
+                    dateFilterBar.classList.remove('expanded');
+                }
                 requestAnimationFrame(updateGlassTopSpace);
             };
 
@@ -2267,6 +2288,8 @@
                     const expanded = dateFilterToggle.classList.toggle('expanded');
                     if (expanded) {
                         dateFilterBar.classList.add('expanded');
+                        mapFilterToggle.classList.remove('expanded');
+                        mapFilterBar.classList.remove('expanded');
                     } else {
                         dateFilterBar.classList.remove('expanded');
                     }
