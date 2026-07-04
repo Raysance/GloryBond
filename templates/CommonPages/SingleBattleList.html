@@ -28,7 +28,24 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
+            padding: var(--top-info-space, 152px) 20px 20px;
+            transition: padding-top 0.25s ease;
+        }
+
+        body.player-profile-collapsed .container {
+            padding-top: var(--top-info-space, 92px);
+        }
+
+        .top-info-bar {
+            position: fixed;
+            top: 16px;
+            left: 80px;
+            right: 16px;
+            z-index: 1090;
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) auto;
+            gap: 10px;
+            align-items: start;
         }
         
         header {
@@ -51,34 +68,36 @@
 
         /* 筛选控制区域样式 */
         .filter-control-area {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(108, 155, 209, 0.2);
-            border-radius: 12px;
-            padding: 18px 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            margin: 0;
+            box-shadow: none;
+            min-width: 268px;
         }
 
         .filter-header {
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: 20px;
+            gap: 8px;
             flex-wrap: nowrap;
         }
 
         .today-filter-checkbox {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             cursor: pointer;
-            padding: 10px 15px;
+            height: 44px;
+            padding: 0 14px;
             background:
                 linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
                 radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
             border: 1px solid rgba(255, 255, 255, 0.58);
-            border-radius: 10px;
+            border-radius: 22px;
             transition: all 0.3s ease;
             user-select: none;
             box-shadow:
@@ -126,8 +145,9 @@
                 radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
             color: var(--dark-color);
             border: 1px solid rgba(255, 255, 255, 0.58);
-            border-radius: 10px;
-            padding: 10px 15px;
+            border-radius: 22px;
+            height: 44px;
+            padding: 0 14px;
             font-size: 0.95rem;
             font-weight: 500;
             cursor: pointer;
@@ -142,7 +162,7 @@
             backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             white-space: nowrap;
-            flex: 1;
+            flex: 0 0 auto;
         }
 
         .map-filter-toggle:hover {
@@ -171,9 +191,15 @@
             display: none;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 15px;
-            padding-top: 15px;
+            margin-top: 8px;
+            padding: 10px;
             border-top: 1px solid rgba(108, 155, 209, 0.2);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.58);
+            border: 1px solid rgba(255, 255, 255, 0.62);
+            backdrop-filter: blur(22px) saturate(190%);
+            -webkit-backdrop-filter: blur(22px) saturate(190%);
+            box-shadow: 0 10px 24px rgba(44, 62, 80, 0.14);
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease;
@@ -735,6 +761,22 @@
 
         
         @media (max-width: 768px) {
+            .container {
+                padding: var(--top-info-space, 126px) 12px 16px;
+            }
+
+            body.player-profile-collapsed .container {
+                padding-top: var(--top-info-space, 66px);
+            }
+
+            .top-info-bar {
+                top: 10px;
+                left: 56px;
+                right: 10px;
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 6px;
+            }
+
             .battle-item {
                 padding: 6px 8px;
                 padding-right: 84px; /* 为收藏和分享按钮留出空间 */
@@ -831,24 +873,6 @@
                 height: 16px;
             }
 
-            .player-profile-header {
-                padding: 10px 12px;
-                gap: 8px;
-            }
-
-            .player-profile-title {
-                font-size: 0.86rem;
-            }
-
-            .player-profile-summary {
-                font-size: 0.8rem;
-            }
-
-            .player-profile-body {
-                padding: 0 14px 16px;
-                gap: 12px;
-            }
-
             .player-avatar {
                 width: 56px;
                 height: 56px;
@@ -943,9 +967,9 @@
         }
         
         .player-profile {
-            margin-bottom: 20px;
+            margin: 0;
             padding: 0;
-            border-radius: 18px;
+            border-radius: 22px;
             background:
                 linear-gradient(135deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.12)),
                 radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.16) 42%, transparent 64%);
@@ -962,6 +986,7 @@
 
         .player-profile-header {
             width: 100%;
+            height: 44px;
             border: none;
             background: transparent;
             color: var(--dark-color);
@@ -970,15 +995,12 @@
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 12px 16px;
+            padding: 0 8px 0 14px;
             text-align: left;
         }
 
         .player-profile-title {
-            font-size: 0.92rem;
-            font-weight: 800;
-            color: rgba(44, 62, 80, 0.76);
-            white-space: nowrap;
+            display: none;
         }
 
         .player-profile-summary {
@@ -1019,7 +1041,8 @@
         .player-profile-body {
             display: flex;
             align-items: center;
-            padding: 0 24px 22px;
+            gap: 16px;
+            padding: 10px 18px 18px;
         }
 
         .player-profile.collapsed .player-profile-body {
@@ -1050,6 +1073,18 @@
             flex-shrink: 0;
             border: 1px solid rgba(255, 255, 255, 0.76);
             box-shadow: 0 8px 20px rgba(31, 35, 41, 0.16);
+        }
+
+        .player-profile-status {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .player-profile-status .status-card {
+            margin: 0;
         }
         
         .player-info {
@@ -1300,43 +1335,21 @@
 
         @media (max-width: 768px) {
             .filter-control-area {
-                padding: 12px 15px;
+                min-width: 0;
+                padding: 0;
             }
             
             .filter-header {
-                gap: 10px;
+                gap: 6px;
             }
             
             .today-filter-checkbox,
             .map-filter-toggle {
-                padding: 9px 13px;
-                font-size: 0.88rem;
-            }
-            
-            .today-filter-checkbox input[type="checkbox"] {
-                width: 17px;
-                height: 17px;
-            }
-            
-            .today-filter-checkbox label {
-                font-size: 0.88rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .filter-control-area {
-                padding: 10px 12px;
-            }
-            
-            .filter-header {
-                gap: 8px;
-            }
-            
-            .today-filter-checkbox,
-            .map-filter-toggle {
-                padding: 8px 10px;
+                height: 36px;
+                min-height: 36px;
+                padding: 0 10px;
+                border-radius: 18px;
                 font-size: 0.82rem;
-                flex: 1;
                 gap: 6px;
             }
             
@@ -1347,6 +1360,78 @@
             
             .today-filter-checkbox label {
                 font-size: 0.82rem;
+            }
+
+            .player-profile-header {
+                height: 36px;
+                padding: 0 6px 0 10px;
+                gap: 6px;
+            }
+
+            .player-profile-summary {
+                font-size: 0.78rem;
+                text-align: left;
+            }
+
+            .player-profile-toggle {
+                width: 24px;
+                height: 24px;
+            }
+
+            .player-profile-toggle svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .player-profile-body {
+                padding: 8px 14px 14px;
+                gap: 12px;
+            }
+
+            .player-avatar {
+                width: 56px;
+                height: 56px;
+            }
+
+            .player-name {
+                font-size: 1.2rem;
+            }
+
+            .player-title {
+                font-size: 0.78rem;
+                padding: 3px 9px;
+            }
+
+            .player-profile-status {
+                gap: 6px;
+                margin-top: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .filter-control-area {
+                padding: 0;
+            }
+            
+            .filter-header {
+                gap: 5px;
+            }
+            
+            .today-filter-checkbox,
+            .map-filter-toggle {
+                padding: 0 8px;
+                font-size: 0.78rem;
+                flex: 0 0 auto;
+                gap: 5px;
+            }
+            
+            .today-filter-checkbox input[type="checkbox"] {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .today-filter-checkbox label {
+                font-size: 0.78rem;
             }
             
             .map-filter-toggle .arrow {
@@ -1516,10 +1601,9 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="top-info-bar">
         <div id="playerProfileCard" class="player-profile">
             <button class="player-profile-header" type="button" onclick="togglePlayerProfile()" aria-label="折叠玩家信息" title="折叠玩家信息">
-                <span class="player-profile-title">玩家信息</span>
                 <span id="playerProfileSummary" class="player-profile-summary">未知玩家</span>
                 <span class="player-profile-toggle" aria-hidden="true">
                     <svg viewBox="0 0 24 24">
@@ -1532,6 +1616,16 @@
                 <div class="player-info">
                     <h2 id="playerName" class="player-name">未知玩家</h2>
                     <span id="playerTitle" class="player-title">无称号</span>
+                    <div class="player-profile-status">
+                        <div id="rankCard" class="status-card" style="display: none;">
+                            <span class="label">当前段位</span>
+                            <span id="currentRankValue" class="value">-</span>
+                        </div>
+                        <div id="peakCard" class="status-card" style="display: none;">
+                            <span class="label">当前巅峰分</span>
+                            <span id="currentPeakValue" class="value">-</span>
+                        </div>
+                    </div>
                     <!-- <div class="player-stats">
                         <div class="player-stat">
                             <div class="stat-value" id="totalBattles">0</div>
@@ -1550,16 +1644,24 @@
             </div>
         </div>
 
+        <div id="filterControlArea" class="filter-control-area" style="display:none;">
+            <div class="filter-header">
+                <div class="today-filter-checkbox">
+                    <input type="checkbox" id="todayFilterCheckbox">
+                    <label for="todayFilterCheckbox">仅今日战局</label>
+                </div>
+                <button id="mapFilterToggle" class="map-filter-toggle">
+                    <span>地图筛选</span>
+                    <span class="arrow">▼</span>
+                </button>
+            </div>
+            <div id="mapFilterBar" class="map-filter-bar"></div>
+        </div>
+    </div>
+
+    <div class="container">
         <!-- 新增：状态信息展示区域 -->
         <div id="statusSection" class="status-section">
-            <div id="rankCard" class="status-card" style="display: none;">
-                <span class="label">当前段位</span>
-                <span id="currentRankValue" class="value">-</span>
-            </div>
-            <div id="peakCard" class="status-card" style="display: none;">
-                <span class="label">当前巅峰分</span>
-                <span id="currentPeakValue" class="value">-</span>
-            </div>
             <div id="gamingCard" class="status-card gaming-status-card" style="display: none;">
                 <div class="gaming-header">
                     <span class="gaming-badge">LIVE</span>
@@ -1575,20 +1677,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div id="filterControlArea" class="filter-control-area" style="display:none;">
-            <div class="filter-header">
-                <div class="today-filter-checkbox">
-                    <input type="checkbox" id="todayFilterCheckbox">
-                    <label for="todayFilterCheckbox">仅今日战局</label>
-                </div>
-                <button id="mapFilterToggle" class="map-filter-toggle">
-                    <span>地图筛选</span>
-                    <span class="arrow">▼</span>
-                </button>
-            </div>
-            <div id="mapFilterBar" class="map-filter-bar"></div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>
@@ -1698,6 +1786,7 @@
         let allBattles = [];
         let currentMapFilter = '全部';
         let showTodayOnly = false; // 是否仅显示今日战局
+        let topInfoResizeObserver = null;
         let profileData = null; // 添加全局变量存储profile数据
         let heroMap = {}; // Hero ID -> Name 映射
         const modalLinkTimers = new WeakMap();
@@ -1804,10 +1893,38 @@
 
             card.classList.toggle('collapsed');
             const isCollapsed = card.classList.contains('collapsed');
+            document.body.classList.toggle('player-profile-collapsed', isCollapsed);
             const header = card.querySelector('.player-profile-header');
             if (header) {
                 header.title = isCollapsed ? '展开玩家信息' : '折叠玩家信息';
                 header.setAttribute('aria-label', isCollapsed ? '展开玩家信息' : '折叠玩家信息');
+            }
+            updateTopInfoSpace();
+        }
+
+        function updateTopInfoSpace() {
+            const bar = document.querySelector('.top-info-bar');
+            if (!bar) return;
+
+            requestAnimationFrame(() => {
+                const styles = window.getComputedStyle(bar);
+                const top = parseFloat(styles.top) || 0;
+                const bottomGap = window.innerWidth <= 768 ? 14 : 18;
+                const height = Math.ceil(bar.getBoundingClientRect().height + top + bottomGap);
+                document.documentElement.style.setProperty('--top-info-space', `${height}px`);
+            });
+        }
+
+        function initTopInfoBarSpacing() {
+            const bar = document.querySelector('.top-info-bar');
+            if (!bar) return;
+
+            updateTopInfoSpace();
+            window.addEventListener('resize', updateTopInfoSpace);
+
+            if ('ResizeObserver' in window) {
+                topInfoResizeObserver = new ResizeObserver(updateTopInfoSpace);
+                topInfoResizeObserver.observe(bar);
             }
         }
 
@@ -2018,6 +2135,7 @@
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             setupBackButton();
+            initTopInfoBarSpacing();
             initGamingCardLongPress(); // 初始化长按事件
             loadHeroMap(); // 预加载英雄数据
             const filename = '{{filename}}';
@@ -3023,7 +3141,7 @@
                 const peakCard = document.getElementById('peakCard');
                 const gamingCard = document.getElementById('gamingCard');
                 
-                let hasAnyStatus = false;
+                let hasGamingStatus = false;
                 const battles = (data.btlist && data.btlist.list) ? data.btlist.list : [];
 
                 // 1. 获取最新段位
@@ -3036,7 +3154,6 @@
                     if (roleJobName) {
                         document.getElementById('currentRankValue').textContent = `${roleJobName} ${stars}⭐`;
                         rankCard.style.display = 'flex';
-                        hasAnyStatus = true;
                     }
                 } else {
                     rankCard.style.display = 'none';
@@ -3051,7 +3168,6 @@
                     if (peakScore) {
                         document.getElementById('currentPeakValue').textContent = `${peakScore}分`;
                         peakCard.style.display = 'flex';
-                        hasAnyStatus = true;
                     }
                 } else {
                     peakCard.style.display = 'none';
@@ -3108,12 +3224,13 @@
                     }
 
                     gamingCard.style.display = 'flex';
-                    hasAnyStatus = true;
+                    hasGamingStatus = true;
                 } else {
                     gamingCard.style.display = 'none';
                 }
 
-                statusSection.style.display = hasAnyStatus ? 'flex' : 'none';
+                statusSection.style.display = hasGamingStatus ? 'flex' : 'none';
+                updateTopInfoSpace();
 
             } catch (error) {
                 console.error('更新状态信息失败:', error);
@@ -3158,6 +3275,7 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                updateTopInfoSpace();
             };
             
             // 设置今日筛选复选框事件
@@ -3178,6 +3296,7 @@
             };
             
             filterControlArea.style.display = 'block';
+            updateTopInfoSpace();
         }
         
         // 应用所有筛选条件
