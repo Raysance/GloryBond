@@ -344,10 +344,6 @@
             justify-content: center;
             padding: 6px 8px;
             min-height: 56px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.48);
-            border: 1px solid rgba(255, 255, 255, 0.56);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
         }
 
         .player-center-top {
@@ -369,18 +365,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 1px;
-            padding: 4px 5px;
-            border-radius: 9px;
-            background: rgba(118, 118, 128, 0.09);
+            padding: 0 5px;
             line-height: 1.05;
-        }
-
-        .metric-label {
-            font-size: 9px;
-            font-weight: 700;
-            color: rgba(60, 60, 67, 0.56);
-            line-height: 1;
         }
 
         .metric-value {
@@ -422,10 +408,7 @@
             gap: 1px;
             justify-content: center;
             flex: 0 1 auto;
-            padding: 3px 4px;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.50);
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.30);
+            padding: 0 4px;
         }
 
         .stat-percentage-value {
@@ -721,7 +704,6 @@
             .player-center {
                 padding: 4px;
                 min-height: 52px;
-                border-radius: 10px;
             }
             
             .player-center-top {
@@ -735,8 +717,7 @@
             
             .stat-percentage {
                 gap: 1px;
-                padding: 2px 2px;
-                border-radius: 7px;
+                padding: 0 2px;
             }
             
             .stat-percentage-value {
@@ -764,12 +745,7 @@
 
             .player-center-rating,
             .player-center-kda {
-                padding: 3px 2px;
-                border-radius: 7px;
-            }
-
-            .metric-label {
-                font-size: 8px;
+                padding: 0 2px;
             }
 
             .metric-value {
@@ -2467,11 +2443,9 @@
                             <div class="player-center">
                                 <div class="player-center-top player-detail">
                                     <div class="player-center-rating">
-                                        <span class="metric-label">评分</span>
                                         <span class="metric-value">${battleStats.gradeGame || '0.0'}</span>
                                     </div>
                                     <div class="player-center-kda">
-                                        <span class="metric-label">KDA</span>
                                         <span class="metric-value">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
                                     </div>
                                 </div>
