@@ -31,14 +31,14 @@
 
         body.victory {
             background:
-                radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.14), transparent 30%),
-                linear-gradient(180deg, #f6f8f7 0%, #eef1f4 100%) !important;
+                radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.24), transparent 34%),
+                linear-gradient(180deg, rgba(52, 199, 89, 0.14) 0%, rgba(52, 199, 89, 0.08) 42%, #eef1f4 100%) !important;
         }
 
         body.defeat {
             background:
-                radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.13), transparent 30%),
-                linear-gradient(180deg, #f8f7f7 0%, #eef1f4 100%) !important;
+                radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.23), transparent 34%),
+                linear-gradient(180deg, rgba(255, 59, 48, 0.13) 0%, rgba(255, 59, 48, 0.08) 42%, #eef1f4 100%) !important;
         }
 
         .container {
@@ -93,14 +93,6 @@
             overflow: hidden;
         }
 
-        .team.red {
-            border-top: 3px solid rgba(255, 59, 48, 0.34);
-        }
-
-        .team.blue {
-            border-top: 3px solid rgba(0, 122, 255, 0.32);
-        }
-
         .team-header {
             display: flex;
             align-items: center;
@@ -132,24 +124,22 @@
         }
 
         .win-indicator {
-            background: rgba(52, 199, 89, 0.12);
             color: #1f8f45;
-            padding: 4px 10px;
-            border-radius: 999px;
+            padding: 0;
+            border-radius: 0;
             font-size: 13px;
             font-weight: 700;
-            border: 1px solid rgba(52, 199, 89, 0.16);
+            border: none;
             box-shadow: none;
         }
 
         .lose-indicator {
-            background: rgba(255, 59, 48, 0.12);
             color: #c9362d;
-            padding: 4px 10px;
-            border-radius: 999px;
+            padding: 0;
+            border-radius: 0;
             font-size: 13px;
             font-weight: 700;
-            border: 1px solid rgba(255, 59, 48, 0.16);
+            border: none;
             box-shadow: none;
         }
 
@@ -410,10 +400,9 @@
         }
 
         .stat-percentage-icon {
-            font-size: 10px;
-            line-height: 1.1;
+            font-size: 13px;
+            line-height: 1;
             color: rgba(60, 60, 67, 0.58);
-            font-weight: 600;
         }
 
         .player-left {
@@ -2192,9 +2181,9 @@
                                     <div class="battle-metadata-player-stats">
                                         <span>KDA ${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
                                         <span>评分 ${battleStats.gradeGame || '0.0'}</span>
-                                        <span>经济 ${moneyPercent}%</span>
-                                        <span>伤害 ${damagePercent}%</span>
-                                        <span>承伤 ${tankedPercent}%</span>
+                                        <span>💰 ${moneyPercent}%</span>
+                                        <span>⚔️ ${damagePercent}%</span>
+                                        <span>🛡️ ${tankedPercent}%</span>
                                     </div>
                                 </div>
                                 <div class="battle-metadata-equipment">
@@ -2438,15 +2427,15 @@
                                 </div>
 	                                <div class="stats-percentage-row player-detail">
 	                                    <div class="stat-percentage">
-	                                        <span class="stat-percentage-icon">经济</span>
+	                                        <span class="stat-percentage-icon">💰</span>
 	                                        <span class="stat-percentage-value">${moneyPercent}%</span>
 	                                    </div>
 	                                    <div class="stat-percentage">
-	                                        <span class="stat-percentage-icon">伤害</span>
+	                                        <span class="stat-percentage-icon">⚔️</span>
 	                                        <span class="stat-percentage-value">${damagePercent}%</span>
 	                                    </div>
 	                                    <div class="stat-percentage">
-	                                        <span class="stat-percentage-icon">承伤</span>
+	                                        <span class="stat-percentage-icon">🛡️</span>
 	                                        <span class="stat-percentage-value">${tankedPercent}%</span>
 	                                    </div>
                                 </div>
@@ -2598,7 +2587,7 @@
                 console.log('设置胜利背景色');
 
                 // 直接设置内联样式确保优先级
-                const victoryBackground = 'radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.14), transparent 30%), linear-gradient(180deg, #f6f8f7 0%, #eef1f4 100%)';
+                const victoryBackground = 'radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.24), transparent 34%), linear-gradient(180deg, rgba(52, 199, 89, 0.14) 0%, rgba(52, 199, 89, 0.08) 42%, #eef1f4 100%)';
                 body.style.background = victoryBackground;
                 body.style.setProperty('background', victoryBackground, 'important');
             } else {
@@ -2606,7 +2595,7 @@
                 console.log('设置失败背景色');
 
                 // 直接设置内联样式确保优先级
-                const defeatBackground = 'radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.13), transparent 30%), linear-gradient(180deg, #f8f7f7 0%, #eef1f4 100%)';
+                const defeatBackground = 'radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.23), transparent 34%), linear-gradient(180deg, rgba(255, 59, 48, 0.13) 0%, rgba(255, 59, 48, 0.08) 42%, #eef1f4 100%)';
                 body.style.background = defeatBackground;
                 body.style.setProperty('background', defeatBackground, 'important');
             }
