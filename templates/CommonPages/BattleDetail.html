@@ -342,41 +342,73 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 5px 6px;
+            padding: 6px 8px;
             min-height: 56px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.48);
+            border: 1px solid rgba(255, 255, 255, 0.56);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
         }
 
         .player-center-top {
-            display: flex;
-            gap: 2px;
-            margin-bottom: 4px;
+            display: grid;
+            grid-template-columns: minmax(42px, 0.9fr) minmax(58px, 1.1fr);
+            gap: 4px;
+            margin-bottom: 5px;
             align-items: center;
-            flex-direction: column;
-            justify-content: center;
+            justify-content: stretch;
+            width: 100%;
             max-width: 100%;
             white-space: nowrap;
         }
 
-        .player-center-rating {
-            font-size: 17px;
-            font-weight: 700;
-            color: #007aff;
-            line-height: 1.15;
+        .player-center-rating,
+        .player-center-kda {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+            padding: 4px 5px;
+            border-radius: 9px;
+            background: rgba(118, 118, 128, 0.09);
+            line-height: 1.05;
         }
 
-        .player-center-kda {
-            font-size: 15px;
+        .metric-label {
+            font-size: 9px;
             font-weight: 700;
+            color: rgba(60, 60, 67, 0.56);
+            line-height: 1;
+        }
+
+        .metric-value {
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.05;
+        }
+
+        .player-center-rating .metric-value {
+            color: #007aff;
+        }
+
+        .player-center-kda .metric-value {
             color: #1c1c1e;
-            line-height: 1.15;
         }
 
         .stats-percentage-row {
-            display: flex;
-            gap: 14px;
-            margin: 4px 0 0 0;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(28px, 1fr));
+            gap: 4px;
+            margin: 0;
+            justify-content: stretch;
             flex-wrap: nowrap;
+            width: 100%;
             max-width: 100%;
             white-space: nowrap;
         }
@@ -390,10 +422,14 @@
             gap: 1px;
             justify-content: center;
             flex: 0 1 auto;
+            padding: 3px 4px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.50);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.30);
         }
 
         .stat-percentage-value {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
             color: #1c1c1e;
             line-height: 1.1;
@@ -683,26 +719,28 @@
             }
             
             .player-center {
-                padding: 4px 2px;
+                padding: 4px;
                 min-height: 52px;
+                border-radius: 10px;
             }
             
             .player-center-top {
-                gap: 1px;
+                gap: 3px;
                 margin-bottom: 3px;
             }
             
             .stats-percentage-row {
-                gap: 7px;
-                margin: 3px 0 0 0;
+                gap: 3px;
             }
             
             .stat-percentage {
-                gap: 2px;
+                gap: 1px;
+                padding: 2px 2px;
+                border-radius: 7px;
             }
             
             .stat-percentage-value {
-                font-size: 11px;
+                font-size: 10px;
             }
 
             .stat-percentage-icon {
@@ -724,12 +762,18 @@
                 margin-bottom: 2px;
             }
 
-            .player-center-rating {
-                font-size: 13px;
+            .player-center-rating,
+            .player-center-kda {
+                padding: 3px 2px;
+                border-radius: 7px;
             }
 
-            .player-center-kda {
-                font-size: 12px;
+            .metric-label {
+                font-size: 8px;
+            }
+
+            .metric-value {
+                font-size: 11px;
             }
             
             .mvp-badge {
@@ -2422,8 +2466,14 @@
                             </div>
                             <div class="player-center">
                                 <div class="player-center-top player-detail">
-                                    <div class="player-center-rating">评分 ${battleStats.gradeGame || '0.0'}</div>
-                                    <div class="player-center-kda">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</div>
+                                    <div class="player-center-rating">
+                                        <span class="metric-label">评分</span>
+                                        <span class="metric-value">${battleStats.gradeGame || '0.0'}</span>
+                                    </div>
+                                    <div class="player-center-kda">
+                                        <span class="metric-label">KDA</span>
+                                        <span class="metric-value">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
+                                    </div>
                                 </div>
 	                                <div class="stats-percentage-row player-detail">
 	                                    <div class="stat-percentage">
