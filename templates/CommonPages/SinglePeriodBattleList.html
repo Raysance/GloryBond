@@ -1394,9 +1394,10 @@
                 padding: 10px 12px;
             }
         }
+{% include "CommonPages/ios_glass_theme.css" %}
     </style>
 </head>
-<body>
+<body class="ios-glass-page">
     <div class="container">
         <!-- 玩家头部与原 SingleBattleList 完全一致 -->
         <div class="player-profile">
@@ -1560,6 +1561,7 @@
             if (!overlay) return;
             const textElement = overlay.querySelector('.modal-link-loading-text');
             if (textElement) textElement.textContent = message;
+            overlay.classList.toggle('data-fetch-loading', message.includes('获取数据中'));
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
         }
@@ -1568,6 +1570,7 @@
             const overlay = document.getElementById('modalLinkLoadingOverlay');
             if (!overlay) return;
             overlay.classList.remove('show');
+            overlay.classList.remove('data-fetch-loading');
             overlay.setAttribute('aria-hidden', 'true');
         }
 

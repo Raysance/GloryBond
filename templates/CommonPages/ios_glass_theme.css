@@ -1,0 +1,225 @@
+/* Common iOS glass theme for user-facing battle pages. */
+:root {
+    --ios-glass-text: #1c1c1e;
+    --ios-glass-muted: rgba(44, 62, 80, 0.62);
+    --ios-glass-border: rgba(255, 255, 255, 0.66);
+    --ios-glass-border-soft: rgba(255, 255, 255, 0.52);
+    --ios-glass-bg:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+        radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.16) 44%, transparent 66%),
+        radial-gradient(circle at 86% 0%, rgba(108, 155, 209, 0.18), transparent 42%);
+    --ios-glass-control-bg:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
+        radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.86), transparent 50%);
+    --ios-glass-shadow:
+        0 16px 36px rgba(44, 62, 80, 0.16),
+        inset 0 1px 1px rgba(255, 255, 255, 0.88),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+    --ios-glass-shadow-strong:
+        0 18px 42px rgba(44, 62, 80, 0.20),
+        0 1px 0 rgba(255, 255, 255, 0.42),
+        inset 0 1px 1px rgba(255, 255, 255, 0.92),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.24);
+}
+
+body.ios-glass-page {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background:
+        radial-gradient(circle at 18% 0%, rgba(108, 155, 209, 0.20), transparent 34%),
+        linear-gradient(180deg, rgba(108, 155, 209, 0.08) 0%, rgba(79, 195, 247, 0.05) 42%, #eef1f4 100%);
+    color: var(--ios-glass-text);
+}
+
+body.ios-glass-page header,
+body.ios-glass-page .filter-control-area,
+body.ios-glass-page .player-profile,
+body.ios-glass-page .hero-stats-panel,
+body.ios-glass-page .date-range-controls,
+body.ios-glass-page .card,
+body.ios-glass-page .chart-container {
+    background: var(--ios-glass-bg);
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+}
+
+body.ios-glass-page header,
+body.ios-glass-page .filter-control-area,
+body.ios-glass-page .player-profile,
+body.ios-glass-page .hero-stats-panel,
+body.ios-glass-page .date-range-controls {
+    border-radius: 22px;
+}
+
+body.ios-glass-page .today-filter-checkbox,
+body.ios-glass-page .map-filter-toggle,
+body.ios-glass-page .date-filter-toggle,
+body.ios-glass-page .hero-stats-toggle,
+body.ios-glass-page .map-filter-btn,
+body.ios-glass-page .modal-btn {
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow:
+        0 9px 24px rgba(44, 62, 80, 0.12),
+        inset 0 1px 1px rgba(255, 255, 255, 0.85),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+    -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+}
+
+body.ios-glass-page .today-filter-checkbox:hover,
+body.ios-glass-page .map-filter-toggle:hover,
+body.ios-glass-page .date-filter-toggle:hover,
+body.ios-glass-page .hero-stats-toggle:hover,
+body.ios-glass-page .map-filter-btn:hover,
+body.ios-glass-page .map-filter-btn.active {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.26)),
+        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.92), transparent 48%);
+    border-color: rgba(255, 255, 255, 0.70);
+    transform: translateY(-1px);
+    box-shadow:
+        0 12px 28px rgba(44, 62, 80, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+body.ios-glass-page .map-filter-bar,
+body.ios-glass-page .date-filter-bar {
+    border-top-color: rgba(255, 255, 255, 0.46);
+}
+
+body.ios-glass-page .battle-item {
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow:
+        0 10px 24px rgba(44, 62, 80, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.70);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+body.ios-glass-page .battle-item.win-bg {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+        radial-gradient(circle at 8% 12%, rgba(52, 199, 89, 0.18), transparent 42%);
+}
+
+body.ios-glass-page .battle-item.lose-bg {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.22)),
+        radial-gradient(circle at 8% 12%, rgba(255, 59, 48, 0.16), transparent 42%);
+}
+
+body.ios-glass-page .battle-item:hover {
+    background-color: rgba(255, 255, 255, 0.74);
+    box-shadow:
+        0 14px 30px rgba(44, 62, 80, 0.14),
+        inset 0 1px 1px rgba(255, 255, 255, 0.78);
+}
+
+body.ios-glass-page .floating-back-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.64);
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(220%) contrast(1.06);
+    -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.06);
+}
+
+body.ios-glass-page .floating-back-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: rgba(44, 62, 80, 0.78);
+}
+
+body.ios-glass-page .floating-back-btn:hover {
+    transform: translateY(-1px) scale(1.04);
+    box-shadow: var(--ios-glass-shadow-strong);
+}
+
+body.ios-glass-page .loading-message,
+body.ios-glass-page #loading {
+    width: min(320px, calc(100vw - 48px));
+    margin: 72px auto 0;
+    padding: 22px 28px;
+    border-radius: 24px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22)),
+        radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.88), transparent 52%);
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow-strong);
+    backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    color: rgba(44, 62, 80, 0.76);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+body.ios-glass-page .loading-message h3 {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: inherit;
+}
+
+body.ios-glass-page .loading-message h3::before,
+body.ios-glass-page #loading::before {
+    content: "";
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid rgba(108, 155, 209, 0.22);
+    border-top-color: rgba(108, 155, 209, 0.88);
+    animation: modal-link-spin 0.8s linear infinite;
+}
+
+body.ios-glass-page .modal-link-loading-overlay {
+    background: rgba(246, 248, 251, 0.36);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+}
+
+body.ios-glass-page .modal-link-loading-content {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.24)),
+        radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.88), transparent 54%);
+    border-radius: 24px;
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow-strong);
+    backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+}
+
+body.ios-glass-page .modal-link-loading-overlay.data-fetch-loading .modal-link-loading-content {
+    min-width: 190px;
+    padding: 20px 28px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.18)),
+        radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.92), transparent 54%),
+        radial-gradient(circle at 82% 10%, rgba(108, 155, 209, 0.18), transparent 48%);
+}
+
+body.ios-glass-page .modal-link-loading-overlay.data-fetch-loading .modal-link-loading-text {
+    color: rgba(44, 62, 80, 0.78);
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+@media (max-width: 768px) {
+    body.ios-glass-page .floating-back-btn {
+        top: 10px;
+        left: 10px;
+        width: 36px;
+        height: 36px;
+    }
+
+    body.ios-glass-page .floating-back-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+}

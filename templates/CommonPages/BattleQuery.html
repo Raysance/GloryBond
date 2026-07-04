@@ -1428,9 +1428,10 @@
             font-weight: 600;
             color: var(--primary-color);
         }
+{% include "CommonPages/ios_glass_theme.css" %}
     </style>
 </head>
-<body>
+<body class="ios-glass-page">
     <button
         id="gestureLockTrigger"
         class="gesture-lock-trigger"
@@ -1739,6 +1740,7 @@
                 textElement.textContent = message;
             }
 
+            overlay.classList.toggle('data-fetch-loading', message.includes('获取数据中'));
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
         }
@@ -1750,6 +1752,7 @@
             }
 
             overlay.classList.remove('show');
+            overlay.classList.remove('data-fetch-loading');
             overlay.setAttribute('aria-hidden', 'true');
         }
 
