@@ -1411,9 +1411,6 @@
             <div id="periodMetaBody" class="glass-meta-body period-meta-body">
                 <div class="player-avatar-column">
                     <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
-                    <button id="heroStatsToggle" class="hero-stats-toggle" type="button" style="margin-top:10px;">
-                        英雄统计 <span class="arrow">▼</span>
-                    </button>
                 </div>
                 <div class="player-info">
                     <h2 id="playerName" class="player-name">未知玩家</h2>
@@ -1443,6 +1440,9 @@
         </div>
         <div id="filterControlArea" class="filter-control-area" style="display:none;">
             <div class="filter-header">
+                <button id="heroStatsToggle" class="hero-stats-toggle" type="button">
+                    英雄统计 <span class="arrow">▼</span>
+                </button>
                 <button id="mapFilterToggle" class="map-filter-toggle">
                     <span>地图筛选</span>
                     <span class="arrow">▼</span>
@@ -1453,24 +1453,24 @@
                 </button>
                 <span class="date-range-label">区间：{{DateFrom}} ~ {{DateTo}}</span>
             </div>
-            <div id="dateFilterBar" class="date-filter-bar">
-                <div class="date-range-controls" id="dateRangeControls" style="display:none;">
-                    <div class="date-range-info">
-                        <span id="dateRangeHint">拖动选择想看的日期范围</span>
-                        <span id="dateRangeText"></span>
-                    </div>
-                    <div class="date-range-slider">
-                        <div class="date-range-track">
-                            <div class="date-range-track-fill" id="dateRangeTrackFill"></div>
-                        </div>
-                        <input type="range" id="dateRangeStart" min="0" max="0" value="0">
-                        <input type="range" id="dateRangeEnd" min="0" max="0" value="0">
-                    </div>
-                    <div class="date-range-scale" id="dateRangeScale"></div>
-                </div>
-            </div>
-            <div id="mapFilterBar" class="map-filter-bar"></div>
         </div>
+        <div id="dateFilterBar" class="date-filter-bar">
+            <div class="date-range-controls" id="dateRangeControls" style="display:none;">
+                <div class="date-range-info">
+                    <span id="dateRangeHint">拖动选择想看的日期范围</span>
+                    <span id="dateRangeText"></span>
+                </div>
+                <div class="date-range-slider">
+                    <div class="date-range-track">
+                        <div class="date-range-track-fill" id="dateRangeTrackFill"></div>
+                    </div>
+                    <input type="range" id="dateRangeStart" min="0" max="0" value="0">
+                    <input type="range" id="dateRangeEnd" min="0" max="0" value="0">
+                </div>
+                <div class="date-range-scale" id="dateRangeScale"></div>
+            </div>
+        </div>
+        <div id="mapFilterBar" class="map-filter-bar"></div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>

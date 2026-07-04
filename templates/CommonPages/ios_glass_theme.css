@@ -100,18 +100,16 @@ body.ios-glass-page .battle-item {
 
 body.ios-glass-page .battle-item.win-bg {
     background:
-        linear-gradient(90deg, rgba(52, 199, 89, 0.18), rgba(52, 199, 89, 0.08) 48%, rgba(52, 199, 89, 0.30) 100%),
-        linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
-        radial-gradient(circle at 8% 12%, rgba(52, 199, 89, 0.30), transparent 46%);
-    border-color: rgba(52, 199, 89, 0.28);
+        linear-gradient(to left, rgba(40, 167, 69, 0.24) 0%, rgba(40, 167, 69, 0.10) 38%, rgba(40, 167, 69, 0) 78%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.24));
+    border-color: rgba(255, 255, 255, 0.58);
 }
 
 body.ios-glass-page .battle-item.lose-bg {
     background:
-        linear-gradient(90deg, rgba(255, 59, 48, 0.16), rgba(255, 59, 48, 0.07) 48%, rgba(255, 59, 48, 0.28) 100%),
-        linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
-        radial-gradient(circle at 8% 12%, rgba(255, 59, 48, 0.28), transparent 46%);
-    border-color: rgba(255, 59, 48, 0.26);
+        linear-gradient(to left, rgba(220, 53, 69, 0.22) 0%, rgba(220, 53, 69, 0.09) 38%, rgba(220, 53, 69, 0) 78%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.24));
+    border-color: rgba(255, 255, 255, 0.58);
 }
 
 body.ios-glass-page .battle-item:hover {
@@ -132,9 +130,17 @@ body.ios-glass-page .glass-top-bar {
     right: 16px;
     z-index: 1090;
     display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(0, auto) auto;
+    grid-template-areas:
+        "meta status filter"
+        "body body body"
+        "hero hero hero"
+        "date date date"
+        "map map map";
     gap: 10px;
     max-width: 1120px;
     margin: 0 auto;
+    align-items: start;
 }
 
 body.ios-glass-page .glass-meta-card {
@@ -218,13 +224,98 @@ body.ios-glass-page .glass-top-bar .hero-stats-section {
 }
 
 body.ios-glass-page .glass-top-bar .status-section {
+    grid-area: status;
     margin: 0;
+    min-height: 44px;
+    align-items: center;
+    align-self: start;
+    max-width: 460px;
+    overflow: hidden;
 }
 
 body.ios-glass-page .glass-top-bar .player-profile.glass-meta-card,
 body.ios-glass-page .glass-top-bar .query-target-section.glass-meta-card {
-    display: block;
+    display: contents;
     padding: 0;
+}
+
+body.ios-glass-page .glass-top-bar .glass-meta-header {
+    grid-area: meta;
+    height: 44px;
+    box-sizing: border-box;
+    border-radius: 22px;
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    box-shadow:
+        0 10px 26px rgba(44, 62, 80, 0.14),
+        inset 0 1px 1px rgba(255, 255, 255, 0.86),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(26px) saturate(215%) contrast(1.04);
+    -webkit-backdrop-filter: blur(26px) saturate(215%) contrast(1.04);
+}
+
+body.ios-glass-page .glass-top-bar .filter-control-area {
+    grid-area: filter;
+    justify-self: end;
+    align-self: start;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+body.ios-glass-page .glass-top-bar .filter-header {
+    min-height: 44px;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+}
+
+body.ios-glass-page .glass-top-bar .map-filter-bar,
+body.ios-glass-page .glass-top-bar .date-filter-bar,
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    grid-area: hero;
+}
+
+body.ios-glass-page .glass-top-bar .date-filter-bar {
+    grid-area: date;
+}
+
+body.ios-glass-page .glass-top-bar .map-filter-bar {
+    grid-area: map;
+}
+
+body.ios-glass-page .glass-top-bar .date-range-label {
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.ios-glass-page .glass-top-bar .glass-meta-body {
+    grid-area: body;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 14px 18px 16px;
+    border-radius: 22px;
+    background: var(--ios-glass-bg);
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
 }
 
 body.ios-glass-page .glass-meta-header .query-target-title {
@@ -239,6 +330,11 @@ body.ios-glass-page .period-meta-body {
     display: flex;
     align-items: center;
     gap: 20px;
+}
+
+body.ios-glass-page .glass-top-bar .gaming-status-card {
+    width: auto;
+    min-width: 0;
 }
 
 body.ios-glass-page .floating-back-btn {
@@ -406,6 +502,14 @@ body.ios-glass-page .modal-link-loading-spinner {
         left: 56px;
         right: 10px;
         gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "meta filter"
+            "status status"
+            "body body"
+            "hero hero"
+            "date date"
+            "map map";
     }
 
     body.ios-glass-page .glass-meta-header {
