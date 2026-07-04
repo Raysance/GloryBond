@@ -1464,12 +1464,18 @@
 
         <div id="filterControlArea" class="filter-control-area" style="display:none;">
             <div class="filter-header">
-                <div class="today-filter-checkbox">
+                <div class="today-filter-checkbox" title="仅今日战局" aria-label="仅今日战局">
                     <input type="checkbox" id="todayFilterCheckbox">
-                    <label for="todayFilterCheckbox">仅今日战局</label>
+                    <svg class="query-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7 2h2v2h6V2h2v2h3c.55 0 1 .45 1 1v15c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1h3V2zm12 8H5v9h14v-9zM5 8h14V6H5v2zm7 4h5v5h-5v-5z"></path>
+                    </svg>
+                    <label for="todayFilterCheckbox">今日</label>
                 </div>
-                <button id="mapFilterToggle" class="map-filter-toggle">
-                    <span>地图筛选</span>
+                <button id="mapFilterToggle" class="map-filter-toggle" type="button" title="地图筛选" aria-label="地图筛选">
+                    <svg class="query-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.26-.36.48V20.5c0 .31.29.53.59.44L9 19l6 2.1 5.64-1.9c.21-.07.36-.26.36-.48V3.5c0-.31-.29-.53-.5-.5zM10 5.47l4 1.4v11.66l-4-1.4V5.47zm-5 1.1l3-1.01v11.57l-3 1.04V6.57zm14 11.86l-3 1.01V7.87l3-1.04v11.6z"></path>
+                    </svg>
+                    <span>地图</span>
                     <span class="arrow">▼</span>
                 </button>
             </div>
