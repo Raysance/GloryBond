@@ -780,10 +780,37 @@
         }
 
         .loading {
-            text-align: center;
-            padding: 50px;
-            font-size: 18px;
-            color: #6c757d;
+            width: min(320px, calc(100vw - 48px));
+            margin: 72px auto 0;
+            padding: 22px 28px;
+            border-radius: 24px;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22)),
+                radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.88), transparent 52%);
+            border: 1px solid rgba(255, 255, 255, 0.66);
+            box-shadow:
+                0 18px 42px rgba(44, 62, 80, 0.18),
+                inset 0 1px 1px rgba(255, 255, 255, 0.88),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            color: rgba(44, 62, 80, 0.76);
+        }
+
+        .loading::before {
+            content: "";
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 3px solid rgba(108, 155, 209, 0.22);
+            border-top-color: rgba(108, 155, 209, 0.88);
+            animation: modal-link-spin 0.8s linear infinite;
         }
 
         .error {
@@ -831,17 +858,39 @@
             border-radius: 24px;
             transform: translateX(-50%);
             background:
-                linear-gradient(135deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.20) 48%, rgba(255, 255, 255, 0.10)),
-                radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.16) 40%, transparent 62%);
-            border: 1px solid rgba(255, 255, 255, 0.64);
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+                radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.18) 44%, transparent 66%),
+                radial-gradient(circle at 86% 0%, rgba(108, 155, 209, 0.20), transparent 42%);
+            border: 1px solid rgba(255, 255, 255, 0.68);
             box-shadow:
-                0 14px 34px rgba(44, 62, 80, 0.22),
-                inset 0 1px 1px rgba(255, 255, 255, 0.86),
+                0 18px 44px rgba(44, 62, 80, 0.24),
+                0 1px 0 rgba(255, 255, 255, 0.44),
+                inset 0 1px 1px rgba(255, 255, 255, 0.90),
                 inset 0 -1px 2px rgba(255, 255, 255, 0.22);
             backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
             -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
             color: #2c3e50;
+            overflow: hidden;
+            isolation: isolate;
             transition: padding 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .battle-metadata::before {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            border-radius: inherit;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 46%),
+                radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.62), transparent 42%);
+            opacity: 0.82;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .battle-metadata > * {
+            position: relative;
+            z-index: 1;
         }
 
         .battle-fixed-layer {
@@ -918,12 +967,20 @@
         .battle-metadata-details {
             display: flex;
             justify-content: center;
-            gap: 14px;
+            gap: 8px;
             color: rgba(44, 62, 80, 0.62);
             font-size: 11px;
             font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
+        }
+
+        .battle-metadata-details span,
+        .battle-metadata-player-stats span {
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.24);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
         }
 
         .battle-metadata-player {
@@ -933,7 +990,7 @@
             gap: 10px;
             margin-top: 8px;
             padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.40);
+            border-top: 1px solid rgba(255, 255, 255, 0.46);
         }
 
         .battle-metadata-avatar {
@@ -1295,7 +1352,9 @@
         .modal-link-loading-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(255, 255, 255, 0.65);
+            background: rgba(246, 248, 251, 0.36);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1311,10 +1370,18 @@
         }
 
         .modal-link-loading-content {
-            background: rgba(255, 255, 255, 0.95);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.24)),
+                radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.88), transparent 54%);
             padding: 24px 36px;
-            border-radius: 16px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.66);
+            box-shadow:
+                0 18px 42px rgba(44, 62, 80, 0.18),
+                inset 0 1px 1px rgba(255, 255, 255, 0.88),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
             display: flex;
             flex-direction: column;
             align-items: center;
