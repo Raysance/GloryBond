@@ -127,7 +127,7 @@
         .players-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            gap: 16px;
             margin-bottom: 100px;
         }
 
@@ -630,26 +630,331 @@
                 font-size: 12px;
             }
         }
+{% include "CommonPages/ios_glass_theme.css" %}
+
+        body.ios-glass-page #allTopBar {
+            left: 16px;
+            grid-template-columns: minmax(180px, 1fr) auto;
+            grid-template-areas:
+                "meta filter"
+                "body body";
+            max-width: 1120px;
+        }
+
+        body.ios-glass-page #allSummarySection.glass-meta-card {
+            display: contents;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-header,
+        body.ios-glass-page #allTopBar .filter-header,
+        body.ios-glass-page #allTopBar .map-filter-toggle {
+            height: 44px;
+            min-height: 44px;
+            box-sizing: border-box;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-header {
+            padding: 0 8px 0 14px;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-title {
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-title svg,
+        body.ios-glass-page #allTopBar .all-control-icon {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            flex: 0 0 auto;
+            opacity: 0.72;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-toggle {
+            width: 28px;
+            height: 28px;
+        }
+
+        body.ios-glass-page #allTopBar .filter-control-area {
+            display: block;
+            min-width: 0;
+        }
+
+        body.ios-glass-page #allTopBar .filter-header {
+            gap: 8px;
+        }
+
+        body.ios-glass-page #allTopBar .map-filter-toggle {
+            width: 46px;
+            border-radius: 22px;
+            padding: 0;
+            gap: 2px;
+            color: var(--dark-color, var(--ios-glass-text));
+        }
+
+        body.ios-glass-page #allTopBar .map-filter-toggle > span:not(.arrow) {
+            display: none;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        body.ios-glass-page #allSummarySection.collapsed .glass-meta-body {
+            display: none;
+        }
+
+        body.ios-glass-page .stats-overview {
+            justify-content: flex-start;
+            gap: 10px;
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+
+        body.ios-glass-page .overview-item {
+            min-width: 92px;
+            padding: 8px 10px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.30);
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
+        }
+
+        body.ios-glass-page .overview-label {
+            font-size: 0.72rem;
+            color: rgba(44, 62, 80, 0.56);
+        }
+
+        body.ios-glass-page .overview-value {
+            font-size: 1rem;
+            color: rgba(31, 35, 41, 0.88);
+        }
+
+        body.ios-glass-page .sort-section {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            justify-content: flex-start;
+            gap: 10px;
+        }
+
+        body.ios-glass-page .sort-label {
+            color: rgba(44, 62, 80, 0.58);
+            font-size: 0.82rem;
+        }
+
+        body.ios-glass-page .sort-options {
+            gap: 8px;
+        }
+
+        body.ios-glass-page .sort-option {
+            min-height: 34px;
+            display: inline-flex;
+            align-items: center;
+            border-radius: 17px;
+            padding: 0 12px;
+            background: rgba(255, 255, 255, 0.30);
+            border: 1px solid rgba(255, 255, 255, 0.48);
+            color: rgba(44, 62, 80, 0.70);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
+        }
+
+        body.ios-glass-page .sort-option:hover,
+        body.ios-glass-page .sort-option.active,
+        body.ios-glass-page .sort-option.active:hover {
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.26)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.92), transparent 48%);
+            border-color: rgba(255, 255, 255, 0.70);
+            color: var(--primary-color, #3b82f6);
+            transform: translateY(-1px);
+        }
+
+        body.ios-glass-page .player-card {
+            border-radius: 20px;
+            padding: 18px;
+            background:
+                linear-gradient(to left, var(--bg-color, rgba(248, 249, 250, 0.34)) 0%, rgba(255, 255, 255, 0.52) 42%, rgba(255, 255, 255, 0.28) 100%),
+                var(--ios-glass-bg);
+            border: 1px solid rgba(255, 255, 255, 0.58);
+            box-shadow:
+                0 10px 24px rgba(44, 62, 80, 0.10),
+                inset 0 1px 1px rgba(255, 255, 255, 0.70);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            content-visibility: auto;
+            contain-intrinsic-size: 150px;
+        }
+
+        body.ios-glass-page .player-card::before {
+            display: none;
+        }
+
+        body.ios-glass-page .player-name {
+            color: rgba(31, 35, 41, 0.92);
+        }
+
+        body.ios-glass-page .rank-info,
+        body.ios-glass-page .stat-item,
+        body.ios-glass-page .games-today-header {
+            color: rgba(44, 62, 80, 0.64);
+        }
+
+        body.ios-glass-page .games-today {
+            background: rgba(255, 255, 255, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            border-radius: 16px;
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.60);
+        }
+
+        body.ios-glass-page .tooltip,
+        body.ios-glass-page .filter-content {
+            background: var(--ios-glass-bg);
+            border: 1px solid var(--ios-glass-border);
+            border-radius: 22px;
+            box-shadow: var(--ios-glass-shadow-strong);
+            backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+        }
+
+        body.ios-glass-page .filter-panel {
+            background: rgba(31, 35, 41, 0.28);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        body.ios-glass-page .filter-item {
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            background: rgba(255, 255, 255, 0.22);
+            border-radius: 16px;
+        }
+
+        body.ios-glass-page .filter-item:hover,
+        body.ios-glass-page .filter-item.selected {
+            border-color: rgba(255, 255, 255, 0.72);
+            background: rgba(255, 255, 255, 0.44);
+        }
+
+        body.ios-glass-page .filter-checkbox.checked {
+            background: var(--primary-color, #3b82f6);
+            border-color: var(--primary-color, #3b82f6);
+        }
+
+        body.ios-glass-page .list-state-message {
+            grid-column: 1 / -1;
+            justify-self: center;
+            min-width: min(320px, 92vw);
+            padding: 24px;
+            text-align: center;
+            color: rgba(44, 62, 80, 0.68);
+            background: var(--ios-glass-bg);
+            border: 1px solid var(--ios-glass-border);
+            border-radius: 22px;
+            box-shadow: var(--ios-glass-shadow);
+            backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+        }
+
+        body.ios-glass-page .list-state-spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 16px;
+            border: 3px solid rgba(255, 255, 255, 0.54);
+            border-top-color: var(--primary-color, #3b82f6);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @media (max-width: 768px) {
+            body.ios-glass-page #allTopBar {
+                left: 10px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-header,
+            body.ios-glass-page #allTopBar .filter-header,
+            body.ios-glass-page #allTopBar .map-filter-toggle {
+                height: 36px;
+                min-height: 36px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-header {
+                padding: 0 6px 0 10px;
+                gap: 6px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-title {
+                font-size: 0.78rem;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-toggle {
+                width: 24px;
+                height: 24px;
+            }
+
+            body.ios-glass-page #allTopBar .map-filter-toggle {
+                width: 38px;
+                border-radius: 18px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-title svg,
+            body.ios-glass-page #allTopBar .all-control-icon {
+                width: 15px;
+                height: 15px;
+            }
+
+            body.ios-glass-page .overview-item {
+                min-width: 82px;
+                padding: 7px 8px;
+            }
+
+            body.ios-glass-page .sort-label {
+                width: auto;
+                text-align: left;
+            }
+        }
     </style>
 </head>
-<body>
-    <div class="header">
-        <h1>
-            <svg class="icon" viewBox="0 0 24 24">
-                <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
-            </svg>
-            排行数据一览
-        </h1>
-        <div class="stats-overview" id="statsOverview">
-            <!-- 统计信息将通过 JavaScript 动态生成 -->
+<body class="ios-glass-page glass-top-fixed">
+    <div id="allTopBar" class="glass-top-bar">
+        <div id="allSummarySection" class="all-summary-section glass-meta-card">
+            <button class="glass-meta-header" type="button" onclick="toggleAllMeta()" aria-expanded="true" aria-controls="allSummaryBody">
+                <span class="glass-meta-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"></path>
+                    </svg>
+                    排行数据一览
+                </span>
+                <span class="glass-meta-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
+                </span>
+            </button>
+            <div id="allSummaryBody" class="glass-meta-body all-summary-body">
+                <div class="stats-overview" id="statsOverview">
+                    <!-- 统计信息将通过 JavaScript 动态生成 -->
+                </div>
+                <div class="sort-section">
+                    <span class="sort-label">排序方式</span>
+                    <div class="sort-options">
+                        <div class="sort-option active" data-sort="star-change" onclick="changeSortMethod('star-change')">上星</div>
+                        <div class="sort-option" data-sort="rank-star" onclick="changeSortMethod('rank-star')">段位</div>
+                        <div class="sort-option" data-sort="score" onclick="changeSortMethod('score')">评分</div>
+                        <div class="sort-option" data-sort="games" onclick="changeSortMethod('games')">场次</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="sort-section">
-            <span class="sort-label">排序方式：</span>
-            <div class="sort-options">
-                <div class="sort-option active" data-sort="star-change" onclick="changeSortMethod('star-change')">按上星</div>
-                <div class="sort-option" data-sort="rank-star" onclick="changeSortMethod('rank-star')">按段位</div>
-                <div class="sort-option" data-sort="score" onclick="changeSortMethod('score')">按评分</div>
-                <div class="sort-option" data-sort="games" onclick="changeSortMethod('games')">按场次</div>
+        <div class="filter-control-area" style="display:block;">
+            <div class="filter-header">
+                <button class="map-filter-toggle" type="button" onclick="openFilterPanel()" title="玩家筛选" aria-label="玩家筛选">
+                    <svg class="all-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M14 12v7.88c.04.3-.06.62-.29.83-.39.39-1.02.39-1.41 0l-2.01-2.01c-.23-.23-.33-.54-.29-.83V12h-.03L4.21 4.62c-.34-.43-.26-1.06.17-1.4C4.57 3.08 4.78 3 5 3h14c.22 0 .43.08.62.22.43.34.51.97.17 1.4L14.03 12H14z"></path>
+                    </svg>
+                    <span>筛选</span>
+                </button>
             </div>
         </div>
     </div>
@@ -658,13 +963,6 @@
         <div class="players-grid" id="playersGrid">
             <!-- 玩家卡片将通过 JavaScript 动态生成 -->
         </div>
-    </div>
-
-    <!-- 悬浮球 -->
-    <div class="floating-button" onclick="openFilterPanel()">
-        <svg viewBox="0 0 24 24">
-            <path d="M14,12V19.88C14.04,20.18 13.94,20.5 13.71,20.71C13.32,21.1 12.69,21.1 12.3,20.71L10.29,18.7C10.06,18.47 9.96,18.16 10,17.87V12H9.97L4.21,4.62C3.87,4.19 3.95,3.56 4.38,3.22C4.57,3.08 4.78,3 5,3V3H19V3C19.22,3 19.43,3.08 19.62,3.22C20.05,3.56 20.13,4.19 19.79,4.62L14.03,12H14Z"/>
-        </svg>
     </div>
 
     <!-- 筛选面板 -->
@@ -689,6 +987,36 @@
         let playersData = [];
         let selectedPlayers = new Set();
         let currentSortMethod = 'star-change'; // 默认按上星排序
+        let glassTopResizeObserver = null;
+
+        function updateGlassTopSpace() {
+            const topBar = document.getElementById('allTopBar');
+            if (!topBar) return;
+            const rect = topBar.getBoundingClientRect();
+            const extraGap = window.innerWidth <= 768 ? 14 : 18;
+            document.documentElement.style.setProperty('--glass-top-space', `${Math.ceil(rect.top + rect.height + extraGap)}px`);
+        }
+
+        function initGlassTopBar() {
+            const topBar = document.getElementById('allTopBar');
+            if (!topBar) return;
+            if (glassTopResizeObserver) glassTopResizeObserver.disconnect();
+            if ('ResizeObserver' in window) {
+                glassTopResizeObserver = new ResizeObserver(updateGlassTopSpace);
+                glassTopResizeObserver.observe(topBar);
+            }
+            window.addEventListener('resize', updateGlassTopSpace);
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
+        function toggleAllMeta() {
+            const card = document.getElementById('allSummarySection');
+            if (!card) return;
+            const collapsed = card.classList.toggle('collapsed');
+            const button = card.querySelector('.glass-meta-header');
+            if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            requestAnimationFrame(updateGlassTopSpace);
+        }
         
         // 加载玩家数据
         async function loadPlayersData() {
@@ -720,7 +1048,7 @@
         function showErrorMessage(message) {
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
+                <div class="list-state-message">
                     <svg style="width: 48px; height: 48px; margin-bottom: 16px; fill: #ef4444;" viewBox="0 0 24 24">
                         <path d="M12,2L13.09,8.26L22,9L17,14L18.18,21L12,17.77L5.82,21L7,14L2,9L8.91,8.26L12,2Z"/>
                     </svg>
@@ -857,6 +1185,7 @@
                     <div class="overview-value">${finalAvgScore}</div>
                 </div>
             `;
+            requestAnimationFrame(updateGlassTopSpace);
         }
 
         // 格式化游戏详情悬浮框内容
@@ -1169,11 +1498,12 @@
 
         // 页面加载完成后加载数据并初始化
         document.addEventListener('DOMContentLoaded', () => {
+            initGlassTopBar();
             // 显示加载提示
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
-                    <div style="width: 40px; height: 40px; margin: 0 auto 16px; border: 3px solid #e5e7eb; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div class="list-state-message">
+                    <div class="list-state-spinner"></div>
                     <p style="font-size: 16px;">正在加载数据...</p>
                 </div>
             `;
