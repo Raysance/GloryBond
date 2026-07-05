@@ -126,8 +126,8 @@
 
         .players-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 12px;
             margin-bottom: 100px;
         }
 
@@ -161,13 +161,18 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
 
         .player-name {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 600;
             color: #1a1a1a;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .rank-info {
@@ -176,6 +181,8 @@
             gap: 5px;
             font-size: 14px;
             color: #666;
+            flex: 0 0 auto;
+            white-space: nowrap;
         }
 
         .star-change {
@@ -197,7 +204,8 @@
         .stats-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
+            gap: 10px;
+            margin-bottom: 8px;
         }
 
         .stat-item {
@@ -216,8 +224,8 @@
         .games-today {
             background: #f1f5f9;
             border-radius: 8px;
-            padding: 10px;
-            margin-top: 15px;
+            padding: 8px 10px;
+            margin-top: 8px;
         }
 
         .games-today-header {
@@ -226,12 +234,12 @@
             gap: 5px;
             font-size: 14px;
             color: #666;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .win-loss {
             display: flex;
-            gap: 15px;
+            gap: 12px;
         }
 
         .win-loss-item {
@@ -251,52 +259,54 @@
 
         /* 悬浮提示框样式 */
         .tooltip {
-            position: absolute;
+            position: fixed;
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 249, 250, 0.95));
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.3);
             color: #1a1a1a;
-            padding: 12px;
-            border-radius: 8px;
+            padding: 10px;
+            border-radius: 14px;
             font-size: 12px;
-            max-width: 340px;
-            min-width: 300px;
-            z-index: 1000;
+            width: min(340px, calc(100vw - 24px));
+            max-height: min(420px, calc(100vh - 24px));
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            z-index: 1200;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.3s ease;
+            transform: translate3d(0, 8px, 0) scale(0.98);
+            transform-origin: top center;
+            transition:
+                opacity 0.18s ease,
+                transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06);
             line-height: 1.3;
         }
 
         .tooltip.show {
             opacity: 1;
+            pointer-events: auto;
+            transform: translate3d(0, 0, 0) scale(1);
         }
 
         .tooltip::before {
-            content: '';
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            border: 5px solid transparent;
-            border-top-color: rgba(255, 255, 255, 0.95);
+            display: none;
         }
 
         .tooltip-header {
             font-weight: 600;
             font-size: 13px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             padding-bottom: 6px;
             border-bottom: 1px solid rgba(0, 0, 0, 0.1);
             color: #374151;
         }
 
         .game-detail {
-            margin-bottom: 6px;
+            margin-bottom: 5px;
             padding: 6px 8px;
             background: rgba(255, 255, 255, 0.7);
-            border-radius: 6px;
+            border-radius: 10px;
             transition: all 0.2s ease;
         }
 
@@ -700,7 +710,8 @@
         body.ios-glass-page #allTopBar .glass-meta-body {
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 10px;
+            padding: 10px 12px 12px;
         }
 
         body.ios-glass-page #allSummarySection.collapsed .glass-meta-body {
@@ -709,28 +720,28 @@
 
         body.ios-glass-page .stats-overview {
             justify-content: flex-start;
-            gap: 10px;
+            gap: 8px;
             margin: 0;
             padding: 0;
             border: 0;
         }
 
         body.ios-glass-page .overview-item {
-            min-width: 92px;
-            padding: 8px 10px;
-            border-radius: 16px;
+            min-width: 84px;
+            padding: 6px 8px;
+            border-radius: 14px;
             background: rgba(255, 255, 255, 0.30);
             border: 1px solid rgba(255, 255, 255, 0.46);
             box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
         }
 
         body.ios-glass-page .overview-label {
-            font-size: 0.72rem;
+            font-size: 0.68rem;
             color: rgba(44, 62, 80, 0.56);
         }
 
         body.ios-glass-page .overview-value {
-            font-size: 1rem;
+            font-size: 0.94rem;
             color: rgba(31, 35, 41, 0.88);
         }
 
@@ -739,7 +750,7 @@
             padding: 0;
             border: 0;
             justify-content: flex-start;
-            gap: 10px;
+            gap: 8px;
         }
 
         body.ios-glass-page .sort-label {
@@ -748,15 +759,16 @@
         }
 
         body.ios-glass-page .sort-options {
-            gap: 8px;
+            gap: 6px;
         }
 
         body.ios-glass-page .sort-option {
-            min-height: 34px;
+            min-height: 30px;
             display: inline-flex;
             align-items: center;
-            border-radius: 17px;
-            padding: 0 12px;
+            border-radius: 15px;
+            padding: 0 10px;
+            font-size: 0.78rem;
             background: rgba(255, 255, 255, 0.30);
             border: 1px solid rgba(255, 255, 255, 0.48);
             color: rgba(44, 62, 80, 0.70);
@@ -775,8 +787,8 @@
         }
 
         body.ios-glass-page .player-card {
-            border-radius: 20px;
-            padding: 18px;
+            border-radius: 18px;
+            padding: 13px 14px;
             background:
                 linear-gradient(to left, var(--bg-color, rgba(248, 249, 250, 0.34)) 0%, rgba(255, 255, 255, 0.52) 42%, rgba(255, 255, 255, 0.28) 100%),
                 var(--ios-glass-bg);
@@ -787,7 +799,7 @@
             backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             content-visibility: auto;
-            contain-intrinsic-size: 150px;
+            contain-intrinsic-size: 128px;
         }
 
         body.ios-glass-page .player-card::before {
@@ -807,15 +819,31 @@
         body.ios-glass-page .games-today {
             background: rgba(255, 255, 255, 0.28);
             border: 1px solid rgba(255, 255, 255, 0.46);
-            border-radius: 16px;
+            border-radius: 14px;
             box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.60);
+            cursor: pointer;
+            transition:
+                background 0.18s ease,
+                border-color 0.18s ease,
+                transform 0.18s ease,
+                box-shadow 0.18s ease;
+        }
+
+        body.ios-glass-page .games-today:hover,
+        body.ios-glass-page .games-today.active {
+            background: rgba(255, 255, 255, 0.44);
+            border-color: rgba(255, 255, 255, 0.68);
+            transform: translateY(-1px);
+            box-shadow:
+                0 8px 18px rgba(44, 62, 80, 0.10),
+                inset 0 1px 1px rgba(255, 255, 255, 0.70);
         }
 
         body.ios-glass-page .tooltip,
         body.ios-glass-page .filter-content {
             background: var(--ios-glass-bg);
             border: 1px solid var(--ios-glass-border);
-            border-radius: 22px;
+            border-radius: 18px;
             box-shadow: var(--ios-glass-shadow-strong);
             backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
             -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
@@ -907,8 +935,8 @@
             }
 
             body.ios-glass-page .overview-item {
-                min-width: 82px;
-                padding: 7px 8px;
+                min-width: 76px;
+                padding: 6px 7px;
             }
 
             body.ios-glass-page .sort-label {
@@ -988,6 +1016,7 @@
         let selectedPlayers = new Set();
         let currentSortMethod = 'star-change'; // 默认按上星排序
         let glassTopResizeObserver = null;
+        let activeTooltipTrigger = null;
 
         function updateGlassTopSpace() {
             const topBar = document.getElementById('allTopBar');
@@ -1194,7 +1223,7 @@
                 return '<div class="tooltip-header">暂无详细战绩</div>';
             }
             
-            const header = `<div class="tooltip-header">📊 今日战绩详情 (${player.details.length}场)</div>`;
+            const header = `<div class="tooltip-header">今日战绩详情 (${player.details.length}场)</div>`;
             
             const gamesList = player.details.map(game => {
                 const isWin = game.Result === '胜利';
@@ -1229,8 +1258,30 @@
             return header + gamesList;
         }
 
-        // 显示悬浮提示框
-        function showTooltip(event, content) {
+        function positionTooltip(trigger, tooltip) {
+            const margin = 10;
+            const triggerRect = trigger.getBoundingClientRect();
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const belowTop = triggerRect.bottom + 8;
+            const aboveTop = triggerRect.top - tooltipRect.height - 8;
+            const top = belowTop + tooltipRect.height <= viewportHeight - margin
+                ? belowTop
+                : Math.max(margin, aboveTop);
+            const idealLeft = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
+            const left = Math.min(
+                Math.max(margin, idealLeft),
+                Math.max(margin, viewportWidth - tooltipRect.width - margin)
+            );
+
+            tooltip.style.left = `${Math.round(left)}px`;
+            tooltip.style.top = `${Math.round(top)}px`;
+            tooltip.style.maxHeight = `${Math.max(160, Math.floor(viewportHeight - top - margin))}px`;
+        }
+
+        // 显示战绩详情小窗
+        function showTooltip(trigger, content) {
             let tooltip = document.getElementById('gameTooltip');
             if (!tooltip) {
                 tooltip = document.createElement('div');
@@ -1238,51 +1289,50 @@
                 tooltip.className = 'tooltip';
                 document.body.appendChild(tooltip);
             }
-            
+
+            if (activeTooltipTrigger && activeTooltipTrigger !== trigger) {
+                activeTooltipTrigger.classList.remove('active');
+                activeTooltipTrigger.setAttribute('aria-expanded', 'false');
+            }
+
+            activeTooltipTrigger = trigger;
+            activeTooltipTrigger.classList.add('active');
+            activeTooltipTrigger.setAttribute('aria-expanded', 'true');
             tooltip.innerHTML = content;
-            tooltip.className = 'tooltip show';
-            
-            // 获取鼠标相对于页面的位置
-            const mouseX = event.pageX;
-            const mouseY = event.pageY;
-            
-            // 设置初始位置（在鼠标上方10px）
-            tooltip.style.left = mouseX + 'px';
-            tooltip.style.top = (mouseY - 10) + 'px';
-            tooltip.style.transform = 'translate(-50%, -100%)';
-            
-            // 强制重新计算布局
-            tooltip.offsetHeight;
-            
-            // 检查是否超出视窗边界并调整位置
-            const tooltipRect = tooltip.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            
-            // 水平方向调整
-            if (tooltipRect.left < 10) {
-                tooltip.style.transform = 'translate(0, -100%)';
-            } else if (tooltipRect.right > viewportWidth - 10) {
-                tooltip.style.transform = 'translate(-100%, -100%)';
-            }
-            
-            // 垂直方向调整（如果上方空间不足，显示在鼠标下方）
-            if (tooltipRect.top < 10) {
-                tooltip.style.top = (mouseY + 10) + 'px';
-                tooltip.style.transform = tooltip.style.transform.replace('-100%', '0');
-            }
+            tooltip.className = 'tooltip';
+            requestAnimationFrame(() => {
+                positionTooltip(trigger, tooltip);
+                tooltip.classList.add('show');
+            });
         }
 
-        // 隐藏悬浮提示框
+        function toggleGameDetails(event, player) {
+            event.stopPropagation();
+            const trigger = event.currentTarget;
+            const tooltip = document.getElementById('gameTooltip');
+            if (activeTooltipTrigger === trigger && tooltip && tooltip.classList.contains('show')) {
+                hideTooltip();
+                return;
+            }
+            showTooltip(trigger, getGameDetailsTooltip(player));
+        }
+
+        // 隐藏战绩详情小窗
         function hideTooltip() {
             const tooltip = document.getElementById('gameTooltip');
             if (tooltip) {
-                tooltip.className = 'tooltip';
+                tooltip.classList.remove('show');
+            }
+            if (activeTooltipTrigger) {
+                activeTooltipTrigger.classList.remove('active');
+                activeTooltipTrigger.setAttribute('aria-expanded', 'false');
+                activeTooltipTrigger = null;
             }
         }
         // 切换排序方法
         function changeSortMethod(method) {
             currentSortMethod = method;
+            hideTooltip();
             
             // 更新按钮状态
             document.querySelectorAll('.sort-option').forEach(option => {
@@ -1323,6 +1373,7 @@
             }
         }
         function renderPlayerCards() {
+            hideTooltip();
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = '';
 
@@ -1334,15 +1385,11 @@
                 })
                 .sort((a, b) => {
                     return getSortValue(b, currentSortMethod) - getSortValue(a, currentSortMethod);
-                });
+            });
 
             visiblePlayers.forEach((player, index) => {
-                console.log('处理玩家:', player.nickname, 'ID:', player.id, 'ID类型:', typeof player.id);
-                
                 // 直接使用索引作为数据标识符，更可靠
                 const dataIndex = index;
-                console.log('使用的dataIndex:', dataIndex);
-                
                 const bgColor = getBackgroundColor(player.star_up, player.peak_up);
                 const starChange = getStarChangeDisplay(player.star_up, player.peak_up);
                 
@@ -1378,7 +1425,7 @@
                             </div>
                         </div>
                         
-                        <div class="games-today" data-index="${dataIndex}">
+                        <div class="games-today" data-index="${dataIndex}" role="button" tabindex="0" aria-expanded="false" aria-label="${player.nickname} 今日战绩详情">
                             <div class="games-today-header">
                                 <svg class="icon" viewBox="0 0 24 24">
                                     <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
@@ -1408,26 +1455,19 @@
 
             // 添加事件监听器
             setTimeout(() => {
-                console.log('开始绑定事件监听器，visiblePlayers数量:', visiblePlayers.length);
                 document.querySelectorAll('.games-today').forEach(element => {
-                    console.log('处理元素，dataset:', element.dataset);
                     const indexStr = element.dataset.index;
-                    console.log('原始index字符串:', indexStr, '类型:', typeof indexStr);
                     const index = parseInt(indexStr);
-                    console.log('解析后的index:', index, '是否为NaN:', isNaN(index));
-                    
+
                     if (!isNaN(index) && index >= 0 && index < visiblePlayers.length) {
                         const player = visiblePlayers[index];
-                        console.log('找到玩家数据:', player.nickname);
-                        
-                        element.addEventListener('mouseenter', (event) => {
-                            console.log('鼠标进入，玩家数据:', player.nickname, player.details);
-                            const tooltipContent = getGameDetailsTooltip(player);
-                            console.log('悬浮框内容:', tooltipContent);
-                            showTooltip(event, tooltipContent);
+                        element.addEventListener('click', (event) => toggleGameDetails(event, player));
+                        element.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                toggleGameDetails(event, player);
+                            }
                         });
-                        
-                        element.addEventListener('mouseleave', hideTooltip);
                     } else {
                         console.warn('未找到玩家数据，index:', index, '原始字符串:', indexStr);
                     }
@@ -1499,6 +1539,26 @@
         // 页面加载完成后加载数据并初始化
         document.addEventListener('DOMContentLoaded', () => {
             initGlassTopBar();
+            document.addEventListener('click', (event) => {
+                const tooltip = document.getElementById('gameTooltip');
+                if (event.target.closest('.games-today') || (tooltip && tooltip.contains(event.target))) return;
+                hideTooltip();
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') hideTooltip();
+            });
+            window.addEventListener('resize', () => {
+                const tooltip = document.getElementById('gameTooltip');
+                if (activeTooltipTrigger && tooltip && tooltip.classList.contains('show')) {
+                    positionTooltip(activeTooltipTrigger, tooltip);
+                }
+            });
+            window.addEventListener('scroll', () => {
+                const tooltip = document.getElementById('gameTooltip');
+                if (activeTooltipTrigger && tooltip && tooltip.classList.contains('show')) {
+                    positionTooltip(activeTooltipTrigger, tooltip);
+                }
+            }, { passive: true });
             // 显示加载提示
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = `
