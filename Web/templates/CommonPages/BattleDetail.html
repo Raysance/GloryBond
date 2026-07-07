@@ -23,26 +23,35 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            background: #f5f7fa;
-            color: #333;
+            background: #f2f3f5;
+            color: #1c1c1e;
             line-height: 1.6;
             min-height: 100vh;
         }
 
         body.victory {
-            background: linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(46, 204, 113, 0.15) 50%, rgba(39, 174, 96, 0.1) 100%) !important;
+            background:
+                radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.24), transparent 34%),
+                linear-gradient(180deg, rgba(52, 199, 89, 0.14) 0%, rgba(52, 199, 89, 0.08) 42%, #eef1f4 100%) !important;
         }
 
         body.defeat {
-            background: linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(255, 107, 107, 0.15) 50%, rgba(231, 76, 60, 0.1) 100%) !important;
+            background:
+                radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.23), transparent 34%),
+                linear-gradient(180deg, rgba(255, 59, 48, 0.13) 0%, rgba(255, 59, 48, 0.08) 42%, #eef1f4 100%) !important;
         }
 
         .container {
             max-width: 95%;
             width: 100%;
             margin: 0 auto;
-            padding: 20px;
+            padding: 168px 20px 20px;
             background: transparent;
+            transition: padding-top 0.25s ease;
+        }
+
+        body.metadata-collapsed .container {
+            padding-top: 96px;
         }
         
         @media (min-width: 1920px) {
@@ -72,40 +81,39 @@
         }
 
         .team {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        }
-
-        .team.red {
-            border-left: 3px solid #e74c3c;
-        }
-
-        .team.blue {
-            border-left: 3px solid #3498db;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.68);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow:
+                0 16px 34px rgba(31, 35, 41, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            overflow: hidden;
         }
 
         .team-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #f1f2f6;
+            margin-bottom: 10px;
+            padding: 2px 2px 10px;
+            border-bottom: 1px solid rgba(60, 60, 67, 0.12);
         }
 
         .team-name {
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0;
         }
 
         .team.red .team-name {
-            color: #e74c3c;
+            color: #ff3b30;
         }
 
         .team.blue .team-name {
-            color: #3498db;
+            color: #007aff;
         }
 
         .team-stats {
@@ -116,22 +124,20 @@
         }
 
         .win-indicator {
-            background: transparent;
-            color: #27ae60;
-            padding: 4px 8px;
+            color: #1f8f45;
+            padding: 0;
             border-radius: 0;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 700;
             border: none;
             box-shadow: none;
         }
 
         .lose-indicator {
-            background: transparent;
-            color: #e74c3c;
-            padding: 4px 8px;
+            color: #c9362d;
+            padding: 0;
             border-radius: 0;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 700;
             border: none;
             box-shadow: none;
@@ -139,39 +145,49 @@
 
         .players-grid {
             display: grid;
-            gap: 4px;
+            gap: 8px;
         }
 
         .player-card {
-            background: transparent;
-            padding: 8px 0;
-            border-bottom: 1px solid #e9ecef;
-            transition: background-color 0.2s ease;
+            background: rgba(255, 255, 255, 0.56);
+            padding: 8px 10px;
+            border: 1px solid rgba(60, 60, 67, 0.07);
+            border-radius: 14px;
+            transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
             position: relative;
             overflow: hidden;
-            min-height: 75px;
+            min-height: 72px;
             display: flex;
             align-items: stretch;
             cursor: pointer;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
         }
 
         .player-card:hover {
-            background-color: rgba(0, 123, 255, 0.05);
+            background-color: rgba(255, 255, 255, 0.76);
+            transform: translateY(-1px);
+            box-shadow:
+                0 10px 20px rgba(31, 35, 41, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.80);
         }
 
         .player-card::before {
-            content: "👆";
+            content: "›";
             position: absolute;
-            top: 5px;
-            right: 5px;
-            font-size: 12px;
-            opacity: 0;
+            top: 50%;
+            right: 9px;
+            font-size: 22px;
+            line-height: 1;
+            color: rgba(60, 60, 67, 0.28);
+            opacity: 0.7;
+            transform: translateY(-50%);
             transition: opacity 0.2s ease;
             pointer-events: none;
+            z-index: 2;
         }
 
         .player-card:hover::before {
-            opacity: 0.6;
+            opacity: 1;
         }
 
         .player-card.card-loading {
@@ -181,23 +197,18 @@
         }
 
         .player-card.card-loading::before {
-            content: "⏳";
+            content: "...";
             opacity: 0.9;
         }
 
-        /* MVP卡片光彩效果 */
+        /* MVP 卡片保持识别度，但避免强闪光动画 */
         .player-card.mvp-highlight {
-            background: linear-gradient(135deg, 
-                rgba(255, 215, 0, 0.25) 0%, 
-                rgba(255, 193, 7, 0.2) 25%, 
-                rgba(255, 235, 59, 0.15) 50%, 
-                rgba(255, 193, 7, 0.2) 75%, 
-                rgba(255, 215, 0, 0.25) 100%);
-            border: 2px solid rgba(255, 215, 0, 0.6);
-            box-shadow: 0 6px 30px rgba(255, 215, 0, 0.4), 
-                        inset 0 2px 0 rgba(255, 255, 255, 0.3),
-                        0 0 20px rgba(255, 215, 0, 0.3);
-            border-radius: 12px;
+            background: rgba(255, 248, 225, 0.72);
+            border-color: rgba(245, 158, 11, 0.28);
+            box-shadow:
+                0 10px 22px rgba(245, 158, 11, 0.10),
+                inset 0 1px 0 rgba(255, 255, 255, 0.78);
+            border-radius: 14px;
         }
 
         .img-placeholder {
@@ -226,52 +237,12 @@
             overflow: hidden;
             background-color: #eee;
         }
-            animation: mvpGlow 2.5s ease-in-out infinite alternate;
-            transform: scale(1.02);
-            margin: 4px 0;
-        }
-
-        @keyframes mvpGlow {
-            0% {
-                box-shadow: 0 6px 30px rgba(255, 215, 0, 0.4), 
-                           inset 0 2px 0 rgba(255, 255, 255, 0.3),
-                           0 0 20px rgba(255, 215, 0, 0.3);
-                border-color: rgba(255, 215, 0, 0.6);
-            }
-            100% {
-                box-shadow: 0 8px 40px rgba(255, 215, 0, 0.6), 
-                           inset 0 2px 0 rgba(255, 255, 255, 0.4),
-                           0 0 30px rgba(255, 215, 0, 0.5);
-                border-color: rgba(255, 215, 0, 0.8);
-            }
-        }
 
         .player-card.mvp-highlight::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, 
-                transparent 20%, 
-                rgba(255, 255, 255, 0.2) 50%, 
-                transparent 80%);
-            transform: translateX(-100%);
-            animation: shimmer 3s ease-in-out infinite;
-            z-index: 1;
-        }
-
-        @keyframes shimmer {
-            0% {
-                transform: translateX(-100%);
-            }
-            50% {
-                transform: translateX(100%);
-            }
-            100% {
-                transform: translateX(-100%);
-            }
+            content: "›";
+            background: none;
+            animation: none;
+            transform: translateY(-50%);
         }
 
         .player-card::after {
@@ -284,20 +255,20 @@
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            opacity: 0.6;
+            opacity: 0.26;
             z-index: 0;
             background-image: inherit;
             mask: linear-gradient(to left, 
                 rgba(0,0,0,1) 0%, 
-                rgba(0,0,0,0.9) 20%, 
-                rgba(0,0,0,0.6) 50%, 
-                rgba(0,0,0,0.2) 80%, 
+                rgba(0,0,0,0.70) 20%,
+                rgba(0,0,0,0.36) 50%,
+                rgba(0,0,0,0.12) 80%,
                 rgba(0,0,0,0) 100%);
             -webkit-mask: linear-gradient(to left, 
                 rgba(0,0,0,1) 0%, 
-                rgba(0,0,0,0.9) 20%, 
-                rgba(0,0,0,0.6) 50%, 
-                rgba(0,0,0,0.2) 80%, 
+                rgba(0,0,0,0.70) 20%,
+                rgba(0,0,0,0.36) 50%,
+                rgba(0,0,0,0.12) 80%,
                 rgba(0,0,0,0) 100%);
         }
 
@@ -306,14 +277,16 @@
         }
 
         .player-main {
-            display: flex;
-            align-items: stretch;
+            display: grid;
+            grid-template-columns: 42px minmax(170px, 1fr) minmax(130px, 0.74fr);
+            align-items: center;
             gap: 10px;
             flex: 1;
             position: relative;
             z-index: 1;
-            padding-right: 170px;
-            min-height: 60px;
+            padding-right: clamp(34px, 8vw, 116px);
+            min-height: 58px;
+            min-width: 0;
         }
 
         .hero-avatar {
@@ -322,77 +295,143 @@
             border-radius: 50%;
             object-fit: cover;
             border: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            box-shadow: 0 3px 10px rgba(31, 35, 41, 0.18);
             flex-shrink: 0;
+        }
+
+        .hero-avatar-container {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .current-hero-avatar-container {
+            width: 86px;
+            height: 86px;
+            padding: 3px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background:
+                radial-gradient(circle, transparent 58%, var(--result-glow, rgba(108, 155, 209, 0.62)) 66%, transparent 78%),
+                conic-gradient(from 210deg, transparent 0 12%, var(--result-glow, rgba(108, 155, 209, 0.62)) 34%, transparent 60% 100%);
+            box-shadow:
+                0 8px 22px rgba(0, 0, 0, 0.15),
+                0 0 18px var(--result-soft-glow, rgba(108, 155, 209, 0.18));
+            overflow: visible;
+        }
+
+        .current-hero-avatar-container img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            display: block;
+            object-fit: cover;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
         }
 
         .player-info {
             flex: 0 0 auto;
-            min-width: 120px;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .player-center {
-            flex: 1;
+            min-width: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 8px 10px;
-            min-height: 60px;
+            padding: 6px 8px;
+            min-height: 56px;
         }
 
         .player-center-top {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 6px;
+            display: grid;
+            grid-template-columns: minmax(42px, 0.9fr) minmax(58px, 1.1fr);
+            gap: 4px;
+            margin-bottom: 8px;
             align-items: center;
-            flex-direction: column;
+            justify-content: stretch;
+            width: 100%;
+            max-width: 100%;
+            white-space: nowrap;
         }
 
-        .player-center-rating {
-            font-size: 18px;
-            font-weight: 700;
-            color: #667eea;
-            order: -1;
-        }
-
+        .player-center-rating,
         .player-center-kda {
-            font-size: 16px;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            line-height: 1.05;
+        }
+
+        .metric-value {
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 17px;
             font-weight: 700;
-            color: #d63031;
+            line-height: 1.05;
+        }
+
+        .player-center-rating .metric-value {
+            color: #007aff;
+        }
+
+        .player-center-kda .metric-value {
+            color: #1c1c1e;
         }
 
         .stats-percentage-row {
-            display: flex;
-            gap: 15px;
-            margin: 4px 0 8px 0;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(28px, 1fr));
+            gap: 4px;
+            margin: 0;
+            justify-content: stretch;
+            flex-wrap: nowrap;
+            width: 100%;
+            max-width: 100%;
+            white-space: nowrap;
         }
 
         .stat-percentage {
             text-align: center;
-            min-width: 45px;
+            min-width: 0;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 3px;
+            gap: 1px;
             justify-content: center;
+            flex: 0 1 auto;
+            padding: 0 4px;
         }
 
         .stat-percentage-value {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 700;
-            color: #2c3e50;
+            color: #1c1c1e;
             line-height: 1.1;
+        }
+
+        .stat-percentage-icon {
+            font-size: 13px;
+            line-height: 1;
+            color: rgba(60, 60, 67, 0.58);
         }
 
         .player-left {
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 8px;
-            flex: 0 0 auto;
+            gap: 5px;
+            min-width: 0;
+            max-width: 100%;
             justify-content: flex-start;
-            min-width: 160px;
         }
 
         .player-left-top {
@@ -403,15 +442,21 @@
 
         .player-info h4 {
             font-size: 16px;
-            margin-bottom: 4px;
-            color: #1a1a1a;
-            font-weight: 600;
+            margin-bottom: 0;
+            color: #1c1c1e;
+            font-weight: 700;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .equipment {
             margin-top: 0;
             position: relative;
             z-index: 1;
+            width: 100%;
+            max-width: 100%;
         }
 
         .equipment h5 {
@@ -419,30 +464,70 @@
         }
 
         .equipment-grid {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(18px, 22px));
             gap: 3px;
-            flex-wrap: nowrap;
-            max-width: 175px;
+            width: min(100%, 147px);
+            max-width: 100%;
+            align-items: center;
         }
 
         .equipment-item {
-            width: 28px;
-            height: 28px;
-            border-radius: 3px;
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 5px;
             object-fit: cover;
             border: none;
-            background: transparent;
-            flex-shrink: 0;
+            background: rgba(118, 118, 128, 0.12);
+            min-width: 0;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38);
+        }
+
+        .equipment-item-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: inherit;
+            display: block;
         }
 
         .mvp-badge {
-            background: linear-gradient(45deg, #f39c12, #e67e22);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 8px;
+            background: rgba(245, 158, 11, 0.14);
+            color: #a15c00;
+            padding: 2px 7px;
+            border-radius: 999px;
             font-size: 10px;
-            font-weight: 600;
+            font-weight: 700;
             margin-left: 8px;
+        }
+
+        @media (max-width: 1100px) and (min-width: 769px) {
+            .player-card::after {
+                width: 96px;
+            }
+
+            .player-main {
+                grid-template-columns: 40px minmax(112px, 1fr) minmax(112px, 0.75fr);
+                padding-right: 66px;
+            }
+
+            .equipment-grid {
+                grid-template-columns: repeat(6, minmax(16px, 19px));
+                gap: 2px;
+                width: min(100%, 124px);
+            }
+
+            .stat-percentage {
+                flex-basis: auto;
+            }
+
+            .stats-percentage-row {
+                gap: 9px;
+            }
+
+            .stat-percentage-value {
+                font-size: 12px;
+            }
         }
 
         .team-summary {
@@ -467,7 +552,11 @@
 
         @media (max-width: 768px) {
             .container {
-                padding: 10px;
+                padding: 204px 10px 10px;
+            }
+
+            body.metadata-collapsed .container {
+                padding-top: 116px;
             }
             
             .current-player-info {
@@ -584,7 +673,7 @@
             
             .player-card {
                 padding: 6px 0;
-                min-height: 65px;
+                min-height: 64px;
             }
             
             .player-card.mvp-highlight {
@@ -594,18 +683,18 @@
             }
             
             .player-card::after {
-                width: 100px;
+                width: 72px;
             }
             
             .player-main {
+                grid-template-columns: 36px minmax(92px, 1fr) minmax(104px, 0.85fr);
                 gap: 6px;
-                padding-right: 110px;
-                min-height: 50px;
+                padding-right: clamp(18px, 8vw, 44px);
+                min-height: 54px;
             }
             
             .player-left {
                 gap: 4px;
-                min-width: 110px;
             }
             
             .player-left-top {
@@ -613,32 +702,40 @@
             }
             
             .player-center {
-                padding: 4px 3px;
-                min-height: 50px;
+                padding: 4px;
+                min-height: 52px;
             }
             
             .player-center-top {
-                gap: 8px;
-                margin-bottom: 3px;
+                gap: 3px;
+                margin-bottom: 6px;
             }
             
             .stats-percentage-row {
-                gap: 8px;
-                margin: 2px 0 4px 0;
+                gap: 3px;
             }
             
             .stat-percentage {
-                min-width: 30px;
                 gap: 1px;
+                padding: 0 2px;
             }
             
             .stat-percentage-value {
+                font-size: 10px;
+            }
+
+            .stat-percentage-icon {
                 font-size: 11px;
             }
             
             .hero-avatar {
-                width: 40px;
-                height: 40px;
+                width: 36px;
+                height: 36px;
+            }
+
+            .hero-avatar-container {
+                width: 36px;
+                height: 36px;
             }
             
             .player-info h4 {
@@ -646,12 +743,13 @@
                 margin-bottom: 2px;
             }
 
-            .player-center-rating {
-                font-size: 14px;
+            .player-center-rating,
+            .player-center-kda {
+                padding: 0 2px;
             }
 
-            .player-center-kda {
-                font-size: 12px;
+            .metric-value {
+                font-size: 13px;
             }
             
             .mvp-badge {
@@ -665,14 +763,13 @@
             }
             
             .equipment-grid {
-                gap: 1px;
-                max-width: 140px;
-                flex-wrap: wrap;
+                grid-template-columns: repeat(6, minmax(13px, 16px));
+                gap: 2px;
+                width: min(100%, 106px);
             }
             
             .equipment-item {
-                width: 20px;
-                height: 20px;
+                width: 100%;
             }
             
             .footer {
@@ -680,13 +777,6 @@
                 font-size: 12px;
                 margin-top: 20px;
             }
-        }
-
-        .loading {
-            text-align: center;
-            padding: 50px;
-            font-size: 18px;
-            color: #6c757d;
         }
 
         .error {
@@ -700,72 +790,335 @@
             margin: 20px;
         }
 
-        /* 顶部悬浮返回按钮样式 */
-        .floating-back-btn {
+        body::after {
+            content: '';
             position: fixed;
-            top: 30px;
-            left: 30px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(250, 128, 114, 0.35);
-            transition: all 0.3s ease;
+            top: 16px;
+            right: 16px;
+            width: 216px;
+            height: 60px;
+            border-radius: 30px;
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.08)),
+                radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.16) 36%, transparent 58%);
+            border: 1px solid rgba(255, 255, 255, 0.62);
+            box-shadow:
+                0 14px 34px rgba(44, 62, 80, 0.26),
+                0 1px 0 rgba(255, 255, 255, 0.45),
+                inset 0 1px 1px rgba(255, 255, 255, 0.85),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.20),
+                inset 12px 0 24px rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+            -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+            pointer-events: none;
+            z-index: 1099;
+        }
+
+        .battle-metadata {
+            position: fixed;
+            top: 16px;
+            left: 50%;
             z-index: 1100;
+            width: clamp(320px, calc(100vw - 480px), 720px);
+            padding: 12px 14px;
+            border-radius: 24px;
+            transform: translateX(-50%);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+                radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.18) 44%, transparent 66%),
+                radial-gradient(circle at 86% 0%, rgba(108, 155, 209, 0.20), transparent 42%);
+            border: 1px solid rgba(255, 255, 255, 0.68);
+            box-shadow:
+                0 18px 44px rgba(44, 62, 80, 0.24),
+                0 1px 0 rgba(255, 255, 255, 0.44),
+                inset 0 1px 1px rgba(255, 255, 255, 0.90),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+            -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+            color: #2c3e50;
+            overflow: hidden;
+            isolation: isolate;
+            transition: padding 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .battle-metadata::before {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            border-radius: inherit;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 46%),
+                radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.62), transparent 42%);
+            opacity: 0.82;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .battle-metadata > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .battle-fixed-layer {
+            height: 0;
+        }
+
+        .battle-metadata-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .battle-metadata-title {
+            min-width: 0;
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex: 1;
+            white-space: nowrap;
+        }
+
+        .battle-metadata-map {
+            min-width: 0;
+            flex: 0 1 auto;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 14px;
+            color: rgba(44, 62, 80, 0.70);
+            font-weight: 700;
+        }
+
+        .battle-metadata-result {
+            flex-shrink: 0;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .battle-metadata-expanded {
+            margin-top: 6px;
+        }
+
+        .battle-metadata-toggle {
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.56);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.28);
+            color: rgba(44, 62, 80, 0.72);
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
+            box-shadow:
+                inset 0 1px 1px rgba(255, 255, 255, 0.78),
+                0 5px 14px rgba(44, 62, 80, 0.12);
+            transition: transform 0.25s ease, background 0.25s ease, color 0.25s ease;
         }
 
-        .floating-back-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
+        .battle-metadata-toggle:hover {
+            background: rgba(255, 255, 255, 0.42);
+            color: #4fc3f7;
         }
 
-        .floating-back-btn:active {
-            transform: translateY(0);
+        .battle-metadata-toggle svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+            transition: transform 0.25s ease;
         }
 
-        .floating-back-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
-            transition: transform 0.3s ease;
+        .battle-metadata-details {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            color: rgba(44, 62, 80, 0.62);
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
         }
 
-        .floating-back-btn.loading {
-            cursor: wait;
-            opacity: 0.75;
+        .battle-metadata-details span,
+        .battle-metadata-player-stats span {
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.24);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
         }
 
-        .floating-back-btn.loading svg {
-            transform: translateX(-2px);
+        .battle-metadata-player {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.46);
+        }
+
+        .battle-metadata-avatar {
+            width: 38px;
+            height: 38px;
+            padding: 2px;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle, transparent 58%, var(--result-glow, rgba(108, 155, 209, 0.62)) 66%, transparent 78%),
+                conic-gradient(from 210deg, transparent 0 12%, var(--result-glow, rgba(108, 155, 209, 0.62)) 34%, transparent 60% 100%);
+            box-shadow: 0 5px 14px rgba(44, 62, 80, 0.18);
+            overflow: visible;
+        }
+
+        .battle-metadata-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            display: block;
+            object-fit: cover;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
+        }
+
+        .battle-metadata-player-main {
+            min-width: 0;
+        }
+
+        .battle-metadata-player-title {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            min-width: 0;
+            white-space: nowrap;
+        }
+
+        .battle-metadata-player-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 13px;
+            font-weight: 800;
+            color: rgba(44, 62, 80, 0.86);
+        }
+
+        .battle-metadata-hero-name {
+            flex-shrink: 0;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(44, 62, 80, 0.56);
+        }
+
+        .battle-metadata-mvp {
+            flex-shrink: 0;
+            padding: 1px 5px;
+            border-radius: 999px;
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+            color: #fff;
+            font-size: 9px;
+            font-weight: 800;
+            line-height: 1.4;
+        }
+
+        .battle-metadata-player-stats {
+            display: flex;
+            gap: 10px;
+            margin-top: 2px;
+            color: rgba(44, 62, 80, 0.62);
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .battle-metadata-equipment {
+            display: grid;
+            grid-template-columns: repeat(6, 22px);
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .battle-metadata-equipment-item {
+            width: 22px;
+            height: 22px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.34);
+            overflow: hidden;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+        }
+
+        .battle-metadata-equipment-item img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+            border-radius: inherit;
+        }
+
+        .battle-metadata.collapsed {
+            padding-top: 9px;
+            padding-bottom: 9px;
+            border-radius: 22px;
+        }
+
+        .battle-metadata.collapsed .battle-metadata-expanded {
+            display: none;
+        }
+
+        .battle-metadata.collapsed .battle-metadata-toggle svg {
+            transform: rotate(180deg);
+        }
+
+        .floating-toggle-btn::before,
+        .favorite-btn::before,
+        .share-btn::before,
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 7px;
+            right: 7px;
+            height: 38%;
+            border-radius: 999px;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.08));
+            pointer-events: none;
         }
 
         /* 悬浮球按钮样式 */
         .floating-toggle-btn {
             position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
+            top: 24px;
+            right: 180px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border: none;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
+                radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
+            border: 1px solid rgba(255, 255, 255, 0.58);
+            color: #666;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            box-shadow:
+                0 9px 24px rgba(44, 62, 80, 0.22),
+                inset 0 1px 1px rgba(255, 255, 255, 0.85),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.18);
             transition: all 0.3s ease;
-            z-index: 1000;
+            z-index: 1100;
             display: flex;
             align-items: center;
             justify-content: center;
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            overflow: hidden;
         }
 
         .floating-toggle-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+                radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
+            color: #4fc3f7;
+            transform: translateY(-1px) scale(1.04);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         .floating-toggle-btn:active {
@@ -773,9 +1126,9 @@
         }
 
         .floating-toggle-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
             transition: transform 0.3s ease;
         }
 
@@ -783,29 +1136,98 @@
             transform: rotate(180deg);
         }
 
-        @media (max-width: 768px) {
-            .floating-back-btn {
-                top: 16px;
-                left: 16px;
-                width: 48px;
-                height: 48px;
-            }
+        .floating-toggle-btn[data-mode="1"] {
+            color: #3498db;
+        }
 
-            .floating-back-btn svg {
-                width: 20px;
-                height: 20px;
+        .floating-toggle-btn[data-mode="2"] {
+            color: #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            body::after {
+                top: 6px;
+                right: 6px;
+                width: 172px;
+                height: 44px;
+                border-radius: 22px;
             }
 
             .floating-toggle-btn {
-                width: 50px;
-                height: 50px;
-                bottom: 20px;
-                right: 20px;
+                width: 36px;
+                height: 36px;
+                top: 10px;
+                right: 136px;
             }
 
             .floating-toggle-btn svg {
-                width: 20px;
-                height: 20px;
+                width: 16px;
+                height: 16px;
+            }
+
+            .battle-metadata {
+                top: 58px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+                padding: 10px 12px;
+                transform: none;
+            }
+
+            .battle-metadata-title {
+                gap: 8px;
+            }
+
+            .battle-metadata-map {
+                font-size: 13px;
+            }
+
+            .battle-metadata-result {
+                font-size: 15px;
+            }
+
+            .battle-metadata-details {
+                justify-content: flex-start;
+                gap: 9px;
+                font-size: 10px;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .battle-metadata-details::-webkit-scrollbar {
+                display: none;
+            }
+
+            .battle-metadata-player {
+                grid-template-columns: auto minmax(0, 1fr);
+                gap: 8px;
+            }
+
+            .battle-metadata-player-stats {
+                gap: 7px;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .battle-metadata-player-stats::-webkit-scrollbar {
+                display: none;
+            }
+
+            .battle-metadata-equipment {
+                grid-column: 1 / -1;
+                grid-template-columns: repeat(6, 24px);
+                justify-content: center;
+            }
+
+            .battle-metadata-equipment-item {
+                width: 24px;
+                height: 24px;
+            }
+
+            .current-hero-avatar-container {
+                width: 56px;
+                height: 56px;
+                padding: 2px;
             }
         }
 
@@ -819,56 +1241,6 @@
             cursor: wait;
             opacity: 0.65;
             text-decoration: none;
-        }
-
-        .modal-link-loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(255, 255, 255, 0.65);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 15000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.25s ease;
-        }
-
-        .modal-link-loading-overlay.show {
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        .modal-link-loading-content {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 24px 36px;
-            border-radius: 16px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            color: var(--dark-color);
-            font-weight: 600;
-            min-width: 220px;
-        }
-
-        .modal-link-loading-spinner {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 4px solid rgba(108, 155, 209, 0.25);
-            border-top-color: var(--primary-color);
-            animation: modal-link-spin 0.8s linear infinite;
-        }
-
-        @keyframes modal-link-spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
         }
 
         /* 新功能提示对话框样式 */
@@ -1042,42 +1414,48 @@
 
         /* 分享和收藏按钮样式 */
         .action-buttons {
-            position: absolute;
-            top: 15px;
-            right: 15px;
+            position: fixed;
+            top: 24px;
+            right: 24px;
             display: flex;
             gap: 8px;
-            z-index: 10;
+            z-index: 1100;
         }
 
         .favorite-btn {
-            width: 36px;
-            height: 36px;
-            border: none;
+            width: 44px;
+            height: 44px;
+            border: 1px solid rgba(255, 255, 255, 0.42);
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.9);
-            color: #ccc;
+            background: rgba(255, 255, 255, 0.24);
+            color: #666;
             font-size: 14px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
             z-index: 10;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow:
+                0 8px 24px rgba(44, 62, 80, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.16);
         }
 
         .favorite-btn:hover {
-            background: rgba(255, 255, 255, 1);
-            color: #ff6b6b;
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            background: rgba(255, 255, 255, 0.38);
+            color: #4fc3f7;
+            transform: translateY(-1px) scale(1.04);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         .favorite-btn.liked {
             color: #ff6b6b;
-            background: rgba(255, 107, 107, 0.1);
+            background: rgba(255, 255, 255, 0.28);
         }
 
         .favorite-btn.loading {
@@ -1093,27 +1471,33 @@
         }
 
         .share-btn {
-            width: 36px;
-            height: 36px;
-            border: none;
+            width: 44px;
+            height: 44px;
+            border: 1px solid rgba(255, 255, 255, 0.42);
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.24);
             color: #666;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
             z-index: 10;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow:
+                0 8px 24px rgba(44, 62, 80, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.16);
         }
 
         .share-btn:hover {
-            background: rgba(255, 255, 255, 1);
+            background: rgba(255, 255, 255, 0.38);
             color: #4fc3f7;
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px) scale(1.04);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         .share-btn.loading {
@@ -1122,34 +1506,40 @@
         }
 
         .share-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             fill: currentColor;
             transition: all 0.3s ease;
         }
 
         .analyze-btn {
-            width: 36px;
-            height: 36px;
-            border: none;
+            width: 44px;
+            height: 44px;
+            border: 1px solid rgba(255, 255, 255, 0.42);
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.24);
             color: #666;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
             z-index: 10;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow:
+                0 8px 24px rgba(44, 62, 80, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.55),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.16);
         }
 
         .analyze-btn:hover {
-            background: rgba(255, 255, 255, 1);
-            color: #9c27b0;
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            background: rgba(255, 255, 255, 0.38);
+            color: #4fc3f7;
+            transform: translateY(-1px) scale(1.04);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         .analyze-btn.loading {
@@ -1158,10 +1548,37 @@
         }
 
         .analyze-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             fill: currentColor;
             transition: all 0.3s ease;
+        }
+
+        .favorite-btn,
+        .share-btn,
+        .analyze-btn {
+            overflow: hidden;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
+                radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
+            border-color: rgba(255, 255, 255, 0.58);
+            box-shadow:
+                0 9px 24px rgba(44, 62, 80, 0.22),
+                inset 0 1px 1px rgba(255, 255, 255, 0.85),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+        }
+
+        .favorite-btn:hover,
+        .share-btn:hover,
+        .analyze-btn:hover {
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+                radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         @media (max-width: 768px) {
@@ -1171,19 +1588,14 @@
                 gap: 6px;
             }
 
-            .favorite-btn, .share-btn {
-                width: 32px;
-                height: 32px;
+            .favorite-btn, .share-btn, .analyze-btn {
+                width: 36px;
+                height: 36px;
             }
 
-            .favorite-btn svg {
+            .favorite-btn svg, .share-btn svg, .analyze-btn svg {
                 width: 16px;
                 height: 16px;
-            }
-
-            .share-btn svg {
-                width: 14px;
-                height: 14px;
             }
         }
 
@@ -1206,9 +1618,10 @@
                 padding: 10px 12px;
             }
         }
+{% include "CommonPages/ios_glass_theme.css" %}
     </style>
 </head>
-<body>
+<body class="ios-glass-page">
     <div class="container">
         <div class="loading" id="loading">正在加载战局数据...</div>
         <div id="content" style="display: none;">
@@ -1283,6 +1696,7 @@
                 textElement.textContent = message;
             }
 
+            overlay.classList.toggle('data-fetch-loading', message.includes('获取数据中'));
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
         }
@@ -1294,6 +1708,7 @@
             }
 
             overlay.classList.remove('show');
+            overlay.classList.remove('data-fetch-loading');
             overlay.setAttribute('aria-hidden', 'true');
         }
 
@@ -1596,8 +2011,8 @@
             // 判断胜负
             const gameResult = head.gameResult;
             const resultText = gameResult ? '胜利' : '失败';
-            const resultClass = gameResult ? 'win' : 'lose';
             const resultColor = gameResult ? '#27ae60' : '#e74c3c';
+            const resultGlow = gameResult ? 'rgba(39, 174, 96, 0.66)' : 'rgba(231, 76, 60, 0.66)';
             
             // 计算当前玩家在其队伍中的百分比
             const currentTeamPlayers = isInRedTeam ? redRoles : blueRoles;
@@ -1621,27 +2036,23 @@
             const tankedPercent = teamTotals.tanked > 0 ? Math.round((playerTanked / teamTotals.tanked) * 100) : 0;
             const moneyPercent = teamTotals.money > 0 ? Math.round((playerMoney / teamTotals.money) * 100) : 0;
             
-            // 生成装备HTML - 移动端优化尺寸
-            const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
+            const metadataEquipmentHtml = finalEquips.slice(0, 6).map(equip => {
                 if (equip && equip.equipIcon) {
                     const equipNameShort = (equip.equipName || '').substring(0, 3);
                     return `
-                        <div class="img-container header-equipment" style="width: 42px; height: 42px; border-radius: 6px; margin: 3px;">
-                            <img src="${equip.equipIcon}" alt="${equip.equipName || ''}" style="width: 100%; height: 100%; border-radius: 6px;" data-fallback="${equipNameShort}" title="${equip.equipName || ''}">
+                        <div class="img-container battle-metadata-equipment-item">
+                            <img src="${equip.equipIcon}" alt="${equip.equipName || ''}" data-fallback="${equipNameShort}" title="${equip.equipName || ''}">
                         </div>`;
                 }
-                return '<div style="width: 42px; height: 42px; margin: 3px;" class="header-equipment"></div>';
+                return '<div class="battle-metadata-equipment-item"></div>';
             }).join('');
             
             // 当前玩家名和英雄名
-            const currentPlayerName = head.roleName;
-            const currentPlayerHero = head.heroName;
+            const currentPlayerName = head.roleName || basicInfo.roleName || '未知玩家';
+            const currentPlayerHero = head.heroName || usedHero.heroName || '未知英雄';
             
             const comparisonHTML = `
-                <div style="background: white; border-radius: 15px; padding: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); width: 100%; margin: 0; box-sizing: border-box; position: relative; overflow: hidden;">
-                    <!-- 背景装饰 -->
-                    <div style="position: absolute; top: 0; right: 0; width: 200px; height: 100%; background: url('${usedHero.heroIcon || ''}') center/cover; opacity: 0.06; z-index: 0; mask: linear-gradient(to left, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0) 100%);"></div>
-                    
+                <div class="battle-fixed-layer">
                     <!-- 分享/收藏/分析 按钮 -->
                     <div class="action-buttons">
                         <button class="analyze-btn" onclick="handleAnalyze()" title="分析战局">
@@ -1660,165 +2071,51 @@
                             </svg>
                         </button>
                     </div>
-                    
-                    <!-- 比赛名称和结果 - 横向并排显示 -->
-                    <div style="position: absolute; top: 20px; left: 30px; z-index: 1;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="font-size: 14px; color: #999; font-weight: 600;">${battle.mapName || '王者荣耀战局详情'}</div>
-                            <div style="font-size: 16px; font-weight: 700; color: ${resultColor};">${resultText}</div>
+
+                    <div class="battle-metadata" id="battleMetadata">
+                        <div class="battle-metadata-header">
+                            <div class="battle-metadata-title">
+                                <div class="battle-metadata-map">${battle.mapName || '王者荣耀战局详情'}</div>
+                                <div class="battle-metadata-result" style="color: ${resultColor};">${resultText}</div>
+                            </div>
+                            <button class="battle-metadata-toggle" type="button" onclick="toggleBattleMetadata()" title="折叠战局信息" aria-label="折叠战局信息">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                                </svg>
+                            </button>
                         </div>
-                    </div>
-                    
-                    <!-- 时间信息 - 右上角 -->
-                    <div style="position: absolute; top: 20px; right: 30px; z-index: 1;">
-                        <div style="display: flex; gap: 15px; font-size: 11px; color: #999; text-align: right;">
-                            <div>
-                                <div>时长: ${formatTime(battle.usedTime || 0)}</div>
-                                <div>开始: ${battle.startTime || ''}</div>
-                                <div>结束: ${battle.dtEventTime || ''}</div>
+                        <div class="battle-metadata-expanded">
+                            <div class="battle-metadata-details">
+                                <span>时长: ${formatTime(battle.usedTime || 0)}</span>
+                                <span>开始: ${battle.startTime || ''}</span>
+                                <span>结束: ${battle.dtEventTime || ''}</span>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 主要内容 -->
-                    <div style="position: relative; z-index: 1; padding: 60px 0 45px 0;">
-                        <!-- 当前玩家信息行 - 调整为横向对齐，向下移动 -->
-                        <div style="display: flex; align-items: center; gap: 40px; margin-bottom: 15px; flex-wrap: wrap;">
-                            <div class="img-container" style="width: 80px; height: 80px; border-radius: 50%; border: 4px solid ${resultColor}; flex-shrink: 0; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
-                                <img src="${usedHero.heroIcon || '/api/placeholder/60/60'}" 
-                                     alt="${usedHero.heroName || '未知英雄'}" 
-                                     style="width: 100%; height: 100%;"
-                                     data-fallback="${(usedHero.heroName || '英雄').substring(0, 2)}">
-                            </div>
-                            
-                            <div style="flex: 1; min-width: 200px;">
-                                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 12px; flex-wrap: wrap;">
-                                    <h3 style="font-size: 28px; font-weight: 700; color: #333; margin: 0;">${currentPlayerName}</h3>
-                                    ${battleStats.mvp ? '<span style="background: linear-gradient(45deg, #f39c12, #e67e22); color: white; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 600;">MVP</span>' : ''}
+                            <div class="battle-metadata-player">
+                                <div class="img-container battle-metadata-avatar" style="--result-glow: ${resultGlow};">
+                                    <img src="${usedHero.heroIcon || '/api/placeholder/60/60'}"
+                                         alt="${usedHero.heroName || '未知英雄'}"
+                                         data-fallback="${(usedHero.heroName || '英雄').substring(0, 2)}">
                                 </div>
-                            </div>
-                            
-                            <!-- 移除原来的切换按钮，改为悬浮球 -->
-                        </div>
-                        
-                        <!-- 数据统计区域 - 独立显示 -->
-                        <div style="display: flex; gap: 50px; align-items: baseline; flex-wrap: wrap; margin-bottom: 25px; justify-content: center;">
-                            <div style="display: flex; flex-direction: column; align-items: center;">
-                                <div style="font-size: 20px; font-weight: 700; color: #333; line-height: 1;">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</div>
-                                <div style="font-size: 11px; color: #999; margin-top: 2px; text-transform: uppercase;">KDA</div>
-                            </div>
-                            <div style="display: flex; flex-direction: column; align-items: center;">
-                                <div style="font-size: 20px; font-weight: 700; color: #333; line-height: 1;">${battleStats.gradeGame || '0.0'}</div>
-                                <div style="font-size: 11px; color: #999; margin-top: 2px; text-transform: uppercase;">评分</div>
-                            </div>
-                            <div style="display: flex; gap: 20px;">
-                                <div style="text-align: center;">
-                                    <div style="font-size: 16px; font-weight: 700; color: #333;">💰${moneyPercent}%</div>
-                                    <div style="font-size: 10px; color: #999;">经济</div>
+                                <div class="battle-metadata-player-main">
+                                    <div class="battle-metadata-player-title">
+                                        <span class="battle-metadata-player-name">${currentPlayerName}</span>
+                                        <span class="battle-metadata-hero-name">${usedHero.heroName || currentPlayerHero || '未知英雄'}</span>
+                                        ${battleStats.mvp ? '<span class="battle-metadata-mvp">MVP</span>' : ''}
+                                    </div>
+                                    <div class="battle-metadata-player-stats">
+                                        <span>KDA ${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
+                                        <span>评分 ${battleStats.gradeGame || '0.0'}</span>
+                                        <span>💰 ${moneyPercent}%</span>
+                                        <span>⚔️ ${damagePercent}%</span>
+                                        <span>🛡️ ${tankedPercent}%</span>
+                                    </div>
                                 </div>
-                                <div style="text-align: center;">
-                                    <div style="font-size: 16px; font-weight: 700; color: #333;">⚔️${damagePercent}%</div>
-                                    <div style="font-size: 10px; color: #999;">伤害</div>
+                                <div class="battle-metadata-equipment">
+                                    ${metadataEquipmentHtml}
                                 </div>
-                                <div style="text-align: center;">
-                                    <div style="font-size: 16px; font-weight: 700; color: #333;">🛡️${tankedPercent}%</div>
-                                    <div style="font-size: 10px; color: #999;">承伤</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 装备 -->
-                        <div style="text-align: center;">
-                            <div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
-                                ${equipmentHtml}
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- 移动端特殊样式 -->
-                    <style>
-                        @media (max-width: 768px) {
-                            .team-comparison > div {
-                                padding: 15px !important;
-                            }
-                            
-                            .team-comparison h3 {
-                                font-size: 18px !important;
-                            }
-                            
-                            .team-comparison img[alt*="英雄"] {
-                                width: 50px !important;
-                                height: 50px !important;
-                            }
-                            
-                            /* 装备图标专门针对 */
-                            .team-comparison .header-equipment {
-                                width: 28px !important;
-                                height: 28px !important;
-                                margin: 1px !important;
-                            }
-                            
-                            .team-comparison [style*="font-size: 28px"] {
-                                font-size: 18px !important;
-                            }
-                            
-                            .team-comparison [style*="font-size: 20px"] {
-                                font-size: 14px !important;
-                            }
-                            
-                            .team-comparison [style*="font-size: 16px"] {
-                                font-size: 12px !important;
-                            }
-                            
-                            .team-comparison [style*="font-size: 14px"] {
-                                font-size: 11px !important;
-                            }
-                            
-                            .team-comparison [style*="font-size: 12px"] {
-                                font-size: 10px !important;
-                            }
-                            
-                            .team-comparison [style*="gap: 30px"] {
-                                gap: 12px !important;
-                            }
-                            
-                            .team-comparison [style*="gap: 25px"] {
-                                gap: 12px !important;
-                            }
-                            
-                            .team-comparison [style*="gap: 20px"] {
-                                gap: 8px !important;
-                            }
-                            
-                            .team-comparison [style*="gap: 15px"] {
-                                gap: 8px !important;
-                            }
-                            
-                            .team-comparison [style*="padding: 60px 0 45px 0"] {
-                                padding: 30px 0 25px 0 !important;
-                            }
-                            
-                            /* 调整玩家信息布局 - 横向对齐 */
-                            .team-comparison [style*="display: flex; align-items: center; gap: 40px; margin-bottom: 15px"] {
-                                flex-direction: row !important;
-                                align-items: center !important;
-                                gap: 20px !important;
-                                margin-bottom: 10px !important;
-                            }
-                            
-                            /* 数据区域独立显示 */
-                            .team-comparison [style*="display: flex; gap: 50px; align-items: baseline; flex-wrap: wrap; margin-bottom: 25px"] {
-                                gap: 15px !important;
-                                margin-bottom: 15px !important;
-                                justify-content: center !important;
-                            }
-                            
-                            /* 移除原有的数据区域样式覆盖 */
-                            .team-comparison [style*="margin-bottom: 12px"] {
-                                margin-bottom: 6px !important;
-                            }
-                        }
-                    </style>
                 </div>
             `;
             
@@ -1834,6 +2131,20 @@
                 console.log('合并的玩家信息已渲染');
             } else {
                 console.error('找不到teamComparison元素');
+            }
+        }
+
+        function toggleBattleMetadata() {
+            const metadata = document.getElementById('battleMetadata');
+            if (!metadata) return;
+
+            metadata.classList.toggle('collapsed');
+            const isCollapsed = metadata.classList.contains('collapsed');
+            document.body.classList.toggle('metadata-collapsed', isCollapsed);
+            const toggleBtn = metadata.querySelector('.battle-metadata-toggle');
+            if (toggleBtn) {
+                toggleBtn.title = isCollapsed ? '展开战局信息' : '折叠战局信息';
+                toggleBtn.setAttribute('aria-label', isCollapsed ? '展开战局信息' : '折叠战局信息');
             }
         }
 
@@ -1870,7 +2181,6 @@
                     eyeOffIcon.style.display = 'none';
                     toggleBtn.classList.remove('hidden');
                     toggleBtn.title = '切换显示模式';
-                    toggleBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
                     break;
                     
                 case 1: // 只显示数据，隐藏皮肤背景
@@ -1883,7 +2193,6 @@
                     eyeIcon.style.display = 'block';
                     eyeOffIcon.style.display = 'none';
                     toggleBtn.title = '只显示数据';
-                    toggleBtn.style.background = 'linear-gradient(135deg, #3498db, #2980b9)';
                     break;
                     
                 case 2: // 只显示皮肤背景，隐藏数据
@@ -1897,7 +2206,6 @@
                     eyeIcon.style.display = 'none';
                     toggleBtn.classList.add('hidden');
                     toggleBtn.title = '只显示皮肤';
-                    toggleBtn.style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
                     break;
             }
         }
@@ -1998,14 +2306,14 @@
                 const moneyPercent = teamTotals.money > 0 ? Math.round((playerMoney / teamTotals.money) * 100) : 0;
 
                 // 生成装备HTML
-                const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
-                    if (equip && equip.equipIcon) {
-                        const equipNameShort = (equip.equipName || '').substring(0, 2);
-                        return `
-                            <div class="img-container equipment-item" style="width: 24px; height: 24px; border-radius: 4px;">
-                                <img src="${equip.equipIcon}" alt="${equip.equipName || ''}" style="width: 100%; height: 100%;" class="equipment-item-img" data-fallback="${equipNameShort}" title="${equip.equipName || ''}">
-                            </div>`;
-                    }
+	                const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
+	                    if (equip && equip.equipIcon) {
+	                        const equipNameShort = (equip.equipName || '').substring(0, 2);
+	                        return `
+	                            <div class="img-container equipment-item">
+	                                <img src="${equip.equipIcon}" alt="${equip.equipName || ''}" class="equipment-item-img" data-fallback="${equipNameShort}" title="${equip.equipName || ''}">
+	                            </div>`;
+	                    }
                     return '<div class="equipment-item"></div>';
                 }).join('');
 
@@ -2016,8 +2324,8 @@
                          data-user-id="${basicInfo.userId || ''}"
                          data-role-id="${basicInfo.roleId || ''}"
                          data-role-name="${basicInfo.roleName || ''}">
-                        <div class="player-main">
-                            <div class="img-container" style="width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;">
+	                        <div class="player-main">
+	                            <div class="img-container hero-avatar-container">
                                 <img src="${heroIcon}" 
                                      alt="${heroName}" 
                                      class="hero-avatar"
@@ -2038,22 +2346,26 @@
                             </div>
                             <div class="player-center">
                                 <div class="player-center-top player-detail">
-                                    <div class="player-center-rating">评分 ${battleStats.gradeGame || '0.0'}</div>
-                                    <div class="player-center-kda">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</div>
+                                    <div class="player-center-rating">
+                                        <span class="metric-value">${battleStats.gradeGame || '0.0'}</span>
+                                    </div>
+                                    <div class="player-center-kda">
+                                        <span class="metric-value">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
+                                    </div>
                                 </div>
-                                <div class="stats-percentage-row player-detail">
-                                    <div class="stat-percentage">
-                                        <span style="font-size: 12px;">💰</span>
-                                        <span class="stat-percentage-value">${moneyPercent}%</span>
-                                    </div>
-                                    <div class="stat-percentage">
-                                        <span style="font-size: 12px;">⚔️</span>
-                                        <span class="stat-percentage-value">${damagePercent}%</span>
-                                    </div>
-                                    <div class="stat-percentage">
-                                        <span style="font-size: 12px;">🛡️</span>
-                                        <span class="stat-percentage-value">${tankedPercent}%</span>
-                                    </div>
+	                                <div class="stats-percentage-row player-detail">
+	                                    <div class="stat-percentage">
+	                                        <span class="stat-percentage-icon">💰</span>
+	                                        <span class="stat-percentage-value">${moneyPercent}%</span>
+	                                    </div>
+	                                    <div class="stat-percentage">
+	                                        <span class="stat-percentage-icon">⚔️</span>
+	                                        <span class="stat-percentage-value">${damagePercent}%</span>
+	                                    </div>
+	                                    <div class="stat-percentage">
+	                                        <span class="stat-percentage-icon">🛡️</span>
+	                                        <span class="stat-percentage-value">${tankedPercent}%</span>
+	                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2201,17 +2513,19 @@
             if (gameResult === true) {
                 body.classList.add('victory');
                 console.log('设置胜利背景色');
-                
+
                 // 直接设置内联样式确保优先级
-                body.style.background = 'linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(46, 204, 113, 0.15) 50%, rgba(39, 174, 96, 0.1) 100%)';
-                body.style.setProperty('background', 'linear-gradient(135deg, rgba(39, 174, 96, 0.25) 0%, rgba(46, 204, 113, 0.15) 50%, rgba(39, 174, 96, 0.1) 100%)', 'important');
+                const victoryBackground = 'radial-gradient(circle at 18% 0%, rgba(52, 199, 89, 0.24), transparent 34%), linear-gradient(180deg, rgba(52, 199, 89, 0.14) 0%, rgba(52, 199, 89, 0.08) 42%, #eef1f4 100%)';
+                body.style.background = victoryBackground;
+                body.style.setProperty('background', victoryBackground, 'important');
             } else {
                 body.classList.add('defeat');
                 console.log('设置失败背景色');
-                
+
                 // 直接设置内联样式确保优先级
-                body.style.background = 'linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(255, 107, 107, 0.15) 50%, rgba(231, 76, 60, 0.1) 100%)';
-                body.style.setProperty('background', 'linear-gradient(135deg, rgba(231, 76, 60, 0.25) 0%, rgba(255, 107, 107, 0.15) 50%, rgba(231, 76, 60, 0.1) 100%)', 'important');
+                const defeatBackground = 'radial-gradient(circle at 18% 0%, rgba(255, 59, 48, 0.23), transparent 34%), linear-gradient(180deg, rgba(255, 59, 48, 0.13) 0%, rgba(255, 59, 48, 0.08) 42%, #eef1f4 100%)';
+                body.style.background = defeatBackground;
+                body.style.setProperty('background', defeatBackground, 'important');
             }
             
             console.log('当前body类名:', body.className);
@@ -2426,6 +2740,10 @@
 
                 if (!battleData) {
                     showToast('数据未加载，无法分析', 'error');
+                    return;
+                }
+                if (!'{{gameSeq}}'){
+                    showToast('战局详情已存在于群聊中', 'error');
                     return;
                 }
 

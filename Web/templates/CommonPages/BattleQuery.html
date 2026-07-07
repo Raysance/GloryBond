@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>单人详情-笙煎守味🤖</title>
     <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script> -->
-    <!-- NOTE: `components/gesture-lock/gesture-lock-trigger.js` is not shipped in this repo.
-         Disabled to avoid 404 errors in production. -->
-    <!-- <script type="module" src="components/gesture-lock/gesture-lock-trigger.js"></script> -->
     <style>
         :root {
             --primary-color: #6c9bd1;
@@ -417,46 +414,6 @@
             justify-content: center;
         }
 
-        .gesture-lock-trigger {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            width: 48px;
-            height: 48px;
-            padding: 0;
-            border-radius: 50%;
-            border: 1px solid rgba(79, 195, 247, 0.4);
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.95), rgba(79, 195, 247, 0.95));
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.35);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-            z-index: 1200;
-            line-height: 0;
-        }
-
-        .gesture-lock-trigger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 40px rgba(79, 195, 247, 0.45);
-        }
-
-        .gesture-lock-trigger:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: 0 6px 20px rgba(79, 195, 247, 0.25);
-        }
-
-        .gesture-lock-trigger svg {
-            width: 22px;
-            height: 22px;
-            fill: currentColor;
-        }
-
-
         .floating-back-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
@@ -804,13 +761,6 @@
             .floating-back-btn svg {
                 width: 20px;
                 height: 20px;
-            }
-
-            .gesture-lock-trigger {
-                top: 14px;
-                right: 14px;
-                width: 44px;
-                height: 44px;
             }
 
         }
@@ -1428,35 +1378,40 @@
             font-weight: 600;
             color: var(--primary-color);
         }
+{% include "CommonPages/ios_glass_theme.css" %}
     </style>
+    <script>
+        (function() {
+            try {
+                const isMobileLike = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+                const memory = navigator.deviceMemory || 8;
+                const cores = navigator.hardwareConcurrency || 8;
+                if (isMobileLike && (memory <= 4 || cores <= 4)) {
+                    document.documentElement.classList.add('ios-lite-effects');
+                }
+            } catch (error) {}
+        })();
+    </script>
 </head>
-<body>
-    <button
-        id="gestureLockTrigger"
-        class="gesture-lock-trigger"
-        type="button"
-        aria-expanded="false"
-        aria-label="打开手势验证面板"
-        data-gesture-lock-trigger
-        data-gesture-timeout="120000"
-        data-gesture-use-toast="true"
-    >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M17 9h-1V7a4 4 0 00-8 0v2H7a2 2 0 00-2 2v9a2 2 0 002 2h10a2 2 0 002-2v-9a2 2 0 00-2-2zm-6.5 0V7a1.5 1.5 0 113 0v2z"/>
-        </svg>
-    </button>
+<body class="ios-glass-page glass-top-fixed">
     <div class="container">
+        <div id="queryTopBar" class="glass-top-bar">
         <!-- 新增: 顶部筛选条件展示 (query_target) -->
         {% if query_target %}
-        <div id="queryTargetSection" class="query-target-section">
-            <div class="query-target-title">
-                <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: var(--primary-color);">
-                    <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"></path>
-                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                </svg>
-                筛选条件
-            </div>
-            <div id="queryTargetContent" class="query-target-content">
+        <div id="queryTargetSection" class="query-target-section glass-meta-card">
+            <button class="glass-meta-header" type="button" onclick="toggleQueryMeta()" aria-expanded="true" aria-controls="queryTargetContent">
+                <span class="query-target-title glass-meta-title">
+                    <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: var(--primary-color);">
+                        <path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"></path>
+                        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                    筛选条件
+                </span>
+                <span class="glass-meta-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
+                </span>
+            </button>
+            <div id="queryTargetContent" class="query-target-content glass-meta-body">
                 <!-- 动态生成筛选标签 -->
                 {% if query_target.PlayerName %}
                 <div class="query-tag"><span class="tag-label">玩家:</span><span class="tag-value">{{ query_target.PlayerName }}</span></div>
@@ -1509,16 +1464,23 @@
 
         <div id="filterControlArea" class="filter-control-area" style="display:none;">
             <div class="filter-header">
-                <div class="today-filter-checkbox">
+                <div class="today-filter-checkbox" title="仅今日战局" aria-label="仅今日战局">
                     <input type="checkbox" id="todayFilterCheckbox">
-                    <label for="todayFilterCheckbox">仅今日战局</label>
+                    <svg class="query-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7 2h2v2h6V2h2v2h3c.55 0 1 .45 1 1v15c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1h3V2zm12 8H5v9h14v-9zM5 8h14V6H5v2zm7 4h5v5h-5v-5z"></path>
+                    </svg>
+                    <label for="todayFilterCheckbox">今日</label>
                 </div>
-                <button id="mapFilterToggle" class="map-filter-toggle">
-                    <span>地图筛选</span>
+                <button id="mapFilterToggle" class="map-filter-toggle" type="button" title="地图筛选" aria-label="地图筛选">
+                    <svg class="query-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.26-.36.48V20.5c0 .31.29.53.59.44L9 19l6 2.1 5.64-1.9c.21-.07.36-.26.36-.48V3.5c0-.31-.29-.53-.5-.5zM10 5.47l4 1.4v11.66l-4-1.4V5.47zm-5 1.1l3-1.01v11.57l-3 1.04V6.57zm14 11.86l-3 1.01V7.87l3-1.04v11.6z"></path>
+                    </svg>
+                    <span>地图</span>
                     <span class="arrow">▼</span>
                 </button>
             </div>
-            <div id="mapFilterBar" class="map-filter-bar"></div>
+        </div>
+        <div id="mapFilterBar" class="map-filter-bar"></div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>
@@ -1739,6 +1701,7 @@
                 textElement.textContent = message;
             }
 
+            overlay.classList.toggle('data-fetch-loading', message.includes('获取数据中'));
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
         }
@@ -1750,6 +1713,7 @@
             }
 
             overlay.classList.remove('show');
+            overlay.classList.remove('data-fetch-loading');
             overlay.setAttribute('aria-hidden', 'true');
         }
 
@@ -1995,9 +1959,41 @@
         }
 
 
+        let glassTopResizeObserver = null;
+
+        function updateGlassTopSpace() {
+            const topBar = document.getElementById('queryTopBar');
+            if (!topBar) return;
+            const rect = topBar.getBoundingClientRect();
+            const extraGap = window.innerWidth <= 768 ? 14 : 18;
+            document.documentElement.style.setProperty('--glass-top-space', `${Math.ceil(rect.top + rect.height + extraGap)}px`);
+        }
+
+        function initGlassTopBar() {
+            const topBar = document.getElementById('queryTopBar');
+            if (!topBar) return;
+            if (glassTopResizeObserver) glassTopResizeObserver.disconnect();
+            if ('ResizeObserver' in window) {
+                glassTopResizeObserver = new ResizeObserver(updateGlassTopSpace);
+                glassTopResizeObserver.observe(topBar);
+            }
+            window.addEventListener('resize', updateGlassTopSpace);
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
+        function toggleQueryMeta() {
+            const card = document.getElementById('queryTargetSection');
+            if (!card) return;
+            const collapsed = card.classList.toggle('collapsed');
+            const button = card.querySelector('.glass-meta-header');
+            if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             setupBackButton();
+            initGlassTopBar();
             initGamingCardLongPress(); // 初始化长按事件
             loadHeroMap(); // 预加载英雄数据
             const filename = '{{filename}}';
@@ -3143,6 +3139,7 @@
                 }
 
                 statusSection.style.display = hasAnyStatus ? 'flex' : 'none';
+                requestAnimationFrame(updateGlassTopSpace);
 
             } catch (error) {
                 console.error('更新状态信息失败:', error);
@@ -3158,6 +3155,7 @@
             
             if (!battles || battles.length === 0) {
                 filterControlArea.style.display = 'none';
+                requestAnimationFrame(updateGlassTopSpace);
                 return;
             }
             
@@ -3187,6 +3185,7 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                requestAnimationFrame(updateGlassTopSpace);
             };
             
             // 设置今日筛选复选框事件
@@ -3207,6 +3206,7 @@
             };
             
             filterControlArea.style.display = 'block';
+            requestAnimationFrame(updateGlassTopSpace);
         }
         
         // 应用所有筛选条件
@@ -3232,14 +3232,14 @@
         function handleImageLoad(imgElement, fallbackText, timeout = 2000) {
             if (!imgElement) return;
 
-            const timer = setTimeout(() => {
+            const timer = imgElement.loading === 'lazy' ? null : setTimeout(() => {
                 if (!imgElement.complete || imgElement.naturalWidth === 0) {
                     switchToFallback(imgElement, fallbackText);
                 }
             }, timeout);
 
             imgElement.onload = () => {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 imgElement.style.display = 'block';
                 if (imgElement.nextElementSibling && imgElement.nextElementSibling.classList.contains('img-placeholder')) {
                     imgElement.nextElementSibling.remove();
@@ -3247,7 +3247,7 @@
             };
 
             imgElement.onerror = () => {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 switchToFallback(imgElement, fallbackText);
             };
         }
@@ -3272,6 +3272,14 @@
             imgElement.parentNode.insertBefore(placeholder, imgElement.nextSibling);
         }
 
+        function scheduleBattleListRender(callback) {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(callback, { timeout: 220 });
+            } else {
+                setTimeout(callback, 16);
+            }
+        }
+
         // 分析比赛数据（支持地图筛选和今日筛选）
         function analyzeBattles(battles, mapFilter = '全部', todayOnly = false) {
             try {
@@ -3292,6 +3300,8 @@
                 const recentBattles = filteredBattles;
                 const battleItemsContainer = document.getElementById('battleItems');
                 battleItemsContainer.innerHTML = '';
+                const renderToken = String(Date.now());
+                battleItemsContainer.dataset.renderToken = renderToken;
                 
                 let totalWins = 0;
                 let totalKills = 0;
@@ -3299,7 +3309,15 @@
                 let totalAssists = 0;
                 let totalMvp = 0;
                 
-                recentBattles.forEach((battle, index) => {
+                let renderIndex = 0;
+                function renderBattleBatch() {
+                    if (battleItemsContainer.dataset.renderToken !== renderToken) return;
+                    const fragment = document.createDocumentFragment();
+                    const batchSize = renderIndex === 0 ? 16 : (window.innerWidth <= 768 ? 8 : 14);
+                    const end = Math.min(renderIndex + batchSize, recentBattles.length);
+                    for (; renderIndex < end; renderIndex++) {
+                    const battle = recentBattles[renderIndex];
+                    const index = renderIndex;
                     // 创建比赛项目
                     const battleItem = document.createElement('div');
                     const gameResult = parseInt(battle.gameresult) || 0;
@@ -3383,7 +3401,7 @@
                     
                     battleItem.innerHTML = `
                         <div class="hero-icon-container" style="position: relative; width: 45px; height: 45px; margin-right: 10px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background-color: #eee;">
-                            <img src="${heroIconUrl}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" data-fallback="${heroName}">
+                            <img src="${heroIconUrl}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" loading="lazy" decoding="async" data-fallback="${heroName}">
                         </div>
                         <div class="battle-info">
                             <div class="battle-header">
@@ -3441,7 +3459,7 @@
                         </button>
                     `;
                     
-                    battleItemsContainer.appendChild(battleItem);
+                    fragment.appendChild(battleItem);
 
                     // 为该项中的所有图片处理加载
                     const itemImgs = battleItem.querySelectorAll('img[data-fallback]');
@@ -3484,14 +3502,21 @@
                         handleAnalyze(battle, this);
                     });
                     
-                    battleItemsContainer.appendChild(battleItem);
+                    fragment.appendChild(battleItem);
                     // 统计数据
                     if (gameResult === 1) totalWins++;
                     totalKills += killcnt;
                     totalDeaths += deadcnt;
                     totalAssists += assistcnt;
                     if (mvpcnt > 0 || losemvp > 0) totalMvp++;
-                });
+                    }
+                    battleItemsContainer.appendChild(fragment);
+                    if (renderIndex < recentBattles.length) {
+                        scheduleBattleListRender(renderBattleBatch);
+                    }
+                }
+
+                renderBattleBatch();
                 // const children = Array.from(battleItemsContainer.children);
                 // battleItemsContainer.innerHTML = ''; // 清空容器
                 // children.reverse().forEach(child => battleItemsContainer.appendChild(child));

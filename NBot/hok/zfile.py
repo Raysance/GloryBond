@@ -4,6 +4,7 @@ from .zstatic import *
 from . import zdynamic as dmc
 import shutil
 import os
+import io
 import requests
 
 def readera(filepath):
@@ -155,3 +156,29 @@ def append_jsonl(filepath: str, item):
         f.write(json.dumps(item, ensure_ascii=False))
         f.write("\n")
     return filepath
+
+
+def first_existing_path(paths):
+    """Return the first existing path from an ordered candidate list."""
+    for path in paths:
+        if path and os.path.exists(path):
+            return path
+    return None
+
+
+def save_pil_image(image, filepath, **save_options):
+    """Persist a Pillow image through the project's IO boundary."""
+    parent = os.path.dirname(str(filepath))
+    if parent:
+        ensure_dir(parent)
+    image.save(filepath, **save_options)
+    return str(filepath)
+
+
+def pil_image_from_bytes(content):
+    """Decode image bytes through the project's IO boundary."""
+    from PIL import Image
+
+    image = Image.open(io.BytesIO(content))
+    image.load()
+    return image

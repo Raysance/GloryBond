@@ -100,6 +100,7 @@ async def show_btlist(request:Request,key: str):
             "filename": jsonpath,
             "time": text_content["time"],
             "caller": text_content["caller"],
+            "key": key,
         }
     )
 @app.get("/person", response_class=HTMLResponse)

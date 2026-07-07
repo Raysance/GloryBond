@@ -390,7 +390,11 @@ async def run_history_power_idle_processor():
             if has_higher_priority_task():
                 log_message("HISTORY_POWER_YIELD: higher priority task found")
                 return
-            candidate = await asyncio.to_thread(find_pending_battle_power_candidate, 7, skipped_gameseqs)
+            candidate = await asyncio.to_thread(
+                find_pending_battle_power_candidate,
+                days=1,
+                excluded_gameseqs=skipped_gameseqs,
+            )
             if not candidate:
                 log_message("HISTORY_POWER_IDLE_EMPTY")
                 return

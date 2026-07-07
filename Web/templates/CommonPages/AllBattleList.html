@@ -126,8 +126,8 @@
 
         .players-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
             margin-bottom: 100px;
         }
 
@@ -139,11 +139,17 @@
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
         }
 
         .player-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+
+        .player-card:focus-visible {
+            outline: 2px solid rgba(59, 130, 246, 0.75);
+            outline-offset: 2px;
         }
 
         .player-card::before {
@@ -161,28 +167,35 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 6px;
         }
 
         .player-name {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             color: #1a1a1a;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .rank-info {
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: 14px;
+            font-size: 12px;
             color: #666;
+            flex: 0 0 auto;
+            white-space: nowrap;
         }
 
         .star-change {
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
         }
 
@@ -197,14 +210,15 @@
         .stats-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
+            gap: 8px;
+            margin-bottom: 6px;
         }
 
         .stat-item {
             display: flex;
             align-items: center;
-            gap: 5px;
-            font-size: 14px;
+            gap: 4px;
+            font-size: 12px;
             color: #666;
         }
 
@@ -216,29 +230,84 @@
         .games-today {
             background: #f1f5f9;
             border-radius: 8px;
-            padding: 10px;
-            margin-top: 15px;
+            padding: 6px 8px;
+            margin-top: 6px;
+            border: 0;
+        }
+
+        .detail-cue {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 6px;
+            padding: 5px 7px;
+            border-radius: 10px;
+            color: rgba(44, 62, 80, 0.62);
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .detail-cue-left {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .detail-cue-list {
+            display: grid;
+            gap: 2px;
+            width: 24px;
+            flex: 0 0 auto;
+        }
+
+        .detail-cue-line {
+            height: 3px;
+            border-radius: 999px;
+            background: currentColor;
+            opacity: 0.48;
+        }
+
+        .detail-cue-line:nth-child(2) {
+            width: 70%;
+        }
+
+        .detail-cue-line:nth-child(3) {
+            width: 86%;
+        }
+
+        .detail-cue-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .detail-cue-arrow {
+            font-size: 15px;
+            line-height: 1;
+            opacity: 0.58;
         }
 
         .games-today-header {
             display: flex;
             align-items: center;
-            gap: 5px;
-            font-size: 14px;
+            gap: 4px;
+            font-size: 12px;
             color: #666;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .win-loss {
             display: flex;
-            gap: 15px;
+            gap: 10px;
         }
 
         .win-loss-item {
             display: flex;
             align-items: center;
-            gap: 5px;
-            font-size: 14px;
+            gap: 4px;
+            font-size: 12px;
         }
 
         .win {
@@ -251,53 +320,105 @@
 
         /* 悬浮提示框样式 */
         .tooltip {
-            position: absolute;
+            position: fixed;
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 249, 250, 0.95));
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.3);
             color: #1a1a1a;
-            padding: 12px;
-            border-radius: 8px;
+            padding: 0;
+            border-radius: 18px;
             font-size: 12px;
-            max-width: 340px;
-            min-width: 300px;
-            z-index: 1000;
+            width: min(420px, calc(100vw - 24px));
+            max-height: min(560px, calc(100vh - 24px));
+            left: 50%;
+            top: 50%;
+            overflow: hidden;
+            overscroll-behavior: contain;
+            z-index: 2100;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.3s ease;
+            transform: translate3d(-50%, calc(-50% + 12px), 0) scale(0.96);
+            transform-origin: center;
+            transition:
+                opacity 0.18s ease,
+                transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06);
             line-height: 1.3;
         }
 
         .tooltip.show {
             opacity: 1;
+            pointer-events: auto;
+            transform: translate3d(-50%, -50%, 0) scale(1);
         }
 
         .tooltip::before {
-            content: '';
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            border: 5px solid transparent;
-            border-top-color: rgba(255, 255, 255, 0.95);
+            display: none;
         }
 
         .tooltip-header {
             font-weight: 600;
             font-size: 13px;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
+            margin: 0;
+            padding: 12px 46px 10px 14px;
             border-bottom: 1px solid rgba(0, 0, 0, 0.1);
             color: #374151;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.62);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+        }
+
+        .tooltip-body {
+            max-height: calc(min(560px, 100vh - 24px) - 46px);
+            overflow-y: auto;
+            padding: 8px 10px 10px;
+        }
+
+        .tooltip-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 30px;
+            height: 30px;
+            border: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.70);
+            color: rgba(44, 62, 80, 0.72);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            line-height: 1;
+            z-index: 3;
         }
 
         .game-detail {
-            margin-bottom: 6px;
-            padding: 6px 8px;
+            display: block;
+            color: inherit;
+            text-decoration: none;
+            margin-bottom: 4px;
+            padding: 5px 7px;
             background: rgba(255, 255, 255, 0.7);
-            border-radius: 6px;
+            border-radius: 10px;
             transition: all 0.2s ease;
+        }
+
+        .game-detail[href] {
+            cursor: pointer;
+        }
+
+        .game-detail[href]:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.86);
+        }
+
+        .game-detail.disabled {
+            cursor: default;
+            opacity: 0.72;
         }
 
         .game-detail:last-child {
@@ -379,6 +500,12 @@
             gap: 8px;
         }
 
+        .game-open-indicator {
+            font-size: 14px;
+            color: rgba(44, 62, 80, 0.42);
+            margin-left: 4px;
+        }
+
         .game-kda {
             font-family: 'Courier New', monospace;
             font-weight: 500;
@@ -398,8 +525,8 @@
         .games-today {
             background: #f1f5f9;
             border-radius: 8px;
-            padding: 10px;
-            margin-top: 15px;
+            padding: 6px 8px;
+            margin-top: 6px;
             position: relative;
             cursor: pointer;
         }
@@ -450,7 +577,7 @@
         .filter-content {
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 0 16px 16px;
             max-width: 90vw;
             max-height: 80vh;
             overflow-y: auto;
@@ -461,7 +588,19 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
+        }
+
+        .filter-content .filter-header {
+            margin: 0 -16px 12px;
+            padding: 12px 14px;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.80);
+            backdrop-filter: blur(18px) saturate(180%);
+            -webkit-backdrop-filter: blur(18px) saturate(180%);
+            border-bottom: 1px solid rgba(44, 62, 80, 0.08);
         }
 
         .filter-title {
@@ -472,22 +611,28 @@
         .close-button {
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 20px;
             cursor: pointer;
             color: #666;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .filter-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
         }
 
         .filter-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px;
+            gap: 8px;
+            padding: 8px;
             border: 2px solid #e5e7eb;
             border-radius: 8px;
             cursor: pointer;
@@ -630,26 +775,494 @@
                 font-size: 12px;
             }
         }
+{% include "CommonPages/ios_glass_theme.css" %}
+
+        body.ios-glass-page #allTopBar {
+            left: 16px;
+            grid-template-columns: minmax(180px, 1fr) auto;
+            grid-template-areas:
+                "meta filter"
+                "body body";
+            max-width: 1120px;
+        }
+
+        body.ios-glass-page #allSummarySection.glass-meta-card {
+            display: contents;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-header,
+        body.ios-glass-page #allTopBar .filter-header,
+        body.ios-glass-page #allTopBar .map-filter-toggle {
+            height: 44px;
+            min-height: 44px;
+            box-sizing: border-box;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-header {
+            padding: 0 8px 0 14px;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-title {
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-title svg,
+        body.ios-glass-page #allTopBar .all-control-icon {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            flex: 0 0 auto;
+            opacity: 0.72;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-toggle {
+            width: 28px;
+            height: 28px;
+        }
+
+        body.ios-glass-page #allTopBar .filter-control-area {
+            display: block;
+            min-width: 0;
+        }
+
+        body.ios-glass-page #allTopBar .filter-header {
+            gap: 8px;
+            margin: 0;
+        }
+
+        body.ios-glass-page #allTopBar .map-filter-toggle {
+            width: 46px;
+            border-radius: 22px;
+            padding: 0;
+            gap: 2px;
+            color: var(--dark-color, var(--ios-glass-text));
+        }
+
+        body.ios-glass-page #allTopBar .map-filter-toggle > span:not(.arrow) {
+            display: none;
+        }
+
+        body.ios-glass-page #allTopBar .glass-meta-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px 12px 12px;
+        }
+
+        body.ios-glass-page #allSummarySection.collapsed .glass-meta-body {
+            display: none;
+        }
+
+        body.ios-glass-page .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            align-items: stretch;
+            justify-content: initial;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+
+        body.ios-glass-page .overview-item {
+            min-width: 0;
+            min-height: 48px;
+            padding: 6px 8px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.30);
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
+            display: grid;
+            grid-template-columns: 22px minmax(0, 1fr);
+            grid-template-areas:
+                "icon label"
+                "icon value";
+            align-items: center;
+            column-gap: 6px;
+            row-gap: 0;
+        }
+
+        body.ios-glass-page .overview-label {
+            grid-area: label;
+            font-size: 0.68rem;
+            line-height: 1;
+            color: rgba(44, 62, 80, 0.56);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        body.ios-glass-page .overview-value {
+            grid-area: value;
+            font-size: 0.94rem;
+            line-height: 1.05;
+            font-weight: 800;
+            color: rgba(31, 35, 41, 0.88);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        body.ios-glass-page .overview-value.positive {
+            color: #22c55e;
+        }
+
+        body.ios-glass-page .overview-value.negative {
+            color: #ef4444;
+        }
+
+        body.ios-glass-page .overview-icon {
+            grid-area: icon;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.38);
+            color: rgba(44, 62, 80, 0.62);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.68);
+        }
+
+        body.ios-glass-page .overview-icon svg {
+            width: 13px;
+            height: 13px;
+            fill: currentColor;
+        }
+
+        body.ios-glass-page .sort-section {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        body.ios-glass-page .sort-label {
+            color: rgba(44, 62, 80, 0.58);
+            font-size: 0.82rem;
+        }
+
+        body.ios-glass-page .sort-options {
+            gap: 6px;
+            flex: 1;
+            justify-content: flex-end;
+        }
+
+        body.ios-glass-page .sort-option {
+            min-height: 30px;
+            display: inline-flex;
+            align-items: center;
+            border-radius: 15px;
+            padding: 0 10px;
+            font-size: 0.78rem;
+            background: rgba(255, 255, 255, 0.30);
+            border: 1px solid rgba(255, 255, 255, 0.48);
+            color: rgba(44, 62, 80, 0.70);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
+        }
+
+        body.ios-glass-page .sort-option:hover,
+        body.ios-glass-page .sort-option.active,
+        body.ios-glass-page .sort-option.active:hover {
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.26)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.92), transparent 48%);
+            border-color: rgba(255, 255, 255, 0.70);
+            color: var(--primary-color, #3b82f6);
+            transform: translateY(-1px);
+        }
+
+        body.ios-glass-page .player-card {
+            border-radius: 16px;
+            padding: 9px 10px;
+            background:
+                linear-gradient(to left, var(--bg-color, rgba(248, 249, 250, 0.34)) 0%, rgba(255, 255, 255, 0.52) 42%, rgba(255, 255, 255, 0.28) 100%),
+                var(--ios-glass-bg);
+            border: 1px solid rgba(255, 255, 255, 0.58);
+            box-shadow:
+                0 10px 24px rgba(44, 62, 80, 0.10),
+                inset 0 1px 1px rgba(255, 255, 255, 0.70);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            content-visibility: auto;
+            contain-intrinsic-size: 108px;
+        }
+
+        body.ios-glass-page .player-card:hover,
+        body.ios-glass-page .player-card.active {
+            border-color: rgba(255, 255, 255, 0.72);
+            box-shadow:
+                0 12px 26px rgba(44, 62, 80, 0.14),
+                inset 0 1px 1px rgba(255, 255, 255, 0.78);
+        }
+
+        body.ios-glass-page .card-header {
+            margin-bottom: 5px;
+        }
+
+        body.ios-glass-page .player-name {
+            font-size: 0.96rem;
+            line-height: 1.15;
+        }
+
+        body.ios-glass-page .rank-info,
+        body.ios-glass-page .stat-item,
+        body.ios-glass-page .star-change,
+        body.ios-glass-page .games-today-header,
+        body.ios-glass-page .win-loss-item {
+            font-size: 0.76rem;
+            line-height: 1.1;
+        }
+
+        body.ios-glass-page .icon {
+            width: 13px;
+            height: 13px;
+        }
+
+        body.ios-glass-page .player-card::before {
+            display: none;
+        }
+
+        body.ios-glass-page .player-name {
+            color: rgba(31, 35, 41, 0.92);
+        }
+
+        body.ios-glass-page .rank-info,
+        body.ios-glass-page .stat-item,
+        body.ios-glass-page .games-today-header {
+            color: rgba(44, 62, 80, 0.64);
+        }
+
+        body.ios-glass-page .games-today {
+            background: rgba(255, 255, 255, 0.18);
+            border: 0;
+            border-radius: 12px;
+            padding: 5px 7px;
+            margin-top: 5px;
+            box-shadow: none;
+            transition:
+                background 0.18s ease,
+                transform 0.18s ease,
+                box-shadow 0.18s ease;
+        }
+
+        body.ios-glass-page .games-today:hover,
+        body.ios-glass-page .player-card.active .games-today {
+            background: rgba(255, 255, 255, 0.44);
+            box-shadow:
+                0 8px 18px rgba(44, 62, 80, 0.10),
+                inset 0 1px 1px rgba(255, 255, 255, 0.70);
+        }
+
+        body.ios-glass-page .detail-cue {
+            margin-top: 5px;
+            padding: 4px 6px;
+            background: rgba(255, 255, 255, 0.22);
+            border: 0;
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.56);
+            font-size: 0.72rem;
+        }
+
+        body.ios-glass-page .player-card:hover .detail-cue,
+        body.ios-glass-page .player-card.active .detail-cue {
+            color: var(--primary-color, #3b82f6);
+            background: rgba(255, 255, 255, 0.42);
+        }
+
+        body.ios-glass-page .tooltip,
+        body.ios-glass-page .filter-content {
+            background: var(--ios-glass-bg);
+            border: 1px solid var(--ios-glass-border);
+            border-radius: 18px;
+            box-shadow: var(--ios-glass-shadow-strong);
+            backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+        }
+
+        body.ios-glass-page .tooltip {
+            display: flex;
+            flex-direction: column;
+        }
+
+        body.ios-glass-page .tooltip-body {
+            scrollbar-width: thin;
+        }
+
+        body.ios-glass-page .filter-panel {
+            background: rgba(31, 35, 41, 0.28);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        body.ios-glass-page .filter-content .filter-header {
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.42)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.86), transparent 48%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.58);
+        }
+
+        body.ios-glass-page .close-button,
+        body.ios-glass-page .tooltip-close {
+            background: rgba(255, 255, 255, 0.58);
+            border: 1px solid rgba(255, 255, 255, 0.56);
+            box-shadow:
+                0 6px 14px rgba(44, 62, 80, 0.10),
+                inset 0 1px 1px rgba(255, 255, 255, 0.76);
+        }
+
+        body.ios-glass-page .filter-item {
+            border: 1px solid rgba(255, 255, 255, 0.46);
+            background: rgba(255, 255, 255, 0.22);
+            border-radius: 16px;
+        }
+
+        body.ios-glass-page .filter-item:hover,
+        body.ios-glass-page .filter-item.selected {
+            border-color: rgba(255, 255, 255, 0.72);
+            background: rgba(255, 255, 255, 0.44);
+        }
+
+        body.ios-glass-page .filter-checkbox.checked {
+            background: var(--primary-color, #3b82f6);
+            border-color: var(--primary-color, #3b82f6);
+        }
+
+        body.ios-glass-page .list-state-message {
+            grid-column: 1 / -1;
+            justify-self: center;
+            min-width: min(320px, 92vw);
+            padding: 24px;
+            text-align: center;
+            color: rgba(44, 62, 80, 0.68);
+            background: var(--ios-glass-bg);
+            border: 1px solid var(--ios-glass-border);
+            border-radius: 22px;
+            box-shadow: var(--ios-glass-shadow);
+            backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+        }
+
+        body.ios-glass-page .list-state-spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 16px;
+            border: 3px solid rgba(255, 255, 255, 0.54);
+            border-top-color: var(--primary-color, #3b82f6);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @media (max-width: 768px) {
+            body.ios-glass-page #allTopBar {
+                left: 10px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-header,
+            body.ios-glass-page #allTopBar .filter-header,
+            body.ios-glass-page #allTopBar .map-filter-toggle {
+                height: 36px;
+                min-height: 36px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-header {
+                padding: 0 6px 0 10px;
+                gap: 6px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-title {
+                font-size: 0.78rem;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-toggle {
+                width: 24px;
+                height: 24px;
+            }
+
+            body.ios-glass-page #allTopBar .map-filter-toggle {
+                width: 38px;
+                border-radius: 18px;
+            }
+
+            body.ios-glass-page #allTopBar .glass-meta-title svg,
+            body.ios-glass-page #allTopBar .all-control-icon {
+                width: 15px;
+                height: 15px;
+            }
+
+            body.ios-glass-page .overview-item {
+                min-width: 76px;
+                padding: 6px 7px;
+            }
+
+            body.ios-glass-page .stats-overview {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 6px;
+            }
+
+            body.ios-glass-page .players-grid {
+                gap: 8px;
+            }
+
+            body.ios-glass-page .player-card {
+                padding: 8px 9px;
+                border-radius: 15px;
+            }
+
+            body.ios-glass-page .filter-content {
+                padding: 0 12px 12px;
+            }
+
+            body.ios-glass-page .filter-content .filter-header {
+                margin: 0 -12px 10px;
+                padding: 10px 12px;
+            }
+
+            body.ios-glass-page .sort-label {
+                width: auto;
+                text-align: left;
+            }
+        }
     </style>
 </head>
-<body>
-    <div class="header">
-        <h1>
-            <svg class="icon" viewBox="0 0 24 24">
-                <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
-            </svg>
-            排行数据一览
-        </h1>
-        <div class="stats-overview" id="statsOverview">
-            <!-- 统计信息将通过 JavaScript 动态生成 -->
+<body class="ios-glass-page glass-top-fixed">
+    <div id="allTopBar" class="glass-top-bar">
+        <div id="allSummarySection" class="all-summary-section glass-meta-card">
+            <button class="glass-meta-header" type="button" onclick="toggleAllMeta()" aria-expanded="true" aria-controls="allSummaryBody">
+                <span class="glass-meta-title">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"></path>
+                    </svg>
+                    排行数据一览
+                </span>
+                <span class="glass-meta-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
+                </span>
+            </button>
+            <div id="allSummaryBody" class="glass-meta-body all-summary-body">
+                <div class="stats-overview" id="statsOverview">
+                    <!-- 统计信息将通过 JavaScript 动态生成 -->
+                </div>
+                <div class="sort-section">
+                    <span class="sort-label">排序方式</span>
+                    <div class="sort-options">
+                        <div class="sort-option active" data-sort="star-change" onclick="changeSortMethod('star-change')">上星</div>
+                        <div class="sort-option" data-sort="rank-star" onclick="changeSortMethod('rank-star')">段位</div>
+                        <div class="sort-option" data-sort="score" onclick="changeSortMethod('score')">评分</div>
+                        <div class="sort-option" data-sort="games" onclick="changeSortMethod('games')">场次</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="sort-section">
-            <span class="sort-label">排序方式：</span>
-            <div class="sort-options">
-                <div class="sort-option active" data-sort="star-change" onclick="changeSortMethod('star-change')">按上星</div>
-                <div class="sort-option" data-sort="rank-star" onclick="changeSortMethod('rank-star')">按段位</div>
-                <div class="sort-option" data-sort="score" onclick="changeSortMethod('score')">按评分</div>
-                <div class="sort-option" data-sort="games" onclick="changeSortMethod('games')">按场次</div>
+        <div class="filter-control-area" style="display:block;">
+            <div class="filter-header">
+                <button class="map-filter-toggle" type="button" onclick="openFilterPanel()" title="玩家筛选" aria-label="玩家筛选">
+                    <svg class="all-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M14 12v7.88c.04.3-.06.62-.29.83-.39.39-1.02.39-1.41 0l-2.01-2.01c-.23-.23-.33-.54-.29-.83V12h-.03L4.21 4.62c-.34-.43-.26-1.06.17-1.4C4.57 3.08 4.78 3 5 3h14c.22 0 .43.08.62.22.43.34.51.97.17 1.4L14.03 12H14z"></path>
+                    </svg>
+                    <span>筛选</span>
+                </button>
             </div>
         </div>
     </div>
@@ -658,13 +1271,6 @@
         <div class="players-grid" id="playersGrid">
             <!-- 玩家卡片将通过 JavaScript 动态生成 -->
         </div>
-    </div>
-
-    <!-- 悬浮球 -->
-    <div class="floating-button" onclick="openFilterPanel()">
-        <svg viewBox="0 0 24 24">
-            <path d="M14,12V19.88C14.04,20.18 13.94,20.5 13.71,20.71C13.32,21.1 12.69,21.1 12.3,20.71L10.29,18.7C10.06,18.47 9.96,18.16 10,17.87V12H9.97L4.21,4.62C3.87,4.19 3.95,3.56 4.38,3.22C4.57,3.08 4.78,3 5,3V3H19V3C19.22,3 19.43,3.08 19.62,3.22C20.05,3.56 20.13,4.19 19.79,4.62L14.03,12H14Z"/>
-        </svg>
     </div>
 
     <!-- 筛选面板 -->
@@ -689,6 +1295,37 @@
         let playersData = [];
         let selectedPlayers = new Set();
         let currentSortMethod = 'star-change'; // 默认按上星排序
+        let glassTopResizeObserver = null;
+        let activeTooltipTrigger = null;
+
+        function updateGlassTopSpace() {
+            const topBar = document.getElementById('allTopBar');
+            if (!topBar) return;
+            const rect = topBar.getBoundingClientRect();
+            const extraGap = window.innerWidth <= 768 ? 14 : 18;
+            document.documentElement.style.setProperty('--glass-top-space', `${Math.ceil(rect.top + rect.height + extraGap)}px`);
+        }
+
+        function initGlassTopBar() {
+            const topBar = document.getElementById('allTopBar');
+            if (!topBar) return;
+            if (glassTopResizeObserver) glassTopResizeObserver.disconnect();
+            if ('ResizeObserver' in window) {
+                glassTopResizeObserver = new ResizeObserver(updateGlassTopSpace);
+                glassTopResizeObserver.observe(topBar);
+            }
+            window.addEventListener('resize', updateGlassTopSpace);
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
+        function toggleAllMeta() {
+            const card = document.getElementById('allSummarySection');
+            if (!card) return;
+            const collapsed = card.classList.toggle('collapsed');
+            const button = card.querySelector('.glass-meta-header');
+            if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            requestAnimationFrame(updateGlassTopSpace);
+        }
         
         // 加载玩家数据
         async function loadPlayersData() {
@@ -720,7 +1357,7 @@
         function showErrorMessage(message) {
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
+                <div class="list-state-message">
                     <svg style="width: 48px; height: 48px; margin-bottom: 16px; fill: #ef4444;" viewBox="0 0 24 24">
                         <path d="M12,2L13.09,8.26L22,9L17,14L18.18,21L12,17.77L5.82,21L7,14L2,9L8.91,8.26L12,2Z"/>
                     </svg>
@@ -833,39 +1470,76 @@
             
             statsOverview.innerHTML = `
                 <div class="overview-item">
-                    <div class="overview-label">参与玩家</div>
+                    <span class="overview-icon"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v1.5c0 .28.22.5.5.5h15c.28 0 .5-.22.5-.5V18c0-2.66-5.33-4-8-4z"></path></svg></span>
+                    <div class="overview-label">玩家</div>
                     <div class="overview-value">${totalPlayers}</div>
                 </div>
                 <div class="overview-item">
-                    <div class="overview-label">今日总场次</div>
+                    <span class="overview-icon"><svg viewBox="0 0 24 24"><path d="M7 2h2v2h6V2h2v2h3c.55 0 1 .45 1 1v15c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1h3V2zm12 8H5v9h14v-9zM5 8h14V6H5v2z"></path></svg></span>
+                    <div class="overview-label">场次</div>
                     <div class="overview-value">${totalTodayGames}</div>
                 </div>
                 <div class="overview-item">
-                    <div class="overview-label">今日胜率</div>
-                    <div class="overview-value" style="color: ${winRate >= 50 ? '#22c55e' : '#ef4444'}">${winRate}%</div>
+                    <span class="overview-icon"><svg viewBox="0 0 24 24"><path d="M21 7L9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z"></path></svg></span>
+                    <div class="overview-label">胜率</div>
+                    <div class="overview-value ${winRate >= 50 ? 'positive' : 'negative'}">${winRate}%</div>
                 </div>
                 <div class="overview-item">
-                    <div class="overview-label">总星星变化</div>
-                    <div class="overview-value" style="color: ${totalStarUp >= 0 ? '#22c55e' : '#ef4444'}">${totalStarUp >= 0 ? '+' : ''}${totalStarUp}</div>
+                    <span class="overview-icon"><svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9l-5 5 1.18 7L12 17.77 5.82 21 7 14 2 9l6.91-.74L12 2z"></path></svg></span>
+                    <div class="overview-label">星变</div>
+                    <div class="overview-value ${totalStarUp >= 0 ? 'positive' : 'negative'}">${totalStarUp >= 0 ? '+' : ''}${totalStarUp}</div>
                 </div>
                 <div class="overview-item">
-                    <div class="overview-label">总巅峰分变化</div>
-                    <div class="overview-value" style="color: ${totalPeakUp >= 0 ? '#22c55e' : '#ef4444'}">${totalPeakUp >= 0 ? '+' : ''}${totalPeakUp}</div>
+                    <span class="overview-icon"><svg viewBox="0 0 24 24"><path d="M3 20h18L13.5 4l-4.2 8.4L7 9 3 20zm10.2-4.6 2.1 2.6H8.1l1.3-3.3 1.9 2.3 1.9-1.6z"></path></svg></span>
+                    <div class="overview-label">巅峰</div>
+                    <div class="overview-value ${totalPeakUp >= 0 ? 'positive' : 'negative'}">${totalPeakUp >= 0 ? '+' : ''}${totalPeakUp}</div>
                 </div>
                 <div class="overview-item">
-                    <div class="overview-label">平均评分</div>
+                    <span class="overview-icon"><svg viewBox="0 0 24 24"><path d="M5 19h14v2H5v-2zm2-8h3v6H7v-6zm5-6h3v12h-3V5zm5 3h3v9h-3V8z"></path></svg></span>
+                    <div class="overview-label">均分</div>
                     <div class="overview-value">${finalAvgScore}</div>
                 </div>
             `;
+            requestAnimationFrame(updateGlassTopSpace);
         }
 
         // 格式化游戏详情悬浮框内容
+        function getBattleJumpUrl(player, game) {
+            const params = game && game.Params ? game.Params : {};
+            const gameSvr = params.gameSvrId;
+            const gameSeq = params.gameseq || game.GameSeq;
+            const relaySvr = params.relaySvrId;
+            const battleType = params.pvptype || game.MapType;
+            const targetRoleId = player && (player.roleid || player.roleId || player.RoleId);
+            if (!gameSvr || !gameSeq || !relaySvr || !battleType || !targetRoleId) return '';
+
+            const query = new URLSearchParams({
+                gameSvr: String(gameSvr),
+                gameSeq: String(gameSeq),
+                targetRoleId: String(targetRoleId),
+                relaySvr: String(relaySvr),
+                battleType: String(battleType),
+                key: '{{ key }}'
+            });
+            return `/jump-battle?${query.toString()}`;
+        }
+
         function getGameDetailsTooltip(player) {
             if (!player || !player.details || player.details.length === 0) {
-                return '<div class="tooltip-header">暂无详细战绩</div>';
+                return `
+                    <button class="tooltip-close" type="button" aria-label="关闭" onclick="hideTooltip()">×</button>
+                    <div class="tooltip-header">今日战绩详情</div>
+                    <div class="tooltip-body">
+                        <div class="game-detail">暂无详细战绩</div>
+                    </div>
+                `;
             }
             
-            const header = `<div class="tooltip-header">📊 今日战绩详情 (${player.details.length}场)</div>`;
+            const header = `
+                <button class="tooltip-close" type="button" aria-label="关闭" onclick="hideTooltip()">×</button>
+                <div class="tooltip-header">${player.nickname || ''} 今日战绩 (${player.details.length}场)</div>
+                <div class="tooltip-body">
+            `;
             
             const gamesList = player.details.map(game => {
                 const isWin = game.Result === '胜利';
@@ -875,9 +1549,13 @@
                 const duration = Math.floor(game.Duration_Second / 60);
                 const extras = game.Others ? game.Others.trim() : '';
                 const gameMode = game.MapName || '经典模式';
+                const jumpUrl = getBattleJumpUrl(player, game);
+                const tagName = jumpUrl ? 'a' : 'div';
+                const linkAttrs = jumpUrl ? `href="${jumpUrl}"` : '';
+                const disabledClass = jumpUrl ? '' : ' disabled';
                 
                 return `
-                    <div class="game-detail ${resultClass}">
+                    <${tagName} class="game-detail ${resultClass}${disabledClass}" ${linkAttrs}>
                         <div class="game-meta">
                             <div class="game-left">
                                 <div class="game-mode">${gameMode}</div>
@@ -888,20 +1566,21 @@
                                 <div class="game-score">${game.GameGrade}分</div>
                                 <div>${duration}分钟</div>
                             </div>
+                            ${jumpUrl ? '<span class="game-open-indicator">›</span>' : ''}
                         </div>
                         <div class="game-stats">
                             <span class="game-kda">${kda}</span>
                             ${extras ? `<span class="game-extras">${extras}</span>` : ''}
                         </div>
-                    </div>
+                    </${tagName}>
                 `;
             }).join('');
             
-            return header + gamesList;
+            return header + gamesList + '</div>';
         }
 
-        // 显示悬浮提示框
-        function showTooltip(event, content) {
+        // 显示战绩详情小窗
+        function showTooltip(trigger, content) {
             let tooltip = document.getElementById('gameTooltip');
             if (!tooltip) {
                 tooltip = document.createElement('div');
@@ -909,51 +1588,49 @@
                 tooltip.className = 'tooltip';
                 document.body.appendChild(tooltip);
             }
-            
+
+            if (activeTooltipTrigger && activeTooltipTrigger !== trigger) {
+                activeTooltipTrigger.classList.remove('active');
+                activeTooltipTrigger.setAttribute('aria-expanded', 'false');
+            }
+
+            activeTooltipTrigger = trigger;
+            activeTooltipTrigger.classList.add('active');
+            activeTooltipTrigger.setAttribute('aria-expanded', 'true');
             tooltip.innerHTML = content;
-            tooltip.className = 'tooltip show';
-            
-            // 获取鼠标相对于页面的位置
-            const mouseX = event.pageX;
-            const mouseY = event.pageY;
-            
-            // 设置初始位置（在鼠标上方10px）
-            tooltip.style.left = mouseX + 'px';
-            tooltip.style.top = (mouseY - 10) + 'px';
-            tooltip.style.transform = 'translate(-50%, -100%)';
-            
-            // 强制重新计算布局
-            tooltip.offsetHeight;
-            
-            // 检查是否超出视窗边界并调整位置
-            const tooltipRect = tooltip.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            
-            // 水平方向调整
-            if (tooltipRect.left < 10) {
-                tooltip.style.transform = 'translate(0, -100%)';
-            } else if (tooltipRect.right > viewportWidth - 10) {
-                tooltip.style.transform = 'translate(-100%, -100%)';
-            }
-            
-            // 垂直方向调整（如果上方空间不足，显示在鼠标下方）
-            if (tooltipRect.top < 10) {
-                tooltip.style.top = (mouseY + 10) + 'px';
-                tooltip.style.transform = tooltip.style.transform.replace('-100%', '0');
-            }
+            tooltip.className = 'tooltip';
+            requestAnimationFrame(() => {
+                tooltip.classList.add('show');
+            });
         }
 
-        // 隐藏悬浮提示框
+        function toggleGameDetails(event, player) {
+            event.stopPropagation();
+            const trigger = event.currentTarget;
+            const tooltip = document.getElementById('gameTooltip');
+            if (activeTooltipTrigger === trigger && tooltip && tooltip.classList.contains('show')) {
+                hideTooltip();
+                return;
+            }
+            showTooltip(trigger, getGameDetailsTooltip(player));
+        }
+
+        // 隐藏战绩详情小窗
         function hideTooltip() {
             const tooltip = document.getElementById('gameTooltip');
             if (tooltip) {
-                tooltip.className = 'tooltip';
+                tooltip.classList.remove('show');
+            }
+            if (activeTooltipTrigger) {
+                activeTooltipTrigger.classList.remove('active');
+                activeTooltipTrigger.setAttribute('aria-expanded', 'false');
+                activeTooltipTrigger = null;
             }
         }
         // 切换排序方法
         function changeSortMethod(method) {
             currentSortMethod = method;
+            hideTooltip();
             
             // 更新按钮状态
             document.querySelectorAll('.sort-option').forEach(option => {
@@ -994,6 +1671,7 @@
             }
         }
         function renderPlayerCards() {
+            hideTooltip();
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = '';
 
@@ -1005,15 +1683,11 @@
                 })
                 .sort((a, b) => {
                     return getSortValue(b, currentSortMethod) - getSortValue(a, currentSortMethod);
-                });
+            });
 
             visiblePlayers.forEach((player, index) => {
-                console.log('处理玩家:', player.nickname, 'ID:', player.id, 'ID类型:', typeof player.id);
-                
                 // 直接使用索引作为数据标识符，更可靠
                 const dataIndex = index;
-                console.log('使用的dataIndex:', dataIndex);
-                
                 const bgColor = getBackgroundColor(player.star_up, player.peak_up);
                 const starChange = getStarChangeDisplay(player.star_up, player.peak_up);
                 
@@ -1026,7 +1700,7 @@
                 const totalLosses = totalGames - totalWins;
 
                 const cardHTML = `
-                    <div class="player-card" style="--bg-color: ${bgColor}">
+                    <div class="player-card" style="--bg-color: ${bgColor}" data-index="${dataIndex}" role="button" tabindex="0" aria-expanded="false" aria-label="${player.nickname} 今日战绩详情">
                         <div class="card-header">
                             <div class="player-name">${player.nickname}</div>
                             <div class="rank-info">
@@ -1049,7 +1723,7 @@
                             </div>
                         </div>
                         
-                        <div class="games-today" data-index="${dataIndex}">
+                        <div class="games-today">
                             <div class="games-today-header">
                                 <svg class="icon" viewBox="0 0 24 24">
                                     <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
@@ -1071,6 +1745,17 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="detail-cue" aria-hidden="true">
+                            <span class="detail-cue-left">
+                                <span class="detail-cue-list">
+                                    <span class="detail-cue-line"></span>
+                                    <span class="detail-cue-line"></span>
+                                    <span class="detail-cue-line"></span>
+                                </span>
+                                <span class="detail-cue-text">战绩</span>
+                            </span>
+                            <span class="detail-cue-arrow">›</span>
+                        </div>
                     </div>
                 `;
                 
@@ -1079,26 +1764,19 @@
 
             // 添加事件监听器
             setTimeout(() => {
-                console.log('开始绑定事件监听器，visiblePlayers数量:', visiblePlayers.length);
-                document.querySelectorAll('.games-today').forEach(element => {
-                    console.log('处理元素，dataset:', element.dataset);
+                document.querySelectorAll('.player-card[data-index]').forEach(element => {
                     const indexStr = element.dataset.index;
-                    console.log('原始index字符串:', indexStr, '类型:', typeof indexStr);
                     const index = parseInt(indexStr);
-                    console.log('解析后的index:', index, '是否为NaN:', isNaN(index));
-                    
+
                     if (!isNaN(index) && index >= 0 && index < visiblePlayers.length) {
                         const player = visiblePlayers[index];
-                        console.log('找到玩家数据:', player.nickname);
-                        
-                        element.addEventListener('mouseenter', (event) => {
-                            console.log('鼠标进入，玩家数据:', player.nickname, player.details);
-                            const tooltipContent = getGameDetailsTooltip(player);
-                            console.log('悬浮框内容:', tooltipContent);
-                            showTooltip(event, tooltipContent);
+                        element.addEventListener('click', (event) => toggleGameDetails(event, player));
+                        element.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                toggleGameDetails(event, player);
+                            }
                         });
-                        
-                        element.addEventListener('mouseleave', hideTooltip);
                     } else {
                         console.warn('未找到玩家数据，index:', index, '原始字符串:', indexStr);
                     }
@@ -1169,11 +1847,23 @@
 
         // 页面加载完成后加载数据并初始化
         document.addEventListener('DOMContentLoaded', () => {
+            initGlassTopBar();
+            document.addEventListener('click', (event) => {
+                const tooltip = document.getElementById('gameTooltip');
+                if (event.target.closest('.player-card') || (tooltip && tooltip.contains(event.target))) return;
+                hideTooltip();
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') hideTooltip();
+            });
+            window.addEventListener('resize', () => {
+                updateGlassTopSpace();
+            });
             // 显示加载提示
             const playersGrid = document.getElementById('playersGrid');
             playersGrid.innerHTML = `
-                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
-                    <div style="width: 40px; height: 40px; margin: 0 auto 16px; border: 3px solid #e5e7eb; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div class="list-state-message">
+                    <div class="list-state-spinner"></div>
                     <p style="font-size: 16px;">正在加载数据...</p>
                 </div>
             `;

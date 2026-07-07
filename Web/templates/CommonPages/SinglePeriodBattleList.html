@@ -1394,22 +1394,56 @@
                 padding: 10px 12px;
             }
         }
+{% include "CommonPages/ios_glass_theme.css" %}
     </style>
+    <script>
+        (function() {
+            try {
+                const isMobileLike = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+                const memory = navigator.deviceMemory || 8;
+                const cores = navigator.hardwareConcurrency || 8;
+                if (isMobileLike && (memory <= 4 || cores <= 4)) {
+                    document.documentElement.classList.add('ios-lite-effects');
+                }
+            } catch (error) {}
+        })();
+    </script>
 </head>
-<body>
+<body class="ios-glass-page glass-top-fixed">
     <div class="container">
+        <div id="periodTopBar" class="glass-top-bar">
         <!-- 玩家头部与原 SingleBattleList 完全一致 -->
-        <div class="player-profile">
-            <div class="player-avatar-column">
-                <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
-                <button id="heroStatsToggle" class="hero-stats-toggle" type="button" style="margin-top:10px;">
-                    英雄统计 <span class="arrow">▼</span>
-                </button>
-            </div>
-            <div class="player-info">
-                <h2 id="playerName" class="player-name">未知玩家</h2>
-                <span id="playerTitle" class="player-title">无称号</span>
-                <div id="playerStats" class="player-stats"></div>
+        <div id="periodMetaCard" class="player-profile glass-meta-card">
+            <button class="glass-meta-header" type="button" onclick="togglePeriodMeta()" aria-expanded="true" aria-controls="periodMetaBody">
+                <span class="glass-meta-title">
+                    <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v1.5c0 .28.22.5.5.5h15c.28 0 .5-.22.5-.5V18c0-2.66-5.33-4-8-4z"></path>
+                    </svg>
+                    <span id="periodMetaSummary">未知玩家</span>
+                </span>
+                <span class="glass-meta-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
+                </span>
+            </button>
+            <div id="periodMetaBody" class="glass-meta-body period-meta-body">
+                <div class="player-avatar-column">
+                    <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
+                </div>
+                <div class="player-info">
+                    <h2 id="playerName" class="player-name">未知玩家</h2>
+                    <span id="playerTitle" class="player-title">无称号</span>
+                    <div id="playerStats" class="player-stats"></div>
+                    <div class="period-profile-actions">
+                        <button id="heroStatsToggle" class="hero-stats-toggle" type="button">
+                            <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 19h14v2H5v-2zm2-8h3v6H7v-6zm5-6h3v12h-3V5zm5 3h3v9h-3V8z"></path>
+                            </svg>
+                            <span>英雄</span>
+                            <span class="arrow">▼</span>
+                        </button>
+                        <span class="period-date-range-pill">区间：{{DateFrom}} ~ {{DateTo}}</span>
+                    </div>
+                </div>
             </div>
         </div>
         <div id="heroStatsSection" class="hero-stats-section" style="display:none;">
@@ -1433,33 +1467,39 @@
         </div>
         <div id="filterControlArea" class="filter-control-area" style="display:none;">
             <div class="filter-header">
-                <button id="mapFilterToggle" class="map-filter-toggle">
-                    <span>地图筛选</span>
+                <button id="mapFilterToggle" class="map-filter-toggle" type="button" aria-label="地图筛选" title="地图筛选">
+                    <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.26-.36.48V20.5c0 .31.29.53.59.44L9 19l6 2.1 5.64-1.9c.21-.07.36-.26.36-.48V3.5c0-.31-.29-.53-.5-.5zM10 5.47l4 1.4v11.66l-4-1.4V5.47zm-5 1.1l3-1.01v11.57l-3 1.04V6.57zm14 11.86l-3 1.01V7.87l3-1.04v11.6z"></path>
+                    </svg>
+                    <span>地图</span>
                     <span class="arrow">▼</span>
                 </button>
-                <button id="dateFilterToggle" class="date-filter-toggle" type="button">
-                    <span id="dateFilterLabel">日期筛选</span>
+                <button id="dateFilterToggle" class="date-filter-toggle" type="button" aria-label="日期筛选" title="日期筛选">
+                    <svg class="period-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7 2h2v2h6V2h2v2h3c.55 0 1 .45 1 1v15c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1V5c0-.55.45-1 1-1h3V2zm12 8H5v9h14v-9zM5 8h14V6H5v2z"></path>
+                    </svg>
+                    <span id="dateFilterLabel">日期</span>
                     <span class="arrow">▼</span>
                 </button>
-                <span class="date-range-label">区间：{{DateFrom}} ~ {{DateTo}}</span>
             </div>
-            <div id="dateFilterBar" class="date-filter-bar">
-                <div class="date-range-controls" id="dateRangeControls" style="display:none;">
-                    <div class="date-range-info">
-                        <span id="dateRangeHint">拖动选择想看的日期范围</span>
-                        <span id="dateRangeText"></span>
-                    </div>
-                    <div class="date-range-slider">
-                        <div class="date-range-track">
-                            <div class="date-range-track-fill" id="dateRangeTrackFill"></div>
-                        </div>
-                        <input type="range" id="dateRangeStart" min="0" max="0" value="0">
-                        <input type="range" id="dateRangeEnd" min="0" max="0" value="0">
-                    </div>
-                    <div class="date-range-scale" id="dateRangeScale"></div>
+        </div>
+        <div id="dateFilterBar" class="date-filter-bar">
+            <div class="date-range-controls" id="dateRangeControls" style="display:none;">
+                <div class="date-range-info">
+                    <span id="dateRangeHint">拖动选择想看的日期范围</span>
+                    <span id="dateRangeText"></span>
                 </div>
+                <div class="date-range-slider">
+                    <div class="date-range-track">
+                        <div class="date-range-track-fill" id="dateRangeTrackFill"></div>
+                    </div>
+                    <input type="range" id="dateRangeStart" min="0" max="0" value="0">
+                    <input type="range" id="dateRangeEnd" min="0" max="0" value="0">
+                </div>
+                <div class="date-range-scale" id="dateRangeScale"></div>
             </div>
-            <div id="mapFilterBar" class="map-filter-bar"></div>
+        </div>
+        <div id="mapFilterBar" class="map-filter-bar"></div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>
@@ -1560,6 +1600,7 @@
             if (!overlay) return;
             const textElement = overlay.querySelector('.modal-link-loading-text');
             if (textElement) textElement.textContent = message;
+            overlay.classList.toggle('data-fetch-loading', message.includes('获取数据中'));
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
         }
@@ -1568,6 +1609,7 @@
             const overlay = document.getElementById('modalLinkLoadingOverlay');
             if (!overlay) return;
             overlay.classList.remove('show');
+            overlay.classList.remove('data-fetch-loading');
             overlay.setAttribute('aria-hidden', 'true');
         }
 
@@ -1617,8 +1659,40 @@
             card.style.removeProperty('pointer-events');
         }
 
+        let glassTopResizeObserver = null;
+
+        function updateGlassTopSpace() {
+            const topBar = document.getElementById('periodTopBar');
+            if (!topBar) return;
+            const rect = topBar.getBoundingClientRect();
+            const extraGap = window.innerWidth <= 768 ? 14 : 18;
+            document.documentElement.style.setProperty('--glass-top-space', `${Math.ceil(rect.top + rect.height + extraGap)}px`);
+        }
+
+        function initGlassTopBar() {
+            const topBar = document.getElementById('periodTopBar');
+            if (!topBar) return;
+            if (glassTopResizeObserver) glassTopResizeObserver.disconnect();
+            if ('ResizeObserver' in window) {
+                glassTopResizeObserver = new ResizeObserver(updateGlassTopSpace);
+                glassTopResizeObserver.observe(topBar);
+            }
+            window.addEventListener('resize', updateGlassTopSpace);
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
+        function togglePeriodMeta() {
+            const card = document.getElementById('periodMetaCard');
+            if (!card) return;
+            const collapsed = card.classList.toggle('collapsed');
+            const button = card.querySelector('.glass-meta-header');
+            if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            requestAnimationFrame(updateGlassTopSpace);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             setupBackButton();
+            initGlassTopBar();
             loadGameData(filename);
             checkFirstVisit();
             setupHeroStatsToggle();
@@ -1932,11 +2006,24 @@
 
         function setupHeroStatsToggle() {
             const toggle = document.getElementById('heroStatsToggle');
+            const section = document.getElementById('heroStatsSection');
             const panel = document.getElementById('heroStatsPanel');
             if (!toggle || !panel) return;
             toggle.addEventListener('click', () => {
                 const expanded = toggle.classList.toggle('expanded');
-                panel.style.display = expanded ? 'block' : 'none';
+                if (section) section.style.display = expanded ? 'block' : 'none';
+                panel.style.display = 'block';
+                if (expanded) {
+                    const mapFilterToggle = document.getElementById('mapFilterToggle');
+                    const mapFilterBar = document.getElementById('mapFilterBar');
+                    const dateFilterToggle = document.getElementById('dateFilterToggle');
+                    const dateFilterBar = document.getElementById('dateFilterBar');
+                    if (mapFilterToggle) mapFilterToggle.classList.remove('expanded');
+                    if (mapFilterBar) mapFilterBar.classList.remove('expanded');
+                    if (dateFilterToggle) dateFilterToggle.classList.remove('expanded');
+                    if (dateFilterBar) dateFilterBar.classList.remove('expanded');
+                }
+                requestAnimationFrame(updateGlassTopSpace);
             });
         }
 
@@ -1951,6 +2038,8 @@
 
                 document.getElementById('playerName').textContent = roleName;
                 document.getElementById('playerTitle').textContent = roleJobName;
+                const metaSummary = document.getElementById('periodMetaSummary');
+                if (metaSummary) metaSummary.textContent = roleName;
 
                 const avatarElement = document.getElementById('playerAvatar');
                 if (avatar) {
@@ -2001,6 +2090,7 @@
                         statsContainer.innerHTML = '';
                     }
                 }
+                requestAnimationFrame(updateGlassTopSpace);
             } catch (error) {
                 console.error('更新玩家资料失败:', error);
             }
@@ -2013,14 +2103,18 @@
             if (!stats || !stats.length) {
                 section.style.display = 'none';
                 tbody.innerHTML = '';
+                requestAnimationFrame(updateGlassTopSpace);
                 return;
             }
-            section.style.display = 'block';
+            const toggle = document.getElementById('heroStatsToggle');
+            section.style.display = toggle && toggle.classList.contains('expanded') ? 'block' : 'none';
+            const panel = document.getElementById('heroStatsPanel');
+            if (panel) panel.style.display = 'block';
             tbody.innerHTML = stats.map(s => `
                 <tr>
                     <td>
                         <div class="hero-stats-hero-cell">
-                            ${s.heroIcon ? `<img src="${s.heroIcon}" alt="${s.heroName}" onerror="this.style.display='none'">` : ''}
+                            ${s.heroIcon ? `<img src="${s.heroIcon}" alt="${s.heroName}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : ''}
                             <span>${s.heroName}</span>
                         </div>
                     </td>
@@ -2033,6 +2127,7 @@
                     <td>${s.avgAssists}</td>
                 </tr>
             `).join('');
+            requestAnimationFrame(updateGlassTopSpace);
         }
 
         function renderMapFilterBar(battles) {
@@ -2051,6 +2146,7 @@
 
             if (!battles || battles.length === 0) {
                 filterControlArea.style.display = 'none';
+                requestAnimationFrame(updateGlassTopSpace);
                 return;
             }
 
@@ -2093,7 +2189,8 @@
                     dateRangeControls.style.display = 'none';
                     if (dateFilterToggle) {
                         dateFilterToggle.style.display = 'inline-flex';
-                        if (dateFilterLabel) dateFilterLabel.textContent = dateLabels[0];
+                        dateFilterToggle.title = dateLabels[0];
+                        if (dateFilterLabel) dateFilterLabel.textContent = '日期';
                     }
                     dateRangeStartIndex = 0;
                     dateRangeEndIndex = 0;
@@ -2163,7 +2260,8 @@
                             const endLabel = dateLabels[idxEnd];
                             const text = (idxStart === 0 && idxEnd === maxIndex) ? '全部日期' : `${startLabel} ~ ${endLabel}`;
                             if (dateRangeText) dateRangeText.textContent = text;
-                            if (dateFilterLabel) dateFilterLabel.textContent = text;
+                            if (dateFilterToggle) dateFilterToggle.title = text;
+                            if (dateFilterLabel) dateFilterLabel.textContent = '日期';
                         }
                     }
 
@@ -2200,6 +2298,15 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                const heroStatsToggle = document.getElementById('heroStatsToggle');
+                const heroStatsSection = document.getElementById('heroStatsSection');
+                if (heroStatsToggle) heroStatsToggle.classList.remove('expanded');
+                if (heroStatsSection) heroStatsSection.style.display = 'none';
+                if (dateFilterToggle && dateFilterBar) {
+                    dateFilterToggle.classList.remove('expanded');
+                    dateFilterBar.classList.remove('expanded');
+                }
+                requestAnimationFrame(updateGlassTopSpace);
             };
 
             if (dateFilterToggle && dateFilterBar) {
@@ -2207,13 +2314,21 @@
                     const expanded = dateFilterToggle.classList.toggle('expanded');
                     if (expanded) {
                         dateFilterBar.classList.add('expanded');
+                        const heroStatsToggle = document.getElementById('heroStatsToggle');
+                        const heroStatsSection = document.getElementById('heroStatsSection');
+                        if (heroStatsToggle) heroStatsToggle.classList.remove('expanded');
+                        if (heroStatsSection) heroStatsSection.style.display = 'none';
+                        mapFilterToggle.classList.remove('expanded');
+                        mapFilterBar.classList.remove('expanded');
                     } else {
                         dateFilterBar.classList.remove('expanded');
                     }
+                    requestAnimationFrame(updateGlassTopSpace);
                 };
             }
 
             filterControlArea.style.display = 'block';
+            requestAnimationFrame(updateGlassTopSpace);
         }
 
         function applyFilters() {
@@ -2238,6 +2353,14 @@
             return `${m}-${day} ${h}:${min}`;
         }
 
+        function scheduleBattleListRender(callback) {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(callback, { timeout: 220 });
+            } else {
+                setTimeout(callback, 16);
+            }
+        }
+
         function analyzeBattles(battles, mapFilter = '全部') {
             try {
                 let filteredBattles = battles;
@@ -2258,8 +2381,18 @@
                 const recentBattles = filteredBattles;
                 const battleItemsContainer = document.getElementById('battleItems');
                 battleItemsContainer.innerHTML = '';
+                const renderToken = String(Date.now());
+                battleItemsContainer.dataset.renderToken = renderToken;
 
-                recentBattles.forEach((battle, index) => {
+                let renderIndex = 0;
+                function renderBattleBatch() {
+                    if (battleItemsContainer.dataset.renderToken !== renderToken) return;
+                    const fragment = document.createDocumentFragment();
+                    const batchSize = renderIndex === 0 ? 16 : (window.innerWidth <= 768 ? 8 : 14);
+                    const end = Math.min(renderIndex + batchSize, recentBattles.length);
+                    for (; renderIndex < end; renderIndex++) {
+                    const battle = recentBattles[renderIndex];
+                    const index = renderIndex;
                     const battleItem = document.createElement('div');
                     const gameResult = parseInt(battle.gameresult) || 0;
                     const bgClass = gameResult === 1 ? 'win-bg' : 'lose-bg';
@@ -2278,7 +2411,7 @@
                     const gameTimeText = usedTime > 0 ? `${Math.floor(usedTime / 60)}分${usedTime % 60}秒` : '';
 
                     battleItem.innerHTML = `
-                        <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" onerror="this.style.display='none'">
+                        <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" loading="lazy" decoding="async" onerror="this.style.display='none'">
                         <div class="battle-info">
                             <div class="battle-header">
                                 <div class="battle-title">
@@ -2349,8 +2482,15 @@
                         handleAnalyze(battle, profileData, this);
                     });
 
-                    battleItemsContainer.appendChild(battleItem);
-                });
+                    fragment.appendChild(battleItem);
+                    }
+                    battleItemsContainer.appendChild(fragment);
+                    if (renderIndex < recentBattles.length) {
+                        scheduleBattleListRender(renderBattleBatch);
+                    }
+                }
+
+                renderBattleBatch();
 
                 if (recentBattles.length === 0) {
                     battleItemsContainer.innerHTML = '<p>该地图暂无比赛记录</p>';

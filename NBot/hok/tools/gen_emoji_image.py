@@ -242,10 +242,12 @@ def _emoji_meta_jsonl_path():
 def _emoji_template_public_dir():
     return getattr(dmc, "EmojiTemplatePublicDir", None) or "emoji_template"
 
-def _emoji_template_candidates():
+def _emoji_template_candidates(*, include_extra_dirs: bool = True):
     candidates = []
     allowed_exts = {".png", ".jpg", ".jpeg", ".webp"}
-    template_dirs = [_emoji_template_local_dir()] + _emoji_template_extra_dirs()
+    template_dirs = [_emoji_template_local_dir()]
+    if include_extra_dirs:
+        template_dirs += _emoji_template_extra_dirs()
     for template_dir in template_dirs:
         if not os.path.exists(template_dir) or not os.path.isdir(template_dir):
             continue
@@ -255,8 +257,8 @@ def _emoji_template_candidates():
                 candidates.append(os.path.join(template_dir, filename))
     return candidates
 
-def _emoji_pick_template_path():
-    candidates = _emoji_template_candidates()
+def _emoji_pick_template_path(*, include_extra_dirs: bool = True):
+    candidates = _emoji_template_candidates(include_extra_dirs=include_extra_dirs)
     if not candidates:
         raise Exception("emoji_template_error: no templates found in template dirs")
     return random.choice(candidates)
@@ -329,16 +331,31 @@ def _emoji_template_reference_url(template_path: str):
     domain = confs["WebService"]["server_domain"]
     return f"https://{domain}/{_emoji_template_public_dir()}/{filename}", filename
 
+def _emoji_image_caption(text: str, max_chars: int = 10):
+    import re
+
+    caption = str(text or "").strip()
+    caption = re.sub(r"\s+", "", caption)
+    caption = re.sub(r"[\"'“”‘’（）()【】\[\]{}<>《》]", "", caption)
+    caption = re.sub(r"[，,。.!！?？;；:：、~～…]+", "", caption)
+    return caption[:max_chars]
+
 def _emoji_build_prompt(*, last_user_text: str, summary_2d: str, style_template: str = ""):
     last_user_text = (last_user_text or "").strip()
     summary_2d = (summary_2d or "").strip()
+    caption = _emoji_image_caption(last_user_text)
     prompt = "请以参考图作为“画风与角色设定”参考生成一张静态图片。参考图仅用于风格与角色识别特征，不要把姿态、表情、镜头角度、构图一比一复刻。请根据用户上下文表达情绪与动作，多样化展示人物的姿态与表情（例如：开心/震惊/无语/生气/得意/委屈/疑惑等，对应不同动作与脸部表情）。"
     if style_template:
         prompt += "\n\n本次风格模板(随机选一)：\n" + style_template
     prompt += "\n\n画面要求："
     prompt += "\n- 只出现一个人物（保持角色辨识度，允许适度改动作、表情、角度、手势、道具）"
-    prompt += "\n- 文字只出现一句短句（<=12字），必须与用户上下文相关"
-    prompt += "\n- 文字呈现形式二选一：对话气泡 或 简洁字幕条/贴纸标题（不强制气泡）"
+    prompt += "\n- 不要复制参考图中的任何已有文字、标识、符号或水印"
+    if caption:
+        prompt += f"\n- 如果画面出现文字，必须逐字准确写成：『{caption}』"
+        prompt += "\n- 禁止出现任何其他文字、伪文字、乱码、错别字、变形字、看不懂的符号；如果不能准确渲染这几个字，就完全不要在图里放文字"
+        prompt += "\n- 文字呈现形式二选一：对话气泡 或 简洁字幕条/贴纸标题（不强制气泡）"
+    else:
+        prompt += "\n- 不要在图里放任何文字，禁止伪文字、乱码、看不懂的符号"
     prompt += "\n- 背景尽量透明（PNG alpha），仅保留人物与文字元素；若无法透明则使用纯色简洁背景且不抢戏"
     prompt += "\n- 画面干净、清晰、适合作为表情包；不要水印；不要多张图；不要输出任何解释性文字"
     prompt += "\n\n用户最近发言:\n" + (last_user_text if last_user_text else "（空）")
@@ -346,25 +363,32 @@ def _emoji_build_prompt(*, last_user_text: str, summary_2d: str, style_template:
     return prompt
 
 def _emoji_build_prompt_with_message(*, recent_msg: str, summary_2d: str, style_template: str = ""):
+    recent_msg = (recent_msg or "").strip()
     summary_2d = (summary_2d or "").strip()
+    caption = _emoji_image_caption(recent_msg)
     prompt = "请以参考图作为“画风与角色设定”参考生成一张静态图片。参考图仅用于风格与角色识别特征，不要把姿态、表情、镜头角度、构图一比一复刻。请根据用户上下文表达情绪与动作，多样化展示人物的姿态与表情（例如：开心/震惊/无语/生气/得意/委屈/疑惑等，对应不同动作与脸部表情）。"
     if style_template:
         prompt += "\n\n本次风格模板(随机选一)：\n" + style_template
     prompt += "\n\n画面要求："
     prompt += "\n- 只出现一个人物（保持角色辨识度，允许适度改动作、表情、角度、手势、道具）"
-    prompt += "\n- 文字只出现一句短句（<=12字），必须与用户上下文相关"
-    prompt += "\n- 文字呈现形式二选一：对话气泡 或 简洁字幕条/贴纸标题（不强制气泡）"
+    prompt += "\n- 不要复制参考图中的任何已有文字、标识、符号或水印"
+    if caption:
+        prompt += f"\n- 如果画面出现文字，必须逐字准确写成：『{caption}』"
+        prompt += "\n- 禁止出现任何其他文字、伪文字、乱码、错别字、变形字、看不懂的符号；如果不能准确渲染这几个字，就完全不要在图里放文字"
+        prompt += "\n- 文字呈现形式二选一：对话气泡 或 简洁字幕条/贴纸标题（不强制气泡）"
+    else:
+        prompt += "\n- 不要在图里放任何文字，禁止伪文字、乱码、看不懂的符号"
     prompt += "\n- 背景尽量透明（PNG alpha），仅保留人物与文字元素；若无法透明则使用纯色简洁背景且不抢戏"
     prompt += "\n- 画面干净、清晰、适合作为表情包；不要水印；不要多张图；不要输出任何解释性文字"
     prompt += "\n\n可用的最近发言(已筛选/润色，且本条不会重复使用):\n"
-    prompt += (recent_msg.strip() if recent_msg else "（空）") + "\n"
+    prompt += (recent_msg if recent_msg else "（空）") + "\n"
     prompt += "\n用户近2天发言总结:\n" + (summary_2d if summary_2d else "（空）")
     return prompt
 
 def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_tail: str, style_template: str = ""):
     tail = (prompt_tail or "").strip()
     if tail:
-        return tail + "\n文案内容只需要：" + tail
+        return "\n文案内容只需要：" + tail
 
     return _emoji_build_prompt(last_user_text=last_user_text, summary_2d=summary_2d, style_template=style_template)
 
@@ -376,7 +400,7 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
 
     summary_2d = zm.load_user_summary_last_days(user_qid, 2)
 
-    template_path = _emoji_pick_template_path()
+    template_path = _emoji_pick_template_path(include_extra_dirs=False)
     reference_url, template_filename = _emoji_template_reference_url(template_path)
     picked = _emoji_pick_one_refined_message(user_qid)
     style_template = _emoji_pick_style_template()
@@ -529,4 +553,3 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
     }
     append_jsonl(_emoji_meta_jsonl_path(), meta)
     return meta
-
