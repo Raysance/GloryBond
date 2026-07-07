@@ -276,17 +276,19 @@ async def f_kpl_push(event: MessageEvent):
 
     try:
         res = await asyncio.to_thread(kpl_check_and_push, debug=True, event=event, force=force, preview_only=preview_only)
+        debug_text = res.get("debug") or ""
         if preview_only:
             if res.get("cid"):
                 add_msg(f"KPL 预览完成 cid={res.get('cid')}（未生图）", event=event)
             else:
                 add_msg("KPL 本轮未发现可预览战局", event=event)
         else:
-            if res.get("pushed"):
+            if "KPL_PUSH paused" in debug_text:
+                add_msg("KPL 推送已暂停", event=event)
+            elif res.get("pushed"):
                 add_msg(f"KPL 推送完成 cid={res.get('cid')}", event=event)
             else:
                 add_msg("KPL 本轮未发现可推送战局", event=event)
-        debug_text = res.get("debug") or ""
         if debug_text:
             add_msg(debug_text, msg_type="private", to_id=confs["QQBot"]["super_qid"])
     except Exception:
@@ -1161,4 +1163,3 @@ async def f_chat(bot,event):
 
     add_msg(snd_msg, event=event)
     return
-

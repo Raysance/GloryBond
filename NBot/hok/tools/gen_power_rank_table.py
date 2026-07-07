@@ -115,6 +115,8 @@ def gen(rows, games, save_path: str, title: str = "底蕴排行"):
     def format_value(label: str, value: float):
         if label == "总局数":
             return str(int(round(value)))
+        if label == "个人底蕴/队友对手底蕴":
+            return f"{round(value, 1)}%"
         return str(round(value, 1))
 
     def render_glow_tile(w: int, h: int, color_rgb, strength: float):
@@ -196,43 +198,43 @@ def gen(rows, games, save_path: str, title: str = "底蕴排行"):
     font_axis = load_font(S(32), bold=True)
     font_axis_sub = load_font(S(26), bold=False)
     font_total = load_font(S(30), bold=True)
+    font_total_sub = load_font(S(16), bold=False)
     font_cell = load_font(S(30), bold=False)
 
     emoji_cache_dir = os.path.join("resources","wzry_images", "tmp", "twemoji")
 
-    labels = []
-    totals = []
-    for r in rows:
-        main = str(r.get("player") or "")
-        subs = [str(x) for x in (r.get("subs") or [])]
-        labels.append([main] + subs)
-        totals.append(float(r.get("total") or 0))
-
-    matrix = []
     cols = len(games)
-    for r in rows:
-        gmap = r.get("games") or {}
-        matrix.append([float(gmap.get(g, 0) or 0) for g in games])
+    sections = [
+        ("平均底蕴排序", sorted(rows, key=lambda item: float(item.get("rank_value") or item.get("total") or 0), reverse=True)),
+        ("个人底蕴/队友对手底蕴排序", sorted(rows, key=lambda item: float((item.get("games") or {}).get("个人底蕴/队友对手底蕴") or 0), reverse=True)),
+        ("个人单人底蕴排序", sorted(rows, key=lambda item: float((item.get("games") or {}).get("个人单人底蕴") or 0), reverse=True)),
+    ]
 
-    rows_n = len(labels)
-    col_stats = []
-    for j in range(cols):
-        col_vals = [matrix[i][j] for i in range(rows_n) if matrix[i][j] > 0]
-        active_n = len(col_vals)
-        avg = sum(col_vals) / active_n if active_n else 0.0
-        max_v = max(col_vals) if col_vals else 0.0
-        min_v = min(col_vals) if col_vals else 0.0
-        col_stats.append(
-            {"avg": avg, "max_above": max(0.0, max_v - avg), "max_below": max(0.0, avg - min_v)}
-        )
+    def make_table_data(table_rows):
+        labels = []
+        totals = []
+        matrix = []
+        for r in table_rows:
+            main = str(r.get("player") or "")
+            subs = [str(x) for x in (r.get("subs") or [])]
+            labels.append([main] + subs)
+            totals.append(float(r.get("total") or 0))
+            gmap = r.get("games") or {}
+            matrix.append([float(gmap.get(g, 0) or 0) for g in games])
+        return labels, totals, matrix
+
+    section_data = [(section_title, *make_table_data(section_rows)) for section_title, section_rows in sections]
+    all_labels = []
+    for _, labels, _, _ in section_data:
+        all_labels.extend(labels)
 
     line_h_main = S(38)
     line_h_sub = S(32)
-    max_lines = max((len(x) for x in labels), default=1)
+    max_lines = max((len(x) for x in all_labels), default=1)
     text_h = line_h_main + max(0, max_lines - 1) * line_h_sub
 
     cell_h = max(S(110), text_h + S(26))
-    cell_w = S(240)
+    cell_w = S(210)
     total_w = S(190)
     gap_x = S(16)
     gap_y = S(16)
@@ -241,7 +243,7 @@ def gen(rows, games, save_path: str, title: str = "底蕴排行"):
     d0 = ImageDraw.Draw(dummy)
 
     left_w = 0
-    for lines in labels + [["玩家"]]:
+    for lines in all_labels + [["玩家"]]:
         for idx, line in enumerate(lines):
             f = font_axis if idx == 0 else font_axis_sub
             w, _ = measure(d0, f, line)
@@ -249,17 +251,20 @@ def gen(rows, games, save_path: str, title: str = "底蕴排行"):
     left_w = max(left_w + S(28), S(220))
 
     top_h = S(150)
-    header_h = S(110)
+    section_title_h = S(56)
+    header_h = S(130)
+    section_gap = S(58)
 
     grid_w = cols * cell_w + max(0, cols - 1) * gap_x
+    rows_n = max((len(labels) for _, labels, _, _ in section_data), default=0)
     grid_h = rows_n * cell_h + max(0, rows_n - 1) * gap_y
+    section_h = section_title_h + header_h + grid_h
 
     total_x = left_w + S(54)
     x0 = total_x + total_w + S(22)
-    y0 = top_h + header_h
 
     canvas_w = x0 + grid_w + S(54)
-    canvas_h = y0 + grid_h + S(64)
+    canvas_h = top_h + len(section_data) * section_h + max(0, len(section_data) - 1) * section_gap + S(64)
 
     img = Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -267,72 +272,101 @@ def gen(rows, games, save_path: str, title: str = "底蕴排行"):
     tw, th = measure(draw, font_title, title)
     draw.text(((canvas_w - tw) // 2, S(34)), str(title), fill="#000000", font=font_title)
 
-    band_dark = (245, 247, 250)
-    band_light = (255, 255, 255)
-    for i in range(rows_n):
-        by = y0 + i * (cell_h + gap_y) - gap_y // 2
-        bh = cell_h + gap_y
-        band = band_dark if (i % 2 == 1) else band_light
-        draw.rectangle([total_x - S(10), by, x0 + grid_w + S(10), by + bh], fill=band)
-
-    for i, lines in enumerate(labels):
-        row_y = y0 + i * (cell_h + gap_y)
-        needed_h = line_h_main + max(0, len(lines) - 1) * line_h_sub
-        y_start = row_y + (cell_h - needed_h) // 2
-
-        for idx, line in enumerate(lines):
-            if idx == 0:
-                draw_text_with_emoji(img, (S(54), y_start), line, font_axis, "#000000", S(32), emoji_cache_dir)
-                y_start += line_h_main
-            else:
-                draw_text_with_emoji(img, (S(72), y_start), line, font_axis_sub, "#000000", S(28), emoji_cache_dir)
-                y_start += line_h_sub
-
-    total_label = "平均底蕴"
-    gw, gh = measure(draw, font_total, total_label)
-    draw.text((total_x + (total_w - gw) / 2, top_h + (header_h - gh) / 2), total_label, fill="#000000", font=font_total)
-    for i, total in enumerate(totals):
-        py = y0 + i * (cell_h + gap_y)
-        txt = str(round(total, 1))
-        ttw, tth = measure(draw, font_total, txt)
-        draw.text((total_x + (total_w - ttw) / 2, py + (cell_h - tth) / 2), txt, fill="#000000", font=font_total)
-
-    for j, g in enumerate(games):
-        gx = x0 + j * (cell_w + gap_x)
-        label = str(g)
-        max_w = cell_w - S(20)
-        lines = wrap_label(label, max_w, font_header, S(34))
-        line_h = S(34)
-        total_h = len(lines) * line_h
-        y_start = top_h + (header_h - total_h) / 2
-        for idx, line in enumerate(lines):
-            gw, _ = measure(draw, font_header, line)
-            draw_text_with_emoji(
-                img,
-                (gx + (cell_w - gw) / 2, y_start + idx * line_h),
-                line,
-                font_header,
-                "#000000",
-                S(34),
-                emoji_cache_dir,
-            )
-
-    for i in range(rows_n):
+    def column_stats(matrix, labels):
+        rows_count = len(labels)
+        stats_rows = []
         for j in range(cols):
-            v = matrix[i][j]
-            if v <= 0:
-                continue
-            stats = col_stats[j]
-            color_rgb, strength, color_kind = pick_color(v, stats["avg"], stats["max_above"], stats["max_below"])
-            tile = render_glow_tile(cell_w, cell_h, color_rgb, strength)
-            px = x0 + j * (cell_w + gap_x)
-            py = y0 + i * (cell_h + gap_y)
-            img.paste(tile, (int(px), int(py)), tile)
+            col_vals = [matrix[i][j] for i in range(rows_count) if matrix[i][j] > 0]
+            active_n = len(col_vals)
+            avg = sum(col_vals) / active_n if active_n else 0.0
+            max_v = max(col_vals) if col_vals else 0.0
+            min_v = min(col_vals) if col_vals else 0.0
+            stats_rows.append(
+                {"avg": avg, "max_above": max(0.0, max_v - avg), "max_below": max(0.0, avg - min_v)}
+            )
+        return stats_rows
 
-            txt = format_value(str(games[j]), v)
-            ttw, tth = measure(draw, font_cell, txt)
-            text_color = "#0B0F1A" if color_kind == "red" else best_text_color(color_rgb)
-            draw.text((px + (cell_w - ttw) / 2, py + (cell_h - tth) / 2), txt, fill=text_color, font=font_cell)
+    def render_section(section_title, labels, totals, matrix, section_top):
+        title_w, title_h = measure(draw, font_axis, section_title)
+        draw.text(((canvas_w - title_w) // 2, section_top + (section_title_h - title_h) / 2), section_title, fill="#000000", font=font_axis)
+        header_top = section_top + section_title_h
+        y0 = header_top + header_h
+        stats_rows = column_stats(matrix, labels)
+        band_dark = (245, 247, 250)
+        band_light = (255, 255, 255)
+
+        for i in range(len(labels)):
+            by = y0 + i * (cell_h + gap_y) - gap_y // 2
+            bh = cell_h + gap_y
+            band = band_dark if (i % 2 == 1) else band_light
+            draw.rectangle([total_x - S(10), by, x0 + grid_w + S(10), by + bh], fill=band)
+
+        for i, lines in enumerate(labels):
+            row_y = y0 + i * (cell_h + gap_y)
+            needed_h = line_h_main + max(0, len(lines) - 1) * line_h_sub
+            y_start = row_y + (cell_h - needed_h) // 2
+
+            for idx, line in enumerate(lines):
+                if idx == 0:
+                    draw_text_with_emoji(img, (S(54), y_start), line, font_axis, "#000000", S(32), emoji_cache_dir)
+                    y_start += line_h_main
+                else:
+                    draw_text_with_emoji(img, (S(72), y_start), line, font_axis_sub, "#000000", S(28), emoji_cache_dir)
+                    y_start += line_h_sub
+
+        total_label = "平均底蕴"
+        total_label_sub = "（我方底蕴+对方底蕴）/2"
+        gw, gh = measure(draw, font_total, total_label)
+        sw, sh = measure(draw, font_total_sub, total_label_sub)
+        label_gap = S(8)
+        label_y = header_top + (header_h - gh - sh - label_gap) / 2
+        draw.text((total_x + (total_w - gw) / 2, label_y), total_label, fill="#000000", font=font_total)
+        draw.text((total_x + (total_w - sw) / 2, label_y + gh + label_gap), total_label_sub, fill="#555555", font=font_total_sub)
+        for i, total in enumerate(totals):
+            py = y0 + i * (cell_h + gap_y)
+            txt = str(round(total, 1))
+            ttw, tth = measure(draw, font_total, txt)
+            draw.text((total_x + (total_w - ttw) / 2, py + (cell_h - tth) / 2), txt, fill="#000000", font=font_total)
+
+        for j, g in enumerate(games):
+            gx = x0 + j * (cell_w + gap_x)
+            label = str(g)
+            max_w = cell_w - S(20)
+            lines = wrap_label(label, max_w, font_header, S(34))
+            line_h = S(34)
+            total_h = len(lines) * line_h
+            y_start = header_top + (header_h - total_h) / 2
+            for idx, line in enumerate(lines):
+                gw, _ = measure(draw, font_header, line)
+                draw_text_with_emoji(
+                    img,
+                    (gx + (cell_w - gw) / 2, y_start + idx * line_h),
+                    line,
+                    font_header,
+                    "#000000",
+                    S(34),
+                    emoji_cache_dir,
+                )
+
+        for i in range(len(labels)):
+            for j in range(cols):
+                v = matrix[i][j]
+                if v <= 0:
+                    continue
+                stats = stats_rows[j]
+                color_rgb, strength, color_kind = pick_color(v, stats["avg"], stats["max_above"], stats["max_below"])
+                tile = render_glow_tile(cell_w, cell_h, color_rgb, strength)
+                px = x0 + j * (cell_w + gap_x)
+                py = y0 + i * (cell_h + gap_y)
+                img.paste(tile, (int(px), int(py)), tile)
+
+                txt = format_value(str(games[j]), v)
+                ttw, tth = measure(draw, font_cell, txt)
+                text_color = "#0B0F1A" if color_kind == "red" else best_text_color(color_rgb)
+                draw.text((px + (cell_w - ttw) / 2, py + (cell_h - tth) / 2), txt, fill=text_color, font=font_cell)
+
+    for section_index, (section_title, labels, totals, matrix) in enumerate(section_data):
+        render_section(section_title, labels, totals, matrix, top_h + section_index * (section_h + section_gap))
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     img.save(save_path)

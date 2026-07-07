@@ -161,6 +161,41 @@ def _install_dateutil_stub() -> None:
     sys.modules["dateutil.parser"] = parser_module
 
 
+def _install_openai_stub() -> None:
+    """Install the import surface used by zapi when openai is unavailable."""
+    try:
+        import openai
+        return
+    except ModuleNotFoundError:
+        openai_module = types.ModuleType("openai")
+
+    class OpenAI:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+    openai_module.OpenAI = OpenAI
+    sys.modules["openai"] = openai_module
+
+
+def _install_ratelimit_stub() -> None:
+    """Install pass-through ratelimit decorators for local imports."""
+    try:
+        import ratelimit
+        return
+    except ModuleNotFoundError:
+        ratelimit_module = types.ModuleType("ratelimit")
+
+    def passthrough(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+    ratelimit_module.limits = passthrough
+    ratelimit_module.sleep_and_retry = lambda func: func
+    sys.modules["ratelimit"] = ratelimit_module
+
+
 def _install_missing_dependency_stubs() -> None:
     """Install stubs for import-time dependencies not needed by local debug scripts."""
     _install_yaml_stub()
@@ -170,6 +205,8 @@ def _install_missing_dependency_stubs() -> None:
     _install_toon_stub()
     _install_wcwidth_stub()
     _install_dateutil_stub()
+    _install_openai_stub()
+    _install_ratelimit_stub()
 
 
 def _prepare_hok_namespace(root: Path) -> None:

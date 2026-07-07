@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>单人详情-笙煎守味🤖</title>
     <!-- <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script> -->
-    <script type="module" src="components/gesture-lock/gesture-lock-trigger.js"></script>
     <style>
         :root {
             --primary-color: #6c9bd1;
@@ -29,7 +28,29 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
+            padding: var(--top-info-space, 152px) 20px 20px;
+            transition: padding-top 0.25s ease;
+        }
+
+        body.player-profile-collapsed .container {
+            padding-top: var(--top-info-space, 92px);
+        }
+
+        .top-info-bar {
+            position: fixed;
+            top: 16px;
+            left: 80px;
+            right: 16px;
+            z-index: 1090;
+            --profile-panel-offset: 64px;
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) auto;
+            grid-template-areas:
+                "profile filter"
+                "body body"
+                "map map";
+            gap: 10px;
+            align-items: start;
         }
         
         header {
@@ -52,44 +73,59 @@
 
         /* 筛选控制区域样式 */
         .filter-control-area {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(108, 155, 209, 0.2);
-            border-radius: 12px;
-            padding: 18px 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            margin: 0;
+            box-shadow: none;
+            min-width: 268px;
+            grid-area: filter;
+            justify-self: end;
         }
 
         .filter-header {
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: 20px;
+            gap: 8px;
             flex-wrap: nowrap;
         }
 
         .today-filter-checkbox {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             cursor: pointer;
-            padding: 10px 15px;
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.12), rgba(79, 195, 247, 0.12));
-            border: 1px solid rgba(108, 155, 209, 0.25);
-            border-radius: 10px;
+            height: 44px;
+            padding: 0 14px;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
+            border: 1px solid rgba(255, 255, 255, 0.58);
+            border-radius: 22px;
             transition: all 0.3s ease;
             user-select: none;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            box-shadow:
+                0 9px 24px rgba(44, 62, 80, 0.12),
+                inset 0 1px 1px rgba(255, 255, 255, 0.85),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             width: auto;
             flex-shrink: 0;
         }
 
         .today-filter-checkbox:hover {
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.18), rgba(79, 195, 247, 0.18));
-            border-color: rgba(108, 155, 209, 0.5);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
+            border-color: rgba(255, 255, 255, 0.66);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         .today-filter-checkbox input[type="checkbox"] {
@@ -111,11 +147,14 @@
         }
 
         .map-filter-toggle {
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.12), rgba(79, 195, 247, 0.12));
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
             color: var(--dark-color);
-            border: 1px solid rgba(108, 155, 209, 0.25);
-            border-radius: 10px;
-            padding: 10px 15px;
+            border: 1px solid rgba(255, 255, 255, 0.58);
+            border-radius: 22px;
+            height: 44px;
+            padding: 0 14px;
             font-size: 0.95rem;
             font-weight: 500;
             cursor: pointer;
@@ -123,16 +162,25 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            box-shadow:
+                0 9px 24px rgba(44, 62, 80, 0.12),
+                inset 0 1px 1px rgba(255, 255, 255, 0.85),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             white-space: nowrap;
-            flex: 1;
+            flex: 0 0 auto;
         }
 
         .map-filter-toggle:hover {
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.18), rgba(79, 195, 247, 0.18));
-            border-color: rgba(108, 155, 209, 0.4);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
+            border-color: rgba(255, 255, 255, 0.66);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            box-shadow:
+                0 12px 28px rgba(44, 62, 80, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65);
         }
 
         .map-filter-toggle .arrow {
@@ -147,12 +195,21 @@
 
         /* 地图筛选按钮栏样式 */
         .map-filter-bar {
+            grid-area: map;
             display: none;
             flex-wrap: wrap;
             gap: 10px;
-            margin-top: 15px;
-            padding-top: 15px;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 10px;
             border-top: 1px solid rgba(108, 155, 209, 0.2);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.58);
+            border: 1px solid rgba(255, 255, 255, 0.62);
+            backdrop-filter: blur(22px) saturate(190%);
+            -webkit-backdrop-filter: blur(22px) saturate(190%);
+            box-shadow: 0 10px 24px rgba(44, 62, 80, 0.14);
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease;
@@ -164,22 +221,34 @@
         }
 
         .map-filter-btn {
-            background: rgba(255, 255, 255, 0.7);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.16)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.78), transparent 48%);
             color: var(--dark-color);
-            border: 1px solid rgba(108, 155, 209, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.56);
             border-radius: 8px;
             padding: 8px 16px;
             font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(20px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(20px) saturate(210%) contrast(1.04);
+            box-shadow:
+                0 7px 18px rgba(44, 62, 80, 0.10),
+                inset 0 1px 1px rgba(255, 255, 255, 0.78),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.16);
         }
         .map-filter-btn.active,
         .map-filter-btn:hover {
-            background: rgba(108, 155, 209, 0.15);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+                radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.90), transparent 48%);
             color: var(--primary-color);
-            border: 1px solid rgba(108, 155, 209, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.66);
             transform: translateY(-1px);
+            box-shadow:
+                0 10px 22px rgba(44, 62, 80, 0.14),
+                inset 0 1px 0 rgba(255, 255, 255, 0.66);
         }
         
         .dashboard {
@@ -290,9 +359,11 @@
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             z-index: 10;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
 
         .favorite-btn:hover {
@@ -302,7 +373,8 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .favorite-btn.liked {
+        .favorite-btn.liked,
+        .favorite-btn.favorited {
             color: #ff6b6b;
             background: rgba(255, 107, 107, 0.1);
         }
@@ -334,9 +406,11 @@
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             z-index: 10;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
 
         .share-btn:hover {
@@ -373,9 +447,11 @@
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
             z-index: 10;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
 
         .analyze-btn:hover {
@@ -395,89 +471,6 @@
             height: 16px;
             fill: currentColor;
             transition: all 0.3s ease;
-        }
-
-        .floating-back-btn {
-            position: fixed;
-            top: 24px;
-            left: 24px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(250, 128, 114, 0.35);
-            transition: all 0.3s ease;
-            z-index: 1100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .gesture-lock-trigger {
-            position: fixed;
-            top: 24px;
-            right: 24px;
-            width: 48px;
-            height: 48px;
-            padding: 0;
-            border-radius: 50%;
-            border: 1px solid rgba(79, 195, 247, 0.4);
-            background: linear-gradient(135deg, rgba(108, 155, 209, 0.95), rgba(79, 195, 247, 0.95));
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.35);
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-            z-index: 1200;
-            line-height: 0;
-        }
-
-        .gesture-lock-trigger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 40px rgba(79, 195, 247, 0.45);
-        }
-
-        .gesture-lock-trigger:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: 0 6px 20px rgba(79, 195, 247, 0.25);
-        }
-
-        .gesture-lock-trigger svg {
-            width: 22px;
-            height: 22px;
-            fill: currentColor;
-        }
-
-
-        .floating-back-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(250, 128, 114, 0.45);
-        }
-
-        .floating-back-btn:active {
-            transform: translateY(0);
-        }
-
-        .floating-back-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
-            transition: transform 0.3s ease;
-        }
-
-        .floating-back-btn.loading {
-            cursor: wait;
-            opacity: 0.75;
-        }
-
-        .floating-back-btn.loading svg {
-            transform: translateX(-2px);
         }
 
         .battle-item.battle-loading {
@@ -506,56 +499,6 @@
             text-decoration: none;
         }
 
-        .modal-link-loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(255, 255, 255, 0.65);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 15000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.25s ease;
-        }
-
-        .modal-link-loading-overlay.show {
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        .modal-link-loading-content {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 24px 36px;
-            border-radius: 16px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-            color: var(--dark-color);
-            font-weight: 600;
-            min-width: 220px;
-        }
-
-        .modal-link-loading-spinner {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 4px solid rgba(108, 155, 209, 0.25);
-            border-top-color: var(--primary-color);
-            animation: modal-link-spin 0.8s linear infinite;
-        }
-
-        @keyframes modal-link-spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
-        }
-        
         .battle-item.win-bg {
             background: linear-gradient(to right, transparent 0%, transparent 50%, rgba(40, 167, 69, 0.4) 100%);
         }
@@ -708,6 +651,27 @@
 
         
         @media (max-width: 768px) {
+            .container {
+                padding: var(--top-info-space, 126px) 12px 16px;
+            }
+
+            body.player-profile-collapsed .container {
+                padding-top: var(--top-info-space, 66px);
+            }
+
+            .top-info-bar {
+                top: 10px;
+                left: 56px;
+                right: 10px;
+                --profile-panel-offset: 46px;
+                grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-areas:
+                    "profile filter"
+                    "body body"
+                    "map map";
+                gap: 6px;
+            }
+
             .battle-item {
                 padding: 6px 8px;
                 padding-right: 84px; /* 为收藏和分享按钮留出空间 */
@@ -792,23 +756,18 @@
                 height: 14px;
             }
 
-            .floating-back-btn {
-                top: 14px;
-                left: 14px;
-                width: 48px;
-                height: 48px;
+            .player-avatar {
+                width: 56px;
+                height: 56px;
             }
 
-            .floating-back-btn svg {
-                width: 20px;
-                height: 20px;
+            .player-name {
+                font-size: 1.2rem;
             }
 
-            .gesture-lock-trigger {
-                top: 14px;
-                right: 14px;
-                width: 44px;
-                height: 44px;
+            .player-title {
+                font-size: 0.78rem;
+                padding: 3px 9px;
             }
 
         }
@@ -891,29 +850,132 @@
         }
         
         .player-profile {
+            display: contents;
+        }
+
+        .player-profile-header {
+            grid-area: profile;
+            width: 100%;
+            box-sizing: border-box;
+            height: 44px;
+            border-radius: 22px;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
+                radial-gradient(circle at 20% 14%, rgba(255, 255, 255, 0.86), transparent 50%);
+            border: 1px solid rgba(255, 255, 255, 0.60);
+            color: var(--dark-color);
+            cursor: pointer;
             display: flex;
             align-items: center;
-            margin-bottom: 20px;
-            padding: 24px;
-            border-radius: 15px;
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            color: var(--dark-color);
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 8px 0 14px;
+            text-align: left;
+            backdrop-filter: blur(26px) saturate(215%) contrast(1.04);
+            -webkit-backdrop-filter: blur(26px) saturate(215%) contrast(1.04);
+            box-shadow:
+                0 10px 26px rgba(44, 62, 80, 0.14),
+                inset 0 1px 1px rgba(255, 255, 255, 0.86),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+        }
+
+        .player-profile-title {
+            display: none;
+        }
+
+        .player-profile-summary {
+            min-width: 0;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: right;
+            color: rgba(44, 62, 80, 0.58);
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .player-profile-toggle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.50);
+            color: rgba(44, 62, 80, 0.70);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow:
+                inset 0 1px 1px rgba(255, 255, 255, 0.76),
+                0 5px 14px rgba(44, 62, 80, 0.10);
+        }
+
+        .player-profile-toggle svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+            transition: transform 0.25s ease;
+        }
+
+        .player-profile-body {
+            grid-area: body;
+            width: calc(100% + var(--profile-panel-offset));
+            box-sizing: border-box;
+            margin-left: calc(-1 * var(--profile-panel-offset));
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 20px 18px;
+            border-radius: 22px;
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.12)),
+                radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.16) 42%, transparent 64%);
+            backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+            border: 1px solid rgba(255, 255, 255, 0.64);
+            box-shadow:
+                0 14px 34px rgba(44, 62, 80, 0.18),
+                inset 0 1px 1px rgba(255, 255, 255, 0.86),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+        }
+
+        .player-profile.collapsed .player-profile-body {
+            display: none;
+        }
+
+        .player-profile.collapsed .player-profile-toggle svg {
+            transform: rotate(180deg);
         }
 
         /* 调整子元素文字颜色 */
-        .player-profile .player-name,
-        .player-profile .player-title {
+        .player-profile .player-name {
             color: var(--dark-color);
+            text-shadow: none;
+        }
+
+        .player-profile .player-title {
+            color: var(--primary-color);
             text-shadow: none;
         }
 
         /* 可选：微调头像边框颜色 */
         .player-avatar {
-            border: 3px solid rgba(108, 155, 209, 0.3); 
-            /* 原为 var(--secondary-color) */
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.76);
+            box-shadow: 0 8px 20px rgba(31, 35, 41, 0.16);
+        }
+
+        .player-profile-status {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px 16px;
+            margin-top: 9px;
         }
         
         .player-info {
@@ -970,13 +1032,6 @@
             margin: 20px 0;
             text-align: center;
             border-left: 4px solid #c62828;
-        }
-        
-        .loading-message {
-            text-align: center;
-            padding: 50px;
-            color: #666;
-            font-size: 1.2rem;
         }
         
         @media (max-width: 768px) {
@@ -1164,43 +1219,21 @@
 
         @media (max-width: 768px) {
             .filter-control-area {
-                padding: 12px 15px;
+                min-width: 0;
+                padding: 0;
             }
             
             .filter-header {
-                gap: 10px;
+                gap: 6px;
             }
             
             .today-filter-checkbox,
             .map-filter-toggle {
-                padding: 9px 13px;
-                font-size: 0.88rem;
-            }
-            
-            .today-filter-checkbox input[type="checkbox"] {
-                width: 17px;
-                height: 17px;
-            }
-            
-            .today-filter-checkbox label {
-                font-size: 0.88rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .filter-control-area {
-                padding: 10px 12px;
-            }
-            
-            .filter-header {
-                gap: 8px;
-            }
-            
-            .today-filter-checkbox,
-            .map-filter-toggle {
-                padding: 8px 10px;
+                height: 36px;
+                min-height: 36px;
+                padding: 0 10px;
+                border-radius: 18px;
                 font-size: 0.82rem;
-                flex: 1;
                 gap: 6px;
             }
             
@@ -1211,6 +1244,78 @@
             
             .today-filter-checkbox label {
                 font-size: 0.82rem;
+            }
+
+            .player-profile-header {
+                height: 36px;
+                padding: 0 6px 0 10px;
+                gap: 6px;
+            }
+
+            .player-profile-summary {
+                font-size: 0.78rem;
+                text-align: left;
+            }
+
+            .player-profile-toggle {
+                width: 24px;
+                height: 24px;
+            }
+
+            .player-profile-toggle svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .player-profile-body {
+                padding: 8px 14px 14px;
+                gap: 12px;
+            }
+
+            .player-avatar {
+                width: 56px;
+                height: 56px;
+            }
+
+            .player-name {
+                font-size: 1.2rem;
+            }
+
+            .player-title {
+                font-size: 0.78rem;
+                padding: 3px 9px;
+            }
+
+            .player-profile-status {
+                gap: 6px;
+                margin-top: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .filter-control-area {
+                padding: 0;
+            }
+            
+            .filter-header {
+                gap: 5px;
+            }
+            
+            .today-filter-checkbox,
+            .map-filter-toggle {
+                padding: 0 8px;
+                font-size: 0.78rem;
+                flex: 0 0 auto;
+                gap: 5px;
+            }
+            
+            .today-filter-checkbox input[type="checkbox"] {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .today-filter-checkbox label {
+                font-size: 0.78rem;
             }
             
             .map-filter-toggle .arrow {
@@ -1235,7 +1340,6 @@
                 padding: 10px 12px;
             }
         }
-
         /* 状态信息区域样式 */
         /* 状态信息区域样式 - 高密度优化 */
         .status-section {
@@ -1277,17 +1381,77 @@
             color: var(--dark-color);
         }
 
+        .player-profile-status .status-card {
+            margin: 0;
+            padding: 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            gap: 4px;
+        }
+
+        .player-profile-status .status-card:hover {
+            transform: none;
+            border-color: transparent;
+        }
+
+        .player-profile-status .status-card .label {
+            font-size: 0.76rem;
+            color: rgba(44, 62, 80, 0.55);
+            font-weight: 600;
+        }
+
+        .player-profile-status .status-card .value {
+            font-size: 0.9rem;
+            color: var(--dark-color);
+            font-weight: 800;
+        }
+
         .gaming-status-card {
             width: 100%;
             display: flex;
             align-items: center;
-            background: linear-gradient(135deg, rgba(79, 195, 247, 0.08), rgba(108, 155, 209, 0.08));
-            border: 1px solid rgba(79, 195, 247, 0.2);
-            padding: 6px 12px;
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+                radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.16) 44%, transparent 66%),
+                radial-gradient(circle at 86% 0%, rgba(79, 195, 247, 0.22), transparent 42%);
+            border: 1px solid rgba(255, 255, 255, 0.66);
+            border-radius: 18px;
+            padding: 8px 12px;
             gap: 12px;
+            box-shadow:
+                0 14px 34px rgba(44, 62, 80, 0.16),
+                inset 0 1px 1px rgba(255, 255, 255, 0.88),
+                inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+            -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
+        }
+
+        .gaming-status-card::before {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            border-radius: inherit;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 48%),
+                radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.62), transparent 42%);
+            opacity: 0.78;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .gaming-status-card > * {
+            position: relative;
+            z-index: 1;
         }
 
         .gaming-header {
@@ -1298,12 +1462,13 @@
         }
 
         .gaming-badge {
-            background-color: var(--success-color);
-            color: white;
-            padding: 1px 5px;
-            border-radius: 3px;
+            background: rgba(40, 167, 69, 0.16);
+            color: #1f8f45;
+            padding: 2px 7px;
+            border: 1px solid rgba(40, 167, 69, 0.18);
+            border-radius: 999px;
             font-size: 0.6rem;
-            font-weight: bold;
+            font-weight: 800;
             animation: status-pulse 2s infinite;
         }
 
@@ -1365,6 +1530,10 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.24);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
         }
 
         .gaming-detail-label {
@@ -1377,69 +1546,77 @@
             font-weight: 600;
             color: var(--dark-color);
         }
-    </style>
-</head>
-<body>
-    <button
-        id="gestureLockTrigger"
-        class="gesture-lock-trigger"
-        type="button"
-        aria-expanded="false"
-        aria-label="打开手势验证面板"
-        data-gesture-lock-trigger
-        data-gesture-timeout="120000"
-        data-gesture-use-toast="true"
-    >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M17 9h-1V7a4 4 0 00-8 0v2H7a2 2 0 00-2 2v9a2 2 0 002 2h10a2 2 0 002-2v-9a2 2 0 00-2-2zm-6.5 0V7a1.5 1.5 0 113 0v2z"/>
-        </svg>
-    </button>
-    <div class="container">
-        <div class="player-profile">
-            <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
-            <div class="player-info">
-                <h2 id="playerName" class="player-name">未知玩家</h2>
-                <span id="playerTitle" class="player-title">无称号</span>
-                <!-- <div class="player-stats">
-                    <div class="player-stat">
-                        <div class="stat-value" id="totalBattles">0</div>
-                        <div class="stat-label">总场数</div>
-                    </div>
-                    <div class="player-stat">
-                        <div class="stat-value" id="mvpCount">0</div>
-                        <div class="stat-label">MVP次数</div>
-                    </div>
-                    <div class="player-stat">
-                        <div class="stat-value" id="winRate">0%</div>
-                        <div class="stat-label">胜率</div>
-                    </div>
-                </div> -->
-            </div>
-        </div>
+{% include "CommonPages/ios_glass_theme.css" %}
+        body.ios-glass-page .top-info-bar .today-filter-checkbox,
+        body.ios-glass-page .top-info-bar .map-filter-toggle {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.22);
+            box-shadow: none;
+            backdrop-filter: blur(18px) saturate(160%);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+        }
 
-        <!-- 新增：状态信息展示区域 -->
-        <div id="statusSection" class="status-section">
-            <div id="rankCard" class="status-card" style="display: none;">
-                <span class="label">当前段位</span>
-                <span id="currentRankValue" class="value">-</span>
-            </div>
-            <div id="peakCard" class="status-card" style="display: none;">
-                <span class="label">当前巅峰分</span>
-                <span id="currentPeakValue" class="value">-</span>
-            </div>
-            <div id="gamingCard" class="status-card gaming-status-card" style="display: none;">
-                <div class="gaming-header">
-                    <span class="gaming-badge">LIVE</span>
-                    <span id="gamingMode" class="gaming-title">对局中...</span>
-                </div>
-                <div class="gaming-body">
-                    <div id="gamingHeroBox" class="gaming-hero-box" style="display: none;">
-                        <img id="gamingHeroIcon" src="" alt="英雄" class="gaming-hero-icon" onerror="this.style.display='none'">
-                        <span id="gamingHeroName" class="gaming-hero-name"></span>
+        body.ios-glass-page .top-info-bar .today-filter-checkbox:hover,
+        body.ios-glass-page .top-info-bar .map-filter-toggle:hover,
+        body.ios-glass-page .top-info-bar .map-filter-toggle.expanded {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.28);
+            box-shadow: 0 6px 18px rgba(44, 62, 80, 0.08);
+        }
+    </style>
+    <script>
+        (function() {
+            try {
+                const isMobileLike = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+                const memory = navigator.deviceMemory || 8;
+                const cores = navigator.hardwareConcurrency || 8;
+                if (isMobileLike && (memory <= 4 || cores <= 4)) {
+                    document.documentElement.classList.add('ios-lite-effects');
+                }
+            } catch (error) {}
+        })();
+    </script>
+</head>
+<body class="ios-glass-page">
+    <div class="top-info-bar">
+        <div id="playerProfileCard" class="player-profile">
+            <button class="player-profile-header" type="button" onclick="togglePlayerProfile()" aria-label="折叠玩家信息" title="折叠玩家信息">
+                <span id="playerProfileSummary" class="player-profile-summary">未知玩家</span>
+                <span class="player-profile-toggle" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                    </svg>
+                </span>
+            </button>
+            <div class="player-profile-body">
+                <img id="playerAvatar" class="player-avatar" src="" alt="玩家头像" onerror="this.style.display='none'">
+                <div class="player-info">
+                    <h2 id="playerName" class="player-name">未知玩家</h2>
+                    <span id="playerTitle" class="player-title">无称号</span>
+                    <div class="player-profile-status">
+                        <div id="rankCard" class="status-card" style="display: none;">
+                            <span class="label">当前段位</span>
+                            <span id="currentRankValue" class="value">-</span>
+                        </div>
+                        <div id="peakCard" class="status-card" style="display: none;">
+                            <span class="label">当前巅峰分</span>
+                            <span id="currentPeakValue" class="value">-</span>
+                        </div>
                     </div>
-                    <div id="gamingDetails" class="gaming-details">
-                        <!-- 动态生成对局细节 -->
-                    </div>
+                    <!-- <div class="player-stats">
+                        <div class="player-stat">
+                            <div class="stat-value" id="totalBattles">0</div>
+                            <div class="stat-label">总场数</div>
+                        </div>
+                        <div class="player-stat">
+                            <div class="stat-value" id="mvpCount">0</div>
+                            <div class="stat-label">MVP次数</div>
+                        </div>
+                        <div class="player-stat">
+                            <div class="stat-value" id="winRate">0%</div>
+                            <div class="stat-label">胜率</div>
+                        </div>
+                    </div> -->
                 </div>
             </div>
         </div>
@@ -1455,7 +1632,28 @@
                     <span class="arrow">▼</span>
                 </button>
             </div>
-            <div id="mapFilterBar" class="map-filter-bar"></div>
+        </div>
+        <div id="mapFilterBar" class="map-filter-bar"></div>
+    </div>
+
+    <div class="container">
+        <!-- 新增：状态信息展示区域 -->
+        <div id="statusSection" class="status-section">
+            <div id="gamingCard" class="status-card gaming-status-card" style="display: none;">
+                <div class="gaming-header">
+                    <span class="gaming-badge">LIVE</span>
+                    <span id="gamingMode" class="gaming-title">对局中...</span>
+                </div>
+                <div class="gaming-body">
+                    <div id="gamingHeroBox" class="gaming-hero-box" style="display: none;">
+                        <img id="gamingHeroIcon" src="" alt="英雄" class="gaming-hero-icon" onerror="this.style.display='none'">
+                        <span id="gamingHeroName" class="gaming-hero-name"></span>
+                    </div>
+                    <div id="gamingDetails" class="gaming-details">
+                        <!-- 动态生成对局细节 -->
+                    </div>
+                </div>
+            </div>
         </div>
         <div id="loadingMessage" class="loading-message">
             <h3>正在加载数据...</h3>
@@ -1565,6 +1763,7 @@
         let allBattles = [];
         let currentMapFilter = '全部';
         let showTodayOnly = false; // 是否仅显示今日战局
+        let topInfoResizeObserver = null;
         let profileData = null; // 添加全局变量存储profile数据
         let heroMap = {}; // Hero ID -> Name 映射
         const modalLinkTimers = new WeakMap();
@@ -1665,6 +1864,47 @@
             });
         }
 
+        function togglePlayerProfile() {
+            const card = document.getElementById('playerProfileCard');
+            if (!card) return;
+
+            card.classList.toggle('collapsed');
+            const isCollapsed = card.classList.contains('collapsed');
+            document.body.classList.toggle('player-profile-collapsed', isCollapsed);
+            const header = card.querySelector('.player-profile-header');
+            if (header) {
+                header.title = isCollapsed ? '展开玩家信息' : '折叠玩家信息';
+                header.setAttribute('aria-label', isCollapsed ? '展开玩家信息' : '折叠玩家信息');
+            }
+            updateTopInfoSpace();
+        }
+
+        function updateTopInfoSpace() {
+            const bar = document.querySelector('.top-info-bar');
+            if (!bar) return;
+
+            requestAnimationFrame(() => {
+                const styles = window.getComputedStyle(bar);
+                const top = parseFloat(styles.top) || 0;
+                const bottomGap = window.innerWidth <= 768 ? 14 : 18;
+                const height = Math.ceil(bar.getBoundingClientRect().height + top + bottomGap);
+                document.documentElement.style.setProperty('--top-info-space', `${height}px`);
+            });
+        }
+
+        function initTopInfoBarSpacing() {
+            const bar = document.querySelector('.top-info-bar');
+            if (!bar) return;
+
+            updateTopInfoSpace();
+            window.addEventListener('resize', updateTopInfoSpace);
+
+            if ('ResizeObserver' in window) {
+                topInfoResizeObserver = new ResizeObserver(updateTopInfoSpace);
+                topInfoResizeObserver.observe(bar);
+            }
+        }
+
         function showModalLinkLoading(message = '正在跳转，请稍候...') {
             const overlay = document.getElementById('modalLinkLoadingOverlay');
             if (!overlay) {
@@ -1676,6 +1916,7 @@
                 textElement.textContent = message;
             }
 
+            overlay.classList.toggle('data-fetch-loading', message.includes('获取数据中'));
             overlay.classList.add('show');
             overlay.setAttribute('aria-hidden', 'false');
         }
@@ -1687,6 +1928,7 @@
             }
 
             overlay.classList.remove('show');
+            overlay.classList.remove('data-fetch-loading');
             overlay.setAttribute('aria-hidden', 'true');
         }
 
@@ -1754,29 +1996,6 @@
             card.classList.remove('battle-loading');
             card.style.removeProperty('pointer-events');
         }
-
-        // 当手势验证（admin-verify）成功时，后端会返回一个 key，通过自定义事件 gesture-lock-key 派发
-        // 这里监听该事件并跳转到 /admin/dashboard?key=<env key>&AdminKey=<adminKey>
-        window.addEventListener('gesture-lock-key', function(e) {
-            try {
-                const detail = e && e.detail;
-                const adminKey = detail && detail.key;
-                // 页面环境中的 key（模板变量，将在服务端/渲染时替换）
-                const envKey = '{{key}}';
-                if (adminKey) {
-                    const targetUrl = `/admin/dashboard?AdminKey=${encodeURIComponent(adminKey)}`;
-                    window.location.href = targetUrl;
-                } else {
-                    if (typeof showToast === 'function') {
-                        showToast('验证成功，但未返回 AdminKey', 'warning');
-                    } else {
-                        console.warn('验证成功，但未返回 AdminKey');
-                    }
-                }
-            } catch (err) {
-                console.error('处理 gesture-lock-key 事件失败:', err);
-            }
-        });
 
         document.addEventListener('click', function(event) {
             const link = event.target.closest('.modal-overlay a[href]');
@@ -1895,6 +2114,7 @@
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             setupBackButton();
+            initTopInfoBarSpacing();
             initGamingCardLongPress(); // 初始化长按事件
             loadHeroMap(); // 预加载英雄数据
             const filename = '{{filename}}';
@@ -2849,6 +3069,12 @@
                 // 设置玩家信息
                 document.getElementById('playerName').textContent = roleName;
                 document.getElementById('playerTitle').textContent = roleJobName;
+                const profileSummary = document.getElementById('playerProfileSummary');
+                if (profileSummary) {
+                    profileSummary.textContent = roleJobName && roleJobName !== '无称号'
+                        ? `${roleName} · ${roleJobName}`
+                        : roleName;
+                }
                 
                 // 设置头像
                 const avatarElement = document.getElementById('playerAvatar');
@@ -2894,7 +3120,7 @@
                 const peakCard = document.getElementById('peakCard');
                 const gamingCard = document.getElementById('gamingCard');
                 
-                let hasAnyStatus = false;
+                let hasGamingStatus = false;
                 const battles = (data.btlist && data.btlist.list) ? data.btlist.list : [];
 
                 // 1. 获取最新段位
@@ -2907,7 +3133,6 @@
                     if (roleJobName) {
                         document.getElementById('currentRankValue').textContent = `${roleJobName} ${stars}⭐`;
                         rankCard.style.display = 'flex';
-                        hasAnyStatus = true;
                     }
                 } else {
                     rankCard.style.display = 'none';
@@ -2922,7 +3147,6 @@
                     if (peakScore) {
                         document.getElementById('currentPeakValue').textContent = `${peakScore}分`;
                         peakCard.style.display = 'flex';
-                        hasAnyStatus = true;
                     }
                 } else {
                     peakCard.style.display = 'none';
@@ -2979,12 +3203,13 @@
                     }
 
                     gamingCard.style.display = 'flex';
-                    hasAnyStatus = true;
+                    hasGamingStatus = true;
                 } else {
                     gamingCard.style.display = 'none';
                 }
 
-                statusSection.style.display = hasAnyStatus ? 'flex' : 'none';
+                statusSection.style.display = hasGamingStatus ? 'flex' : 'none';
+                updateTopInfoSpace();
 
             } catch (error) {
                 console.error('更新状态信息失败:', error);
@@ -3000,6 +3225,8 @@
             
             if (!battles || battles.length === 0) {
                 filterControlArea.style.display = 'none';
+                mapFilterBar.classList.remove('expanded');
+                mapFilterToggle.classList.remove('expanded');
                 return;
             }
             
@@ -3029,6 +3256,7 @@
             mapFilterToggle.onclick = function() {
                 mapFilterToggle.classList.toggle('expanded');
                 mapFilterBar.classList.toggle('expanded');
+                updateTopInfoSpace();
             };
             
             // 设置今日筛选复选框事件
@@ -3049,6 +3277,7 @@
             };
             
             filterControlArea.style.display = 'block';
+            updateTopInfoSpace();
         }
         
         // 应用所有筛选条件
@@ -3074,14 +3303,14 @@
         function handleImageLoad(imgElement, fallbackText, timeout = 2000) {
             if (!imgElement) return;
 
-            const timer = setTimeout(() => {
+            const timer = imgElement.loading === 'lazy' ? null : setTimeout(() => {
                 if (!imgElement.complete || imgElement.naturalWidth === 0) {
                     switchToFallback(imgElement, fallbackText);
                 }
             }, timeout);
 
             imgElement.onload = () => {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 imgElement.style.display = 'block';
                 if (imgElement.nextElementSibling && imgElement.nextElementSibling.classList.contains('img-placeholder')) {
                     imgElement.nextElementSibling.remove();
@@ -3089,7 +3318,7 @@
             };
 
             imgElement.onerror = () => {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 switchToFallback(imgElement, fallbackText);
             };
         }
@@ -3114,6 +3343,32 @@
             imgElement.parentNode.insertBefore(placeholder, imgElement.nextSibling);
         }
 
+        function formatBattleDisplayTime(battle) {
+            const timestamp = Number(battle.dtEventTime);
+            if (!Number.isFinite(timestamp) || timestamp <= 0) {
+                return battle.gametime || '';
+            }
+
+            const battleDate = new Date(timestamp * 1000);
+            const hours = String(battleDate.getHours()).padStart(2, '0');
+            const minutes = String(battleDate.getMinutes()).padStart(2, '0');
+            if (isTodayBattle(battle)) {
+                return `${hours}:${minutes}`;
+            }
+
+            const month = String(battleDate.getMonth() + 1).padStart(2, '0');
+            const day = String(battleDate.getDate()).padStart(2, '0');
+            return `${month}-${day} ${hours}:${minutes}`;
+        }
+
+        function scheduleBattleListRender(callback) {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(callback, { timeout: 220 });
+            } else {
+                setTimeout(callback, 16);
+            }
+        }
+
         // 分析比赛数据（支持地图筛选和今日筛选）
         function analyzeBattles(battles, mapFilter = '全部', todayOnly = false) {
             try {
@@ -3134,6 +3389,8 @@
                 const recentBattles = filteredBattles;
                 const battleItemsContainer = document.getElementById('battleItems');
                 battleItemsContainer.innerHTML = '';
+                const renderToken = String(Date.now());
+                battleItemsContainer.dataset.renderToken = renderToken;
                 
                 let totalWins = 0;
                 let totalKills = 0;
@@ -3141,7 +3398,15 @@
                 let totalAssists = 0;
                 let totalMvp = 0;
                 
-                recentBattles.forEach((battle, index) => {
+                let renderIndex = 0;
+                function renderBattleBatch() {
+                    if (battleItemsContainer.dataset.renderToken !== renderToken) return;
+                    const fragment = document.createDocumentFragment();
+                    const batchSize = renderIndex === 0 ? 16 : (window.innerWidth <= 768 ? 8 : 14);
+                    const end = Math.min(renderIndex + batchSize, recentBattles.length);
+                    for (; renderIndex < end; renderIndex++) {
+                    const battle = recentBattles[renderIndex];
+                    const index = renderIndex;
                     // 创建比赛项目
                     const battleItem = document.createElement('div');
                     const gameResult = parseInt(battle.gameresult) || 0;
@@ -3157,13 +3422,13 @@
                     const mvpcnt = parseInt(battle.mvpcnt) || 0;
                     const losemvp = parseInt(battle.losemvp) || 0;
                     const gradeGame = parseFloat(battle.gradeGame) || 0;
-                    const gametime = battle.gametime || "";
+                    const gameTimeDisplay = formatBattleDisplayTime(battle);
                     
                     const kda = (killcnt + assistcnt) / Math.max(deadcnt, 1);
                     
                     // 获取段位信息
                     const roleJobName = battle.roleJobName || '';
-                    const stars = battle.stars || 0;
+                    const stars = battle.stars ?? '';
                     const rankInfo = roleJobName ? `${roleJobName} ${stars}⭐` : '';
                     
                     // 获取巅峰分信息
@@ -3177,7 +3442,7 @@
                     // 检查是否为巅峰赛：gametype为4或者有巅峰分数据
                     const isPeakMatch = (battle.gametype === 14);
 
-                    const isTournaMatch = (battle.gametype === 4);
+                    const isRankMatch = (battle.mapName && battle.mapName.includes('排位')) || battle.gametype === 4;
                     
                     if (isPeakMatch) {
                         const scoreChangeText = scoreDiff > 0 ? `+${scoreDiff}` : `${scoreDiff}`;
@@ -3189,7 +3454,7 @@
                             </div>
                         `;
                     } 
-                    else if (isTournaMatch) {
+                    else if (isRankMatch && rankInfo) {
                         gameTypeInfo = `
                             <div class="rank-value">${rankInfo}</div>
                         `;
@@ -3223,7 +3488,7 @@
                     
                     battleItem.innerHTML = `
                         <div class="hero-icon-container" style="position: relative; width: 45px; height: 45px; margin-right: 10px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background-color: #eee;">
-                            <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" data-fallback="${heroName}">
+                            <img src="${battle.heroIcon || ''}" alt="英雄头像" class="hero-icon" style="margin-right: 0; width: 100%; height: 100%;" loading="lazy" decoding="async" data-fallback="${heroName}">
                         </div>
                         <div class="battle-info">
                             <div class="battle-header">
@@ -3233,7 +3498,7 @@
                             </div>
                             <div class="battle-meta">
                                 <div class="battle-time">
-                                    <div>${gametime}</div>
+                                    <div>${gameTimeDisplay}</div>
                                     ${gameTimeText ? `<div>${gameTimeText}</div>` : ''}
                                 </div>
                                 <div class="game-type-info">
@@ -3280,7 +3545,7 @@
                         </button>
                     `;
                     
-                    battleItemsContainer.appendChild(battleItem);
+                    fragment.appendChild(battleItem);
 
                     // 为该项中的所有图片处理加载
                     const itemImgs = battleItem.querySelectorAll('img[data-fallback]');
@@ -3323,14 +3588,21 @@
                         handleAnalyze(battle, profileData, this);
                     });
                     
-                    battleItemsContainer.appendChild(battleItem);
+                    fragment.appendChild(battleItem);
                     // 统计数据
                     if (gameResult === 1) totalWins++;
                     totalKills += killcnt;
                     totalDeaths += deadcnt;
                     totalAssists += assistcnt;
                     if (mvpcnt > 0 || losemvp > 0) totalMvp++;
-                });
+                    }
+                    battleItemsContainer.appendChild(fragment);
+                    if (renderIndex < recentBattles.length) {
+                        scheduleBattleListRender(renderBattleBatch);
+                    }
+                }
+
+                renderBattleBatch();
                 // const children = Array.from(battleItemsContainer.children);
                 // battleItemsContainer.innerHTML = ''; // 清空容器
                 // children.reverse().forEach(child => battleItemsContainer.appendChild(child));

@@ -15,6 +15,12 @@ def _to_pinyin(s):
     
     return "".join(lazy_pinyin(str(s))).lower()
 
+def safe_hero_name(hero_id, default=None):
+    if hero_id is None:
+        return default or "未知英雄"
+    hero_id = str(hero_id)
+    return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
+
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None): # 单人的战绩parser
     def sync_battle_visibility_qid(visible):
         from .zfile import update_dynamic_variable
@@ -137,7 +143,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         today_details=[{\
             'GameTime':game['gametime'],\
             'GameTime_Timestamp':int(game['dtEventTime']),\
-            'HeroName':HeroList.get(str(game['heroId']),"Unknown"),\
+            'HeroName':safe_hero_name(game.get('heroId')),\
             'MapName':game['mapName'],\
             'MapType':1 if '排位' in game['mapName'] else (-1 if '巅峰' in game['mapName'] else 0),\
             'StarAfterGame': -1 if '排位' not in game['mapName'] else (ranklist[game['roleJobName']]+game['stars']),\
@@ -201,7 +207,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         gaming_info={
                     "in_game":True,\
                     "map_name":res["btlist"]["gaming"]["mapName"],\
-                    "hero_name":HeroList.get(str(res["btlist"]["gaming"]["heroId"]),"Unknown"),\
+                    "hero_name":safe_hero_name(res["btlist"]["gaming"].get("heroId")),\
                     "duration_minute":res["btlist"]["gaming"]["duration"],\
                     "battle_num_this_hero":res["btlist"]["gaming"]["gameNum"],\
                     "win_rate_this_hero":res["btlist"]["gaming"]["winRate"],\
@@ -452,7 +458,7 @@ def online_process():
                         'battleId': btlist_res['gaming'].get('battleId', ''),
                         'job': role_info['shortRoleJobName'],
                         'mapName': btlist_res['gaming']['mapName'],
-                        'heroName': HeroList[str(btlist_res['gaming']['heroId'])],
+                        'heroName': safe_hero_name(btlist_res['gaming'].get('heroId')),
                         'duration': btlist_res['gaming']['duration']
                     }
                 else:
@@ -2281,12 +2287,15 @@ def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
         BattlePowerHistory.save(power_data)
     return power_data
 
-def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None):
+def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None, start_date_str=None):
     from .ztime import time_r
     import datetime
 
     end_date = time_r()
-    start_date = end_date - datetime.timedelta(days=days)
+    if start_date_str:
+        start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+    else:
+        start_date = end_date - datetime.timedelta(days=days)
     history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
     candidates = []
     seen = set()
@@ -2360,6 +2369,13 @@ def recent_power_process(realname, days=7):
         rival_side = power_data.get(rival_key, {})
         own_level = float(own_side.get("level") or 0)
         rival_level = float(rival_side.get("level") or 0)
+        single_level = float(player_record.get("singleLevel") or 0)
+        battle_player_levels = [
+            float(player.get("singleLevel") or 0)
+            for player in power_data.get("players", [])
+            if float(player.get("singleLevel") or 0) > 0
+        ]
+        battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
         rows.append({
             "GameSeq": gameseq,
             "HeroName": detail.get("HeroName"),
@@ -2368,12 +2384,14 @@ def recent_power_process(realname, days=7):
             "MapName": detail.get("MapName"),
             "ownLevel": own_level,
             "rivalLevel": rival_level,
+            "battlePlayerAvgLevel": battle_player_avg_level,
+            "singleLevelPercent": single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0,
             "levelDiff": own_level - rival_level,
             "ownTier": float(own_side.get("tier") or 0),
             "rivalTier": float(rival_side.get("tier") or 0),
             "ownAuthCnt": int(own_side.get("authCnt") or 0),
             "rivalAuthCnt": int(rival_side.get("authCnt") or 0),
-            "singleLevel": float(player_record.get("singleLevel") or 0),
+            "singleLevel": single_level,
         })
     if not rows:
         return f"最近{days}天没有可用的底蕴历史数据（官方对局{len(valid_details)}局，待后台评估{missing}局）"
@@ -2385,20 +2403,22 @@ def recent_power_process(realname, days=7):
     avg_own_tier = sum(row["ownTier"] for row in rows) / count
     avg_rival_tier = sum(row["rivalTier"] for row in rows) / count
     avg_single = sum(row["singleLevel"] for row in rows) / count
+    avg_single_percent = sum(row["singleLevelPercent"] for row in rows) / count
     win_count = sum(1 for row in rows if row["Result"] == "胜利")
     display_name = namenick.get(realname, realname)
     lines = [
-        f"【{display_name}】最近{days}天官方对局底蕴统计",
+        f"【{display_name}】最近{days}天对局底蕴统计",
     ]
     if missing:
         lines.append(f"已评估/官方对局：{count}/{len(valid_details)}（待评估{missing}）")
     lines.extend([
         f"胜率：{round(win_count / count * 100, 1)}%（{win_count}胜{count - win_count}负）",
-        f"平均己方底蕴：{round(avg_own, 2)}",
-        f"平均对方底蕴：{round(avg_rival, 2)}",
-        f"平均底蕴差：{round(avg_diff, 2)}",
-        f"平均己方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
-        f"个人平均单人底蕴：{round(avg_single, 2)}",
+        f"我方底蕴：{round(avg_own, 2)}",
+        f"对方底蕴：{round(avg_rival, 2)}",
+        f"底蕴差：{round(avg_diff, 2)}",
+        f"个人底蕴/队友对手底蕴：{round(avg_single_percent, 1)}%",
+        f"个人单人底蕴：{round(avg_single, 2)}",
+        f"我方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
     ])
     return "\n".join(lines)
 
@@ -2415,8 +2435,8 @@ def power_rank_process(days=7):
     history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
 
     rows = []
-    columns = ["总局数", "我方底蕴", "对方底蕴", "我方英雄梯度", "对方英雄梯度"]
-    metric_keys = ["平均底蕴", "我方底蕴", "对方底蕴", "我方英雄梯度", "对方英雄梯度"]
+    columns = ["总局数", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
+    metric_keys = ["平均底蕴", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
     for realname, details in history_data.items():
         roleid = roleidlist.get(realname)
         if not roleid:
@@ -2445,9 +2465,18 @@ def power_rank_process(days=7):
             rival_level = float(rival_side.get("level") or 0)
             own_tier = float(own_side.get("tier") or 0)
             rival_tier = float(rival_side.get("tier") or 0)
+            single_level = float(player_record.get("singleLevel") or 0)
+            battle_player_levels = [
+                float(player.get("singleLevel") or 0)
+                for player in power_data.get("players", [])
+                if float(player.get("singleLevel") or 0) > 0
+            ]
+            battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
             accum["平均底蕴"] += (own_level + rival_level) / 2
             accum["我方底蕴"] += own_level
             accum["对方底蕴"] += rival_level
+            accum["个人底蕴/队友对手底蕴"] += single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0
+            accum["个人单人底蕴"] += single_level
             accum["我方英雄梯度"] += own_tier
             accum["对方英雄梯度"] += rival_tier
             count += 1
@@ -3170,6 +3199,9 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, 
     from nonebot.adapters.onebot.v11 import MessageSegment
     from .zfile import download_url_to_file
     from .zfile import ensure_dir
+    if not preview_only and not getattr(dmc, "KplPushEnabled", True):
+        return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH paused by KplPushEnabled=false"}
+
     lock_key = "kpl:push_lock"
     pending_key = "kpl:push_pending"
     if force:
@@ -3338,13 +3370,14 @@ def kpl_build_match_image_prompt(*, match_content: dict):
             return s
 
     raw = match_content.get("raw") or {}
-    raw_data = raw.get("data") or {}
-    home_team = raw_data.get("home_team") or {}
-    away_team = raw_data.get("away_team") or {}
-    home_name = home_team.get("name") or ""
-    away_name = away_team.get("name") or ""
-    home_score = raw_data.get("home_score")
-    away_score = raw_data.get("away_score")
+    raw_data = raw.get("data") or (raw.get("overall_grade") or {}).get("data") or {}
+    home_team = match_content.get("home_team") or raw_data.get("home_team") or {}
+    away_team = match_content.get("away_team") or raw_data.get("away_team") or {}
+    home_name = home_team.get("name") or home_team.get("title") or ""
+    away_name = away_team.get("name") or away_team.get("title") or ""
+    score_data = match_content.get("score") or {}
+    home_score = score_data.get("home", raw_data.get("home_score"))
+    away_score = score_data.get("away", raw_data.get("away_score"))
     total_score = None
     if home_score is not None and away_score is not None:
         total_score = f"{home_score}-{away_score}"
@@ -3385,6 +3418,20 @@ def kpl_build_match_image_prompt(*, match_content: dict):
                 item["hot"] = hot
             team_players[team_name].append(item)
 
+    if not team_players:
+        for team in match_content.get("overall_ratings") or []:
+            team_name = team.get("name") or ""
+            if not team_name:
+                continue
+            team_players[team_name] = [
+                {
+                    "name": player.get("name"),
+                    "pos": player.get("position"),
+                    "score": player.get("rating"),
+                }
+                for player in team.get("players") or []
+            ]
+
     teams_payload = []
     for name in [home_name, away_name]:
         if not name:
@@ -3404,8 +3451,8 @@ def kpl_build_match_image_prompt(*, match_content: dict):
 
     payload = {
         "match_name": match_name,
-        "start_time": _strip_timezone(match_content.get("start_time_iso") or ""),
-        "end_time": _strip_timezone(match_content.get("end_time_iso") or ""),
+        "start_time": _strip_timezone(match_content.get("start_time_text") or match_content.get("start_time_iso") or ""),
+        "end_time": _strip_timezone(match_content.get("end_time_text") or match_content.get("end_time_iso") or ""),
         "total_score": total_score or "-",
         "teams": teams_payload,
     }
@@ -3674,14 +3721,14 @@ def extract_heroname(origin_text,precise=False):
         heroid=-1
         while(True):
             heroid = random.choice(list(HeroList))
-            heroname=HeroList[heroid]
+            heroname=safe_hero_name(heroid)
             if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元流之子(射手)","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
     if txt_contain("下水道",origin_text,precise,True):
         heroid=-2
         while(True):
             heroid = random.choice(list(HeroList))
-            heroname=HeroList[heroid]
+            heroname=safe_hero_name(heroid)
             if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
         return heroid,heroname
     for is_origin in [True,False]:
@@ -3690,7 +3737,7 @@ def extract_heroname(origin_text,precise=False):
                 return heroid,heroname
         for heroid,heroname in HeroName_replacements.items():
             if txt_contain(heroname,origin_text,precise,is_origin):
-                return heroid,HeroList[heroid]
+                return heroid,safe_hero_name(heroid)
     return None
 def txt_contain(x,y,p,ori):
     if (ori):
@@ -3737,6 +3784,8 @@ def history_query_handler(rcv_msg):
         "当前赛季": f"{this_season_start_date}到{today_str}",
         "上个赛季": f"{last_season_start_date}到{last_season_end_date}",
         "上赛季": f"{last_season_start_date}到{last_season_end_date}",
+        "上上个赛季": f"{pre_last_season_start_date}到{pre_last_season_end_date}",
+        "上上赛季": f"{pre_last_season_start_date}到{pre_last_season_end_date}",
         "这周": f"{date_7_days_ago_str}到{today_str}",
         "本周": f"{date_7_days_ago_str}到{today_str}",
         "上周": f"{date_14_days_ago_str}到{date_7_days_ago_str}",
@@ -4376,4 +4425,3 @@ def history_query_handler(rcv_msg):
         }
 
     return [query_target, matches, query_desc, stats]
-

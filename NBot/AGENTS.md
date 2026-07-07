@@ -19,6 +19,7 @@
 - `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
 - `hok/zapi.py`：与外部服务/API 交互的适配层（请求封装、签名、响应解析）；业务编排仍应留在 `zfunc.py`。
+- `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
 - `hok/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
 ### 1.1 Tools（`hok/tools/`）
@@ -46,7 +47,8 @@
 - `hok/tools/gen_emoji_image.py`：表情包生成链路与风格模板维护工具。
 - `hok/tools/gen_gametime_table.py`：游戏时长表格聚合与渲染辅助。
 - `hok/tools/gen_grade_chart.py`：评分/星数趋势图生成工具。
-- `hok/tools/kpl_match_collector.py`：B 站 KPL 赛事赛程与单场数据采集工具。
+- `hok/tools/kpl_match_collector.py`：历史 KPL 采集兼容入口，仅转发到 `zkpl.py`。
+- `hok/tools/gen_kpl_match_card.py`：KPL 总比分、总体评分及全部小局数据长图生成器。
 - `hok/tools/PowerAnalyzeEvaluator.py`：战力分析结果一致性评估脚本。
 
 ### 1.2 Debug Tools（`hok/debug_tools/`）
