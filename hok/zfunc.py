@@ -50,27 +50,26 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
             return
         disabled_qids = [str(item) for item in getattr(dmc, "BattleInvisibleDisabledQids", [])]
+        target_qid_set = set(target_qids)
         changed_qids = []
-        changed = False
-        for user_qid in target_qids:
-            if visible:
-                if user_qid not in disabled_qids:
-                    continue
-                disabled_qids.remove(user_qid)
-                changed = True
-                changed_qids.append(user_qid)
+        if visible:
+            changed_qids = [user_qid for user_qid in target_qids if user_qid in disabled_qids]
+            disabled_qids = [user_qid for user_qid in disabled_qids if user_qid not in target_qid_set]
+            for user_qid in changed_qids:
                 log_message(f"WZRY_VISIBILITY_ENABLE_QID: {realname} {user_qid}")
-            elif user_qid not in disabled_qids:
-                disabled_qids.append(user_qid)
-                changed = True
-                changed_qids.append(user_qid)
-                log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
+        else:
+            for user_qid in target_qids:
+                if user_qid not in disabled_qids:
+                    disabled_qids.append(user_qid)
+                    changed_qids.append(user_qid)
+                    log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
+        changed = bool(changed_qids)
         dmc.BattleInvisibleDisabledQids = disabled_qids
         if changed:
             update_dynamic_variable("BattleInvisibleDisabledQids", disabled_qids)
             duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
             source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
-            for user_qid in changed_qids:
+            for user_qid in target_qids:
                 add_group_ban_task(user_qid, duration=duration, source=source)
 
     def get_star_today_most_recent(today_details):
