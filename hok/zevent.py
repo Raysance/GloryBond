@@ -3,6 +3,7 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 from .utils.message_sender import add_msg
+from .utils.message_sender import add_group_poke_task
 from . import zscheduler
 
 import nonebot
@@ -649,7 +650,7 @@ async def f_rnk(bot,event):
         groupqid=None
     snd_msg=qid2nick(userqid)+" "+generate_greeting()+"\n"
     if (groupqid):
-        await bot.group_poke(group_id=groupqid, user_id=userqid)
+        add_group_poke_task(userqid, group_qid=groupqid, source="rank_query")
     try:
         rnk_info = await asyncio.to_thread(rnk_process, rcv_msg=rcv_msg, caller=qid2nick(userqid), show_zero=False, show_analyze=True, debug=debug)
         snd_msg+=rnk_info[0]
@@ -681,7 +682,7 @@ async def f_single(bot,event):
     except Exception as e:
         groupqid=None
     if (groupqid):
-        await bot.group_poke(group_id=groupqid, user_id=userqid)
+        add_group_poke_task(userqid, group_qid=groupqid, source="single_query")
     try:
         sgl_info = await asyncio.to_thread(single_process, rcv_msg)
     except Exception as e:
@@ -1118,7 +1119,7 @@ async def f_chat(bot,event):
         group_id = None
         
     if group_id:
-        await bot.group_poke(group_id=group_id, user_id=user_id)
+        add_group_poke_task(user_id, group_qid=group_id, source="chat")
 
     # 1. 主动聊天记忆 (当前用户最多5条)
     active_msg = await asyncio.to_thread(zm.load_active_chat, user_id, 5)

@@ -97,6 +97,28 @@ async def _handle_group_ban(bot, msg_json):
         return
 
 
+async def _handle_group_poke(bot, msg_json):
+    group_id = _normalize_target_id(msg_json.get("group_id") or confs["QQBot"]["group_qid"])
+    user_id = _normalize_target_id(msg_json.get("user_id"))
+    source = msg_json.get("source", "")
+    if group_id is None or user_id is None:
+        add_msg(
+            f"GROUP_POKE_TASK_ERROR: invalid target group_id={group_id} user_id={user_id} source={source}",
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+    try:
+        await bot.group_poke(group_id=group_id, user_id=user_id)
+    except Exception as e:
+        add_msg(
+            f"GROUP_POKE_TASK_FAILED: group_id={group_id} user_id={user_id} source={source} error={repr(e)}",
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+
+
 
 async def message_sender_loop():
     while True:
@@ -117,6 +139,10 @@ async def message_sender_loop():
         msg_json = json.loads(result)
         if msg_json.get("kind") == "group_ban":
             await _handle_group_ban(bot, msg_json)
+            dmc.last_msg_send_ts = time.time()
+            continue
+        if msg_json.get("kind") == "group_poke":
+            await _handle_group_poke(bot, msg_json)
             dmc.last_msg_send_ts = time.time()
             continue
         msg_type = msg_json.get("type")
@@ -150,6 +176,16 @@ def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, grou
         "group_id": _normalize_target_id(group_qid or confs["QQBot"]["group_qid"]),
         "user_id": _normalize_target_id(user_qid),
         "duration": int(duration),
+        "source": str(source),
+    }
+    return _enqueue_payload(payload)
+
+
+def add_group_poke_task(user_qid, *, group_qid=None, source=""):
+    payload = {
+        "kind": "group_poke",
+        "group_id": _normalize_target_id(group_qid or confs["QQBot"]["group_qid"]),
+        "user_id": _normalize_target_id(user_qid),
         "source": str(source),
     }
     return _enqueue_payload(payload)
