@@ -123,7 +123,7 @@ async def check_sleep(event)->bool:
 # EVENT
 _group_poke = on_notice()
 _qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
-_repair=on_keyword({"##r"},rule=judge_super,priority=1, block=True)
+_repair=on_fullmatch("##r",rule=judge_super,priority=1, block=True)
 _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
