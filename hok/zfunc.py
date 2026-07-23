@@ -228,8 +228,12 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         # except Exception as e:
         #     log_message(str(e))
         peakUp=get_peak_alter_list(details=today_details,processed=False)
-        gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if check_btl_official_with_matching(game['mapName'])]
-        today_btl_aver = round(sum((gamegrades)) / len(gamegrades),3) if gamegrades else 0
+        gamegrades = [
+            round(float(game["gradeGame"]), 1)
+            for game in today_btl
+            if check_btl_official(game["mapName"])
+        ]
+        today_btl_aver = round(sum(gamegrades) / len(gamegrades), 3) if gamegrades else 0
         today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
         today_btl_min= fin if len(gamegrades)==0 else min(gamegrades)
     
@@ -825,6 +829,9 @@ def single_process(rcv_msg):
                     "battleID": gameinfo["gaming_info"]["battle_id"],
                 }
             website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
+
+        # 历史数据中的 btl_aver 可能由旧口径生成，查询时统一按正式对局重算。
+        gameinfo["btl_aver"] = calculate_official_battle_average(gameinfo.get("details", []))
         
         win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
                     for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
@@ -3135,11 +3142,17 @@ def merge_crossday_gamedata(gamedata):
     else:
         res["peak_up"]=[]
     if ("visible" not in res): res["visible"]=True
-    official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official_with_matching(btl["MapName"])]
-    res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
-    res["btl_aver"]=round(res["btl_aver"],3)
+    res["btl_aver"] = calculate_official_battle_average(res["details"])
 
     return res
+def calculate_official_battle_average(details):
+    official_btls_grades = [
+        float(btl["GameGrade"])
+        for btl in details
+        if check_btl_official(btl["MapName"])
+    ]
+    average = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
+    return round(average, 3)
 def check_btl_official(btlname):
     import re
 
