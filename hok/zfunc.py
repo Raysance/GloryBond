@@ -3607,14 +3607,10 @@ def get_daily_representative_battle(target_date=None):
     best_btl["RankingKey"] = list(ranking_key(best_btl))
 
     reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
-    if best_btl['DetailReason']:
-        reason += f" ({best_btl['DetailReason']})"
 
-    category_scores = best_btl.get("CategoryScores") or {}
-    category_text = " / ".join(f"{name}{score}" for name, score in category_scores.items())
     match_info = f"【今日代表性对局·{best_btl['RepresentativeCategory']}】\n"
     match_info += f"代表性指数：{best_btl['RepScore']}/100 | {reason}\n"
-    match_info += f"三类指数：{category_text}\n"
+    match_info += f"生效指数：{best_btl['RepresentativeCategory']}{best_btl['RepScore']}\n"
     match_info += f"依据标签：{''.join(best_btl['RawTags']) or '无'}\n"
     match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
 
