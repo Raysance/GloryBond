@@ -3509,6 +3509,7 @@ def get_daily_representative_battle(target_date=None):
     from .tools.representative_battle import score_candidate
     from .tools.representative_battle import validate_candidate
 
+    use_today_title = target_date is None
     if target_date is None:
         target_date = time_sul().strftime("%Y-%m-%d")
 
@@ -3608,7 +3609,8 @@ def get_daily_representative_battle(target_date=None):
 
     reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
 
-    match_info = f"【今日代表性对局·{best_btl['RepresentativeCategory']}】\n"
+    title_date = "今日" if use_today_title else target_date
+    match_info = f"【{title_date}代表性对局·{best_btl['RepresentativeCategory']}】\n"
     match_info += f"代表性指数：{best_btl['RepScore']}/100 | {reason}\n"
     match_info += f"生效指数：{best_btl['RepresentativeCategory']}{best_btl['RepScore']}\n"
     match_info += f"依据标签：{''.join(best_btl['RawTags']) or '无'}\n"
@@ -3635,6 +3637,33 @@ def get_daily_representative_battle(target_date=None):
     except Exception:
         pass
     return match_info, btl_img, best_btl
+
+
+def representative_battle_query_impl(query_text):
+    """Return the public representative-battle payload without debug details."""
+    from .ztime import parse_representative_battle_date
+
+    target_date = parse_representative_battle_date(query_text)
+    representative_result = get_daily_representative_battle(target_date=target_date)
+    if not representative_result:
+        return {
+            "target_date": target_date,
+            "found": False,
+            "text": None,
+            "image_path": None,
+        }
+    if not isinstance(representative_result, (list, tuple)) or len(representative_result) < 2:
+        raise Exception(
+            "representative_battle_query_impl_error: "
+            f"target_date={target_date} result={representative_result!r}"
+        )
+    return {
+        "target_date": target_date,
+        "found": True,
+        "text": representative_result[0],
+        "image_path": representative_result[1],
+    }
+
 
 def extract_heroname(origin_text,precise=False):
     if txt_contain("轮椅",origin_text,precise,True):

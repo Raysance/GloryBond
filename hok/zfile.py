@@ -127,6 +127,15 @@ def copyfile(src_file,dst_file):
     shutil.copy(src_file,dst_file)
 def file_exist(file_path):
     return os.path.exists(file_path)
+
+
+def existing_absolute_path(file_path):
+    """Return an absolute path only when the target file exists."""
+    if not file_path or not os.path.exists(file_path):
+        return None
+    return os.path.abspath(file_path)
+
+
 def get_file_list(root_path,end_with):
     file_list=[]
     if os.path.exists(root_path) and os.path.isdir(root_path):

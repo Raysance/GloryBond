@@ -57,6 +57,12 @@ async def judge_to_me(event)->bool:
 async def judge_not_duration_rank(event)->bool:
     raw = event.get_plaintext()
     return ("时长排行" not in raw) and ("时长排名" not in raw)
+
+
+async def judge_representative_battle_query(event)->bool:
+    return is_registered_qid(event.get_user_id()) and is_battle_visible_qid_enabled(event.get_user_id())
+
+
 async def judge_herostatistics_query(event)->bool:
     from .zfunc import qid2nick
     from .zfunc import extract_name,extract_heroname
@@ -138,6 +144,12 @@ _show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
+_representative_battle = on_keyword(
+    set(representative_battle_keywords),
+    rule=judge_representative_battle_query,
+    priority=3,
+    block=True,
+)
 
 _atall=on_fullmatch(tuple(atall_keywords),priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
@@ -213,6 +225,35 @@ async def f_exporthistory(event):
             add_msg("导出完成", event=event)
     except Exception as e:
         add_msg(f"导出失败: {str(e)+traceback.format_exc()}", event=event)
+
+
+@_representative_battle.handle()
+async def f_representative_battle(event: MessageEvent):
+    from .zfile import existing_absolute_path
+    from .zfunc import representative_battle_query_impl
+
+    raw_msg = event.get_plaintext().strip()
+    try:
+        query_result = await asyncio.to_thread(representative_battle_query_impl, raw_msg)
+        if not query_result["found"]:
+            add_msg(f"{query_result['target_date']} 暂无可用的代表局", event=event)
+            return
+
+        final_msg = Message(query_result["text"])
+        image_path = existing_absolute_path(query_result["image_path"])
+        if image_path:
+            final_msg += MessageSegment.image(f"file://{image_path}")
+        add_msg(final_msg, event=event)
+    except ValueError as error:
+        add_msg(str(error), event=event)
+    except Exception as error:
+        log_message(
+            "REPRESENTATIVE_BATTLE_QUERY_ERROR: "
+            f"query={raw_msg!r} error={error!r}\n{traceback.format_exc()}"
+        )
+        add_msg(f"代表局查询失败：query={raw_msg!r} error={error!r}", event=event)
+
+
 @_dailyrepbattle.handle()
 async def f_dailyrepbattle(event: MessageEvent):
     from .zfunc import get_daily_representative_battle
