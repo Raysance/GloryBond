@@ -220,8 +220,8 @@ async def f_dailyrepbattle(event: MessageEvent):
     from nonebot.adapters.onebot.v11 import MessageSegment
     import os
 
-    # 解析日期参数，例如 ##best 2026-04-20
-    # 由于使用 on_keyword，我们需要手动剥离 ##best
+    # 解析日期参数，例如 ##srep 2026-04-20
+    # 由于使用 on_keyword，我们需要手动剥离 ##srep
     raw_msg = event.get_plaintext().strip()
     target_date = raw_msg.replace("##srep", "").strip() or None
 
@@ -229,7 +229,7 @@ async def f_dailyrepbattle(event: MessageEvent):
         # 传递可选的日期参数
         rep_res = get_daily_representative_battle(target_date=target_date)
         if not rep_res:
-            await _debug_rep.finish(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成")
+            add_msg(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成", event=event)
             return
 
         # 构造发给发送者的消息
@@ -242,8 +242,33 @@ async def f_dailyrepbattle(event: MessageEvent):
             if len(rep_res) >= 3:
                 best_info = rep_res[2]
                 debug_info = f"\n\n[调试-筛选准则]\n"
-                debug_info += f"● 代表性得分: {best_info.get('RepScore')}\n"
-                debug_info += f"● 触发标签: {' '.join(best_info.get('RawTags', []))}\n"
+                debug_info += f"● 代表类型: {best_info.get('RepresentativeCategory')}\n"
+                debug_info += f"● 代表性指数: {best_info.get('RepScore')}/100\n"
+                category_scores = best_info.get("CategoryScores", {})
+                if category_scores:
+                    score_text = " / ".join(f"{name}{score}" for name, score in category_scores.items())
+                    debug_info += f"● 三类指数: {score_text}\n"
+                debug_info += f"● 依据标签: {' '.join(best_info.get('RawTags', [])) or '无'}\n"
+                breakdown = best_info.get("ScoreBreakdown", [])
+                if breakdown:
+                    debug_info += "● 代表类型分项:\n"
+                    for item in breakdown:
+                        debug_info += (
+                            f"  - {item.get('factor')} "
+                            f"{item.get('contribution')}/{item.get('max_weight')}"
+                            f"（{item.get('condition')}）\n"
+                        )
+                filter_summary = best_info.get("FilterSummary", {})
+                if filter_summary:
+                    debug_info += (
+                        "● 筛选统计: "
+                        f"扫描{filter_summary.get('scanned', 0)}局，"
+                        f"地图剔除{filter_summary.get('official_map_rejected', 0)}局，"
+                        f"规则剔除{filter_summary.get('rule_rejected', 0)}局，"
+                        f"合并重复视角{filter_summary.get('duplicate_perspectives', 0)}个，"
+                        f"最终候选{filter_summary.get('eligible_unique_battles', 0)}局\n"
+                    )
+                debug_info += f"● 深度数据: {'已参与评分' if best_info.get('HasDetail') else '缺失，仅按摘要评分'}\n"
                 if best_info.get('DetailReason'):
                     debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
                 final_msg += debug_info

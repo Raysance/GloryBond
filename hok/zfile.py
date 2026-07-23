@@ -31,6 +31,18 @@ def readerl(filepath):
         return []
     except json.JSONDecodeError:
         return []
+
+
+def read_history_date(target_date):
+    """Read one daily history payload through the project's IO boundary."""
+    return readerl(os.path.join("data", "history", f"{target_date}.json"))
+
+
+def read_battle_detail(gameseq):
+    """Read one cached battle-detail payload through the project's IO boundary."""
+    return readerl(os.path.join("data", "history", "battles", f"{gameseq}.json"))
+
+
 def writerl(filepath,data):
     try:
         with open(filepath, 'w', encoding='utf-8') as file:

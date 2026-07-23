@@ -166,6 +166,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
     if(BtlVisible):
+        from .tools.representative_battle import build_battle_keywords
+
         today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==target_date_obj)]
         # today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==date_roleback().date())]
         today_details=[{\
@@ -183,7 +185,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             'Duration_Second':int(game['usedTime']),\
             'GameSeq':int(game['gameSeq']),\
             'Params':extract_url_params(game['detailUrl']),\
-            'Others':(('MVP ' if (game['mvpcnt']+game['losemvp']>=1) else ' ')+('一血' if (game['firstBlood']) else ' ')+('超神' if (game['godLikeCnt']) else ' '))\
+            'Others':build_battle_keywords(game)\
                 } for game in today_btl]
         today_details=today_details[::-1]
         today_game_map_set={game['mapName'] for game in today_btl}
@@ -2721,9 +2723,8 @@ def gametime_rank_process(days=14):
     return "", pic_path
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
-    from .zfile import readerl
-    file_path = os.path.join("data","history", "battles", f"{gameseq}.json")
-    res=readerl(file_path)
+    from .zfile import read_battle_detail
+    res=read_battle_detail(gameseq)
     if (res and roleid):
         # 找到对应的玩家信息并更新head
         target_role = None
@@ -3207,14 +3208,17 @@ def notify_msg_impl():
     
     messages = [snd_msg]
 
-    # # 获取最有代表性的对局（含数据）
-    # try:
-    #     rep_btl_res = get_daily_representative_battle()
-    #     if rep_btl_res:
-    #         # 返回包含了文本和图片路径的元组/列表，不再使用 MessageSegment
-    #         messages.append(rep_btl_res)
-    # except Exception as e:
-    #     log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
+    # 代表性对局的第三项是调试详情；定时发送链路只接收（文本，图片路径）。
+    try:
+        rep_btl_res = get_daily_representative_battle()
+        if rep_btl_res:
+            match_text, battle_image, _ = rep_btl_res
+            messages.append((match_text, battle_image))
+    except Exception:
+        log_message(
+            "GET_REPRESENTATIVE_BATTLE_ERROR: "
+            f"target_date=auto error={traceback.format_exc()}"
+        )
 
     return messages
 
@@ -3498,251 +3502,143 @@ def kpl_build_match_image_prompt(*, match_content: dict):
     return {"prompt": prompt, "payload": payload, "style_template": style}
 
 def get_daily_representative_battle(target_date=None):
-    '''
-    选出当天对局中最有代表性的一局。评估维度：
-    1. 翻盘指数：落后极多评分/大幅逆风但取胜
-    2. 统治力：评分极高且参团率、贡献度极高
-    3. 惨案指数：评分极低或被碾压
-    4. 尽力局：败方MVP且评分极高
-    5. 关键先生：拿到关键成就（如超神、五连绝世等）
-    '''
+    """Select the day's most representative battle with a transparent score."""
     from .ztime import time_sul
-    from .zfile import readerl
-    from .zfunc import fetch_battle
-    import math
-    import os
+    from .zfile import read_history_date
+    from .tools.representative_battle import ranking_key
+    from .tools.representative_battle import score_candidate
+    from .tools.representative_battle import validate_candidate
 
     if target_date is None:
         target_date = time_sul().strftime("%Y-%m-%d")
-    
-    filename = os.path.join("data","history", target_date + ".json")
-    
-    try:
-        gameinfo = readerl(filename)
-    except Exception:
-        return None
+
+    gameinfo = read_history_date(target_date)
 
     if not gameinfo:
         return None
 
-    all_battles = []
-    from .zfunc import check_btl_official_with_matching 
-    
+    candidates_by_game = {}
+    filter_summary = {
+        "scanned": 0,
+        "official_map_rejected": 0,
+        "rule_rejected": 0,
+        "duplicate_perspectives": 0,
+        "detail_available": 0,
+    }
+
     for player_data in gameinfo:
         realname = player_data.get("key")
         nick = player_data.get("nickname", realname)
         details = player_data.get("details", [])
         roleid = player_data.get("roleid")
         for btl in details:
+            filter_summary["scanned"] += 1
             if not check_btl_official_with_matching(btl.get("MapName", "")):
+                filter_summary["official_map_rejected"] += 1
+                continue
+
+            eligible, rejected_reasons = validate_candidate(btl, representative_battle_rules)
+            if not eligible:
+                filter_summary["rule_rejected"] += 1
                 continue
 
             gameseq = btl.get("GameSeq")
-            # 基础权重评分
-            score = 0
-            tags = []
-            detail_reason = ""
-            
-            grade = btl.get("GameGrade", 0)
-            result = btl.get("Result")
-            others = btl.get("Others", "")
-            duration = btl.get("Duration_Second", 0)
-            
-            # 1. 评分基础
-            # 1. 评分基础 (加倍权重)
-            score += grade * 10
-            
-            # 2. 深度数据评估 (多维度指标)
             try:
                 battle_detail = fetch_battle(gameseq, roleid)
-                if battle_detail and 'head' in battle_detail:
-                    my_camp = battle_detail['head'].get('acntCamp')
-                    red_roles = battle_detail.get('redRoles', [])
-                    blue_roles = battle_detail.get('blueRoles', [])
-                    
-                    red_total_grade = sum(float(r['battleStats']['gradeGame']) for r in red_roles)
-                    blue_total_grade = sum(float(b['battleStats']['gradeGame']) for b in blue_roles)
-                    
-                    my_team_grade = red_total_grade if my_camp == 2 else blue_total_grade
-                    enemy_team_grade = blue_total_grade if my_camp == 2 else red_total_grade
-                    
-                    # 逆风翻盘/被翻盘
-                    grade_diff = enemy_team_grade - my_team_grade
-                    if result == "胜利" and grade_diff > 5:
-                        bonus = int(grade_diff * 10)
-                        score += bonus
-                        tags.append(f"【逆风翻盘+{bonus}】")
-                        detail_reason = f"团队总分落后 {round(grade_diff, 1)} 分实现大逆转！"
-                    elif result == "失败" and grade_diff < -5:
-                        score += 50
-                        tags.append("【痛失好局】")
-                        detail_reason = f"团队总分领先 {round(-grade_diff, 1)} 分竟然翻车了..."
+            except Exception:
+                battle_detail = None
 
-                    # 个人深度贡献
-                    my_stats = next((r['battleStats'] for r in (red_roles if my_camp == RedCamp else blue_roles) if str(r.get('roleId')) == str(roleid)), None)
-                    if my_stats:
-                        # 计算全队总额
-                        my_team_roles = red_roles if my_camp == RedCamp else blue_roles
-                        
-                        def get_team_total_with_fill(roles, field, expected_count=5):
-                            val_list = [float(r['battleStats'].get(field, 0)) for r in roles]
-                            actual_count = len(val_list)
-                            current_sum = sum(val_list)
-                            if actual_count > 0 and actual_count < expected_count:
-                                # 用当前平均值填充缺失的人数
-                                avg = current_sum / actual_count
-                                current_sum += avg * (expected_count - actual_count)
-                            return current_sum
+            scored = score_candidate(
+                battle=btl,
+                detail=battle_detail,
+                roleid=roleid,
+                rules=representative_battle_rules,
+            )
+            if scored["has_detail"]:
+                filter_summary["detail_available"] += 1
 
-                        team_total_damage = get_team_total_with_fill(my_team_roles, 'heroDamage')
-                        team_total_taken = get_team_total_with_fill(my_team_roles, 'damageTaken')
-                        team_total_gold = get_team_total_with_fill(my_team_roles, 'gold')
-
-                        h_dmg = float(my_stats.get('heroDamage', 0))
-                        t_dmg = float(my_stats.get('damageTaken', 0))
-                        gold = float(my_stats.get('gold', 0))
-
-                        # 占比计算
-                        dmg_percent = (h_dmg / team_total_damage * 100) if team_total_damage > 0 else 0
-                        take_percent = (t_dmg / team_total_taken * 100) if team_total_taken > 0 else 0
-                        gold_percent = (gold / team_total_gold * 100) if team_total_gold > 0 else 0
-
-                        if dmg_percent > 35: 
-                            score += 50; tags.append(f"【输出重锤{round(dmg_percent)}% (伤/队>35%)】")
-                        elif dmg_percent > 30: 
-                            score += 30; tags.append(f"【主力输出{round(dmg_percent)}% (伤/队>30%)】")
-
-                        if take_percent > 35: 
-                            score += 40; tags.append(f"【团队屏障{round(take_percent)}% (承/队>35%)】")
-                        
-                        # 经济转贡献效率 (性价比：取伤害和承伤占比中较高的一个)
-                        if gold_percent > 0:
-                            # 贡献占比取高者：MAX(伤害占比, 承伤占比)
-                            contribution_percent = max(dmg_percent, take_percent)
-                            # 效率 = 贡献占比 / 经济占比
-                            efficiency = contribution_percent / gold_percent
-                            
-                            # 门槛调整：维持 1.7/0.7 门槛，权重从 30/20 增大到 60/40
-                            if efficiency > 1.7 and contribution_percent > 20:
-                                score += 60; tags.append(f"【吃草挤奶 (最高项效率{round(efficiency,2)}>1.7)】")
-                            elif efficiency < 0.7 and gold_percent > 20:
-                                score += 40; tags.append(f"【经济黑洞 (最高项效率{round(efficiency,2)}<0.7)】")
-                            
-                            # 逆风翻盘/被翻盘 (修正标签)
-                            if result == "胜利" and grade_diff > 5:
-                                # 这里的 grade_diff 已经在上面加过 score 了，这里只增加详细标签描述
-                                for i, t in enumerate(tags):
-                                    if "逆风翻盘" in t:
-                                        tags[i] = f"【逆风翻盘 (队分差{round(grade_diff,1)}>5)】"
-                            elif result == "失败" and grade_diff < -5:
-                                for i, t in enumerate(tags):
-                                    if "痛失好局" in t:
-                                        tags[i] = f"【痛失好局 (队分差{round(grade_diff,1)}<-5)】"
-
-            except Exception as e:
-                pass
-            # 3. 结果与表现准则
-            is_mvp = "MVP" in others
-            if result == "胜利":
-                if grade >= 14: score += 60; tags.append(f"【通天代 (评分{grade}>=14)】")
-                elif grade >= 12: score += 20
-                if is_mvp: score += 40; tags.append("【带头大哥 (胜方MVP)】")
-            else:
-                if grade >= 13: score += 80; tags.append(f"【非战之罪 (评分{grade}>=13)】"); detail_reason = "虽败犹荣，评分高到离谱"
-                elif grade >= 11: score += 40; tags.append(f"【孤勇者 (评分{grade}>=11)】")
-                if is_mvp: score += 30; tags.append("【虽败MVP】")
-                if grade <= 4.5: score += 40; tags.append(f"【战犯级表现 (评分{grade}<=4.5)】")
-
-            # 4. 特殊成就 (高权重)
-            achievement_weights = {
-                "五连绝世": 150, "四连超凡": 80, "三连决胜": 30,
-                "超神": 40, "输出最高": 25, "承受最高": 20, "助攻最多": 20
-            }
-            for ach, weight in achievement_weights.items():
-                if ach in others:
-                    score += weight
-                    tags.append(f"【{ach}】")
-            
-            # 5. 时间维度
-            if duration > 1800: score += 50; tags.append(f"【史诗长局 ({round(duration/60,1)}min>30)】")
-            elif duration > 1440: score += 25; tags.append(f"【拉锯战 ({round(duration/60,1)}min>24)】")
-            elif duration < 600: score += 30; tags.append(f"【闪电战 ({round(duration/60,1)}min<10)】")
+            detail_factors = [item for item in scored["breakdown"] if item["source"] == "详情JSON"]
+            detail_reason = detail_factors[0]["condition"] if detail_factors else ""
 
             btl_info = {
                 "realname": realname,
                 "nickname": nick,
                 "roleid": roleid,
                 "HeroName": btl.get("HeroName"),
-                "Result": result,
-                "Grade": grade,
+                "Result": btl.get("Result"),
+                "Grade": btl.get("GameGrade", 0),
                 "Kill": btl.get("KillCnt", 0),
                 "Dead": btl.get("DeadCnt", 0),
                 "Assist": btl.get("AssistCnt", 0),
                 "MapName": btl.get("MapName"),
                 "GameSeq": gameseq,
-                "Duration": duration,
-                "Others": others,
+                "GameTimeTimestamp": btl.get("GameTime_Timestamp", 0),
+                "Duration": btl.get("Duration_Second", 0),
+                "Others": btl.get("Others", ""),
+                "Params": btl.get("Params") or {},
                 "DetailReason": detail_reason,
-                "Tags": "".join(tags[:2]), 
-                "RepScore": score,
-                "RawTags": tags # 保留原始标签用于调试
+                "Tags": "".join(scored["tags"][:3]),
+                "RepScore": scored["score"],
+                "RawTags": scored["tags"],
+                "ScoreBreakdown": scored["breakdown"],
+                "RepresentativeCategory": scored["representative_category"],
+                "CategoryScores": scored["category_scores"],
+                "CategoryBreakdowns": scored["category_breakdowns"],
+                "DetailMetrics": scored["detail_metrics"],
+                "HasDetail": scored["has_detail"],
+                "RuleVersion": representative_battle_rules.get("version"),
+                "RejectedReasons": rejected_reasons,
             }
-            all_battles.append(btl_info)
 
+            existing = candidates_by_game.get(str(gameseq))
+            if existing:
+                filter_summary["duplicate_perspectives"] += 1
+            if not existing or ranking_key(btl_info) > ranking_key(existing):
+                candidates_by_game[str(gameseq)] = btl_info
+
+    all_battles = list(candidates_by_game.values())
     if not all_battles:
         return None
 
-    # 按代表性分数降序排列
-    all_battles.sort(key=lambda x: x["RepScore"], reverse=True)
+    all_battles.sort(key=ranking_key, reverse=True)
     best_btl = all_battles[0]
+    filter_summary["eligible_unique_battles"] = len(all_battles)
+    best_btl["FilterSummary"] = filter_summary
+    best_btl["RankingKey"] = list(ranking_key(best_btl))
 
-    # 构建基础描述
     reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
     if best_btl['DetailReason']:
         reason += f" ({best_btl['DetailReason']})"
-    
-    match_info = f"【今日高光/深度对局】\n"
-    match_info += f"得分：{best_btl['RepScore']} | {reason}\n"
-    match_info += f"指标：{''.join(best_btl['RawTags'])}\n"
+
+    category_scores = best_btl.get("CategoryScores") or {}
+    category_text = " / ".join(f"{name}{score}" for name, score in category_scores.items())
+    match_info = f"【今日代表性对局·{best_btl['RepresentativeCategory']}】\n"
+    match_info += f"代表性指数：{best_btl['RepScore']}/100 | {reason}\n"
+    match_info += f"三类指数：{category_text}\n"
+    match_info += f"依据标签：{''.join(best_btl['RawTags']) or '无'}\n"
     match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
-    
-    # 获取图文详情
+
     btl_img = None
     try:
-        from .zfunc import btldetail_process
-        from .zstatic import roleidlist
-        # 尝试查找对应的 rcv_msg 参数（btldetail_process 的参数较多）
-        # 这里的 fetch_battle 拿到的 detailUrl 参数此时已经解析在 Params 中了
-        # btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, gen_image=True)
-        # 获取 battles 文件夹下的原始数据以拿到更多参数
-        file_path = os.path.join("data","history", "battles", f"{best_btl['GameSeq']}.json")
-        with open(file_path, 'r', encoding='utf-8') as f:
-            raw_data = json.load(f)
-            head = raw_data.get('head', {})
-            # 调用生成图片的逻辑
-            _, btl_img, _ = btldetail_process(
-                gameSvrId=head.get('gameSvrId', 0),
-                relaySvrId=head.get('relaySvrId', 0),
-                gameseq=best_btl['GameSeq'],
-                pvptype=head.get('pvpType', 0),
-                roleid=best_btl['roleid'],
-                gen_image=True
-            )
-    except Exception as e:
-        import traceback
+        params = best_btl.get("Params") or {}
+        _, btl_img, _ = btldetail_process(
+            gameSvrId=params.get("gameSvrId", 0),
+            relaySvrId=params.get("relaySvrId", 0),
+            gameseq=best_btl["GameSeq"],
+            pvptype=params.get("pvptype", 0),
+            roleid=best_btl["roleid"],
+            gen_image=True,
+        )
+    except Exception:
         log_message(f"GET_REP_BATTLE_DETAIL_ERROR: {traceback.format_exc()}")
 
-    # 尝试使用AI润色
     try:
-        from .zfunc import ai_parser
         enriched = ai_parser([match_info], "best_battle")
         if enriched and "Error" not in enriched:
-            return enriched, btl_img, best_btl # 返回 best_btl 以供调试
-    except:
+            match_info += f"\n点评：{enriched}"
+    except Exception:
         pass
-    return match_info, btl_img, best_btl # 返回 best_btl 以供调试
-
-    return None
+    return match_info, btl_img, best_btl
 
 def extract_heroname(origin_text,precise=False):
     if txt_contain("轮椅",origin_text,precise,True):
