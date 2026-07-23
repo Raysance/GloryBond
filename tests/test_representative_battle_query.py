@@ -55,7 +55,7 @@ class RepresentativeBattleQueryTests(unittest.TestCase):
             ZFUNC.get_daily_representative_battle = lambda target_date: (
                 "正式文字",
                 "/tmp/representative.png",
-                {"debug": "不得返回"},
+                {"debug": "不得返回", "AiCommentary": "AI文案"},
             )
 
             result = ZFUNC.representative_battle_query_impl("昨天代表局")
@@ -67,11 +67,62 @@ class RepresentativeBattleQueryTests(unittest.TestCase):
                     "found": True,
                     "text": "正式文字",
                     "image_path": "/tmp/representative.png",
+                    "commentary": "AI文案",
                 },
             )
         finally:
             ZFUNC.get_daily_representative_battle = original_getter
             ZTIME.parse_representative_battle_date = original_parser
+
+    def test_public_text_is_compact_and_non_repeating(self):
+        text = ZFUNC._build_representative_battle_text(
+            {
+                "RepresentativeCategory": "高光封神",
+                "RepScore": 73.38,
+                "nickname": "示例玩家33",
+                "HeroName": "小乔",
+                "Kill": 11,
+                "Dead": 2,
+                "Assist": 10,
+                "MapName": "排位赛 五排",
+                "Result": "失败",
+                "RawTags": ["【高分封神】", "【KDA爆表】"],
+            },
+            "2026-07-23",
+        )
+
+        self.assertEqual(
+            text,
+            (
+                "【2026-07-23代表性对局】\n"
+                "高光封神 73.38/100\n"
+                "示例玩家33 小乔 11/2/10 排位赛 五排 🏳️\n"
+                "【高分封神】【KDA爆表】"
+            ),
+        )
+        for forbidden_text in ("代表性指数", "生效标签", "生效指数", "依据标签", "战绩", "点评", "拿下"):
+            self.assertNotIn(forbidden_text, text)
+
+    def test_scheduled_payload_keeps_commentary_separate(self):
+        original_rank = ZFUNC.rnk_process
+        original_getter = ZFUNC.get_daily_representative_battle
+        try:
+            ZFUNC.rnk_process = lambda **kwargs: ["战报", set()]
+            ZFUNC.get_daily_representative_battle = lambda: (
+                "正式文字",
+                "/tmp/representative.png",
+                {"AiCommentary": "图片下方文案"},
+            )
+
+            messages = ZFUNC.notify_msg_impl()
+
+            self.assertEqual(
+                messages[1],
+                ("正式文字", "/tmp/representative.png", "图片下方文案"),
+            )
+        finally:
+            ZFUNC.rnk_process = original_rank
+            ZFUNC.get_daily_representative_battle = original_getter
 
 
 if __name__ == "__main__":

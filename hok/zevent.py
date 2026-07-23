@@ -243,6 +243,8 @@ async def f_representative_battle(event: MessageEvent):
         image_path = existing_absolute_path(query_result["image_path"])
         if image_path:
             final_msg += MessageSegment.image(f"file://{image_path}")
+        if query_result["commentary"]:
+            final_msg += MessageSegment.text(f"\n{query_result['commentary']}")
         add_msg(final_msg, event=event)
     except ValueError as error:
         add_msg(str(error), event=event)
@@ -256,10 +258,10 @@ async def f_representative_battle(event: MessageEvent):
 
 @_dailyrepbattle.handle()
 async def f_dailyrepbattle(event: MessageEvent):
+    from .zfile import existing_absolute_path
     from .zfunc import get_daily_representative_battle
     from .utils.message_sender import add_msg
     from nonebot.adapters.onebot.v11 import MessageSegment
-    import os
 
     # 解析日期参数，例如 ##srep 2026-04-20
     # 由于使用 on_keyword，我们需要手动剥离 ##srep
@@ -277,11 +279,13 @@ async def f_dailyrepbattle(event: MessageEvent):
         if isinstance(rep_res, (list, tuple)) and len(rep_res) >= 2:
             text_part = rep_res[0]
             img_path = rep_res[1]
-            final_msg = text_part
+            final_msg = Message(text_part)
+            commentary = None
             
             # 调试信息：输出筛选准则
             if len(rep_res) >= 3:
                 best_info = rep_res[2]
+                commentary = best_info.get("AiCommentary")
                 debug_info = f"\n\n[调试-筛选准则]\n"
                 debug_info += f"● 代表类型: {best_info.get('RepresentativeCategory')}\n"
                 debug_info += f"● 代表性指数: {best_info.get('RepScore')}/100\n"
@@ -314,11 +318,13 @@ async def f_dailyrepbattle(event: MessageEvent):
                     debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
                 final_msg += debug_info
 
-            if img_path and os.path.exists(img_path):
-                final_msg += MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
+            image_path = existing_absolute_path(img_path)
+            if image_path:
+                final_msg += MessageSegment.image(f"file://{image_path}")
+            if commentary:
+                final_msg += MessageSegment.text(f"\n{commentary}")
             
             # 1. 发送给发送者 (私聊)
-            user_id = event.get_user_id()
             add_msg(final_msg, event=event)
             # 使用普通的 add_msg 或直接 return 而不是 finish
             add_msg("代表局调试结果已私聊发送", event=event)

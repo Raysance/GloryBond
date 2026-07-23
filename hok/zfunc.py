@@ -3208,12 +3208,12 @@ def notify_msg_impl():
     
     messages = [snd_msg]
 
-    # 代表性对局的第三项是调试详情；定时发送链路只接收（文本，图片路径）。
+    # 定时发送保留正式文字、图片和图片下方的 AI 文案。
     try:
         rep_btl_res = get_daily_representative_battle()
         if rep_btl_res:
-            match_text, battle_image, _ = rep_btl_res
-            messages.append((match_text, battle_image))
+            match_text, battle_image, best_battle = rep_btl_res
+            messages.append((match_text, battle_image, best_battle.get("AiCommentary")))
     except Exception:
         log_message(
             "GET_REPRESENTATIVE_BATTLE_ERROR: "
@@ -3501,6 +3501,23 @@ def kpl_build_match_image_prompt(*, match_content: dict):
 
     return {"prompt": prompt, "payload": payload, "style_template": style}
 
+def _build_representative_battle_text(best_battle, title_date):
+    result_emoji = "🏆" if best_battle.get("Result") == "胜利" else "🏳️"
+    lines = [
+        f"【{title_date}代表性对局】",
+        f"{best_battle['RepresentativeCategory']} {best_battle['RepScore']}/100",
+        (
+            f"{best_battle['nickname']} {best_battle['HeroName']} "
+            f"{best_battle['Kill']}/{best_battle['Dead']}/{best_battle['Assist']} "
+            f"{best_battle['MapName']} {result_emoji}"
+        ),
+    ]
+    tags = "".join(best_battle.get("RawTags") or [])
+    if tags:
+        lines.append(tags)
+    return "\n".join(lines)
+
+
 def get_daily_representative_battle(target_date=None):
     """Select the day's most representative battle with a transparent score."""
     from .ztime import time_sul
@@ -3607,14 +3624,8 @@ def get_daily_representative_battle(target_date=None):
     best_btl["FilterSummary"] = filter_summary
     best_btl["RankingKey"] = list(ranking_key(best_btl))
 
-    reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
-
     title_date = "今日" if use_today_title else target_date
-    match_info = f"【{title_date}代表性对局·{best_btl['RepresentativeCategory']}】\n"
-    match_info += f"代表性指数：{best_btl['RepScore']}/100 | {reason}\n"
-    match_info += f"生效指数：{best_btl['RepresentativeCategory']}{best_btl['RepScore']}\n"
-    match_info += f"依据标签：{''.join(best_btl['RawTags']) or '无'}\n"
-    match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
+    match_info = _build_representative_battle_text(best_btl, title_date)
 
     btl_img = None
     try:
@@ -3630,10 +3641,11 @@ def get_daily_representative_battle(target_date=None):
     except Exception:
         log_message(f"GET_REP_BATTLE_DETAIL_ERROR: {traceback.format_exc()}")
 
+    best_btl["AiCommentary"] = None
     try:
         enriched = ai_parser([match_info], "best_battle")
         if enriched and "Error" not in enriched:
-            match_info += f"\n点评：{enriched}"
+            best_btl["AiCommentary"] = enriched
     except Exception:
         pass
     return match_info, btl_img, best_btl
@@ -3662,6 +3674,7 @@ def representative_battle_query_impl(query_text):
         "found": True,
         "text": representative_result[0],
         "image_path": representative_result[1],
+        "commentary": representative_result[2].get("AiCommentary"),
     }
 
 
