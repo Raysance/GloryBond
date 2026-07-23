@@ -438,11 +438,16 @@ def score_candidate(battle, detail, roleid, rules):
                 "详情JSON",
             )
 
-    rounded_scores = {
-        category_rules.get(category, {}).get("label", category): _display_number(scores[category])
+    score_cap = _number(rules.get("score_cap", 100), 100)
+    capped_scores = {
+        category: min(score_cap, scores[category])
         for category in category_order
     }
-    representative_key = max(category_order, key=lambda category: scores[category])
+    rounded_scores = {
+        category_rules.get(category, {}).get("label", category): _display_number(capped_scores[category])
+        for category in category_order
+    }
+    representative_key = max(category_order, key=lambda category: capped_scores[category])
     representative_label = category_rules.get(representative_key, {}).get("label", representative_key)
     selected_breakdown = breakdowns[representative_key]
     selected_tags = [f"【{item['factor']}】" for item in selected_breakdown]
@@ -452,7 +457,7 @@ def score_candidate(battle, detail, roleid, rules):
     }
 
     return {
-        "score": _display_number(scores[representative_key]),
+        "score": _display_number(capped_scores[representative_key]),
         "representative_category": representative_label,
         "category_scores": rounded_scores,
         "tags": selected_tags,

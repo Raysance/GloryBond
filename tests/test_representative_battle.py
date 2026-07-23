@@ -77,15 +77,16 @@ def make_detail(my_role, teammates, enemies):
 
 
 class RepresentativeBattleTests(unittest.TestCase):
-    def test_each_category_has_equal_100_point_scale(self):
+    def test_category_weights_apply_calibration_with_100_point_cap(self):
         categories = RULES["categories"]
         good_total = sum(item["weight"] for item in categories["good"]["factors"].values())
         bad_total = sum(item["weight"] for item in categories["bad"]["factors"].values())
         extreme_total = sum(item["weight"] for item in categories["extreme"]["factors"].values())
 
+        self.assertEqual(RULES["score_cap"], 100)
         self.assertEqual(good_total, 100)
-        self.assertEqual(bad_total, 100)
-        self.assertEqual(extreme_total, 100)
+        self.assertEqual(bad_total, 118.5)
+        self.assertEqual(extreme_total, 204)
 
     def test_only_verified_btlist_fields_are_normalized(self):
         keywords = REPRESENTATIVE_BATTLE.build_battle_keywords({
@@ -227,7 +228,7 @@ class RepresentativeBattleTests(unittest.TestCase):
         self.assertEqual(high_result["detail_metrics"]["HighRelativeGradePercent"], 50)
         self.assertEqual(high_factor["contribution"], 7.5)
         self.assertEqual(low_result["detail_metrics"]["LowRelativeGradePercent"], 50)
-        self.assertEqual(low_factor["contribution"], 10)
+        self.assertEqual(low_factor["contribution"], 11.85)
 
     def test_unconfigured_json_content_does_not_create_tags(self):
         battle = make_battle(Others="关键抢夺 团灭 躺赢 First Blood")
