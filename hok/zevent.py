@@ -147,7 +147,7 @@ _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
 _representative_battle = on_keyword(
     set(representative_battle_keywords),
-    rule=judge_representative_battle_query,
+    rule=Rule(judge_to_me, judge_representative_battle_query),
     priority=3,
     block=True,
 )
