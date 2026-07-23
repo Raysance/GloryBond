@@ -129,6 +129,7 @@ _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
 _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
 _dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
+_representative_range_debug=on_keyword({"##rep3"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
@@ -336,6 +337,26 @@ async def f_dailyrepbattle(event: MessageEvent):
     except Exception as e:
         import traceback
         add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
+
+
+@_representative_range_debug.handle()
+async def f_representative_range_debug(event: MessageEvent):
+    from .zfunc import representative_battle_range_debug_impl
+
+    raw_msg = event.get_plaintext().strip()
+    try:
+        result = await asyncio.to_thread(representative_battle_range_debug_impl, raw_msg)
+        for day_report in result["day_reports"]:
+            add_msg(day_report, event=event)
+    except ValueError as error:
+        add_msg(str(error), event=event)
+    except Exception as error:
+        log_message(
+            "REPRESENTATIVE_BATTLE_RANGE_DEBUG_ERROR: "
+            f"query={raw_msg!r} error={error!r}\n{traceback.format_exc()}"
+        )
+        add_msg(f"代表局区间调试失败：query={raw_msg!r} error={error!r}", event=event)
+
 
 @_kpl_push.handle()
 async def f_kpl_push(event: MessageEvent):

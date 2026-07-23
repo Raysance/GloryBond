@@ -47,6 +47,26 @@ class RepresentativeBattleQueryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "无效日期"):
             ZTIME.parse_representative_battle_date("2026年2月30日代表局", now=self.now)
 
+    def test_debug_date_ranges_are_inclusive(self):
+        self.assertEqual(
+            ZTIME.parse_representative_battle_date_range(
+                "##rep3 2026-07-20 2026-07-23",
+                now=self.now,
+            ),
+            ("2026-07-20", "2026-07-23"),
+        )
+        self.assertEqual(
+            ZTIME.parse_representative_battle_date_range(
+                "##rep3 昨天到今天",
+                now=self.now,
+            ),
+            ("2026-07-22", "2026-07-23"),
+        )
+        self.assertEqual(
+            ZTIME.inclusive_date_strings("2026-07-20", "2026-07-23"),
+            ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23"],
+        )
+
     def test_public_query_drops_debug_payload(self):
         original_getter = ZFUNC.get_daily_representative_battle
         original_parser = ZTIME.parse_representative_battle_date
@@ -122,6 +142,58 @@ class RepresentativeBattleQueryTests(unittest.TestCase):
             )
         finally:
             ZFUNC.rnk_process = original_rank
+            ZFUNC.get_daily_representative_battle = original_getter
+
+    def test_category_debug_selects_each_category_independently(self):
+        original_getter = ZFUNC.get_daily_representative_battle
+
+        def candidate(name, good, bad, extreme):
+            return {
+                "GameSeq": name,
+                "nickname": name,
+                "HeroName": "小乔",
+                "Kill": 1,
+                "Dead": 2,
+                "Assist": 3,
+                "MapName": "排位赛",
+                "Result": "胜利",
+                "Grade": 8,
+                "Duration": 1000,
+                "GameTimeTimestamp": 1,
+                "HasDetail": True,
+                "CategoryScores": {
+                    "高光封神": good,
+                    "峡谷渡劫": bad,
+                    "离谱剧本": extreme,
+                },
+                "CategoryBreakdowns": {
+                    "高光封神": [{}] if good else [],
+                    "峡谷渡劫": [{}] if bad else [],
+                    "离谱剧本": [{}] if extreme else [],
+                },
+            }
+
+        try:
+            ZFUNC.get_daily_representative_battle = lambda **kwargs: [
+                candidate("高光玩家", 80, 10, 5),
+                candidate("渡劫玩家", 20, 90, 10),
+                candidate("离谱玩家", 10, 5, 70),
+            ]
+
+            leaders = ZFUNC.get_representative_battle_category_leaders("2026-07-23")
+
+            self.assertEqual(
+                [(item["category"], item["candidate"]["nickname"]) for item in leaders],
+                [
+                    ("高光封神", "高光玩家"),
+                    ("峡谷渡劫", "渡劫玩家"),
+                    ("离谱剧本", "离谱玩家"),
+                ],
+            )
+            combined_text = "\n".join(item["text"] for item in leaders)
+            self.assertNotIn("【高分封神】", combined_text)
+            self.assertNotIn("点评", combined_text)
+        finally:
             ZFUNC.get_daily_representative_battle = original_getter
 
 

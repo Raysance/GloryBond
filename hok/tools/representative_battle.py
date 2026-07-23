@@ -473,3 +473,17 @@ def ranking_key(candidate):
         _number(candidate.get("Duration")),
         _number(candidate.get("GameTimeTimestamp")),
     )
+
+
+def category_ranking_key(candidate, category_label):
+    """Rank one candidate within a specific representative category."""
+    category_scores = candidate.get("CategoryScores") or {}
+    category_breakdowns = candidate.get("CategoryBreakdowns") or {}
+    return (
+        _number(category_scores.get(category_label)),
+        len(category_breakdowns.get(category_label) or []),
+        1 if candidate.get("HasDetail") else 0,
+        abs(_number(candidate.get("Grade")) - 8),
+        _number(candidate.get("Duration")),
+        _number(candidate.get("GameTimeTimestamp")),
+    )

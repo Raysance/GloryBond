@@ -140,6 +140,50 @@ def parse_representative_battle_date(query_text, now=None):
     return reference_time.strftime("%Y-%m-%d")
 
 
+def parse_representative_battle_date_range(query_text, now=None):
+    """Extract an inclusive date range from a representative-battle debug query."""
+    text = str(query_text or "").strip()
+    full_date_pattern = re.compile(
+        r"(?<!\d)(\d{4})(?:年|[-/.])(\d{1,2})(?:月|[-/.])(\d{1,2})(?:日|号)?"
+    )
+    full_date_matches = list(full_date_pattern.finditer(text))
+
+    def validated_date(match):
+        year, month, day = (int(value) for value in match.groups())
+        try:
+            return datetime.date(year, month, day).strftime("%Y-%m-%d")
+        except ValueError as error:
+            raise ValueError(f"无效日期：{match.group(0)}") from error
+
+    if len(full_date_matches) >= 2:
+        start_date = validated_date(full_date_matches[0])
+        end_date = validated_date(full_date_matches[1])
+    else:
+        range_parts = re.split(r"\s*(?:到|至|~|～)\s*", text, maxsplit=1)
+        if len(range_parts) == 2:
+            start_date = parse_representative_battle_date(range_parts[0], now=now)
+            end_date = parse_representative_battle_date(range_parts[1], now=now)
+        else:
+            target_date = parse_representative_battle_date(text, now=now)
+            start_date = target_date
+            end_date = target_date
+
+    if start_date > end_date:
+        raise ValueError(f"开始日期不能晚于结束日期：{start_date} > {end_date}")
+    return start_date, end_date
+
+
+def inclusive_date_strings(start_date, end_date):
+    """Return every YYYY-MM-DD date in an inclusive range."""
+    current_date = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+    final_date = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+    dates = []
+    while current_date <= final_date:
+        dates.append(current_date.strftime("%Y-%m-%d"))
+        current_date += timedelta(days=1)
+    return dates
+
+
 def parse_fuzzy_time(fuzzy_str):
     """
     解析模糊时间描述，返回(start_time, end_time)

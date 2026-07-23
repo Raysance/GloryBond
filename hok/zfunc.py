@@ -3518,7 +3518,7 @@ def _build_representative_battle_text(best_battle, title_date):
     return "\n".join(lines)
 
 
-def get_daily_representative_battle(target_date=None):
+def get_daily_representative_battle(target_date=None, candidates_only=False):
     """Select the day's most representative battle with a transparent score."""
     from .ztime import time_sul
     from .zfile import read_history_date
@@ -3533,9 +3533,10 @@ def get_daily_representative_battle(target_date=None):
     gameinfo = read_history_date(target_date)
 
     if not gameinfo:
-        return None
+        return [] if candidates_only else None
 
     candidates_by_game = {}
+    candidate_perspectives = []
     filter_summary = {
         "scanned": 0,
         "official_map_rejected": 0,
@@ -3607,12 +3608,16 @@ def get_daily_representative_battle(target_date=None):
                 "RuleVersion": representative_battle_rules.get("version"),
                 "RejectedReasons": rejected_reasons,
             }
+            candidate_perspectives.append(btl_info)
 
             existing = candidates_by_game.get(str(gameseq))
             if existing:
                 filter_summary["duplicate_perspectives"] += 1
             if not existing or ranking_key(btl_info) > ranking_key(existing):
                 candidates_by_game[str(gameseq)] = btl_info
+
+    if candidates_only:
+        return candidate_perspectives
 
     all_battles = list(candidates_by_game.values())
     if not all_battles:
@@ -3675,6 +3680,76 @@ def representative_battle_query_impl(query_text):
         "text": representative_result[0],
         "image_path": representative_result[1],
         "commentary": representative_result[2].get("AiCommentary"),
+    }
+
+
+def _build_representative_category_leader_text(category_label, candidate):
+    result_emoji = "🏆" if candidate.get("Result") == "胜利" else "🏳️"
+    category_score = (candidate.get("CategoryScores") or {}).get(category_label, 0)
+    return (
+        f"{category_label} {category_score}/100\n"
+        f"{candidate.get('nickname') or '未知玩家'} "
+        f"{candidate.get('HeroName') or '未知英雄'} "
+        f"{candidate.get('Kill', 0)}/{candidate.get('Dead', 0)}/{candidate.get('Assist', 0)} "
+        f"{candidate.get('MapName') or '未知地图'} {result_emoji}"
+    )
+
+
+def get_representative_battle_category_leaders(target_date):
+    """Return the top battle perspective for each category without rich output."""
+    from .tools.representative_battle import category_ranking_key
+
+    candidates = get_daily_representative_battle(target_date=target_date, candidates_only=True)
+    if not candidates:
+        return []
+
+    category_labels = [
+        representative_battle_rules["categories"][category_key]["label"]
+        for category_key in ("good", "bad", "extreme")
+    ]
+    leaders = []
+    for category_label in category_labels:
+        candidates_by_game = {}
+        for candidate in candidates:
+            game_key = str(candidate.get("GameSeq"))
+            existing = candidates_by_game.get(game_key)
+            if (
+                existing is None
+                or category_ranking_key(candidate, category_label)
+                > category_ranking_key(existing, category_label)
+            ):
+                candidates_by_game[game_key] = candidate
+        leader = max(
+            candidates_by_game.values(),
+            key=lambda candidate: category_ranking_key(candidate, category_label),
+        )
+        leaders.append({
+            "category": category_label,
+            "score": (leader.get("CategoryScores") or {}).get(category_label, 0),
+            "candidate": leader,
+            "text": _build_representative_category_leader_text(category_label, leader),
+        })
+    return leaders
+
+
+def representative_battle_range_debug_impl(query_text):
+    """Build a text-only three-category leader report for an inclusive date range."""
+    from .ztime import inclusive_date_strings
+    from .ztime import parse_representative_battle_date_range
+
+    start_date, end_date = parse_representative_battle_date_range(query_text)
+    day_reports = []
+    for target_date in inclusive_date_strings(start_date, end_date):
+        leaders = get_representative_battle_category_leaders(target_date)
+        if leaders:
+            day_text = f"【{target_date}】\n" + "\n".join(leader["text"] for leader in leaders)
+        else:
+            day_text = f"【{target_date}】\n暂无对局"
+        day_reports.append(day_text)
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "day_reports": day_reports,
     }
 
 
