@@ -237,6 +237,25 @@ async def kpl_match_push():
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         raise
 
+
+@scheduler.scheduled_job(
+    "interval",
+    minutes=getattr(dmc, "BiliVideoPollIntervalMinutes", 5),
+    id="bili_video_push",
+    max_instances=1,
+    coalesce=True,
+    next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=60),
+)
+async def bili_video_push():
+    from .zfunc import bili_video_check_and_push
+
+    try:
+        await asyncio.to_thread(bili_video_check_and_push, debug=False)
+    except Exception:
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        raise
+
+
 def _fetch_news_impl():
     from .zapi import ark_api
     from .ztime import date_r

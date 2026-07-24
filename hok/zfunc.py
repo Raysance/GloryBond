@@ -3070,6 +3070,213 @@ def get_emoji_url(index):
     emoji_url=f"http://{confs['WebService']['server_domain']}/doraemon_emojis/{index}.jpg"
     return emoji_url
 
+
+def _bili_video_get_subscriptions():
+    subscriptions = getattr(dmc, "BiliVideoUserSubscriptions", {})
+    if not isinstance(subscriptions, dict):
+        subscriptions = {}
+    normalized = {}
+    for user_qid, item in subscriptions.items():
+        if isinstance(item, dict):
+            up_name = str(item.get("up_name") or "").strip()
+            subscribed_at = str(item.get("subscribed_at") or "")
+        else:
+            up_name = str(item or "").strip()
+            subscribed_at = ""
+        if not up_name:
+            continue
+        normalized[str(user_qid)] = {
+            "up_name": up_name,
+            "subscribed_at": subscribed_at,
+        }
+    return normalized
+
+
+def _bili_video_save_subscriptions(subscriptions):
+    from .zfile import update_dynamic_variable
+
+    dmc.BiliVideoUserSubscriptions = subscriptions
+    update_dynamic_variable("BiliVideoUserSubscriptions", subscriptions)
+
+
+def _bili_video_seen_key(up_name):
+    return f"bili:video_seen:{str(up_name).strip()}"
+
+
+def _bili_video_seen_exists(up_name, bvid):
+    return bool(dmc.redis_deamon.sismember(_bili_video_seen_key(up_name), str(bvid)))
+
+
+def _bili_video_mark_seen(up_name, bvids):
+    clean_bvids = [str(bvid).strip() for bvid in bvids if str(bvid or "").strip()]
+    if not clean_bvids:
+        return 0
+    return dmc.redis_deamon.sadd(_bili_video_seen_key(up_name), *clean_bvids)
+
+
+def _bili_video_subscribers_by_up():
+    subscriptions = _bili_video_get_subscriptions()
+    grouped = defaultdict(list)
+    for user_qid, item in subscriptions.items():
+        grouped[item["up_name"]].append(user_qid)
+    for up_name in grouped:
+        grouped[up_name].sort()
+    return dict(grouped)
+
+
+def _bili_video_format_subscriber_list(user_qids):
+    formatted = []
+    for user_qid in user_qids:
+        nick = qid2nick(str(user_qid))
+        if nick:
+            formatted.append(f"{nick}({user_qid})")
+        else:
+            formatted.append(str(user_qid))
+    return "、".join(formatted)
+
+
+def _bili_video_format_push_message(up_name, video, subscribers):
+    from .ztime import epoch_to_text
+
+    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
+    subscriber_text = _bili_video_format_subscriber_list(subscribers)
+    return (
+        f"B站订阅新视频：{up_name}\n"
+        f"订阅者：{subscriber_text or '无'}\n"
+        f"{video.get('title') or '无标题'}\n"
+        f"发布时间：{pubdate_text}\n"
+        f"{video.get('url') or ('https://www.bilibili.com/video/' + str(video.get('bvid') or ''))}"
+    )
+
+
+def bili_video_subscribe_user(user_qid, up_name):
+    from .zapi import bilibili_search_videos_by_exact_author
+    from .ztime import time_to_str
+    from .ztime import time_r
+
+    user_qid = str(user_qid)
+    up_name = str(up_name or "").strip()
+    if not up_name:
+        return "参数错误，格式：#订阅B站 UP昵称"
+
+    subscriptions = _bili_video_get_subscriptions()
+    if user_qid in subscriptions:
+        current_up = subscriptions[user_qid]["up_name"]
+        return f"你已经订阅了 {current_up}，每人最多订阅 1 个 UP。请先发送 #取消B站订阅"
+
+    videos = bilibili_search_videos_by_exact_author(
+        up_name,
+        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+    )
+    if not videos:
+        return f"未找到昵称严格匹配的 UP 新视频：{up_name}"
+
+    subscriptions[user_qid] = {
+        "up_name": up_name,
+        "subscribed_at": time_to_str(time_r()),
+    }
+    _bili_video_save_subscriptions(subscriptions)
+    _bili_video_mark_seen(up_name, [video.get("bvid") for video in videos])
+    latest = videos[0]
+    return (
+        f"订阅成功：{up_name}\n"
+        f"已将当前最新视频标记为已读：{latest.get('title') or latest.get('bvid')}"
+    )
+
+
+def bili_video_unsubscribe_user(user_qid):
+    user_qid = str(user_qid)
+    subscriptions = _bili_video_get_subscriptions()
+    current = subscriptions.pop(user_qid, None)
+    if not current:
+        return "你当前没有 B站 UP 订阅"
+    _bili_video_save_subscriptions(subscriptions)
+    return f"已取消订阅：{current['up_name']}"
+
+
+def bili_video_my_subscription(user_qid):
+    item = _bili_video_get_subscriptions().get(str(user_qid))
+    if not item:
+        return "你当前没有 B站 UP 订阅"
+    return f"你的 B站 UP 订阅：{item['up_name']}"
+
+
+def bili_video_list_subscriptions():
+    grouped = _bili_video_subscribers_by_up()
+    if not grouped:
+        return "当前没有 B站 UP 订阅"
+    lines = ["B站 UP 订阅列表："]
+    for up_name in sorted(grouped):
+        lines.append(f"{up_name}：{_bili_video_format_subscriber_list(grouped[up_name])}")
+    return "\n".join(lines)
+
+
+def bili_video_check_and_push(*, debug=False):
+    from .zapi import bilibili_search_videos_by_exact_author
+    from .ztime import time_r
+    from .utils.message_sender import add_msg
+
+    if not getattr(dmc, "BiliVideoPushEnabled", True):
+        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH paused by BiliVideoPushEnabled=false"}
+
+    grouped = _bili_video_subscribers_by_up()
+    if not grouped:
+        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH no subscriptions"}
+
+    lock_key = "bili:video_push_lock"
+    locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time_r().timestamp())), nx=True, ex=600))
+    if locked:
+        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH locked"}
+
+    checked = 0
+    pushed = 0
+    debug_lines = []
+    try:
+        for up_name in sorted(grouped):
+            checked += 1
+            subscribers = grouped[up_name]
+            videos = bilibili_search_videos_by_exact_author(
+                up_name,
+                page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+            )
+            debug_lines.append(f"BILI_VIDEO_UP up={up_name} videos={len(videos)} subscribers={len(subscribers)}")
+            if not videos:
+                continue
+
+            seen_key = _bili_video_seen_key(up_name)
+            if not dmc.redis_deamon.exists(seen_key):
+                _bili_video_mark_seen(up_name, [video.get("bvid") for video in videos])
+                debug_lines.append(f"BILI_VIDEO_INIT_SEEN up={up_name} count={len(videos)}")
+                continue
+
+            new_videos = [
+                video for video in videos
+                if video.get("bvid") and not _bili_video_seen_exists(up_name, video.get("bvid"))
+            ]
+            new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
+            for video in new_videos:
+                msg = _bili_video_format_push_message(up_name, video, subscribers)
+                add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                _bili_video_mark_seen(up_name, [video.get("bvid")])
+                pushed += 1
+                debug_lines.append(f"BILI_VIDEO_PUSHED up={up_name} bvid={video.get('bvid')}")
+        return {"checked": checked, "pushed": pushed, "debug": "\n".join(debug_lines)}
+    finally:
+        dmc.redis_deamon.delete(lock_key)
+
+
+def bili_video_admin_command(raw_msg):
+    raw_msg = str(raw_msg or "").strip()
+    args = raw_msg.replace("##bili", "", 1).strip().split()
+    action = args[0].lower() if args else "list"
+    if action == "list":
+        return bili_video_list_subscriptions()
+    if action == "check":
+        result = bili_video_check_and_push(debug=True)
+        return f"B站订阅检查完成：checked={result.get('checked')} pushed={result.get('pushed')}\n{result.get('debug') or ''}".strip()
+    return "参数错误，支持：##bili list / ##bili check"
+
+
 def generate_user_emoji_image(*, user_qid: str, size=None):
     from .tools.gen_emoji_image import generate_user_emoji_image as _impl
     return _impl(user_qid=user_qid, size=size)

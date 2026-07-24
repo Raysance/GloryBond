@@ -135,6 +135,7 @@ _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
+_bili_video_admin = on_keyword({"##bili"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
@@ -145,6 +146,9 @@ _show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
+_bili_video_subscribe = on_keyword({"订阅B站", "订阅b站"},rule=judge_to_me,priority=3, block=True)
+_bili_video_unsubscribe = on_keyword({"取消B站订阅", "取消b站订阅"},rule=judge_to_me,priority=3, block=True)
+_bili_video_mine = on_keyword({"我的B站订阅", "我的b站订阅"},rule=judge_to_me,priority=3, block=True)
 _representative_battle = on_keyword(
     set(representative_battle_keywords),
     rule=Rule(judge_to_me, judge_representative_battle_query),
@@ -388,6 +392,19 @@ async def f_kpl_push(event: MessageEvent):
     except Exception:
         add_msg("KPL 手动触发崩溃，堆栈已私聊", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+@_bili_video_admin.handle()
+async def f_bili_video_admin(event: MessageEvent):
+    from .zfunc import bili_video_admin_command
+
+    raw_msg = event.get_plaintext().strip()
+    try:
+        result = await asyncio.to_thread(bili_video_admin_command, raw_msg)
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站订阅管理崩溃，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
@@ -677,6 +694,54 @@ async def f_forever_mem(event):
     snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
     add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
     await _forever_mem.finish()
+
+
+def _strip_bili_video_command(raw_msg, prefixes):
+    text = str(raw_msg or "").strip()
+    text = text.lstrip("#＃").strip()
+    for prefix in prefixes:
+        if text.startswith(prefix):
+            return text[len(prefix):].strip()
+    return text
+
+
+@_bili_video_subscribe.handle()
+async def f_bili_video_subscribe(event: MessageEvent):
+    from .zfunc import bili_video_subscribe_user
+
+    raw_msg = event.get_plaintext().strip()
+    up_name = _strip_bili_video_command(raw_msg, ["订阅B站", "订阅b站"])
+    try:
+        result = await asyncio.to_thread(bili_video_subscribe_user, event.get_user_id(), up_name)
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站订阅失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_bili_video_unsubscribe.handle()
+async def f_bili_video_unsubscribe(event: MessageEvent):
+    from .zfunc import bili_video_unsubscribe_user
+
+    try:
+        result = await asyncio.to_thread(bili_video_unsubscribe_user, event.get_user_id())
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站取消订阅失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_bili_video_mine.handle()
+async def f_bili_video_mine(event: MessageEvent):
+    from .zfunc import bili_video_my_subscription
+
+    try:
+        result = await asyncio.to_thread(bili_video_my_subscription, event.get_user_id())
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站订阅查询失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
 
 @_manual.handle()
 async def f_manual(event):
