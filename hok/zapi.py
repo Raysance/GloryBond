@@ -669,13 +669,57 @@ class BilibiliVideoAPI:
         return re.sub(r"<.*?>", "", str(text or "")).strip()
 
     @classmethod
-    def search_videos_by_exact_author(cls, up_name, *, page_size=20):
-        up_name = str(up_name or "").strip()
-        if not up_name:
-            raise ValueError("bilibili_video_search_error: empty up_name")
+    def search_users(cls, query, *, page_size=10):
+        query = str(query or "").strip()
+        if not query:
+            raise ValueError("bilibili_user_search_error: empty query")
+        params = cls._wbi_sign({
+            "search_type": "bili_user",
+            "keyword": query,
+            "page": 1,
+            "user_type": 0,
+        })
+        payload = cls._request_json("/x/web-interface/wbi/search/type", params=params)
+        rows = ((payload.get("data") or {}).get("result") or [])[:int(page_size or 10)]
+        users = []
+        for row in rows:
+            mid = str(row.get("mid") or "").strip()
+            name = cls._strip_html(row.get("uname") or row.get("title"))
+            if not mid or not name:
+                continue
+            official = row.get("official_verify") or {}
+            users.append({
+                "mid": mid,
+                "name": name,
+                "fans": int(row.get("fans") or 0),
+                "videos": int(row.get("videos") or 0),
+                "official_desc": str(official.get("desc") or ""),
+                "official_type": official.get("type"),
+            })
+        return users
+
+    @classmethod
+    def get_user_card(cls, mid):
+        mid = str(mid or "").strip()
+        if not mid:
+            raise ValueError("bilibili_user_card_error: empty mid")
+        payload = cls._request_json("/x/web-interface/card", params={"mid": mid})
+        card = ((payload.get("data") or {}).get("card") or {})
+        name = cls._strip_html(card.get("name"))
+        return {
+            "mid": str(card.get("mid") or mid),
+            "name": name,
+            "fans": int(card.get("fans") or 0),
+        }
+
+    @classmethod
+    def search_videos(cls, keyword, *, page_size=20):
+        keyword = str(keyword or "").strip()
+        if not keyword:
+            raise ValueError("bilibili_video_search_error: empty keyword")
         params = cls._wbi_sign({
             "search_type": "video",
-            "keyword": up_name,
+            "keyword": keyword,
             "order": "pubdate",
             "page": 1,
             "duration": 0,
@@ -686,8 +730,6 @@ class BilibiliVideoAPI:
         videos = []
         for row in rows:
             author = cls._strip_html(row.get("author"))
-            if author != up_name:
-                continue
             bvid = str(row.get("bvid") or "").strip()
             if not bvid:
                 continue
@@ -698,6 +740,7 @@ class BilibiliVideoAPI:
                 arcurl = f"https://www.bilibili.com/video/{bvid}"
             videos.append({
                 "up_name": author,
+                "up_mid": str(row.get("mid") or row.get("uid") or "").strip(),
                 "bvid": bvid,
                 "title": title,
                 "pubdate": int(pubdate or 0),
@@ -707,6 +750,41 @@ class BilibiliVideoAPI:
         videos.sort(key=lambda item: int(item.get("pubdate") or 0), reverse=True)
         return videos
 
+    @classmethod
+    def search_videos_by_exact_author(cls, up_name, *, page_size=20):
+        up_name = str(up_name or "").strip()
+        return [
+            video for video in cls.search_videos(up_name, page_size=page_size)
+            if video.get("up_name") == up_name
+        ]
+
+    @classmethod
+    def search_videos_by_mid(cls, mid, *, up_name=None, page_size=20):
+        mid = str(mid or "").strip()
+        if not mid:
+            raise ValueError("bilibili_video_search_error: empty mid")
+        current_name = str(up_name or "").strip()
+        if not current_name:
+            current_name = cls.get_user_card(mid).get("name") or ""
+        if not current_name:
+            raise ValueError(f"bilibili_video_search_error: empty up_name mid={mid}")
+        return [
+            video for video in cls.search_videos(current_name, page_size=page_size)
+            if str(video.get("up_mid") or "") == mid
+        ]
+
 
 def bilibili_search_videos_by_exact_author(up_name, *, page_size=20):
     return BilibiliVideoAPI.search_videos_by_exact_author(up_name, page_size=page_size)
+
+
+def bilibili_search_users(query, *, page_size=10):
+    return BilibiliVideoAPI.search_users(query, page_size=page_size)
+
+
+def bilibili_get_user_card(mid):
+    return BilibiliVideoAPI.get_user_card(mid)
+
+
+def bilibili_search_videos_by_mid(mid, *, up_name=None, page_size=20):
+    return BilibiliVideoAPI.search_videos_by_mid(mid, up_name=up_name, page_size=page_size)
