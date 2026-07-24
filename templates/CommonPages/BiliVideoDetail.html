@@ -6,6 +6,14 @@
   <title>{{ video.title }} - B站订阅视频</title>
   <style>
 {% include "CommonPages/ios_glass_theme.css" %}
+    :root {
+      --bili-blue: #4fc3f7;
+      --bili-pink: #fb7299;
+      --bili-text: #2c3e50;
+      --bili-muted: rgba(44, 62, 80, 0.62);
+      --bili-line: rgba(255, 255, 255, 0.46);
+    }
+
     * {
       box-sizing: border-box;
     }
@@ -13,235 +21,600 @@
     body.ios-glass-page {
       min-height: 100vh;
       margin: 0;
+      color: var(--bili-text);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(79, 195, 247, 0.20), transparent 34%),
+        radial-gradient(circle at 88% 10%, rgba(251, 114, 153, 0.16), transparent 32%),
+        linear-gradient(180deg, rgba(79, 195, 247, 0.10) 0%, rgba(251, 114, 153, 0.06) 42%, #eef1f4 100%) !important;
+      line-height: 1.5;
     }
 
-    .bili-video-shell {
-      width: min(980px, calc(100vw - 32px));
-      margin: 0 auto;
-      padding: 28px 0 36px;
+    body::after {
+      content: '';
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 216px;
+      height: 60px;
+      border-radius: 30px;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.08)),
+        radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.16) 36%, transparent 58%);
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      box-shadow:
+        0 14px 34px rgba(44, 62, 80, 0.22),
+        0 1px 0 rgba(255, 255, 255, 0.45),
+        inset 0 1px 1px rgba(255, 255, 255, 0.85),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.20),
+        inset 12px 0 24px rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      pointer-events: none;
+      z-index: 1099;
     }
 
-    .bili-video-card {
-      display: grid;
-      grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
-      gap: 22px;
-      align-items: stretch;
-      padding: 18px;
-      border-radius: 22px;
-      background: var(--ios-glass-bg);
-      border: 1px solid var(--ios-glass-border);
-      box-shadow: var(--ios-glass-shadow-strong);
-      backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
-      -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    .bili-fixed-layer {
+      height: 0;
     }
 
-    .video-cover-panel {
-      min-height: 100%;
-    }
-
-    .video-cover-frame {
-      position: relative;
+    .bili-metadata {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      z-index: 1100;
+      width: clamp(320px, calc(100vw - 480px), 760px);
+      padding: 12px 14px;
+      border-radius: 24px;
+      transform: translateX(-50%);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+        radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.18) 44%, transparent 66%),
+        radial-gradient(circle at 86% 0%, rgba(251, 114, 153, 0.18), transparent 42%);
+      border: 1px solid rgba(255, 255, 255, 0.68);
+      box-shadow:
+        0 18px 44px rgba(44, 62, 80, 0.22),
+        0 1px 0 rgba(255, 255, 255, 0.44),
+        inset 0 1px 1px rgba(255, 255, 255, 0.90),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
       overflow: hidden;
-      width: 100%;
-      aspect-ratio: 16 / 9;
+      isolation: isolate;
+    }
+
+    .bili-metadata::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 46%),
+        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.62), transparent 42%);
+      opacity: 0.82;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bili-metadata > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .bili-metadata-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .bili-metadata-title {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      white-space: nowrap;
+    }
+
+    .bili-metadata-source {
+      flex-shrink: 0;
+      color: var(--bili-pink);
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .bili-metadata-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: rgba(44, 62, 80, 0.76);
+      font-size: 14px;
+      font-weight: 760;
+    }
+
+    .bili-metadata-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      background:
+        linear-gradient(145deg, rgba(251, 114, 153, 0.94), rgba(79, 195, 247, 0.86)),
+        radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.42), transparent 52%);
+      color: #fff;
+      box-shadow:
+        0 9px 24px rgba(44, 62, 80, 0.18),
+        inset 0 1px 1px rgba(255, 255, 255, 0.72);
+      font-size: 13px;
+      font-weight: 850;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .bili-metadata-details {
+      display: flex;
+      gap: 8px;
+      margin-top: 7px;
+      color: var(--bili-muted);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .bili-metadata-details span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.24);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    }
+
+    .bili-shell {
+      width: min(1180px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 128px 0 28px;
+    }
+
+    .bili-main {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .glass-panel {
       border-radius: 18px;
       background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.60), rgba(255, 255, 255, 0.20)),
-        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
-      border: 1px solid rgba(255, 255, 255, 0.58);
-      box-shadow: var(--ios-glass-shadow);
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.24) 58%, rgba(255, 255, 255, 0.12)),
+        radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.76), transparent 42%);
+      border: 1px solid rgba(255, 255, 255, 0.66);
+      box-shadow:
+        0 16px 34px rgba(31, 35, 41, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      overflow: hidden;
     }
 
-    .video-cover-frame img {
+    .cover-panel {
+      padding: 10px;
+    }
+
+    .cover-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.36);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+    }
+
+    .cover-frame img {
       display: block;
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
 
-    .video-cover-empty {
+    .cover-empty {
       display: grid;
       place-items: center;
       width: 100%;
       height: 100%;
-      color: var(--ios-glass-muted);
+      color: var(--bili-muted);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .cover-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .mini-stat {
+      min-width: 0;
+      padding: 7px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.36);
+      color: var(--bili-muted);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.44);
+    }
+
+    .mini-stat strong,
+    .mini-stat span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-stat strong {
+      color: rgba(44, 62, 80, 0.82);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .mini-stat span {
+      margin-top: 1px;
+      font-size: 10px;
       font-weight: 700;
     }
 
-    .video-info-panel {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-      gap: 16px;
-      padding: 6px 4px 4px;
-    }
-
-    .source-pill {
-      align-self: flex-start;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      color: rgba(20, 32, 48, 0.72);
-      font-size: 13px;
-      font-weight: 800;
-      background: var(--ios-glass-control-bg);
-      border: 1px solid rgba(255, 255, 255, 0.58);
-      box-shadow: 0 9px 24px rgba(44, 62, 80, 0.10);
+    .detail-panel {
+      padding: 14px;
     }
 
     .video-title {
       margin: 0;
-      color: var(--ios-glass-text);
-      font-size: 30px;
+      color: rgba(44, 62, 80, 0.94);
+      font-size: clamp(22px, 3.2vw, 34px);
       line-height: 1.18;
-      font-weight: 850;
+      font-weight: 900;
       letter-spacing: 0;
       overflow-wrap: anywhere;
     }
 
-    .up-row {
-      display: flex;
+    .up-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 10px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.42);
+      border: 1px solid rgba(255, 255, 255, 0.48);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+    }
+
+    .up-label {
+      display: block;
+      color: var(--bili-muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .up-name {
+      display: block;
       min-width: 0;
-      color: var(--ios-glass-muted);
+      margin-top: 1px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: rgba(44, 62, 80, 0.88);
       font-size: 15px;
-      font-weight: 700;
-    }
-
-    .up-link {
-      color: #2563eb;
+      font-weight: 850;
       text-decoration: none;
-      overflow-wrap: anywhere;
     }
 
-    .up-link:hover {
+    .up-name:hover {
       text-decoration: underline;
+    }
+
+    .up-mid {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.34);
+      color: var(--bili-muted);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
     }
 
     .meta-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 8px;
+      margin-top: 10px;
     }
 
     .meta-item {
       min-width: 0;
-      padding: 12px;
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.32);
-      border: 1px solid rgba(255, 255, 255, 0.48);
-      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.34);
+      border: 1px solid rgba(255, 255, 255, 0.46);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
     }
 
     .meta-label {
       display: block;
-      margin-bottom: 5px;
-      color: rgba(44, 62, 80, 0.55);
-      font-size: 12px;
-      font-weight: 800;
+      margin-bottom: 3px;
+      color: var(--bili-muted);
+      font-size: 10px;
+      font-weight: 850;
     }
 
     .meta-value {
       display: block;
-      color: var(--ios-glass-text);
-      font-size: 14px;
-      font-weight: 760;
-      overflow-wrap: anywhere;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: rgba(44, 62, 80, 0.90);
+      font-size: 13px;
+      font-weight: 800;
     }
 
-    .action-row {
+    .action-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 10px;
-      margin-top: auto;
+      grid-template-columns: 1fr 1fr 44px;
+      gap: 8px;
+      margin-top: 12px;
     }
 
     .action-button {
+      position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 48px;
-      padding: 12px 14px;
-      border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.62);
-      background: var(--ios-glass-control-bg);
-      color: var(--ios-glass-text);
+      min-height: 44px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
+        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
+      color: rgba(44, 62, 80, 0.84);
       box-shadow:
         0 9px 24px rgba(44, 62, 80, 0.12),
-        inset 0 1px 1px rgba(255, 255, 255, 0.85);
-      font-size: 15px;
+        inset 0 1px 1px rgba(255, 255, 255, 0.78);
+      font-size: 13px;
       font-weight: 850;
-      text-decoration: none;
       text-align: center;
-      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      text-decoration: none;
+      cursor: pointer;
+      overflow: hidden;
     }
 
-    .action-button:hover {
-      transform: translateY(-1px);
-      box-shadow: var(--ios-glass-shadow);
+    .action-button::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 7px;
+      right: 7px;
+      height: 38%;
+      border-radius: 999px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.08));
+      pointer-events: none;
     }
 
     .action-button.primary {
       color: #fff;
-      border-color: rgba(59, 130, 246, 0.42);
       background:
-        linear-gradient(145deg, rgba(59, 130, 246, 0.96), rgba(37, 99, 235, 0.86)),
+        linear-gradient(145deg, rgba(251, 114, 153, 0.98), rgba(79, 195, 247, 0.88)),
         radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.42), transparent 52%);
+      box-shadow:
+        0 10px 26px rgba(251, 114, 153, 0.20),
+        inset 0 1px 1px rgba(255, 255, 255, 0.72);
     }
 
-    @media (max-width: 760px) {
-      .bili-video-shell {
-        width: min(100vw - 22px, 980px);
-        padding-top: 12px;
+    .action-button.icon-only {
+      padding: 0;
+      font-size: 18px;
+    }
+
+    .scheme-row {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.28);
+      color: var(--bili-muted);
+      font-size: 11px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      z-index: 1200;
+      padding: 8px 12px;
+      border-radius: 999px;
+      transform: translateX(-50%) translateY(12px);
+      opacity: 0;
+      pointer-events: none;
+      background: rgba(44, 62, 80, 0.86);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 900px) {
+      body::after {
+        top: 6px;
+        right: 6px;
+        width: 172px;
+        height: 44px;
+        border-radius: 22px;
       }
 
-      .bili-video-card {
+      .bili-metadata {
+        top: 58px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        padding: 10px 12px;
+        transform: none;
+      }
+
+      .bili-metadata-action {
+        min-height: 32px;
+        padding: 6px 10px;
+      }
+
+      .bili-metadata-details {
+        justify-content: flex-start;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .bili-metadata-details::-webkit-scrollbar {
+        display: none;
+      }
+
+      .bili-shell {
+        width: min(100vw - 20px, 1180px);
+        padding-top: 148px;
+      }
+
+      .bili-main {
         grid-template-columns: 1fr;
-        padding: 12px;
-        border-radius: 18px;
+        gap: 10px;
+      }
+
+      .cover-panel,
+      .detail-panel {
+        padding: 10px;
       }
 
       .video-title {
-        font-size: 24px;
+        font-size: 22px;
       }
 
-      .meta-grid,
-      .action-row {
+      .meta-grid {
         grid-template-columns: 1fr;
+      }
+
+      .action-grid {
+        grid-template-columns: 1fr 1fr 40px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .bili-metadata-header {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .bili-metadata-action {
+        width: 100%;
+      }
+
+      .bili-shell {
+        padding-top: 190px;
+      }
+
+      .cover-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .up-card,
+      .action-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .action-button.icon-only {
+        min-height: 38px;
       }
     }
   </style>
 </head>
 <body class="ios-glass-page">
-  <main class="bili-video-shell">
-    <section class="bili-video-card" aria-label="B站订阅视频详情">
-      <div class="video-cover-panel">
-        <div class="video-cover-frame">
+  <div class="bili-fixed-layer">
+    <section class="bili-metadata" aria-label="B站视频摘要">
+      <div class="bili-metadata-header">
+        <div class="bili-metadata-title">
+          <span class="bili-metadata-source">B站订阅视频</span>
+          <span class="bili-metadata-name">{{ video.title }}</span>
+        </div>
+        <a class="bili-metadata-action" href="{{ video.app_url }}">App内打开</a>
+      </div>
+      <div class="bili-metadata-details">
+        <span>{{ video.up_name }}</span>
+        <span>{{ video.pubdate_text or video.pubdate or "未知发布时间" }}</span>
+        <span>{{ video.bvid }}</span>
+      </div>
+    </section>
+  </div>
+
+  <main class="bili-shell">
+    <section class="bili-main" aria-label="B站订阅视频详情">
+      <div class="glass-panel cover-panel">
+        <div class="cover-frame">
           {% if video.pic %}
           <img src="{{ video.pic }}" alt="{{ video.title }} 视频缩略图">
           {% else %}
-          <div class="video-cover-empty">暂无缩略图</div>
+          <div class="cover-empty">暂无缩略图</div>
           {% endif %}
+        </div>
+        <div class="cover-strip">
+          <div class="mini-stat">
+            <strong>{{ video.up_name }}</strong>
+            <span>UP主</span>
+          </div>
+          <div class="mini-stat">
+            <strong>{{ video.bvid }}</strong>
+            <span>BVID</span>
+          </div>
+          <div class="mini-stat">
+            <strong>{{ video.aid or "-" }}</strong>
+            <span>AVID</span>
+          </div>
         </div>
       </div>
 
-      <article class="video-info-panel">
-        <div class="source-pill">Bilibili Subscription</div>
+      <article class="glass-panel detail-panel">
         <h1 class="video-title">{{ video.title }}</h1>
 
-        <div class="up-row">
-          <span>UP主</span>
-          {% if video.up_url %}
-          <a class="up-link" href="{{ video.up_url }}" target="_blank" rel="noopener noreferrer">{{ video.up_name }}</a>
-          {% else %}
-          <span>{{ video.up_name }}</span>
-          {% endif %}
+        <div class="up-card">
+          <div>
+            <span class="up-label">UP主主页</span>
+            {% if video.up_url %}
+            <a class="up-name" href="{{ video.up_url }}" target="_blank" rel="noopener noreferrer">{{ video.up_name }}</a>
+            {% else %}
+            <span class="up-name">{{ video.up_name }}</span>
+            {% endif %}
+          </div>
+          <span class="up-mid">mid {{ video.up_mid or "-" }}</span>
         </div>
 
         <div class="meta-grid" aria-label="视频元信息">
+          <div class="meta-item">
+            <span class="meta-label">发布时间</span>
+            <span class="meta-value">{{ video.pubdate_text or video.pubdate or "-" }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">来源</span>
+            <span class="meta-value">B站订阅推送</span>
+          </div>
           <div class="meta-item">
             <span class="meta-label">AVID</span>
             <span class="meta-value">{{ video.aid or "-" }}</span>
@@ -250,40 +623,45 @@
             <span class="meta-label">BVID</span>
             <span class="meta-value">{{ video.bvid }}</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">发布时间</span>
-            <span class="meta-value">{{ video.pubdate_text or video.pubdate or "-" }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">UP mid</span>
-            <span class="meta-value">{{ video.up_mid or "-" }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">来源</span>
-            <span class="meta-value">B站订阅推送</span>
-          </div>
         </div>
 
-        <div class="action-row">
-          <a class="action-button primary" href="{{ video.app_url }}" data-fallback-url="{{ video.mobile_url }}">打开 Bilibili App</a>
-          <a class="action-button" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer">浏览器打开视频</a>
+        <div class="action-grid">
+          <a class="action-button primary" href="{{ video.app_url }}">打开 Bilibili App</a>
+          <a class="action-button" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer">浏览器打开</a>
+          <button class="action-button icon-only" type="button" data-copy="{{ video.app_url }}" aria-label="复制App链接">⧉</button>
         </div>
+        <div class="scheme-row" title="{{ video.app_url }}">{{ video.app_url }}</div>
       </article>
     </section>
   </main>
+
+  <div class="toast" id="copyToast">已复制App链接</div>
   <script>
-    document.querySelectorAll("[data-fallback-url]").forEach(function (link) {
-      link.addEventListener("click", function () {
-        var fallbackUrl = link.getAttribute("data-fallback-url");
-        if (!fallbackUrl || !link.href.startsWith("bilibili://")) {
+    document.querySelectorAll("[data-copy]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var text = button.getAttribute("data-copy") || "";
+        var toast = document.getElementById("copyToast");
+        function showToast(message) {
+          if (!toast) return;
+          toast.textContent = message;
+          toast.classList.add("show");
+          window.setTimeout(function () {
+            toast.classList.remove("show");
+          }, 1400);
+        }
+        if (!text) {
+          showToast("没有可复制链接");
           return;
         }
-        var startedAt = Date.now();
-        window.setTimeout(function () {
-          if (Date.now() - startedAt < 1600 && document.visibilityState === "visible") {
-            window.location.href = fallbackUrl;
-          }
-        }, 900);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            showToast("已复制App链接");
+          }).catch(function () {
+            showToast(text);
+          });
+        } else {
+          showToast(text);
+        }
       });
     });
   </script>

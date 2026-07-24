@@ -222,7 +222,7 @@ async def show_bili_video(request: Request, key: str):
     video_url = str(video.get("url") or f"https://www.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
     mobile_url = str(video.get("mobile_url") or f"https://m.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
     app_url = str(video.get("app_url") or "")
-    if not app_url and aid:
+    if aid:
         app_url = f"bilibili://video/{aid}?page=0"
     if not app_url:
         app_url = mobile_url
