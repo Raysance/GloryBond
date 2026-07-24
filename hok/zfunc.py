@@ -432,6 +432,7 @@ class WebArtifacts:
             "btldetail":"battle",
             "query_select":"query",
             "benefit":"benefit",
+            "bili_video":"bili-video",
         }
         route=routes.get(sitetype)
         if (not route): return ""
@@ -461,6 +462,11 @@ class WebArtifacts:
         ensure_dir(os.path.dirname(json_path))
         writerl(json_path,payload)
         return WebArtifacts.route_url(sitetype,filename_hashed)
+
+    @staticmethod
+    def bili_video_route_link(payload):
+        """Publish a Bilibili video payload to Redis and return its public detail page."""
+        return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),"bili_video")
 
 def online_process():
     from .zapi import wzry_get_official
@@ -3174,17 +3180,71 @@ def _bili_video_format_subscriber_list(user_qids):
     return "、".join(formatted)
 
 
+def _bili_video_app_url(aid):
+    aid = str(aid or "").strip()
+    return f"bilibili://video/{aid}?page=0" if aid else ""
+
+
+def _bili_video_mobile_url(bvid):
+    bvid = str(bvid or "").strip()
+    return f"https://m.bilibili.com/video/{bvid}" if bvid else ""
+
+
+def _bili_video_page_link(up_name, video):
+    from .ztime import epoch_to_text
+
+    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
+    bvid = str(video.get("bvid") or "").strip()
+    aid = str(video.get("aid") or video.get("avid") or "").strip()
+    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
+    up_mid = str(video.get("up_mid") or "").strip()
+    return WebArtifacts.bili_video_route_link({
+        "up_name": up_name,
+        "up_mid": up_mid,
+        "up_url": f"https://space.bilibili.com/{up_mid}" if up_mid else "",
+        "aid": aid,
+        "bvid": bvid,
+        "title": video.get("title") or "无标题",
+        "pubdate": int(video.get("pubdate") or 0),
+        "pubdate_text": pubdate_text,
+        "url": video_url,
+        "pic": video.get("pic") or "",
+        "app_url": _bili_video_app_url(aid),
+        "mobile_url": _bili_video_mobile_url(bvid),
+    })
+
+
 def _bili_video_format_push_message(up_name, video, subscribers):
     from .ztime import epoch_to_text
 
     pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
     subscriber_text = _bili_video_format_subscriber_list(subscribers)
+    bvid = str(video.get("bvid") or "").strip()
+    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
+    page_link = _bili_video_page_link(up_name, video)
     return (
         f"B站订阅新视频：{up_name}\n"
         f"订阅者：{subscriber_text or '无'}\n"
         f"{video.get('title') or '无标题'}\n"
         f"发布时间：{pubdate_text}\n"
-        f"{video.get('url') or ('https://www.bilibili.com/video/' + str(video.get('bvid') or ''))}"
+        f"详情页：{page_link}\n"
+        f"B站直链：{video_url}"
+    )
+
+
+def _bili_video_format_latest_message(up_name, video):
+    from .ztime import epoch_to_text
+
+    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
+    bvid = str(video.get("bvid") or "").strip()
+    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
+    page_link = _bili_video_page_link(up_name, video)
+    return (
+        f"订阅UP最新视频：{up_name}\n"
+        f"{video.get('title') or '无标题'}\n"
+        f"发布时间：{pubdate_text}\n"
+        f"详情页：{page_link}\n"
+        f"B站直链：{video_url}"
     )
 
 
@@ -3236,13 +3296,13 @@ def bili_video_subscribe_user(user_qid, up_name):
     user_qid = str(user_qid)
     up_name = str(up_name or "").strip()
     if not up_name:
-        return "参数错误，格式：#订阅B站 UP昵称"
+        return "参数错误，格式：#订阅 UP昵称"
 
     subscriptions = _bili_video_get_subscriptions()
     if user_qid in subscriptions:
         current_up = subscriptions[user_qid]["up_name"]
         current_mid = subscriptions[user_qid].get("up_mid") or "未知mid"
-        return f"你已经订阅了 {current_up}({current_mid})，每人最多订阅 1 个 UP。请先发送 #取消B站订阅"
+        return f"你已经订阅了 {current_up}({current_mid})，每人最多订阅 1 个 UP。请先发送 #取消订阅"
 
     best_up, _ = _bili_video_resolve_best_up(up_name)
     if not best_up:
@@ -3274,7 +3334,7 @@ def bili_video_subscribe_user(user_qid, up_name):
     )
 
 
-def bili_video_unsubscribe_user(user_qid):
+def bili_video_unsubscribe_user(user_qid, query_text=""):
     user_qid = str(user_qid)
     subscriptions = _bili_video_get_subscriptions()
     current = subscriptions.pop(user_qid, None)
@@ -3289,6 +3349,44 @@ def bili_video_my_subscription(user_qid):
     if not item:
         return "你当前没有 B站 UP 订阅"
     return f"你的 B站 UP 订阅：{item['up_name']}({item.get('up_mid') or '未知mid'})"
+
+
+def bili_video_latest_for_user(user_qid):
+    from .zapi import bilibili_get_user_card
+    from .zapi import bilibili_search_videos_by_mid
+
+    user_qid = str(user_qid)
+    item = _bili_video_get_subscriptions().get(user_qid)
+    if not item:
+        return "你当前没有订阅 UP，格式：#订阅 UP昵称"
+
+    identity = _bili_video_identity_key(item.get("up_mid"), item.get("up_name"))
+    up_mid = item.get("up_mid") or ""
+    up_name = item.get("up_name") or item.get("query") or ""
+    if not up_mid:
+        best_up, _ = _bili_video_resolve_best_up(up_name)
+        if not best_up:
+            return f"未能解析你订阅的 UP：{up_name}"
+        up_mid = str(best_up.get("mid") or "")
+        up_name = str(best_up.get("name") or up_name)
+        _bili_video_update_subscription_identity(identity, up_mid=up_mid, up_name=up_name)
+
+    try:
+        current_card = bilibili_get_user_card(up_mid)
+        if current_card.get("name"):
+            up_name = current_card["name"]
+            _bili_video_update_subscription_identity(identity, up_name=up_name)
+    except Exception as error:
+        log_message(f"BILI_VIDEO_LATEST_CARD_ERROR: mid={up_mid} error={repr(error)}")
+
+    videos = bilibili_search_videos_by_mid(
+        up_mid,
+        up_name=up_name,
+        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+    )
+    if not videos:
+        return f"暂未查询到 {up_name}({up_mid}) 的公开视频"
+    return _bili_video_format_latest_message(up_name, videos[0])
 
 
 def bili_video_list_subscriptions():

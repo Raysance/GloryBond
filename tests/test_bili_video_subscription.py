@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+import json
 
 from local_debugger import import_hok_module
 
@@ -38,10 +39,11 @@ class FakeRedis:
         return str(value) in self.sets.get(key, set())
 
 
-def video(bvid, title, pubdate, up_name="罗翔说刑法"):
+def video(bvid, title, pubdate, up_name="罗翔说刑法", aid="100001"):
     return {
         "up_name": up_name,
         "up_mid": "517327498",
+        "aid": aid,
         "bvid": bvid,
         "title": title,
         "pubdate": pubdate,
@@ -64,6 +66,7 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         self.sent_messages = []
 
         ZFUNC.confs.setdefault("QQBot", {})["super_qid"] = 999001
+        ZFUNC.confs.setdefault("WebService", {})["server_domain"] = "example.test"
         ZFUNC.dmc.BiliVideoUserSubscriptions = {}
         ZFUNC.dmc.redis_deamon = self.fake_redis
         ZFUNC.dmc.BiliVideoApiPageSize = 20
@@ -167,6 +170,33 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         self.assertEqual(self.sent_messages[0]["to_id"], ZFUNC.confs["QQBot"]["super_qid"])
         self.assertIn("B站订阅新视频：罗翔说刑法", self.sent_messages[0]["content"])
         self.assertIn("BV-new", self.sent_messages[0]["content"])
+        self.assertIn("详情页：https://hok.example.test/bili-video?key=", self.sent_messages[0]["content"])
+        self.assertIn("B站直链：https://www.bilibili.com/video/BV-new", self.sent_messages[0]["content"])
+        pushed_payloads = [json.loads(value) for value in self.fake_redis.values.values()]
+        self.assertEqual(pushed_payloads[-1]["app_url"], "bilibili://video/100001?page=0")
+        self.assertEqual(
+            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_name"],
+            "罗翔说刑法",
+        )
+
+    def test_latest_query_for_user_returns_current_video_detail_link(self):
+        ZFUNC.dmc.BiliVideoUserSubscriptions = {
+            "10001": {"up_mid": "517327498", "up_name": "罗翔旧昵称", "subscribed_at": ""}
+        }
+        ZAPI.bilibili_get_user_card = lambda mid: {"mid": str(mid), "name": "罗翔说刑法"}
+        ZAPI.bilibili_search_videos_by_mid = lambda mid, up_name=None, page_size=20: [
+            video("BV-new", "最新视频", 200, aid="116975984513331"),
+            video("BV-old", "旧视频", 100, aid="116000000000000"),
+        ]
+
+        result = ZFUNC.bili_video_latest_for_user("10001")
+
+        self.assertIn("订阅UP最新视频：罗翔说刑法", result)
+        self.assertIn("最新视频", result)
+        self.assertIn("详情页：https://hok.example.test/bili-video?key=", result)
+        self.assertIn("B站直链：https://www.bilibili.com/video/BV-new", result)
+        query_payloads = [json.loads(value) for value in self.fake_redis.values.values()]
+        self.assertEqual(query_payloads[-1]["app_url"], "bilibili://video/116975984513331?page=0")
         self.assertEqual(
             ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_name"],
             "罗翔说刑法",

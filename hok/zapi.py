@@ -741,6 +741,7 @@ class BilibiliVideoAPI:
             videos.append({
                 "up_name": author,
                 "up_mid": str(row.get("mid") or row.get("uid") or "").strip(),
+                "aid": str(row.get("aid") or row.get("id") or "").strip(),
                 "bvid": bvid,
                 "title": title,
                 "pubdate": int(pubdate or 0),

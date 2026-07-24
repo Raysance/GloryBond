@@ -54,6 +54,44 @@ async def handle_all_messages(event: MessageEvent):
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
 
+def _bili_video_plain_command(event):
+    return event.get_plaintext().strip().lstrip("#＃").strip()
+
+async def judge_bili_video_subscribe(event)->bool:
+    raw = _bili_video_plain_command(event)
+    if raw in {"订阅", "订阅最新视频", "订阅UP最新视频", "订阅up最新视频"}:
+        return False
+    return raw.startswith("订阅B站") or raw.startswith("订阅b站") or raw.startswith("订阅")
+
+async def judge_bili_video_unsubscribe(event)->bool:
+    raw = _bili_video_plain_command(event)
+    return raw in {"取消B站订阅", "取消b站订阅", "取消订阅"}
+
+async def judge_bili_video_latest(event)->bool:
+    raw = _bili_video_plain_command(event)
+    return raw in {
+        "最新视频",
+        "查询最新视频",
+        "订阅最新视频",
+        "查询订阅最新视频",
+        "我的最新视频",
+        "我的订阅最新视频",
+        "订阅UP最新视频",
+        "订阅up最新视频",
+    }
+
+async def judge_bili_video_mine(event)->bool:
+    raw = _bili_video_plain_command(event)
+    return raw in {
+        "我的订阅",
+        "我的UP订阅",
+        "我的up订阅",
+        "我的B站订阅",
+        "我的b站订阅",
+        "订阅状态",
+        "查询订阅",
+    }
+
 async def judge_not_duration_rank(event)->bool:
     raw = event.get_plaintext()
     return ("时长排行" not in raw) and ("时长排名" not in raw)
@@ -146,9 +184,10 @@ _show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
-_bili_video_subscribe = on_keyword({"订阅B站", "订阅b站"},rule=judge_to_me,priority=3, block=True)
-_bili_video_unsubscribe = on_keyword({"取消B站订阅", "取消b站订阅"},rule=judge_to_me,priority=3, block=True)
-_bili_video_mine = on_keyword({"我的B站订阅", "我的b站订阅"},rule=judge_to_me,priority=3, block=True)
+_bili_video_latest = on_message(rule=Rule(judge_to_me, judge_bili_video_latest), priority=3, block=True)
+_bili_video_mine = on_message(rule=Rule(judge_to_me, judge_bili_video_mine), priority=3, block=True)
+_bili_video_unsubscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_unsubscribe), priority=3, block=True)
+_bili_video_subscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_subscribe), priority=3, block=True)
 _representative_battle = on_keyword(
     set(representative_battle_keywords),
     rule=Rule(judge_to_me, judge_representative_battle_query),
@@ -710,7 +749,7 @@ async def f_bili_video_subscribe(event: MessageEvent):
     from .zfunc import bili_video_subscribe_user
 
     raw_msg = event.get_plaintext().strip()
-    up_name = _strip_bili_video_command(raw_msg, ["订阅B站", "订阅b站"])
+    up_name = _strip_bili_video_command(raw_msg, ["订阅B站", "订阅b站", "订阅"])
     try:
         result = await asyncio.to_thread(bili_video_subscribe_user, event.get_user_id(), up_name)
         add_msg(result, event=event)
@@ -728,6 +767,18 @@ async def f_bili_video_unsubscribe(event: MessageEvent):
         add_msg(result, event=event)
     except Exception:
         add_msg("B站取消订阅失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_bili_video_latest.handle()
+async def f_bili_video_latest(event: MessageEvent):
+    from .zfunc import bili_video_latest_for_user
+
+    try:
+        result = await asyncio.to_thread(bili_video_latest_for_user, event.get_user_id())
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站最新视频查询失败，堆栈已私聊", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 
