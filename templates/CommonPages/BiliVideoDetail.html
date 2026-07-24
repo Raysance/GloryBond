@@ -3,220 +3,169 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ video.title }} - B站订阅视频</title>
+  <title>{{ video.title }}</title>
   <style>
 {% include "CommonPages/ios_glass_theme.css" %}
     :root {
-      --bili-blue: #4fc3f7;
-      --bili-pink: #fb7299;
-      --bili-text: #2c3e50;
-      --bili-muted: rgba(44, 62, 80, 0.62);
-      --bili-line: rgba(255, 255, 255, 0.46);
+      --page-bg: #f6f8fb;
+      --surface: rgba(255, 255, 255, 0.78);
+      --surface-solid: #ffffff;
+      --line: rgba(57, 66, 82, 0.12);
+      --text: #1f2937;
+      --muted: rgba(31, 41, 55, 0.62);
+      --pink: #fb7299;
+      --blue: #2f9fdc;
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html {
+      min-height: 100%;
+      background: var(--page-bg);
+    }
+
     body.ios-glass-page {
       min-height: 100vh;
       margin: 0;
-      color: var(--bili-text);
+      color: var(--text);
       background:
-        radial-gradient(circle at 18% 0%, rgba(79, 195, 247, 0.20), transparent 34%),
-        radial-gradient(circle at 88% 10%, rgba(251, 114, 153, 0.16), transparent 32%),
-        linear-gradient(180deg, rgba(79, 195, 247, 0.10) 0%, rgba(251, 114, 153, 0.06) 42%, #eef1f4 100%) !important;
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(238, 243, 248, 0.96) 54%, #edf2f7 100%) !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       line-height: 1.5;
     }
 
-    body::after {
-      content: '';
+    .summary-card {
       position: fixed;
-      top: 16px;
-      right: 16px;
-      width: 216px;
-      height: 60px;
-      border-radius: 30px;
-      background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.08)),
-        radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.16) 36%, transparent 58%);
-      border: 1px solid rgba(255, 255, 255, 0.62);
-      box-shadow:
-        0 14px 34px rgba(44, 62, 80, 0.22),
-        0 1px 0 rgba(255, 255, 255, 0.45),
-        inset 0 1px 1px rgba(255, 255, 255, 0.85),
-        inset 0 -1px 2px rgba(255, 255, 255, 0.20),
-        inset 12px 0 24px rgba(255, 255, 255, 0.12);
-      backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
-      -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
-      pointer-events: none;
-      z-index: 1099;
-    }
-
-    .bili-fixed-layer {
-      height: 0;
-    }
-
-    .bili-metadata {
-      position: fixed;
-      top: 16px;
+      top: 14px;
       left: 50%;
-      z-index: 1100;
-      width: clamp(320px, calc(100vw - 480px), 760px);
-      padding: 12px 14px;
-      border-radius: 24px;
+      z-index: 100;
+      width: min(560px, calc(100vw - 200px));
+      min-width: 300px;
+      padding: 11px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.82);
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.56)),
+        var(--surface);
+      box-shadow:
+        0 14px 34px rgba(42, 50, 63, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.92);
       transform: translateX(-50%);
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
-        radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.18) 44%, transparent 66%),
-        radial-gradient(circle at 86% 0%, rgba(251, 114, 153, 0.18), transparent 42%);
-      border: 1px solid rgba(255, 255, 255, 0.68);
-      box-shadow:
-        0 18px 44px rgba(44, 62, 80, 0.22),
-        0 1px 0 rgba(255, 255, 255, 0.44),
-        inset 0 1px 1px rgba(255, 255, 255, 0.90),
-        inset 0 -1px 2px rgba(255, 255, 255, 0.22);
-      backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
-      -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
-      overflow: hidden;
-      isolation: isolate;
+      backdrop-filter: blur(24px) saturate(170%);
+      -webkit-backdrop-filter: blur(24px) saturate(170%);
     }
 
-    .bili-metadata::before {
-      content: "";
-      position: absolute;
-      inset: 1px;
-      border-radius: inherit;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 46%),
-        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.62), transparent 42%);
-      opacity: 0.82;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .bili-metadata > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    .bili-metadata-header {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .bili-metadata-title {
-      min-width: 0;
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-      white-space: nowrap;
-    }
-
-    .bili-metadata-source {
-      flex-shrink: 0;
-      color: var(--bili-pink);
-      font-size: 16px;
-      font-weight: 850;
-    }
-
-    .bili-metadata-name {
+    .summary-title,
+    .summary-up {
+      display: block;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
-      color: rgba(44, 62, 80, 0.76);
-      font-size: 14px;
-      font-weight: 760;
-    }
-
-    .bili-metadata-action {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 34px;
-      padding: 7px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.58);
-      background:
-        linear-gradient(145deg, rgba(251, 114, 153, 0.94), rgba(79, 195, 247, 0.86)),
-        radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.42), transparent 52%);
-      color: #fff;
-      box-shadow:
-        0 9px 24px rgba(44, 62, 80, 0.18),
-        inset 0 1px 1px rgba(255, 255, 255, 0.72);
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 850;
-      text-decoration: none;
       white-space: nowrap;
+      letter-spacing: 0;
     }
 
-    .bili-metadata-details {
+    .summary-title {
+      color: rgba(31, 41, 55, 0.94);
+      font-size: 15px;
+      font-weight: 820;
+    }
+
+    .summary-up {
+      margin-top: 1px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .top-actions {
+      position: fixed;
+      top: 14px;
+      right: max(14px, calc((100vw - 760px) / 2));
+      z-index: 101;
       display: flex;
+      align-items: center;
       gap: 8px;
-      margin-top: 7px;
-      color: var(--bili-muted);
-      font-size: 11px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
     }
 
-    .bili-metadata-details span {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding: 2px 7px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.24);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
-    }
-
-    .bili-shell {
-      width: min(1180px, calc(100vw - 40px));
-      margin: 0 auto;
-      padding: 128px 0 28px;
-    }
-
-    .bili-main {
-      display: grid;
-      grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
-      gap: 18px;
-      align-items: start;
-    }
-
-    .glass-panel {
-      border-radius: 18px;
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.24) 58%, rgba(255, 255, 255, 0.12)),
-        radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.76), transparent 42%);
-      border: 1px solid rgba(255, 255, 255, 0.66);
-      box-shadow:
-        0 16px 34px rgba(31, 35, 41, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.72);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      overflow: hidden;
-    }
-
-    .cover-panel {
-      padding: 10px;
-    }
-
-    .cover-frame {
+    .icon-button {
       position: relative;
+      display: inline-grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(249, 251, 253, 0.74));
+      color: rgba(31, 41, 55, 0.82);
+      box-shadow:
+        0 7px 18px rgba(42, 50, 63, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.90);
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .icon-button svg {
+      width: 22px;
+      height: 22px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible {
+      color: var(--blue);
+      border-color: rgba(47, 159, 220, 0.30);
+      box-shadow:
+        0 10px 22px rgba(47, 159, 220, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.94);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .icon-button.app {
+      color: var(--pink);
+    }
+
+    .icon-button.app:hover,
+    .icon-button.app:focus-visible {
+      border-color: rgba(251, 114, 153, 0.36);
+      box-shadow:
+        0 10px 22px rgba(251, 114, 153, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    }
+
+    .shell {
+      width: min(760px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 92px 0 30px;
+    }
+
+    .content-card {
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      border-radius: 8px;
+      background: var(--surface-solid);
+      box-shadow:
+        0 18px 44px rgba(42, 50, 63, 0.11),
+        inset 0 1px 0 rgba(255, 255, 255, 0.86);
+    }
+
+    .cover {
       width: 100%;
       aspect-ratio: 16 / 9;
       overflow: hidden;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.36);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+      background: linear-gradient(135deg, rgba(251, 114, 153, 0.12), rgba(47, 159, 220, 0.12));
     }
 
-    .cover-frame img {
+    .cover img {
       display: block;
       width: 100%;
       height: 100%;
@@ -225,448 +174,143 @@
 
     .cover-empty {
       display: grid;
-      place-items: center;
       width: 100%;
       height: 100%;
-      color: var(--bili-muted);
+      place-items: center;
+      color: var(--muted);
       font-size: 14px;
-      font-weight: 800;
+      font-weight: 760;
+      background:
+        linear-gradient(135deg, rgba(251, 114, 153, 0.16), rgba(47, 159, 220, 0.15)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0));
     }
 
-    .cover-strip {
+    .info-panel {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .mini-stat {
-      min-width: 0;
-      padding: 7px 8px;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.36);
-      color: var(--bili-muted);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.44);
-    }
-
-    .mini-stat strong,
-    .mini-stat span {
-      display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .mini-stat strong {
-      color: rgba(44, 62, 80, 0.82);
-      font-size: 12px;
-      font-weight: 850;
-    }
-
-    .mini-stat span {
-      margin-top: 1px;
-      font-size: 10px;
-      font-weight: 700;
-    }
-
-    .detail-panel {
-      padding: 14px;
-    }
-
-    .video-title {
-      margin: 0;
-      color: rgba(44, 62, 80, 0.94);
-      font-size: clamp(22px, 3.2vw, 34px);
-      line-height: 1.18;
-      font-weight: 900;
-      letter-spacing: 0;
-      overflow-wrap: anywhere;
-    }
-
-    .up-card {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 10px;
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.42);
-      border: 1px solid rgba(255, 255, 255, 0.48);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
-    }
-
-    .up-label {
-      display: block;
-      color: var(--bili-muted);
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .up-name {
-      display: block;
-      min-width: 0;
-      margin-top: 1px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: rgba(44, 62, 80, 0.88);
-      font-size: 15px;
-      font-weight: 850;
-      text-decoration: none;
-    }
-
-    .up-name:hover {
-      text-decoration: underline;
-    }
-
-    .up-mid {
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.34);
-      color: var(--bili-muted);
-      font-size: 11px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-      margin-top: 10px;
+      padding: 12px;
+      border-top: 1px solid rgba(57, 66, 82, 0.08);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 254, 0.94));
     }
 
-    .meta-item {
+    .info-row {
+      display: flex;
+      min-height: 40px;
+      align-items: center;
       min-width: 0;
       padding: 9px 10px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.34);
-      border: 1px solid rgba(255, 255, 255, 0.46);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+      border: 1px solid rgba(57, 66, 82, 0.08);
+      border-radius: 8px;
+      background: rgba(246, 248, 251, 0.82);
+      color: rgba(31, 41, 55, 0.86);
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: 0;
     }
 
-    .meta-label {
-      display: block;
-      margin-bottom: 3px;
-      color: var(--bili-muted);
-      font-size: 10px;
-      font-weight: 850;
-    }
-
-    .meta-value {
-      display: block;
+    .info-row span {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      color: rgba(44, 62, 80, 0.90);
+    }
+
+    .info-row.vid {
+      color: rgba(47, 159, 220, 0.96);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 13px;
       font-weight: 800;
     }
 
-    .action-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 44px;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    .action-button {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 44px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.58);
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
-        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
-      color: rgba(44, 62, 80, 0.84);
-      box-shadow:
-        0 9px 24px rgba(44, 62, 80, 0.12),
-        inset 0 1px 1px rgba(255, 255, 255, 0.78);
-      font-size: 13px;
-      font-weight: 850;
-      text-align: center;
-      text-decoration: none;
-      cursor: pointer;
-      overflow: hidden;
-    }
-
-    .action-button::before {
-      content: '';
-      position: absolute;
-      top: 3px;
-      left: 7px;
-      right: 7px;
-      height: 38%;
-      border-radius: 999px;
-      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.08));
-      pointer-events: none;
-    }
-
-    .action-button.primary {
-      color: #fff;
-      background:
-        linear-gradient(145deg, rgba(251, 114, 153, 0.98), rgba(79, 195, 247, 0.88)),
-        radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.42), transparent 52%);
-      box-shadow:
-        0 10px 26px rgba(251, 114, 153, 0.20),
-        inset 0 1px 1px rgba(255, 255, 255, 0.72);
-    }
-
-    .action-button.icon-only {
-      padding: 0;
-      font-size: 18px;
-    }
-
-    .scheme-row {
-      margin-top: 8px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.28);
-      color: var(--bili-muted);
-      font-size: 11px;
-      font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
-    }
-
-    .toast {
-      position: fixed;
-      left: 50%;
-      bottom: 22px;
-      z-index: 1200;
-      padding: 8px 12px;
-      border-radius: 999px;
-      transform: translateX(-50%) translateY(12px);
-      opacity: 0;
-      pointer-events: none;
-      background: rgba(44, 62, 80, 0.86);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 800;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-    }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    @media (max-width: 900px) {
-      body::after {
-        top: 6px;
-        right: 6px;
-        width: 172px;
-        height: 44px;
-        border-radius: 22px;
+    @media (max-width: 860px) {
+      .summary-card {
+        top: 10px;
+        width: min(100vw - 28px, 560px);
+        min-width: 0;
       }
 
-      .bili-metadata {
-        top: 58px;
-        left: 10px;
-        right: 10px;
-        width: auto;
-        padding: 10px 12px;
-        transform: none;
+      .top-actions {
+        top: 70px;
+        left: 50%;
+        right: auto;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: min(100vw - 28px, 560px);
+        transform: translateX(-50%);
       }
 
-      .bili-metadata-action {
-        min-height: 32px;
-        padding: 6px 10px;
-      }
-
-      .bili-metadata-details {
-        justify-content: flex-start;
-        overflow-x: auto;
-        scrollbar-width: none;
-      }
-
-      .bili-metadata-details::-webkit-scrollbar {
-        display: none;
-      }
-
-      .bili-shell {
-        width: min(100vw - 20px, 1180px);
-        padding-top: 148px;
-      }
-
-      .bili-main {
-        grid-template-columns: 1fr;
-        gap: 10px;
-      }
-
-      .cover-panel,
-      .detail-panel {
-        padding: 10px;
-      }
-
-      .video-title {
-        font-size: 22px;
-      }
-
-      .meta-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .action-grid {
-        grid-template-columns: 1fr 1fr 40px;
-      }
-    }
-
-    @media (max-width: 520px) {
-      .bili-metadata-header {
-        grid-template-columns: 1fr;
-        gap: 8px;
-      }
-
-      .bili-metadata-action {
+      .icon-button {
         width: 100%;
+        height: 40px;
       }
 
-      .bili-shell {
-        padding-top: 190px;
+      .shell {
+        padding-top: 128px;
       }
 
-      .cover-strip {
-        grid-template-columns: 1fr;
-      }
-
-      .up-card,
-      .action-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .action-button.icon-only {
-        min-height: 38px;
+      .info-panel {
+        padding: 10px;
       }
     }
   </style>
 </head>
 <body class="ios-glass-page">
-  <div class="bili-fixed-layer">
-    <section class="bili-metadata" aria-label="B站视频摘要">
-      <div class="bili-metadata-header">
-        <div class="bili-metadata-title">
-          <span class="bili-metadata-source">B站订阅视频</span>
-          <span class="bili-metadata-name">{{ video.title }}</span>
-        </div>
-        <a class="bili-metadata-action" href="{{ video.yyb_url }}" target="_blank" rel="noopener noreferrer">App内打开</a>
+  <header class="summary-card">
+    <span class="summary-title">{{ video.title }}</span>
+    <span class="summary-up">{{ video.up_name }}</span>
+  </header>
+
+  <nav class="top-actions" aria-label="视频操作">
+    {% if video.up_url %}
+    <a class="icon-button" href="{{ video.up_url }}" target="_blank" rel="noopener noreferrer" aria-label="up主页" title="up主页">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="7.4" r="3.2"></circle>
+        <path d="M5.7 19.2c.8-3.8 3-5.7 6.3-5.7 2.1 0 3.8.8 5 2.3"></path>
+        <path d="M16.3 18.1h4.2"></path>
+        <path d="M18.4 16v4.2"></path>
+      </svg>
+    </a>
+    {% endif %}
+    <a class="icon-button" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer" aria-label="视频链接" title="视频链接">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="6.2" width="16" height="11.6" rx="2.2"></rect>
+        <path d="M10.1 9.6v4.8l4.4-2.4-4.4-2.4z"></path>
+        <path d="M8.3 4.2 10 6.2"></path>
+        <path d="M15.7 4.2 14 6.2"></path>
+      </svg>
+    </a>
+    <a class="icon-button app" href="{{ video.yyb_url }}" target="_blank" rel="noopener noreferrer" aria-label="app跳转" title="app跳转">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="8" y="3.4" width="8" height="17.2" rx="2.1"></rect>
+        <path d="M10.6 6.2h2.8"></path>
+        <path d="M11.2 17.6h1.6"></path>
+        <path d="M16.7 9.1 20 12l-3.3 2.9"></path>
+        <path d="M19.6 12h-6.5"></path>
+      </svg>
+    </a>
+  </nav>
+
+  <main class="shell">
+    <section class="content-card" aria-label="视频信息">
+      <div class="cover">
+        {% if video.pic %}
+        <img src="{{ video.pic }}" alt="{{ video.title }}">
+        {% else %}
+        <div class="cover-empty">暂无缩略图</div>
+        {% endif %}
       </div>
-      <div class="bili-metadata-details">
-        <span>{{ video.up_name }}</span>
-        <span>{{ video.pubdate_text or video.pubdate or "未知发布时间" }}</span>
-        <span>{{ video.bvid }}</span>
-      </div>
-    </section>
-  </div>
 
-  <main class="bili-shell">
-    <section class="bili-main" aria-label="B站订阅视频详情">
-      <div class="glass-panel cover-panel">
-        <div class="cover-frame">
-          {% if video.pic %}
-          <img src="{{ video.pic }}" alt="{{ video.title }} 视频缩略图">
-          {% else %}
-          <div class="cover-empty">暂无缩略图</div>
-          {% endif %}
+      <div class="info-panel">
+        <div class="info-row vid">
+          <span>{{ video.bvid }}</span>
         </div>
-        <div class="cover-strip">
-          <div class="mini-stat">
-            <strong>{{ video.up_name }}</strong>
-            <span>UP主</span>
-          </div>
-          <div class="mini-stat">
-            <strong>{{ video.bvid }}</strong>
-            <span>BVID</span>
-          </div>
-          <div class="mini-stat">
-            <strong>{{ video.aid or "-" }}</strong>
-            <span>AVID</span>
-          </div>
+        <div class="info-row">
+          <span>{{ video.pubdate_text or video.pubdate or "未知发布时间" }}</span>
         </div>
       </div>
-
-      <article class="glass-panel detail-panel">
-        <h1 class="video-title">{{ video.title }}</h1>
-
-        <div class="up-card">
-          <div>
-            <span class="up-label">UP主主页</span>
-            {% if video.up_url %}
-            <a class="up-name" href="{{ video.up_url }}" target="_blank" rel="noopener noreferrer">{{ video.up_name }}</a>
-            {% else %}
-            <span class="up-name">{{ video.up_name }}</span>
-            {% endif %}
-          </div>
-          <span class="up-mid">mid {{ video.up_mid or "-" }}</span>
-        </div>
-
-        <div class="meta-grid" aria-label="视频元信息">
-          <div class="meta-item">
-            <span class="meta-label">发布时间</span>
-            <span class="meta-value">{{ video.pubdate_text or video.pubdate or "-" }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">来源</span>
-            <span class="meta-value">B站订阅推送</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">AVID</span>
-            <span class="meta-value">{{ video.aid or "-" }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">BVID</span>
-            <span class="meta-value">{{ video.bvid }}</span>
-          </div>
-        </div>
-
-        <div class="action-grid">
-          <a class="action-button primary" href="{{ video.yyb_url }}" target="_blank" rel="noopener noreferrer">打开 Bilibili App</a>
-          <a class="action-button" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer">浏览器打开</a>
-          <button class="action-button icon-only" type="button" data-copy="{{ video.app_url }}" aria-label="复制App链接">⧉</button>
-        </div>
-        <div class="scheme-row" title="{{ video.app_url }}">{{ video.app_url }}</div>
-      </article>
     </section>
   </main>
 
-  <div class="toast" id="copyToast">已复制App链接</div>
-  <script>
-    function showToast(message) {
-      var toast = document.getElementById("copyToast");
-      if (!toast) return;
-      toast.textContent = message;
-      toast.classList.add("show");
-      window.setTimeout(function () {
-        toast.classList.remove("show");
-      }, 1400);
-    }
-
-    document.querySelectorAll("[data-copy]").forEach(function (button) {
-      button.addEventListener("click", function () {
-        var text = button.getAttribute("data-copy") || "";
-        if (!text) {
-          showToast("没有可复制链接");
-          return;
-        }
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(function () {
-            showToast("已复制App链接");
-          }).catch(function () {
-            showToast(text);
-          });
-        } else {
-          showToast(text);
-        }
-      });
-    });
-  </script>
 </body>
 </html>
