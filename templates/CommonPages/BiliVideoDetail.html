@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ video.title }} - B站订阅视频</title>
+  <style>
+{% include "CommonPages/ios_glass_theme.css" %}
+    * {
+      box-sizing: border-box;
+    }
+
+    body.ios-glass-page {
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .bili-video-shell {
+      width: min(980px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 36px;
+    }
+
+    .bili-video-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
+      gap: 22px;
+      align-items: stretch;
+      padding: 18px;
+      border-radius: 22px;
+      background: var(--ios-glass-bg);
+      border: 1px solid var(--ios-glass-border);
+      box-shadow: var(--ios-glass-shadow-strong);
+      backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+      -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    }
+
+    .video-cover-panel {
+      min-height: 100%;
+    }
+
+    .video-cover-frame {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 18px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.60), rgba(255, 255, 255, 0.20)),
+        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      box-shadow: var(--ios-glass-shadow);
+    }
+
+    .video-cover-frame img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-cover-empty {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      color: var(--ios-glass-muted);
+      font-weight: 700;
+    }
+
+    .video-info-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 16px;
+      padding: 6px 4px 4px;
+    }
+
+    .source-pill {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: rgba(20, 32, 48, 0.72);
+      font-size: 13px;
+      font-weight: 800;
+      background: var(--ios-glass-control-bg);
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      box-shadow: 0 9px 24px rgba(44, 62, 80, 0.10);
+    }
+
+    .video-title {
+      margin: 0;
+      color: var(--ios-glass-text);
+      font-size: 30px;
+      line-height: 1.18;
+      font-weight: 850;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .up-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      color: var(--ios-glass-muted);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .up-link {
+      color: #2563eb;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .up-link:hover {
+      text-decoration: underline;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .meta-item {
+      min-width: 0;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.32);
+      border: 1px solid rgba(255, 255, 255, 0.48);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.62);
+    }
+
+    .meta-label {
+      display: block;
+      margin-bottom: 5px;
+      color: rgba(44, 62, 80, 0.55);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .meta-value {
+      display: block;
+      color: var(--ios-glass-text);
+      font-size: 14px;
+      font-weight: 760;
+      overflow-wrap: anywhere;
+    }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      margin-top: auto;
+    }
+
+    .action-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      background: var(--ios-glass-control-bg);
+      color: var(--ios-glass-text);
+      box-shadow:
+        0 9px 24px rgba(44, 62, 80, 0.12),
+        inset 0 1px 1px rgba(255, 255, 255, 0.85);
+      font-size: 15px;
+      font-weight: 850;
+      text-decoration: none;
+      text-align: center;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .action-button:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--ios-glass-shadow);
+    }
+
+    .action-button.primary {
+      color: #fff;
+      border-color: rgba(59, 130, 246, 0.42);
+      background:
+        linear-gradient(145deg, rgba(59, 130, 246, 0.96), rgba(37, 99, 235, 0.86)),
+        radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.42), transparent 52%);
+    }
+
+    @media (max-width: 760px) {
+      .bili-video-shell {
+        width: min(100vw - 22px, 980px);
+        padding-top: 12px;
+      }
+
+      .bili-video-card {
+        grid-template-columns: 1fr;
+        padding: 12px;
+        border-radius: 18px;
+      }
+
+      .video-title {
+        font-size: 24px;
+      }
+
+      .meta-grid,
+      .action-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="ios-glass-page">
+  <main class="bili-video-shell">
+    <section class="bili-video-card" aria-label="B站订阅视频详情">
+      <div class="video-cover-panel">
+        <div class="video-cover-frame">
+          {% if video.pic %}
+          <img src="{{ video.pic }}" alt="{{ video.title }} 视频缩略图">
+          {% else %}
+          <div class="video-cover-empty">暂无缩略图</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <article class="video-info-panel">
+        <div class="source-pill">Bilibili Subscription</div>
+        <h1 class="video-title">{{ video.title }}</h1>
+
+        <div class="up-row">
+          <span>UP主</span>
+          {% if video.up_url %}
+          <a class="up-link" href="{{ video.up_url }}" target="_blank" rel="noopener noreferrer">{{ video.up_name }}</a>
+          {% else %}
+          <span>{{ video.up_name }}</span>
+          {% endif %}
+        </div>
+
+        <div class="meta-grid" aria-label="视频元信息">
+          <div class="meta-item">
+            <span class="meta-label">AVID</span>
+            <span class="meta-value">{{ video.aid or "-" }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">BVID</span>
+            <span class="meta-value">{{ video.bvid }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">发布时间</span>
+            <span class="meta-value">{{ video.pubdate_text or video.pubdate or "-" }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">UP mid</span>
+            <span class="meta-value">{{ video.up_mid or "-" }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">来源</span>
+            <span class="meta-value">B站订阅推送</span>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <a class="action-button primary" href="{{ video.app_url }}" data-fallback-url="{{ video.mobile_url }}">打开 Bilibili App</a>
+          <a class="action-button" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer">浏览器打开视频</a>
+        </div>
+      </article>
+    </section>
+  </main>
+  <script>
+    document.querySelectorAll("[data-fallback-url]").forEach(function (link) {
+      link.addEventListener("click", function () {
+        var fallbackUrl = link.getAttribute("data-fallback-url");
+        if (!fallbackUrl || !link.href.startsWith("bilibili://")) {
+          return;
+        }
+        var startedAt = Date.now();
+        window.setTimeout(function () {
+          if (Date.now() - startedAt < 1600 && document.visibilityState === "visible") {
+            window.location.href = fallbackUrl;
+          }
+        }, 900);
+      });
+    });
+  </script>
+</body>
+</html>

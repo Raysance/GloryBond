@@ -193,6 +193,68 @@ async def show_benefit_visualizer(request: Request, key: str):
         }
     )
 
+@app.get("/bili-video", response_class=HTMLResponse)
+async def show_bili_video(request: Request, key: str):
+    if os.path.basename(key) != key or key in ("", ".", ".."):
+        return templates.TemplateResponse(
+            "ErrorPages/illegal.html",{"request": request,"message":"key非法"}
+        )
+    try:
+        raw = r_com.get(key)
+        if not raw:
+            raise ValueError("empty bili video payload")
+        video = json.loads(raw.decode("utf-8"))
+        if not isinstance(video, dict):
+            raise ValueError("invalid bili video payload")
+    except Exception:
+        return templates.TemplateResponse(
+            "ErrorPages/expired.html",{"request": request,}
+        )
+
+    bvid = str(video.get("bvid") or "").strip()
+    aid = str(video.get("aid") or video.get("avid") or "").strip()
+    up_mid = str(video.get("up_mid") or "").strip()
+    if not bvid:
+        return templates.TemplateResponse(
+            "ErrorPages/illegal.html",{"request": request,"message":"视频参数非法"}
+        )
+
+    video_url = str(video.get("url") or f"https://www.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
+    mobile_url = str(video.get("mobile_url") or f"https://m.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
+    app_url = str(video.get("app_url") or "")
+    if not app_url and aid:
+        app_url = f"bilibili://video/{aid}?page=0"
+    if not app_url:
+        app_url = mobile_url
+    up_url = str(video.get("up_url") or (f"https://space.bilibili.com/{up_mid}" if up_mid else "")).replace("http://", "https://", 1)
+    pic_url = str(video.get("pic") or "")
+    if pic_url.startswith("//"):
+        pic_url = "https:" + pic_url
+    elif pic_url.startswith("http://"):
+        pic_url = pic_url.replace("http://", "https://", 1)
+
+    return templates.TemplateResponse(
+        "CommonPages/BiliVideoDetail.html",
+        {
+            "request": request,
+            "video": {
+                "up_name": str(video.get("up_name") or "未知UP"),
+                "up_mid": up_mid,
+                "up_url": up_url,
+                "aid": aid,
+                "bvid": bvid,
+                "title": str(video.get("title") or "无标题"),
+                "pubdate": video.get("pubdate") or "",
+                "pubdate_text": str(video.get("pubdate_text") or ""),
+                "url": video_url,
+                "mobile_url": mobile_url,
+                "pic": pic_url,
+                "app_url": app_url,
+            },
+            "key": key,
+        }
+    )
+
 def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False
