@@ -1776,9 +1776,9 @@
             5: '秩序白银II',
             6: '秩序白银I',
             7: '荣耀黄金III',
-            8: '荣耀黄金III',
-            9: '荣耀黄金II',
-            10: '荣耀黄金I',
+            8: '荣耀黄金II',
+            9: '荣耀黄金I',
+            10: '尊贵铂金III',
             11: '尊贵铂金II',
             12: '尊贵铂金I',
             13: '永恒钻石III',
@@ -1800,7 +1800,11 @@
         function getBattleRankName(battle) {
             if (!battle) return '';
             const roleJob = Number(battle.roleJob);
-            return roleJobNameMap[roleJob] || battle.roleJobName || '';
+            const roleJobName = (battle.roleJobName || '').trim();
+            if (roleJobName.includes('王者')) {
+                return roleJobName;
+            }
+            return roleJobNameMap[roleJob] || roleJobName;
         }
 
         /**
