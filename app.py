@@ -13,6 +13,8 @@ import secrets
 import yaml
 import time
 from urllib.parse import urlencode
+from urllib.request import Request as UrlRequest
+from urllib.request import urlopen
 from dotenv import load_dotenv
 
 
@@ -73,6 +75,39 @@ def key_to_filename(key: str, reqtype: str):
         ret_json["DateTo"]="模拟DateTo"
         ret_json["time"]="模拟time"
         return ret_json,filepath
+
+def normalize_https_url(url: str):
+    url = str(url or "").strip()
+    if url.startswith("//"):
+        return "https:" + url
+    if url.startswith("http://"):
+        return url.replace("http://", "https://", 1)
+    return url
+
+def fetch_bili_video_cover(bvid: str, aid: str):
+    query = {}
+    if bvid:
+        query["bvid"] = bvid
+    elif aid:
+        query["aid"] = aid
+    if not query:
+        return ""
+    api_url = "https://api.bilibili.com/x/web-interface/view?" + urlencode(query)
+    try:
+        req = UrlRequest(
+            api_url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://www.bilibili.com/",
+            },
+        )
+        with urlopen(req, timeout=3) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return ""
+    data = payload.get("data") if isinstance(payload, dict) else {}
+    return normalize_https_url((data or {}).get("pic") or "")
+
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
@@ -234,11 +269,9 @@ async def show_bili_video(request: Request, key: str):
         "android_schema": app_url,
     }) if app_url.startswith("bilibili://") else mobile_url
     up_url = str(video.get("up_url") or (f"https://space.bilibili.com/{up_mid}" if up_mid else "")).replace("http://", "https://", 1)
-    pic_url = str(video.get("pic") or "")
-    if pic_url.startswith("//"):
-        pic_url = "https:" + pic_url
-    elif pic_url.startswith("http://"):
-        pic_url = pic_url.replace("http://", "https://", 1)
+    pic_url = normalize_https_url(video.get("pic") or "")
+    if not pic_url:
+        pic_url = fetch_bili_video_cover(bvid, aid)
 
     return templates.TemplateResponse(
         "CommonPages/BiliVideoDetail.html",
