@@ -226,6 +226,7 @@ async def show_bili_video(request: Request, key: str):
         app_url = f"bilibili://video/{aid}?page=0"
     if not app_url:
         app_url = mobile_url
+    app_url_alt = f"bilibili://video/{aid}" if aid else app_url
     up_url = str(video.get("up_url") or (f"https://space.bilibili.com/{up_mid}" if up_mid else "")).replace("http://", "https://", 1)
     pic_url = str(video.get("pic") or "")
     if pic_url.startswith("//"):
@@ -250,6 +251,7 @@ async def show_bili_video(request: Request, key: str):
                 "mobile_url": mobile_url,
                 "pic": pic_url,
                 "app_url": app_url,
+                "app_url_alt": app_url_alt,
             },
             "key": key,
         }
