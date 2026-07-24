@@ -12,6 +12,7 @@ import datetime
 import secrets
 import yaml
 import time
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 
@@ -227,6 +228,11 @@ async def show_bili_video(request: Request, key: str):
     if not app_url:
         app_url = mobile_url
     app_url_alt = f"bilibili://video/{aid}" if aid else app_url
+    yyb_url = "https://a.app.qq.com/o/simple.jsp?" + urlencode({
+        "pkgname": "tv.danmaku.bili",
+        "ckey": "CK1474482145968",
+        "android_schema": app_url,
+    }) if app_url.startswith("bilibili://") else mobile_url
     up_url = str(video.get("up_url") or (f"https://space.bilibili.com/{up_mid}" if up_mid else "")).replace("http://", "https://", 1)
     pic_url = str(video.get("pic") or "")
     if pic_url.startswith("//"):
@@ -252,6 +258,7 @@ async def show_bili_video(request: Request, key: str):
                 "pic": pic_url,
                 "app_url": app_url,
                 "app_url_alt": app_url_alt,
+                "yyb_url": yyb_url,
             },
             "key": key,
         }

@@ -557,7 +557,7 @@
           <span class="bili-metadata-source">B站订阅视频</span>
           <span class="bili-metadata-name">{{ video.title }}</span>
         </div>
-        <button class="bili-metadata-action" type="button" data-open-app data-app-url="{{ video.app_url }}" data-app-url-alt="{{ video.app_url_alt }}">App内打开</button>
+        <a class="bili-metadata-action" href="{{ video.yyb_url }}" target="_blank" rel="noopener noreferrer">App内打开</a>
       </div>
       <div class="bili-metadata-details">
         <span>{{ video.up_name }}</span>
@@ -628,7 +628,7 @@
         </div>
 
         <div class="action-grid">
-          <button class="action-button primary" type="button" data-open-app data-app-url="{{ video.app_url }}" data-app-url-alt="{{ video.app_url_alt }}">打开 Bilibili App</button>
+          <a class="action-button primary" href="{{ video.yyb_url }}" target="_blank" rel="noopener noreferrer">打开 Bilibili App</a>
           <a class="action-button" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer">浏览器打开</a>
           <button class="action-button icon-only" type="button" data-copy="{{ video.app_url }}" aria-label="复制App链接">⧉</button>
         </div>
@@ -648,42 +648,6 @@
         toast.classList.remove("show");
       }, 1400);
     }
-
-    function invokeScheme(url) {
-      if (!url || !url.startsWith("bilibili://")) {
-        return;
-      }
-      var iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = url;
-      document.body.appendChild(iframe);
-      window.setTimeout(function () {
-        if (iframe.parentNode) {
-          iframe.parentNode.removeChild(iframe);
-        }
-      }, 1200);
-      window.location.href = url;
-    }
-
-    document.querySelectorAll("[data-open-app]").forEach(function (button) {
-      button.addEventListener("click", function () {
-        var appUrl = button.getAttribute("data-app-url") || "";
-        var altUrl = button.getAttribute("data-app-url-alt") || "";
-        if (!appUrl.startsWith("bilibili://")) {
-          showToast("缺少App链接");
-          return;
-        }
-        showToast("正在尝试打开App");
-        invokeScheme(appUrl);
-        if (altUrl && altUrl !== appUrl) {
-          window.setTimeout(function () {
-            if (document.visibilityState === "visible") {
-              invokeScheme(altUrl);
-            }
-          }, 350);
-        }
-      });
-    });
 
     document.querySelectorAll("[data-copy]").forEach(function (button) {
       button.addEventListener("click", function () {
