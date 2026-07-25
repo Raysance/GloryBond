@@ -168,6 +168,7 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         self.assertEqual(len(self.sent_messages), 1)
         self.assertEqual(self.sent_messages[0]["msg_type"], "private")
         self.assertEqual(self.sent_messages[0]["to_id"], ZFUNC.confs["QQBot"]["super_qid"])
+        self.assertTrue(self.sent_messages[0]["content"].startswith("B站订阅视频推送\n"))
         self.assertIn("【最新视频】", self.sent_messages[0]["content"])
         self.assertIn("罗翔说刑法 · ", self.sent_messages[0]["content"])
         self.assertIn("\n\n[CQ:image,file=https://i0.hdslb.com/bfs/archive/thumb.jpg]\n\n", self.sent_messages[0]["content"])
@@ -197,6 +198,7 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
 
         result = ZFUNC.bili_video_latest_for_user("10001")
 
+        self.assertTrue(result.startswith("B站订阅视频推送\n"))
         self.assertIn("【最新视频】", result)
         self.assertIn("罗翔说刑法 · ", result)
         self.assertIn("\n\n[CQ:image,file=https://i0.hdslb.com/bfs/archive/thumb.jpg]\n\n", result)
