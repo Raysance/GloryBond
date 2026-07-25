@@ -31,6 +31,18 @@ def readerl(filepath):
         return []
     except json.JSONDecodeError:
         return []
+
+
+def read_history_date(target_date):
+    """Read one daily history payload through the project's IO boundary."""
+    return readerl(os.path.join("data", "history", f"{target_date}.json"))
+
+
+def read_battle_detail(gameseq):
+    """Read one cached battle-detail payload through the project's IO boundary."""
+    return readerl(os.path.join("data", "history", "battles", f"{gameseq}.json"))
+
+
 def writerl(filepath,data):
     try:
         with open(filepath, 'w', encoding='utf-8') as file:
@@ -38,17 +50,6 @@ def writerl(filepath,data):
         return None
     except Exception as e:
         return None
-def update_dynamic_variable(key, value):
-    filepath = "variables_dynamic.json"
-    data = readerl(filepath)
-    if not isinstance(data, dict):
-        raise Exception(f"update_dynamic_variable_error: invalid variables_dynamic.json key={key}")
-    data[key] = value
-    tmp_filepath = filepath + ".tmp"
-    with open(tmp_filepath, 'w', encoding='utf-8') as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
-    os.replace(tmp_filepath, filepath)
-    return None
 def chats_dumper(qid, question, answer): # 输出各自的chat
     from .ztime import time_r
     current_time = time_r().strftime("%Y-%m-%d %H:%M:%S")
@@ -115,6 +116,15 @@ def copyfile(src_file,dst_file):
     shutil.copy(src_file,dst_file)
 def file_exist(file_path):
     return os.path.exists(file_path)
+
+
+def existing_absolute_path(file_path):
+    """Return an absolute path only when the target file exists."""
+    if not file_path or not os.path.exists(file_path):
+        return None
+    return os.path.abspath(file_path)
+
+
 def get_file_list(root_path,end_with):
     file_list=[]
     if os.path.exists(root_path) and os.path.isdir(root_path):

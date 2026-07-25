@@ -583,3 +583,209 @@ def bilibili_esports_get_json(path_or_url, *, params=None):
 
 def bilibili_esports_get_bytes(url):
     return BilibiliEsportsAPI.get_bytes(url)
+
+
+class BilibiliVideoAPI:
+    API_BASE = "https://api.bilibili.com"
+    REQUEST_HEADERS = {
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://www.bilibili.com/",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+        ),
+    }
+    MIXIN_KEY_ENC_TAB = [
+        46, 47, 18, 2, 53, 8, 23, 32,
+        15, 50, 10, 31, 58, 3, 45, 35,
+        27, 43, 5, 49, 33, 9, 42, 19,
+        29, 28, 14, 39, 12, 38, 41, 13,
+        37, 48, 7, 16, 24, 55, 40, 61,
+        26, 17, 0, 1, 60, 51, 30, 4,
+        22, 25, 54, 21, 56, 59, 6, 63,
+        57, 62, 11, 36, 20, 34, 44, 52,
+    ]
+    _wbi_keys = None
+    _wbi_keys_ts = 0
+
+    @classmethod
+    def _request_json(cls, path_or_url, *, params=None):
+        url = str(path_or_url or "")
+        if url.startswith("/"):
+            url = f"{cls.API_BASE}{url}"
+        response = requests.get(url, params=params, headers=cls.REQUEST_HEADERS, timeout=30)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise Exception(f"bilibili_video_api_error: non-dict response url={url} params={params}")
+        code = payload.get("code")
+        if code not in (0, "0", -101):
+            raise Exception(
+                f"bilibili_video_api_error: url={url} params={params} "
+                f"code={code} message={payload.get('message')!r}"
+            )
+        return payload
+
+    @classmethod
+    def _get_wbi_keys(cls):
+        import time
+
+        now = time.time()
+        if cls._wbi_keys and now - cls._wbi_keys_ts < 12 * 60 * 60:
+            return cls._wbi_keys
+        payload = cls._request_json("/x/web-interface/nav")
+        wbi_img = ((payload.get("data") or {}).get("wbi_img") or {})
+        img_url = str(wbi_img.get("img_url") or "")
+        sub_url = str(wbi_img.get("sub_url") or "")
+        img_key = img_url.rsplit("/", 1)[-1].split(".", 1)[0]
+        sub_key = sub_url.rsplit("/", 1)[-1].split(".", 1)[0]
+        if not img_key or not sub_key:
+            raise Exception(f"bilibili_video_wbi_error: empty wbi keys payload={payload}")
+        cls._wbi_keys = (img_key, sub_key)
+        cls._wbi_keys_ts = now
+        return cls._wbi_keys
+
+    @classmethod
+    def _wbi_sign(cls, params):
+        import hashlib
+        import time
+        import urllib.parse
+
+        img_key, sub_key = cls._get_wbi_keys()
+        raw_key = img_key + sub_key
+        mixin_key = "".join(raw_key[index] for index in cls.MIXIN_KEY_ENC_TAB)[:32]
+        signed = {str(key): str(value) for key, value in (params or {}).items()}
+        signed["wts"] = str(round(time.time()))
+        clean = {
+            key: "".join(ch for ch in value if ch not in "!'()*")
+            for key, value in sorted(signed.items())
+        }
+        query = urllib.parse.urlencode(clean)
+        clean["w_rid"] = hashlib.md5((query + mixin_key).encode()).hexdigest()
+        return clean
+
+    @staticmethod
+    def _strip_html(text):
+        return re.sub(r"<.*?>", "", str(text or "")).strip()
+
+    @classmethod
+    def search_users(cls, query, *, page_size=10):
+        query = str(query or "").strip()
+        if not query:
+            raise ValueError("bilibili_user_search_error: empty query")
+        params = cls._wbi_sign({
+            "search_type": "bili_user",
+            "keyword": query,
+            "page": 1,
+            "user_type": 0,
+        })
+        payload = cls._request_json("/x/web-interface/wbi/search/type", params=params)
+        rows = ((payload.get("data") or {}).get("result") or [])[:int(page_size or 10)]
+        users = []
+        for row in rows:
+            mid = str(row.get("mid") or "").strip()
+            name = cls._strip_html(row.get("uname") or row.get("title"))
+            if not mid or not name:
+                continue
+            official = row.get("official_verify") or {}
+            users.append({
+                "mid": mid,
+                "name": name,
+                "fans": int(row.get("fans") or 0),
+                "videos": int(row.get("videos") or 0),
+                "official_desc": str(official.get("desc") or ""),
+                "official_type": official.get("type"),
+            })
+        return users
+
+    @classmethod
+    def get_user_card(cls, mid):
+        mid = str(mid or "").strip()
+        if not mid:
+            raise ValueError("bilibili_user_card_error: empty mid")
+        payload = cls._request_json("/x/web-interface/card", params={"mid": mid})
+        card = ((payload.get("data") or {}).get("card") or {})
+        name = cls._strip_html(card.get("name"))
+        return {
+            "mid": str(card.get("mid") or mid),
+            "name": name,
+            "fans": int(card.get("fans") or 0),
+        }
+
+    @classmethod
+    def search_videos(cls, keyword, *, page_size=20):
+        keyword = str(keyword or "").strip()
+        if not keyword:
+            raise ValueError("bilibili_video_search_error: empty keyword")
+        params = cls._wbi_sign({
+            "search_type": "video",
+            "keyword": keyword,
+            "order": "pubdate",
+            "page": 1,
+            "duration": 0,
+            "tids": 0,
+        })
+        payload = cls._request_json("/x/web-interface/wbi/search/type", params=params)
+        rows = ((payload.get("data") or {}).get("result") or [])[:int(page_size or 20)]
+        videos = []
+        for row in rows:
+            author = cls._strip_html(row.get("author"))
+            bvid = str(row.get("bvid") or "").strip()
+            if not bvid:
+                continue
+            title = cls._strip_html(row.get("title"))
+            pubdate = row.get("pubdate") or row.get("senddate") or 0
+            arcurl = str(row.get("arcurl") or "").replace("http://", "https://", 1)
+            if not arcurl:
+                arcurl = f"https://www.bilibili.com/video/{bvid}"
+            videos.append({
+                "up_name": author,
+                "up_mid": str(row.get("mid") or row.get("uid") or "").strip(),
+                "aid": str(row.get("aid") or row.get("id") or "").strip(),
+                "bvid": bvid,
+                "title": title,
+                "pubdate": int(pubdate or 0),
+                "url": arcurl,
+                "pic": str(row.get("pic") or ""),
+            })
+        videos.sort(key=lambda item: int(item.get("pubdate") or 0), reverse=True)
+        return videos
+
+    @classmethod
+    def search_videos_by_exact_author(cls, up_name, *, page_size=20):
+        up_name = str(up_name or "").strip()
+        return [
+            video for video in cls.search_videos(up_name, page_size=page_size)
+            if video.get("up_name") == up_name
+        ]
+
+    @classmethod
+    def search_videos_by_mid(cls, mid, *, up_name=None, page_size=20):
+        mid = str(mid or "").strip()
+        if not mid:
+            raise ValueError("bilibili_video_search_error: empty mid")
+        current_name = str(up_name or "").strip()
+        if not current_name:
+            current_name = cls.get_user_card(mid).get("name") or ""
+        if not current_name:
+            raise ValueError(f"bilibili_video_search_error: empty up_name mid={mid}")
+        return [
+            video for video in cls.search_videos(current_name, page_size=page_size)
+            if str(video.get("up_mid") or "") == mid
+        ]
+
+
+def bilibili_search_videos_by_exact_author(up_name, *, page_size=20):
+    return BilibiliVideoAPI.search_videos_by_exact_author(up_name, page_size=page_size)
+
+
+def bilibili_search_users(query, *, page_size=10):
+    return BilibiliVideoAPI.search_users(query, page_size=page_size)
+
+
+def bilibili_get_user_card(mid):
+    return BilibiliVideoAPI.get_user_card(mid)
+
+
+def bilibili_search_videos_by_mid(mid, *, up_name=None, page_size=20):
+    return BilibiliVideoAPI.search_videos_by_mid(mid, up_name=up_name, page_size=page_size)

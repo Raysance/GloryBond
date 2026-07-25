@@ -247,14 +247,14 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         case "watchbattle":
             url=watchbattle_url
             data=watchbattle_data
-    retry_time=3
+    max_retries=0
     error_msg=""
-    while(retry_time):
+    res={}
+    for attempt in range(max_retries + 1):
         try:
             encoded_response = requests.post(url, headers=headers, json=data)
         except Exception as e:
             error_msg="Network error: "+str(e)
-            retry_time=0
             break
 
         # print(encoded_response.text)
@@ -268,18 +268,16 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
                 decoded_response=decrypt_game_data(confs["wzry"]["pubkey"],confs["wzry"]["encoderes"],encoded_response.text)
             except Exception as e:
                 error_msg="Decode error: "+str(e)
-                retry_time=0
                 break
         res=decoded_response.get("data",{})
         error_msg=decoded_response.get("returnMsg","")
         # print(res,error_msg)
         if res: break
         if ("登录态失效" in error_msg or "频繁" in error_msg or "繁忙" in error_msg or "不允许被观战" in error_msg or "本场对局已结束" in error_msg):
-            retry_time=0
             break
-        time.sleep(2)
-        retry_time-=1
-    if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
+        if attempt < max_retries:
+            time.sleep(2)
+    if not res: raise Exception(str("HOK Exception: "+error_msg))
     
     # # [T调试语句] 将结果输出到文件，使用精确到毫秒的时间命名
     # import os

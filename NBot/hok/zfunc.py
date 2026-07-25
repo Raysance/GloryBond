@@ -10,6 +10,38 @@ from wcwidth import wcswidth
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "battle:invisible_disabled_qids"
+
+
+def _redis_get_json(key, default=None):
+    raw = dmc.redis_deamon.get(key)
+    if not raw:
+        return default
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8")
+    return json.loads(raw)
+
+
+def _redis_set_json(key, value):
+    dmc.redis_deamon.set(key, json.dumps(value, ensure_ascii=False))
+
+
+def get_battle_invisible_disabled_qids():
+    try:
+        value = _redis_get_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, default=[])
+    except Exception as error:
+        log_message(f"BATTLE_VISIBILITY_REDIS_READ_ERROR: {repr(error)}")
+        value = []
+    if not isinstance(value, list):
+        value = []
+    return sorted({str(item) for item in value if str(item or "").strip()})
+
+
+def save_battle_invisible_disabled_qids(disabled_qids):
+    disabled_qids = sorted({str(item) for item in disabled_qids if str(item or "").strip()})
+    _redis_set_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, disabled_qids)
+    return disabled_qids
+
 def _to_pinyin(s):
     from pypinyin import lazy_pinyin
     
@@ -21,29 +53,54 @@ def safe_hero_name(hero_id, default=None):
     hero_id = str(hero_id)
     return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
 
-def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None): # 单人的战绩parser
-    def sync_battle_visibility_qid(visible):
-        from .zfile import update_dynamic_variable
+def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
+    def get_battle_visibility_qids(user_name):
+        related_names = {user_name}
+        for main_name, alias_names in globals().get("sameuser", {}).items():
+            aliases = set(alias_names if isinstance(alias_names, list) else [])
+            aliases.add(main_name)
+            if user_name in aliases:
+                related_names.update(aliases)
+        target_qids = []
+        for name in sorted(related_names):
+            user_qid = qid.get(name)
+            if not user_qid:
+                log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {name}")
+                continue
+            user_qid = str(user_qid)
+            if user_qid not in target_qids:
+                target_qids.append(user_qid)
+        return target_qids
 
-        user_qid = qid.get(realname)
-        if not user_qid:
+    def sync_battle_visibility_qid(visible):
+        from .utils.message_sender import BATTLE_INVISIBLE_MUTE_SECONDS
+        from .utils.message_sender import add_group_ban_task
+
+        target_qids = get_battle_visibility_qids(realname)
+        if not target_qids:
             log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
             return
-        disabled_qids = [str(item) for item in getattr(dmc, "BattleInvisibleDisabledQids", [])]
-        user_qid = str(user_qid)
-        changed = False
+        disabled_qids = get_battle_invisible_disabled_qids()
+        target_qid_set = set(target_qids)
+        changed_qids = []
         if visible:
-            if user_qid in disabled_qids:
-                disabled_qids.remove(user_qid)
-                changed = True
+            changed_qids = [user_qid for user_qid in target_qids if user_qid in disabled_qids]
+            disabled_qids = [user_qid for user_qid in disabled_qids if user_qid not in target_qid_set]
+            for user_qid in changed_qids:
                 log_message(f"WZRY_VISIBILITY_ENABLE_QID: {realname} {user_qid}")
-        elif user_qid not in disabled_qids:
-            disabled_qids.append(user_qid)
-            changed = True
-            log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
-        dmc.BattleInvisibleDisabledQids = disabled_qids
+        else:
+            for user_qid in target_qids:
+                if user_qid not in disabled_qids:
+                    disabled_qids.append(user_qid)
+                    changed_qids.append(user_qid)
+                    log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
+        changed = bool(changed_qids)
         if changed:
-            update_dynamic_variable("BattleInvisibleDisabledQids", disabled_qids)
+            save_battle_invisible_disabled_qids(disabled_qids)
+            duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
+            source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
+            for user_qid in target_qids:
+                add_group_ban_task(user_qid, duration=duration, source=source)
 
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
@@ -123,7 +180,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
     # winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
     BtlVisible=not res["btlist"]["invisible"]
-    sync_battle_visibility_qid(BtlVisible)
+    if sync_battle_visibility:
+        sync_battle_visibility_qid(BtlVisible)
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
@@ -138,6 +196,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
     if(BtlVisible):
+        from .tools.representative_battle import build_battle_keywords
+
         today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==target_date_obj)]
         # today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==date_roleback().date())]
         today_details=[{\
@@ -155,7 +215,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             'Duration_Second':int(game['usedTime']),\
             'GameSeq':int(game['gameSeq']),\
             'Params':extract_url_params(game['detailUrl']),\
-            'Others':(('MVP ' if (game['mvpcnt']+game['losemvp']>=1) else ' ')+('一血' if (game['firstBlood']) else ' ')+('超神' if (game['godLikeCnt']) else ' '))\
+            'Others':build_battle_keywords(game)\
                 } for game in today_btl]
         today_details=today_details[::-1]
         today_game_map_set={game['mapName'] for game in today_btl}
@@ -198,8 +258,12 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         # except Exception as e:
         #     log_message(str(e))
         peakUp=get_peak_alter_list(details=today_details,processed=False)
-        gamegrades = [round(float(game['gradeGame']),1) for game in today_btl if check_btl_official_with_matching(game['mapName'])]
-        today_btl_aver = round(sum((gamegrades)) / len(gamegrades),3) if gamegrades else 0
+        gamegrades = [
+            round(float(game["gradeGame"]), 1)
+            for game in today_btl
+            if check_btl_official(game["mapName"])
+        ]
+        today_btl_aver = round(sum(gamegrades) / len(gamegrades), 3) if gamegrades else 0
         today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
         today_btl_min= fin if len(gamegrades)==0 else min(gamegrades)
     
@@ -398,6 +462,7 @@ class WebArtifacts:
             "btldetail":"battle",
             "query_select":"query",
             "benefit":"benefit",
+            "bili_video":"bili-video",
         }
         route=routes.get(sitetype)
         if (not route): return ""
@@ -427,6 +492,11 @@ class WebArtifacts:
         ensure_dir(os.path.dirname(json_path))
         writerl(json_path,payload)
         return WebArtifacts.route_url(sitetype,filename_hashed)
+
+    @staticmethod
+    def bili_video_route_link(payload):
+        """Publish a Bilibili video payload to Redis and return its public detail page."""
+        return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),"bili_video")
 
 def online_process():
     from .zapi import wzry_get_official
@@ -763,7 +833,7 @@ def single_process(rcv_msg):
             gameinfo=merge_crossday_gamedata(gameinfo_raw)
             website_link=WebArtifacts.history_route_link(filename_hashed,"single_period",extra={"DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")})
         else: # 当天战局
-            gameinfo=wzry_data(matching_name,website_filepath)
+            gameinfo=wzry_data(matching_name,website_filepath,sync_battle_visibility=True)
             
             # Save to history file
             today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
@@ -795,6 +865,9 @@ def single_process(rcv_msg):
                     "battleID": gameinfo["gaming_info"]["battle_id"],
                 }
             website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
+
+        # 历史数据中的 btl_aver 可能由旧口径生成，查询时统一按正式对局重算。
+        gameinfo["btl_aver"] = calculate_official_battle_average(gameinfo.get("details", []))
         
         win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
                     for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
@@ -2231,6 +2304,45 @@ class BattlePowerHistory:
             return True
         return False
 
+    @staticmethod
+    def begin_in_progress(gameseq):
+        gameseq = str(gameseq)
+        with dmc.BattlePowerInProgressLock:
+            progress = dmc.BattlePowerInProgress.get(gameseq)
+            if progress:
+                return progress, False
+            progress = {
+                "event": threading.Event(),
+                "error": "",
+            }
+            dmc.BattlePowerInProgress[gameseq] = progress
+            return progress, True
+
+    @staticmethod
+    def finish_in_progress(gameseq, progress, error=None):
+        gameseq = str(gameseq)
+        if error:
+            progress["error"] = str(error)
+        with dmc.BattlePowerInProgressLock:
+            current_progress = dmc.BattlePowerInProgress.get(gameseq)
+            if current_progress is progress:
+                dmc.BattlePowerInProgress.pop(gameseq, None)
+        progress["event"].set()
+
+    @staticmethod
+    def wait_in_progress(gameseq, progress, gen_image):
+        gameseq = str(gameseq)
+        log_message(f"BATTLE_POWER_WAIT_IN_PROGRESS: GameSeq={gameseq}")
+        progress["event"].wait()
+        saved_power_data = BattlePowerHistory.load(gameseq)
+        if saved_power_data:
+            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
+        if progress.get("error"):
+            raise Exception(f"battle_power_process_wait_failed: GameSeq={gameseq} {progress['error']}")
+        if BattlePowerHistory.failed_exists(gameseq):
+            raise Exception(f"battle_power_process_wait_skipped_failed: GameSeq={gameseq}")
+        raise Exception(f"battle_power_process_wait_missing_result: GameSeq={gameseq}")
+
 def mark_battle_power_failed(gameseq, reason, candidate=None):
     return BattlePowerHistory.mark_failed(gameseq, reason, candidate)
 
@@ -2238,29 +2350,43 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
     from .ztime import time_r
 
     spoiler_info = spoiler_info or {}
+    progress = None
+    is_owner = False
     if (not spoiler_info):
         saved_power_data = BattlePowerHistory.load(gameseq)
         if saved_power_data:
             return BattlePowerHistory.saved_response(saved_power_data, gen_image)
         if BattlePowerHistory.failed_exists(gameseq):
             raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
-    ret = coplayer_process(
-        gameSvrId,
-        relaySvrId,
-        gameseq,
-        pvptype,
-        roleid,
-        spoiler_info=spoiler_info,
-        from_web=from_web,
-        return_power_data=True,
-        official_priority=official_priority,
-        save_power_history=save_power_history,
-    )
-    snd_msg,pic_path,stats,power_data = ret
-    if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
-        power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-        BattlePowerHistory.save(power_data)
-    return snd_msg,pic_path,stats,power_data
+        if save_power_history:
+            progress, is_owner = BattlePowerHistory.begin_in_progress(gameseq)
+            if not is_owner:
+                return BattlePowerHistory.wait_in_progress(gameseq, progress, gen_image)
+    try:
+        ret = coplayer_process(
+            gameSvrId,
+            relaySvrId,
+            gameseq,
+            pvptype,
+            roleid,
+            spoiler_info=spoiler_info,
+            from_web=from_web,
+            return_power_data=True,
+            official_priority=official_priority,
+            save_power_history=save_power_history,
+        )
+        snd_msg,pic_path,stats,power_data = ret
+        if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
+            power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
+            BattlePowerHistory.save(power_data)
+        return snd_msg,pic_path,stats,power_data
+    except Exception as e:
+        if progress and is_owner:
+            progress["error"] = repr(e)
+        raise
+    finally:
+        if progress and is_owner:
+            BattlePowerHistory.finish_in_progress(gameseq, progress)
 
 def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
     from .ztime import time_r
@@ -2693,9 +2819,8 @@ def gametime_rank_process(days=14):
     return "", pic_path
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
-    from .zfile import readerl
-    file_path = os.path.join("data","history", "battles", f"{gameseq}.json")
-    res=readerl(file_path)
+    from .zfile import read_battle_detail
+    res=read_battle_detail(gameseq)
     if (res and roleid):
         # 找到对应的玩家信息并更新head
         target_role = None
@@ -3034,6 +3159,448 @@ def get_emoji_url(index):
     emoji_url=f"http://{confs['WebService']['server_domain']}/doraemon_emojis/{index}.jpg"
     return emoji_url
 
+
+_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "bili:video_subscriptions"
+
+
+def _bili_video_normalize_subscriptions(subscriptions):
+    if not isinstance(subscriptions, dict):
+        subscriptions = {}
+    normalized = {}
+    for user_qid, item in subscriptions.items():
+        if isinstance(item, dict):
+            up_name = str(item.get("up_name") or "").strip()
+            up_mid = str(item.get("up_mid") or item.get("mid") or "").strip()
+            query = str(item.get("query") or up_name).strip()
+            subscribed_at = str(item.get("subscribed_at") or "")
+        else:
+            up_name = str(item or "").strip()
+            up_mid = ""
+            query = up_name
+            subscribed_at = ""
+        if not up_name and not up_mid:
+            continue
+        normalized[str(user_qid)] = {
+            "up_mid": up_mid,
+            "up_name": up_name,
+            "query": query,
+            "subscribed_at": subscribed_at,
+        }
+    return normalized
+
+
+def _bili_video_get_subscriptions():
+    try:
+        subscriptions = _bili_video_normalize_subscriptions(
+            _redis_get_json(_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY, default={})
+        )
+        return subscriptions
+    except Exception as error:
+        log_message(f"BILI_VIDEO_SUBSCRIPTION_REDIS_READ_ERROR: {repr(error)}")
+        return {}
+
+
+def _bili_video_save_subscriptions(subscriptions):
+    subscriptions = _bili_video_normalize_subscriptions(subscriptions)
+    _redis_set_json(_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY, subscriptions)
+
+
+def _bili_video_identity_key(up_mid, up_name=""):
+    up_mid = str(up_mid or "").strip()
+    if up_mid:
+        return f"mid:{up_mid}"
+    return f"name:{str(up_name).strip()}"
+
+
+def _bili_video_seen_key(up_mid, up_name=""):
+    return f"bili:video_seen:{_bili_video_identity_key(up_mid, up_name)}"
+
+
+def _bili_video_seen_exists(up_mid, up_name, bvid):
+    return bool(dmc.redis_deamon.sismember(_bili_video_seen_key(up_mid, up_name), str(bvid)))
+
+
+def _bili_video_mark_seen(up_mid, up_name, bvids):
+    clean_bvids = [str(bvid).strip() for bvid in bvids if str(bvid or "").strip()]
+    if not clean_bvids:
+        return 0
+    return dmc.redis_deamon.sadd(_bili_video_seen_key(up_mid, up_name), *clean_bvids)
+
+
+def _bili_video_subscribers_by_up():
+    subscriptions = _bili_video_get_subscriptions()
+    grouped = {}
+    for user_qid, item in subscriptions.items():
+        identity = _bili_video_identity_key(item.get("up_mid"), item.get("up_name"))
+        if identity not in grouped:
+            grouped[identity] = {
+                "up_mid": item.get("up_mid") or "",
+                "up_name": item.get("up_name") or "",
+                "query": item.get("query") or item.get("up_name") or "",
+                "subscribers": [],
+            }
+        grouped[identity]["subscribers"].append(user_qid)
+    for item in grouped.values():
+        item["subscribers"].sort()
+    return grouped
+
+
+def _bili_video_update_subscription_identity(identity, *, up_mid=None, up_name=None):
+    subscriptions = _bili_video_get_subscriptions()
+    changed = False
+    for user_qid, item in subscriptions.items():
+        if _bili_video_identity_key(item.get("up_mid"), item.get("up_name")) != identity:
+            continue
+        if up_mid and item.get("up_mid") != str(up_mid):
+            item["up_mid"] = str(up_mid)
+            changed = True
+        if up_name and item.get("up_name") != str(up_name):
+            item["up_name"] = str(up_name)
+            changed = True
+        subscriptions[user_qid] = item
+    if changed:
+        _bili_video_save_subscriptions(subscriptions)
+    return changed
+
+
+def _bili_video_format_subscriber_list(user_qids):
+    formatted = []
+    for user_qid in user_qids:
+        nick = qid2nick(str(user_qid))
+        if nick:
+            formatted.append(f"{nick}({user_qid})")
+        else:
+            formatted.append(str(user_qid))
+    return "、".join(formatted)
+
+
+def _bili_video_app_url(aid):
+    aid = str(aid or "").strip()
+    return f"bilibili://video/{aid}?page=0" if aid else ""
+
+
+def _bili_video_mobile_url(bvid):
+    bvid = str(bvid or "").strip()
+    return f"https://m.bilibili.com/video/{bvid}" if bvid else ""
+
+
+def _bili_video_pic_url(video):
+    pic_url = str((video or {}).get("pic") or "").strip()
+    if pic_url.startswith("//"):
+        return "https:" + pic_url
+    if pic_url.startswith("http://"):
+        return pic_url.replace("http://", "https://", 1)
+    return pic_url
+
+
+def _cq_escape(value):
+    return (
+        str(value or "")
+        .replace("&", "&amp;")
+        .replace("[", "&#91;")
+        .replace("]", "&#93;")
+        .replace(",", "&#44;")
+    )
+
+
+def _bili_video_pic_message_segment(video):
+    pic_url = _bili_video_pic_url(video)
+    if not pic_url:
+        return "暂无"
+    return f"[CQ:image,file={_cq_escape(pic_url)}]"
+
+
+def _bili_video_page_link(up_name, video):
+    from .ztime import epoch_to_text
+
+    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
+    bvid = str(video.get("bvid") or "").strip()
+    aid = str(video.get("aid") or video.get("avid") or "").strip()
+    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
+    up_mid = str(video.get("up_mid") or "").strip()
+    return WebArtifacts.bili_video_route_link({
+        "up_name": up_name,
+        "up_mid": up_mid,
+        "up_url": f"https://space.bilibili.com/{up_mid}" if up_mid else "",
+        "aid": aid,
+        "bvid": bvid,
+        "title": video.get("title") or "无标题",
+        "pubdate": int(video.get("pubdate") or 0),
+        "pubdate_text": pubdate_text,
+        "url": video_url,
+        "pic": video.get("pic") or "",
+        "app_url": _bili_video_app_url(aid),
+        "mobile_url": _bili_video_mobile_url(bvid),
+    })
+
+
+def _bili_video_format_video_message(up_name, video):
+    from .ztime import epoch_to_text
+
+    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
+    page_link = _bili_video_page_link(up_name, video)
+    return (
+        "B站订阅视频推送\n"
+        f"【{video.get('title') or '无标题'}】\n"
+        f"{up_name} · {pubdate_text}\n\n"
+        f"{_bili_video_pic_message_segment(video)}\n\n"
+        f"{page_link}"
+    )
+
+
+def _bili_video_format_push_message(up_name, video, subscribers):
+    return _bili_video_format_video_message(up_name, video)
+
+
+def _bili_video_format_latest_message(up_name, video):
+    return _bili_video_format_video_message(up_name, video)
+
+
+
+def _bili_video_similarity(query, candidate_name):
+    import difflib
+
+    query = str(query or "").strip().lower()
+    candidate_name = str(candidate_name or "").strip().lower()
+    if not query or not candidate_name:
+        return 0
+    if query == candidate_name:
+        return 240
+    score = int(difflib.SequenceMatcher(None, query, candidate_name).ratio() * 100)
+    if query in candidate_name:
+        score += 120
+    if candidate_name in query:
+        score += 80
+    return score
+
+
+def _bili_video_resolve_best_up(query):
+    from .zapi import bilibili_search_users
+
+    query = str(query or "").strip()
+    candidates = bilibili_search_users(query, page_size=10)
+    if not candidates:
+        return None, []
+    ranked = []
+    for candidate in candidates:
+        text_score = _bili_video_similarity(query, candidate.get("name"))
+        fans = int(candidate.get("fans") or 0)
+        videos = int(candidate.get("videos") or 0)
+        popularity_bonus = min(int(math.log10(max(fans, 1)) * 18), 140)
+        video_bonus = min(videos // 20, 25)
+        official_bonus = 50 if candidate.get("official_type") in {0, 1} else 0
+        total_score = text_score + popularity_bonus + video_bonus + official_bonus
+        ranked.append((total_score, text_score, fans, videos, candidate))
+    ranked.sort(key=lambda item: (item[0], item[1], item[2], item[3]), reverse=True)
+    best = dict(ranked[0][4])
+    best["match_score"] = ranked[0][0]
+    return best, [dict(item[4], match_score=item[0]) for item in ranked]
+
+
+def bili_video_subscribe_user(user_qid, up_name):
+    from .zapi import bilibili_search_videos_by_mid
+    from .ztime import time_to_str
+    from .ztime import time_r
+
+    user_qid = str(user_qid)
+    up_name = str(up_name or "").strip()
+    if not up_name:
+        return "参数错误，格式：#订阅 UP昵称"
+
+    subscriptions = _bili_video_get_subscriptions()
+    if user_qid in subscriptions:
+        current_up = subscriptions[user_qid]["up_name"]
+        current_mid = subscriptions[user_qid].get("up_mid") or "未知mid"
+        return f"你已经订阅了 {current_up}({current_mid})，每人最多订阅 1 个 UP。请先发送 #取消订阅"
+
+    best_up, _ = _bili_video_resolve_best_up(up_name)
+    if not best_up:
+        return f"未找到可匹配的 B站 UP：{up_name}"
+
+    resolved_mid = str(best_up.get("mid") or "").strip()
+    resolved_name = str(best_up.get("name") or "").strip()
+    videos = bilibili_search_videos_by_mid(
+        resolved_mid,
+        up_name=resolved_name,
+        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+    )
+    if not videos:
+        return f"已匹配到 {resolved_name}({resolved_mid})，但未找到该 UP 的公开视频，订阅未保存"
+
+    subscriptions[user_qid] = {
+        "up_mid": resolved_mid,
+        "up_name": resolved_name,
+        "query": up_name,
+        "subscribed_at": time_to_str(time_r()),
+    }
+    _bili_video_save_subscriptions(subscriptions)
+    _bili_video_mark_seen(resolved_mid, resolved_name, [video.get("bvid") for video in videos])
+    latest = videos[0]
+    return (
+        f"订阅成功：{resolved_name}({resolved_mid})\n"
+        f"搜索词：{up_name}\n"
+        f"已将当前最新视频标记为已读：{latest.get('title') or latest.get('bvid')}"
+    )
+
+
+def bili_video_unsubscribe_user(user_qid, query_text=""):
+    user_qid = str(user_qid)
+    subscriptions = _bili_video_get_subscriptions()
+    current = subscriptions.pop(user_qid, None)
+    if not current:
+        return "你当前没有 B站 UP 订阅"
+    _bili_video_save_subscriptions(subscriptions)
+    return f"已取消订阅：{current['up_name']}({current.get('up_mid') or '未知mid'})"
+
+
+def bili_video_my_subscription(user_qid):
+    item = _bili_video_get_subscriptions().get(str(user_qid))
+    if not item:
+        return "你当前没有 B站 UP 订阅"
+    return f"你的 B站 UP 订阅：{item['up_name']}({item.get('up_mid') or '未知mid'})"
+
+
+def bili_video_latest_for_user(user_qid):
+    from .zapi import bilibili_get_user_card
+    from .zapi import bilibili_search_videos_by_mid
+
+    user_qid = str(user_qid)
+    item = _bili_video_get_subscriptions().get(user_qid)
+    if not item:
+        return "你当前没有订阅 UP，格式：#订阅 UP昵称"
+
+    identity = _bili_video_identity_key(item.get("up_mid"), item.get("up_name"))
+    up_mid = item.get("up_mid") or ""
+    up_name = item.get("up_name") or item.get("query") or ""
+    if not up_mid:
+        best_up, _ = _bili_video_resolve_best_up(up_name)
+        if not best_up:
+            return f"未能解析你订阅的 UP：{up_name}"
+        up_mid = str(best_up.get("mid") or "")
+        up_name = str(best_up.get("name") or up_name)
+        _bili_video_update_subscription_identity(identity, up_mid=up_mid, up_name=up_name)
+
+    try:
+        current_card = bilibili_get_user_card(up_mid)
+        if current_card.get("name"):
+            up_name = current_card["name"]
+            _bili_video_update_subscription_identity(identity, up_name=up_name)
+    except Exception as error:
+        log_message(f"BILI_VIDEO_LATEST_CARD_ERROR: mid={up_mid} error={repr(error)}")
+
+    videos = bilibili_search_videos_by_mid(
+        up_mid,
+        up_name=up_name,
+        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+    )
+    if not videos:
+        return f"暂未查询到 {up_name}({up_mid}) 的公开视频"
+    return _bili_video_format_latest_message(up_name, videos[0])
+
+
+def bili_video_list_subscriptions():
+    grouped = _bili_video_subscribers_by_up()
+    if not grouped:
+        return "当前没有 B站 UP 订阅"
+    lines = ["B站 UP 订阅列表："]
+    for identity in sorted(grouped):
+        item = grouped[identity]
+        label = f"{item.get('up_name') or identity}({item.get('up_mid') or '未知mid'})"
+        lines.append(f"{label}：{_bili_video_format_subscriber_list(item['subscribers'])}")
+    return "\n".join(lines)
+
+
+def bili_video_check_and_push(*, debug=False):
+    from .zapi import bilibili_get_user_card
+    from .zapi import bilibili_search_videos_by_mid
+    from .ztime import time_r
+    from .utils.message_sender import add_msg
+
+    if not getattr(dmc, "BiliVideoPushEnabled", True):
+        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH paused by BiliVideoPushEnabled=false"}
+
+    grouped = _bili_video_subscribers_by_up()
+    if not grouped:
+        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH no subscriptions"}
+
+    lock_key = "bili:video_push_lock"
+    locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time_r().timestamp())), nx=True, ex=600))
+    if locked:
+        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH locked"}
+
+    checked = 0
+    pushed = 0
+    debug_lines = []
+    try:
+        for identity in sorted(grouped):
+            checked += 1
+            item = grouped[identity]
+            up_mid = item.get("up_mid") or ""
+            up_name = item.get("up_name") or item.get("query") or identity
+            subscribers = item["subscribers"]
+
+            if not up_mid:
+                best_up, _ = _bili_video_resolve_best_up(up_name)
+                if not best_up:
+                    debug_lines.append(f"BILI_VIDEO_SKIP unresolved={up_name}")
+                    continue
+                up_mid = str(best_up.get("mid") or "")
+                up_name = str(best_up.get("name") or up_name)
+                if _bili_video_update_subscription_identity(identity, up_mid=up_mid, up_name=up_name):
+                    debug_lines.append(f"BILI_VIDEO_MIGRATED identity={identity} mid={up_mid} up={up_name}")
+
+            try:
+                current_card = bilibili_get_user_card(up_mid)
+                if current_card.get("name"):
+                    up_name = current_card["name"]
+                    if _bili_video_update_subscription_identity(identity, up_name=up_name):
+                        debug_lines.append(f"BILI_VIDEO_NAME_UPDATED mid={up_mid} up={up_name}")
+            except Exception as error:
+                debug_lines.append(f"BILI_VIDEO_CARD_ERROR mid={up_mid} error={repr(error)}")
+
+            videos = bilibili_search_videos_by_mid(
+                up_mid,
+                up_name=up_name,
+                page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+            )
+            debug_lines.append(f"BILI_VIDEO_UP mid={up_mid} up={up_name} videos={len(videos)} subscribers={len(subscribers)}")
+            if not videos:
+                continue
+
+            seen_key = _bili_video_seen_key(up_mid, up_name)
+            if not dmc.redis_deamon.exists(seen_key):
+                _bili_video_mark_seen(up_mid, up_name, [video.get("bvid") for video in videos])
+                debug_lines.append(f"BILI_VIDEO_INIT_SEEN mid={up_mid} up={up_name} count={len(videos)}")
+                continue
+
+            new_videos = [
+                video for video in videos
+                if video.get("bvid") and not _bili_video_seen_exists(up_mid, up_name, video.get("bvid"))
+            ]
+            new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
+            for video in new_videos:
+                msg = _bili_video_format_push_message(up_name, video, subscribers)
+                add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                _bili_video_mark_seen(up_mid, up_name, [video.get("bvid")])
+                pushed += 1
+                debug_lines.append(f"BILI_VIDEO_PUSHED mid={up_mid} up={up_name} bvid={video.get('bvid')}")
+        return {"checked": checked, "pushed": pushed, "debug": "\n".join(debug_lines)}
+    finally:
+        dmc.redis_deamon.delete(lock_key)
+
+
+def bili_video_admin_command(raw_msg):
+    raw_msg = str(raw_msg or "").strip()
+    args = raw_msg.replace("##bili", "", 1).strip().split()
+    action = args[0].lower() if args else "list"
+    if action == "list":
+        return bili_video_list_subscriptions()
+    if action == "check":
+        result = bili_video_check_and_push(debug=True)
+        return f"B站订阅检查完成：checked={result.get('checked')} pushed={result.get('pushed')}\n{result.get('debug') or ''}".strip()
+    return "参数错误，支持：##bili list / ##bili check"
+
+
 def generate_user_emoji_image(*, user_qid: str, size=None):
     from .tools.gen_emoji_image import generate_user_emoji_image as _impl
     return _impl(user_qid=user_qid, size=size)
@@ -3106,11 +3673,17 @@ def merge_crossday_gamedata(gamedata):
     else:
         res["peak_up"]=[]
     if ("visible" not in res): res["visible"]=True
-    official_btls_grades = [float(btl["GameGrade"]) for btl in res["details"] if check_btl_official_with_matching(btl["MapName"])]
-    res["btl_aver"] = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
-    res["btl_aver"]=round(res["btl_aver"],3)
+    res["btl_aver"] = calculate_official_battle_average(res["details"])
 
     return res
+def calculate_official_battle_average(details):
+    official_btls_grades = [
+        float(btl["GameGrade"])
+        for btl in details
+        if check_btl_official(btl["MapName"])
+    ]
+    average = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
+    return round(average, 3)
 def check_btl_official(btlname):
     import re
 
@@ -3179,14 +3752,17 @@ def notify_msg_impl():
     
     messages = [snd_msg]
 
-    # # 获取最有代表性的对局（含数据）
-    # try:
-    #     rep_btl_res = get_daily_representative_battle()
-    #     if rep_btl_res:
-    #         # 返回包含了文本和图片路径的元组/列表，不再使用 MessageSegment
-    #         messages.append(rep_btl_res)
-    # except Exception as e:
-    #     log_message(f"GET_REPRESENTATIVE_BATTLE_ERROR: {str(e)}")
+    # 定时发送保留正式文字、图片和图片下方的 AI 文案。
+    try:
+        rep_btl_res = get_daily_representative_battle()
+        if rep_btl_res:
+            match_text, battle_image, best_battle = rep_btl_res
+            messages.append((match_text, battle_image, best_battle.get("AiCommentary")))
+    except Exception:
+        log_message(
+            "GET_REPRESENTATIVE_BATTLE_ERROR: "
+            f"target_date=auto error={traceback.format_exc()}"
+        )
 
     return messages
 
@@ -3469,252 +4045,257 @@ def kpl_build_match_image_prompt(*, match_content: dict):
 
     return {"prompt": prompt, "payload": payload, "style_template": style}
 
-def get_daily_representative_battle(target_date=None):
-    '''
-    选出当天对局中最有代表性的一局。评估维度：
-    1. 翻盘指数：落后极多评分/大幅逆风但取胜
-    2. 统治力：评分极高且参团率、贡献度极高
-    3. 惨案指数：评分极低或被碾压
-    4. 尽力局：败方MVP且评分极高
-    5. 关键先生：拿到关键成就（如超神、五连绝世等）
-    '''
-    from .ztime import time_sul
-    from .zfile import readerl
-    from .zfunc import fetch_battle
-    import math
-    import os
+def _build_representative_battle_text(best_battle, title_date):
+    result_emoji = "🏆" if best_battle.get("Result") == "胜利" else "🏳️"
+    lines = [
+        f"【{title_date}代表性对局】",
+        f"{best_battle['RepresentativeCategory']} {best_battle['RepScore']}/100",
+        (
+            f"{best_battle['nickname']} {best_battle['HeroName']} "
+            f"{best_battle['Kill']}/{best_battle['Dead']}/{best_battle['Assist']} "
+            f"{best_battle['MapName']} {result_emoji}"
+        ),
+    ]
+    tags = "".join(best_battle.get("RawTags") or [])
+    if tags:
+        lines.append(tags)
+    return "\n".join(lines)
 
+
+def get_daily_representative_battle(target_date=None, candidates_only=False):
+    """Select the day's most representative battle with a transparent score."""
+    from .ztime import time_sul
+    from .zfile import read_history_date
+    from .tools.representative_battle import ranking_key
+    from .tools.representative_battle import score_candidate
+    from .tools.representative_battle import validate_candidate
+
+    use_today_title = target_date is None
     if target_date is None:
         target_date = time_sul().strftime("%Y-%m-%d")
-    
-    filename = os.path.join("data","history", target_date + ".json")
-    
-    try:
-        gameinfo = readerl(filename)
-    except Exception:
-        return None
+
+    gameinfo = read_history_date(target_date)
 
     if not gameinfo:
-        return None
+        return [] if candidates_only else None
 
-    all_battles = []
-    from .zfunc import check_btl_official_with_matching 
-    
+    candidates_by_game = {}
+    candidate_perspectives = []
+    filter_summary = {
+        "scanned": 0,
+        "official_map_rejected": 0,
+        "rule_rejected": 0,
+        "duplicate_perspectives": 0,
+        "detail_available": 0,
+    }
+
     for player_data in gameinfo:
         realname = player_data.get("key")
         nick = player_data.get("nickname", realname)
         details = player_data.get("details", [])
         roleid = player_data.get("roleid")
         for btl in details:
+            filter_summary["scanned"] += 1
             if not check_btl_official_with_matching(btl.get("MapName", "")):
+                filter_summary["official_map_rejected"] += 1
+                continue
+
+            eligible, rejected_reasons = validate_candidate(btl, representative_battle_rules)
+            if not eligible:
+                filter_summary["rule_rejected"] += 1
                 continue
 
             gameseq = btl.get("GameSeq")
-            # 基础权重评分
-            score = 0
-            tags = []
-            detail_reason = ""
-            
-            grade = btl.get("GameGrade", 0)
-            result = btl.get("Result")
-            others = btl.get("Others", "")
-            duration = btl.get("Duration_Second", 0)
-            
-            # 1. 评分基础
-            # 1. 评分基础 (加倍权重)
-            score += grade * 10
-            
-            # 2. 深度数据评估 (多维度指标)
             try:
                 battle_detail = fetch_battle(gameseq, roleid)
-                if battle_detail and 'head' in battle_detail:
-                    my_camp = battle_detail['head'].get('acntCamp')
-                    red_roles = battle_detail.get('redRoles', [])
-                    blue_roles = battle_detail.get('blueRoles', [])
-                    
-                    red_total_grade = sum(float(r['battleStats']['gradeGame']) for r in red_roles)
-                    blue_total_grade = sum(float(b['battleStats']['gradeGame']) for b in blue_roles)
-                    
-                    my_team_grade = red_total_grade if my_camp == 2 else blue_total_grade
-                    enemy_team_grade = blue_total_grade if my_camp == 2 else red_total_grade
-                    
-                    # 逆风翻盘/被翻盘
-                    grade_diff = enemy_team_grade - my_team_grade
-                    if result == "胜利" and grade_diff > 5:
-                        bonus = int(grade_diff * 10)
-                        score += bonus
-                        tags.append(f"【逆风翻盘+{bonus}】")
-                        detail_reason = f"团队总分落后 {round(grade_diff, 1)} 分实现大逆转！"
-                    elif result == "失败" and grade_diff < -5:
-                        score += 50
-                        tags.append("【痛失好局】")
-                        detail_reason = f"团队总分领先 {round(-grade_diff, 1)} 分竟然翻车了..."
+            except Exception:
+                battle_detail = None
 
-                    # 个人深度贡献
-                    my_stats = next((r['battleStats'] for r in (red_roles if my_camp == RedCamp else blue_roles) if str(r.get('roleId')) == str(roleid)), None)
-                    if my_stats:
-                        # 计算全队总额
-                        my_team_roles = red_roles if my_camp == RedCamp else blue_roles
-                        
-                        def get_team_total_with_fill(roles, field, expected_count=5):
-                            val_list = [float(r['battleStats'].get(field, 0)) for r in roles]
-                            actual_count = len(val_list)
-                            current_sum = sum(val_list)
-                            if actual_count > 0 and actual_count < expected_count:
-                                # 用当前平均值填充缺失的人数
-                                avg = current_sum / actual_count
-                                current_sum += avg * (expected_count - actual_count)
-                            return current_sum
+            scored = score_candidate(
+                battle=btl,
+                detail=battle_detail,
+                roleid=roleid,
+                rules=representative_battle_rules,
+            )
+            if scored["has_detail"]:
+                filter_summary["detail_available"] += 1
 
-                        team_total_damage = get_team_total_with_fill(my_team_roles, 'heroDamage')
-                        team_total_taken = get_team_total_with_fill(my_team_roles, 'damageTaken')
-                        team_total_gold = get_team_total_with_fill(my_team_roles, 'gold')
-
-                        h_dmg = float(my_stats.get('heroDamage', 0))
-                        t_dmg = float(my_stats.get('damageTaken', 0))
-                        gold = float(my_stats.get('gold', 0))
-
-                        # 占比计算
-                        dmg_percent = (h_dmg / team_total_damage * 100) if team_total_damage > 0 else 0
-                        take_percent = (t_dmg / team_total_taken * 100) if team_total_taken > 0 else 0
-                        gold_percent = (gold / team_total_gold * 100) if team_total_gold > 0 else 0
-
-                        if dmg_percent > 35: 
-                            score += 50; tags.append(f"【输出重锤{round(dmg_percent)}% (伤/队>35%)】")
-                        elif dmg_percent > 30: 
-                            score += 30; tags.append(f"【主力输出{round(dmg_percent)}% (伤/队>30%)】")
-
-                        if take_percent > 35: 
-                            score += 40; tags.append(f"【团队屏障{round(take_percent)}% (承/队>35%)】")
-                        
-                        # 经济转贡献效率 (性价比：取伤害和承伤占比中较高的一个)
-                        if gold_percent > 0:
-                            # 贡献占比取高者：MAX(伤害占比, 承伤占比)
-                            contribution_percent = max(dmg_percent, take_percent)
-                            # 效率 = 贡献占比 / 经济占比
-                            efficiency = contribution_percent / gold_percent
-                            
-                            # 门槛调整：维持 1.7/0.7 门槛，权重从 30/20 增大到 60/40
-                            if efficiency > 1.7 and contribution_percent > 20:
-                                score += 60; tags.append(f"【吃草挤奶 (最高项效率{round(efficiency,2)}>1.7)】")
-                            elif efficiency < 0.7 and gold_percent > 20:
-                                score += 40; tags.append(f"【经济黑洞 (最高项效率{round(efficiency,2)}<0.7)】")
-                            
-                            # 逆风翻盘/被翻盘 (修正标签)
-                            if result == "胜利" and grade_diff > 5:
-                                # 这里的 grade_diff 已经在上面加过 score 了，这里只增加详细标签描述
-                                for i, t in enumerate(tags):
-                                    if "逆风翻盘" in t:
-                                        tags[i] = f"【逆风翻盘 (队分差{round(grade_diff,1)}>5)】"
-                            elif result == "失败" and grade_diff < -5:
-                                for i, t in enumerate(tags):
-                                    if "痛失好局" in t:
-                                        tags[i] = f"【痛失好局 (队分差{round(grade_diff,1)}<-5)】"
-
-            except Exception as e:
-                pass
-            # 3. 结果与表现准则
-            is_mvp = "MVP" in others
-            if result == "胜利":
-                if grade >= 14: score += 60; tags.append(f"【通天代 (评分{grade}>=14)】")
-                elif grade >= 12: score += 20
-                if is_mvp: score += 40; tags.append("【带头大哥 (胜方MVP)】")
-            else:
-                if grade >= 13: score += 80; tags.append(f"【非战之罪 (评分{grade}>=13)】"); detail_reason = "虽败犹荣，评分高到离谱"
-                elif grade >= 11: score += 40; tags.append(f"【孤勇者 (评分{grade}>=11)】")
-                if is_mvp: score += 30; tags.append("【虽败MVP】")
-                if grade <= 4.5: score += 40; tags.append(f"【战犯级表现 (评分{grade}<=4.5)】")
-
-            # 4. 特殊成就 (高权重)
-            achievement_weights = {
-                "五连绝世": 150, "四连超凡": 80, "三连决胜": 30,
-                "超神": 40, "输出最高": 25, "承受最高": 20, "助攻最多": 20
-            }
-            for ach, weight in achievement_weights.items():
-                if ach in others:
-                    score += weight
-                    tags.append(f"【{ach}】")
-            
-            # 5. 时间维度
-            if duration > 1800: score += 50; tags.append(f"【史诗长局 ({round(duration/60,1)}min>30)】")
-            elif duration > 1440: score += 25; tags.append(f"【拉锯战 ({round(duration/60,1)}min>24)】")
-            elif duration < 600: score += 30; tags.append(f"【闪电战 ({round(duration/60,1)}min<10)】")
+            detail_factors = [item for item in scored["breakdown"] if item["source"] == "详情JSON"]
+            detail_reason = detail_factors[0]["condition"] if detail_factors else ""
 
             btl_info = {
                 "realname": realname,
                 "nickname": nick,
                 "roleid": roleid,
                 "HeroName": btl.get("HeroName"),
-                "Result": result,
-                "Grade": grade,
+                "Result": btl.get("Result"),
+                "Grade": btl.get("GameGrade", 0),
                 "Kill": btl.get("KillCnt", 0),
                 "Dead": btl.get("DeadCnt", 0),
                 "Assist": btl.get("AssistCnt", 0),
                 "MapName": btl.get("MapName"),
                 "GameSeq": gameseq,
-                "Duration": duration,
-                "Others": others,
+                "GameTimeTimestamp": btl.get("GameTime_Timestamp", 0),
+                "Duration": btl.get("Duration_Second", 0),
+                "Others": btl.get("Others", ""),
+                "Params": btl.get("Params") or {},
                 "DetailReason": detail_reason,
-                "Tags": "".join(tags[:2]), 
-                "RepScore": score,
-                "RawTags": tags # 保留原始标签用于调试
+                "Tags": "".join(scored["tags"][:3]),
+                "RepScore": scored["score"],
+                "RawTags": scored["tags"],
+                "ScoreBreakdown": scored["breakdown"],
+                "RepresentativeCategory": scored["representative_category"],
+                "CategoryScores": scored["category_scores"],
+                "CategoryBreakdowns": scored["category_breakdowns"],
+                "DetailMetrics": scored["detail_metrics"],
+                "HasDetail": scored["has_detail"],
+                "RuleVersion": representative_battle_rules.get("version"),
+                "RejectedReasons": rejected_reasons,
             }
-            all_battles.append(btl_info)
+            candidate_perspectives.append(btl_info)
 
+            existing = candidates_by_game.get(str(gameseq))
+            if existing:
+                filter_summary["duplicate_perspectives"] += 1
+            if not existing or ranking_key(btl_info) > ranking_key(existing):
+                candidates_by_game[str(gameseq)] = btl_info
+
+    if candidates_only:
+        return candidate_perspectives
+
+    all_battles = list(candidates_by_game.values())
     if not all_battles:
         return None
 
-    # 按代表性分数降序排列
-    all_battles.sort(key=lambda x: x["RepScore"], reverse=True)
+    all_battles.sort(key=ranking_key, reverse=True)
     best_btl = all_battles[0]
+    filter_summary["eligible_unique_battles"] = len(all_battles)
+    best_btl["FilterSummary"] = filter_summary
+    best_btl["RankingKey"] = list(ranking_key(best_btl))
 
-    # 构建基础描述
-    reason = f"{best_btl['nickname']} 的 {best_btl['HeroName']}，拿下 {best_btl['Grade']} 分并{best_btl['Result']}。"
-    if best_btl['DetailReason']:
-        reason += f" ({best_btl['DetailReason']})"
-    
-    match_info = f"【今日高光/深度对局】\n"
-    match_info += f"得分：{best_btl['RepScore']} | {reason}\n"
-    match_info += f"指标：{''.join(best_btl['RawTags'])}\n"
-    match_info += f"战绩：{best_btl['Kill']}/{best_btl['Dead']}/{best_btl['Assist']} | {best_btl['MapName']} | {round(best_btl['Duration']/60, 1)}分钟"
-    
-    # 获取图文详情
+    title_date = "今日" if use_today_title else target_date
+    match_info = _build_representative_battle_text(best_btl, title_date)
+
     btl_img = None
     try:
-        from .zfunc import btldetail_process
-        from .zstatic import roleidlist
-        # 尝试查找对应的 rcv_msg 参数（btldetail_process 的参数较多）
-        # 这里的 fetch_battle 拿到的 detailUrl 参数此时已经解析在 Params 中了
-        # btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, gen_image=True)
-        # 获取 battles 文件夹下的原始数据以拿到更多参数
-        file_path = os.path.join("data","history", "battles", f"{best_btl['GameSeq']}.json")
-        with open(file_path, 'r', encoding='utf-8') as f:
-            raw_data = json.load(f)
-            head = raw_data.get('head', {})
-            # 调用生成图片的逻辑
-            _, btl_img, _ = btldetail_process(
-                gameSvrId=head.get('gameSvrId', 0),
-                relaySvrId=head.get('relaySvrId', 0),
-                gameseq=best_btl['GameSeq'],
-                pvptype=head.get('pvpType', 0),
-                roleid=best_btl['roleid'],
-                gen_image=True
-            )
-    except Exception as e:
-        import traceback
+        params = best_btl.get("Params") or {}
+        _, btl_img, _ = btldetail_process(
+            gameSvrId=params.get("gameSvrId", 0),
+            relaySvrId=params.get("relaySvrId", 0),
+            gameseq=best_btl["GameSeq"],
+            pvptype=params.get("pvptype", 0),
+            roleid=best_btl["roleid"],
+            gen_image=True,
+        )
+    except Exception:
         log_message(f"GET_REP_BATTLE_DETAIL_ERROR: {traceback.format_exc()}")
 
-    # 尝试使用AI润色
+    best_btl["AiCommentary"] = None
     try:
-        from .zfunc import ai_parser
         enriched = ai_parser([match_info], "best_battle")
         if enriched and "Error" not in enriched:
-            return enriched, btl_img, best_btl # 返回 best_btl 以供调试
-    except:
+            best_btl["AiCommentary"] = enriched
+    except Exception:
         pass
-    return match_info, btl_img, best_btl # 返回 best_btl 以供调试
+    return match_info, btl_img, best_btl
 
-    return None
+
+def representative_battle_query_impl(query_text):
+    """Return the public representative-battle payload without debug details."""
+    from .ztime import parse_representative_battle_date
+
+    target_date = parse_representative_battle_date(query_text)
+    representative_result = get_daily_representative_battle(target_date=target_date)
+    if not representative_result:
+        return {
+            "target_date": target_date,
+            "found": False,
+            "text": None,
+            "image_path": None,
+        }
+    if not isinstance(representative_result, (list, tuple)) or len(representative_result) < 2:
+        raise Exception(
+            "representative_battle_query_impl_error: "
+            f"target_date={target_date} result={representative_result!r}"
+        )
+    return {
+        "target_date": target_date,
+        "found": True,
+        "text": representative_result[0],
+        "image_path": representative_result[1],
+        "commentary": representative_result[2].get("AiCommentary"),
+    }
+
+
+def _build_representative_category_leader_text(category_label, candidate):
+    result_emoji = "🏆" if candidate.get("Result") == "胜利" else "🏳️"
+    category_score = (candidate.get("CategoryScores") or {}).get(category_label, 0)
+    return (
+        f"{category_label} {category_score}/100\n"
+        f"{candidate.get('nickname') or '未知玩家'} "
+        f"{candidate.get('HeroName') or '未知英雄'} "
+        f"{candidate.get('Kill', 0)}/{candidate.get('Dead', 0)}/{candidate.get('Assist', 0)} "
+        f"{candidate.get('MapName') or '未知地图'} {result_emoji}"
+    )
+
+
+def get_representative_battle_category_leaders(target_date):
+    """Return the top battle perspective for each category without rich output."""
+    from .tools.representative_battle import category_ranking_key
+
+    candidates = get_daily_representative_battle(target_date=target_date, candidates_only=True)
+    if not candidates:
+        return []
+
+    category_labels = [
+        representative_battle_rules["categories"][category_key]["label"]
+        for category_key in ("good", "bad", "extreme")
+    ]
+    leaders = []
+    for category_label in category_labels:
+        candidates_by_game = {}
+        for candidate in candidates:
+            game_key = str(candidate.get("GameSeq"))
+            existing = candidates_by_game.get(game_key)
+            if (
+                existing is None
+                or category_ranking_key(candidate, category_label)
+                > category_ranking_key(existing, category_label)
+            ):
+                candidates_by_game[game_key] = candidate
+        leader = max(
+            candidates_by_game.values(),
+            key=lambda candidate: category_ranking_key(candidate, category_label),
+        )
+        leaders.append({
+            "category": category_label,
+            "score": (leader.get("CategoryScores") or {}).get(category_label, 0),
+            "candidate": leader,
+            "text": _build_representative_category_leader_text(category_label, leader),
+        })
+    return leaders
+
+
+def representative_battle_range_debug_impl(query_text):
+    """Build a text-only three-category leader report for an inclusive date range."""
+    from .ztime import inclusive_date_strings
+    from .ztime import parse_representative_battle_date_range
+
+    start_date, end_date = parse_representative_battle_date_range(query_text)
+    day_reports = []
+    for target_date in inclusive_date_strings(start_date, end_date):
+        leaders = get_representative_battle_category_leaders(target_date)
+        if leaders:
+            day_text = f"【{target_date}】\n" + "\n".join(leader["text"] for leader in leaders)
+        else:
+            day_text = f"【{target_date}】\n暂无对局"
+        day_reports.append(day_text)
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "day_reports": day_reports,
+    }
+
 
 def extract_heroname(origin_text,precise=False):
     if txt_contain("轮椅",origin_text,precise,True):

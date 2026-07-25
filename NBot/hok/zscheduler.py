@@ -179,16 +179,20 @@ async def notify_msg():
             add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
             continue
 
-        # 处理元组类型（文本, 图片路径），转换为 MessageSegment
+        # 处理（文本, 图片路径, 图片下方文案），保持发送顺序。
         final_msg = msg
-        if isinstance(msg, (list, tuple)) and len(msg) == 2:
-            text_part, img_path = msg
-            if img_path:
-                from nonebot.adapters.onebot.v11 import MessageSegment
-                import os
-                final_msg = text_part + MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
-            else:
-                final_msg = text_part
+        if isinstance(msg, (list, tuple)) and len(msg) in {2, 3}:
+            from .zfile import existing_absolute_path
+            from nonebot.adapters.onebot.v11 import Message, MessageSegment
+
+            text_part, img_path = msg[:2]
+            commentary = msg[2] if len(msg) == 3 else None
+            final_msg = Message(text_part)
+            image_path = existing_absolute_path(img_path)
+            if image_path:
+                final_msg += MessageSegment.image(f"file://{image_path}")
+            if commentary:
+                final_msg += MessageSegment.text(f"\n{commentary}")
             
         log_message(f"SEND_NOTIFY_{i}: {str(final_msg)[:100]}...")
         add_msg(final_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
@@ -232,6 +236,25 @@ async def kpl_match_push():
     except Exception:
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         raise
+
+
+@scheduler.scheduled_job(
+    "interval",
+    minutes=getattr(dmc, "BiliVideoPollIntervalMinutes", 5),
+    id="bili_video_push",
+    max_instances=1,
+    coalesce=True,
+    next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=60),
+)
+async def bili_video_push():
+    from .zfunc import bili_video_check_and_push
+
+    try:
+        await asyncio.to_thread(bili_video_check_and_push, debug=False)
+    except Exception:
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        raise
+
 
 def _fetch_news_impl():
     from .zapi import ark_api

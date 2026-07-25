@@ -12,6 +12,7 @@ import datetime
 import secrets
 import yaml
 import time
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 
@@ -72,6 +73,21 @@ def key_to_filename(key: str, reqtype: str):
         ret_json["DateTo"]="模拟DateTo"
         ret_json["time"]="模拟time"
         return ret_json,filepath
+
+def is_mobile_request(request: Request):
+    user_agent = str(request.headers.get("user-agent") or "").lower()
+    mobile_tokens = (
+        "android",
+        "iphone",
+        "ipad",
+        "ipod",
+        "mobile",
+        "windows phone",
+        "mqqbrowser",
+        "micromessenger",
+    )
+    return any(token in user_agent for token in mobile_tokens)
+
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
@@ -192,6 +208,48 @@ async def show_benefit_visualizer(request: Request, key: str):
             "filename": os.path.join("file_transfer", "temp_files", filename),
         }
     )
+
+@app.get("/bili-video")
+async def show_bili_video(request: Request, key: str):
+    if os.path.basename(key) != key or key in ("", ".", ".."):
+        return templates.TemplateResponse(
+            "ErrorPages/illegal.html",{"request": request,"message":"key非法"}
+        )
+    try:
+        raw = r_com.get(key)
+        if not raw:
+            raise ValueError("empty bili video payload")
+        video = json.loads(raw.decode("utf-8"))
+        if not isinstance(video, dict):
+            raise ValueError("invalid bili video payload")
+    except Exception:
+        return templates.TemplateResponse(
+            "ErrorPages/expired.html",{"request": request,}
+        )
+
+    bvid = str(video.get("bvid") or "").strip()
+    aid = str(video.get("aid") or video.get("avid") or "").strip()
+    if not bvid:
+        return templates.TemplateResponse(
+            "ErrorPages/illegal.html",{"request": request,"message":"视频参数非法"}
+        )
+
+    video_url = str(video.get("url") or f"https://www.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
+    if not is_mobile_request(request):
+        return RedirectResponse(url=video_url, status_code=302)
+
+    mobile_url = str(video.get("mobile_url") or f"https://m.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
+    app_url = str(video.get("app_url") or "")
+    if aid:
+        app_url = f"bilibili://video/{aid}?page=0"
+    if not app_url:
+        app_url = mobile_url
+    yyb_url = "https://a.app.qq.com/o/simple.jsp?" + urlencode({
+        "pkgname": "tv.danmaku.bili",
+        "ckey": "CK1474482145968",
+        "android_schema": app_url,
+    }) if app_url.startswith("bilibili://") else mobile_url
+    return RedirectResponse(url=yyb_url, status_code=302)
 
 def check_key_valid(key:str, reqtype:str):
     if key is None:

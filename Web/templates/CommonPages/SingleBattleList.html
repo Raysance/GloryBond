@@ -1768,6 +1768,44 @@
         let heroMap = {}; // Hero ID -> Name 映射
         const modalLinkTimers = new WeakMap();
         const battleCardLoadingTimers = new WeakMap();
+        const roleJobNameMap = {
+            1: '倔强青铜III',
+            2: '倔强青铜II',
+            3: '倔强青铜I',
+            4: '秩序白银III',
+            5: '秩序白银II',
+            6: '秩序白银I',
+            7: '荣耀黄金III',
+            8: '荣耀黄金II',
+            9: '荣耀黄金I',
+            10: '尊贵铂金III',
+            11: '尊贵铂金II',
+            12: '尊贵铂金I',
+            13: '永恒钻石III',
+            14: '永恒钻石II',
+            15: '永恒钻石I',
+            16: '最强王者',
+            17: '荣耀黄金IV',
+            18: '永恒钻石II',
+            19: '尊贵铂金IV',
+            20: '永恒钻石V',
+            21: '永恒钻石IV',
+            22: '至尊星耀V',
+            23: '至尊星耀IV',
+            24: '至尊星耀III',
+            25: '至尊星耀II',
+            26: '至尊星耀I'
+        };
+
+        function getBattleRankName(battle) {
+            if (!battle) return '';
+            const roleJob = Number(battle.roleJob);
+            const roleJobName = (battle.roleJobName || '').trim();
+            if (roleJobName.includes('王者')) {
+                return roleJobName;
+            }
+            return roleJobNameMap[roleJob] || roleJobName;
+        }
 
         /**
          * 初始化对局卡片的长按事件
@@ -3128,7 +3166,7 @@
                     (b.mapName && b.mapName.includes('排位赛')) || b.gametype === 4
                 );
                 if (latestRankMatch) {
-                    const roleJobName = latestRankMatch.roleJobName || '';
+                    const roleJobName = getBattleRankName(latestRankMatch);
                     const stars = latestRankMatch.stars || 0;
                     if (roleJobName) {
                         document.getElementById('currentRankValue').textContent = `${roleJobName} ${stars}⭐`;
@@ -3427,7 +3465,7 @@
                     const kda = (killcnt + assistcnt) / Math.max(deadcnt, 1);
                     
                     // 获取段位信息
-                    const roleJobName = battle.roleJobName || '';
+                    const roleJobName = getBattleRankName(battle);
                     const stars = battle.stars ?? '';
                     const rankInfo = roleJobName ? `${roleJobName} ${stars}⭐` : '';
                     
