@@ -3227,6 +3227,19 @@ def _bili_video_mark_seen(up_mid, up_name, bvids):
     return dmc.redis_deamon.sadd(_bili_video_seen_key(up_mid, up_name), *clean_bvids)
 
 
+def _bili_video_subscribed_at_epoch(item):
+    from .ztime import str_to_time
+
+    subscribed_at = str((item or {}).get("subscribed_at") or "").strip()
+    if not subscribed_at:
+        return 0
+    try:
+        return int(str_to_time(subscribed_at).timestamp())
+    except Exception as error:
+        log_message(f"BILI_VIDEO_SUBSCRIBED_AT_PARSE_ERROR: subscribed_at={subscribed_at} error={repr(error)}")
+        return 0
+
+
 def _bili_video_subscribers_by_up():
     subscriptions = _bili_video_get_subscriptions()
     grouped = {}
@@ -3238,10 +3251,16 @@ def _bili_video_subscribers_by_up():
                 "up_name": item.get("up_name") or "",
                 "query": item.get("query") or item.get("up_name") or "",
                 "subscribers": [],
+                "subscribed_at_epochs": [],
             }
         grouped[identity]["subscribers"].append(user_qid)
+        subscribed_at_epoch = _bili_video_subscribed_at_epoch(item)
+        if subscribed_at_epoch:
+            grouped[identity]["subscribed_at_epochs"].append(subscribed_at_epoch)
     for item in grouped.values():
         item["subscribers"].sort()
+        subscribed_at_epochs = item.pop("subscribed_at_epochs", [])
+        item["latest_subscribed_at_epoch"] = max(subscribed_at_epochs) if subscribed_at_epochs else 0
     return grouped
 
 
@@ -3541,6 +3560,7 @@ def bili_video_check_and_push(*, debug=False):
             up_mid = item.get("up_mid") or ""
             up_name = item.get("up_name") or item.get("query") or identity
             subscribers = item["subscribers"]
+            subscription_cutoff_epoch = int(item.get("latest_subscribed_at_epoch") or 0)
 
             if not up_mid:
                 best_up, _ = _bili_video_resolve_best_up(up_name)
@@ -3576,9 +3596,22 @@ def bili_video_check_and_push(*, debug=False):
                 debug_lines.append(f"BILI_VIDEO_INIT_SEEN mid={up_mid} up={up_name} count={len(videos)}")
                 continue
 
-            new_videos = [
+            unseen_videos = [
                 video for video in videos
                 if video.get("bvid") and not _bili_video_seen_exists(up_mid, up_name, video.get("bvid"))
+            ]
+            old_unseen_videos = [
+                video for video in unseen_videos
+                if subscription_cutoff_epoch and int(video.get("pubdate") or 0) <= subscription_cutoff_epoch
+            ]
+            if old_unseen_videos:
+                _bili_video_mark_seen(up_mid, up_name, [video.get("bvid") for video in old_unseen_videos])
+                debug_lines.append(
+                    f"BILI_VIDEO_MARK_OLD_SEEN mid={up_mid} up={up_name} count={len(old_unseen_videos)}"
+                )
+            new_videos = [
+                video for video in unseen_videos
+                if (not subscription_cutoff_epoch) or int(video.get("pubdate") or 0) > subscription_cutoff_epoch
             ]
             new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
             for video in new_videos:
