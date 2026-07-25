@@ -74,6 +74,20 @@ def key_to_filename(key: str, reqtype: str):
         ret_json["time"]="模拟time"
         return ret_json,filepath
 
+def is_mobile_request(request: Request):
+    user_agent = str(request.headers.get("user-agent") or "").lower()
+    mobile_tokens = (
+        "android",
+        "iphone",
+        "ipad",
+        "ipod",
+        "mobile",
+        "windows phone",
+        "mqqbrowser",
+        "micromessenger",
+    )
+    return any(token in user_agent for token in mobile_tokens)
+
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
     return templates.TemplateResponse(
@@ -219,6 +233,10 @@ async def show_bili_video(request: Request, key: str):
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"视频参数非法"}
         )
+
+    video_url = str(video.get("url") or f"https://www.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
+    if not is_mobile_request(request):
+        return RedirectResponse(url=video_url, status_code=302)
 
     mobile_url = str(video.get("mobile_url") or f"https://m.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
     app_url = str(video.get("app_url") or "")
