@@ -3615,7 +3615,7 @@ def bili_video_check_and_push(*, debug=False):
             new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
             for video in new_videos:
                 msg = _bili_video_format_push_message(up_name, video, subscribers)
-                add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                add_msg(msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
                 _bili_video_mark_seen(up_mid, up_name, [video.get("bvid")])
                 pushed += 1
                 debug_lines.append(f"BILI_VIDEO_PUSHED mid={up_mid} up={up_name} bvid={video.get('bvid')}")
