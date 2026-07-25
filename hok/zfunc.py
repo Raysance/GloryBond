@@ -3190,6 +3190,15 @@ def _bili_video_mobile_url(bvid):
     return f"https://m.bilibili.com/video/{bvid}" if bvid else ""
 
 
+def _bili_video_pic_url(video):
+    pic_url = str((video or {}).get("pic") or "").strip()
+    if pic_url.startswith("//"):
+        return "https:" + pic_url
+    if pic_url.startswith("http://"):
+        return pic_url.replace("http://", "https://", 1)
+    return pic_url or "暂无"
+
+
 def _bili_video_page_link(up_name, video):
     from .ztime import epoch_to_text
 
@@ -3218,17 +3227,13 @@ def _bili_video_format_push_message(up_name, video, subscribers):
     from .ztime import epoch_to_text
 
     pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
-    subscriber_text = _bili_video_format_subscriber_list(subscribers)
-    bvid = str(video.get("bvid") or "").strip()
-    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
     page_link = _bili_video_page_link(up_name, video)
     return (
-        f"B站订阅新视频：{up_name}\n"
-        f"订阅者：{subscriber_text or '无'}\n"
-        f"{video.get('title') or '无标题'}\n"
+        f"视频标题：{video.get('title') or '无标题'}\n"
+        f"UP名字：{up_name}\n"
         f"发布时间：{pubdate_text}\n"
-        f"详情页：{page_link}\n"
-        f"B站直链：{video_url}"
+        f"略缩图：{_bili_video_pic_url(video)}\n"
+        f"跳转链接：{page_link}"
     )
 
 
@@ -3236,15 +3241,13 @@ def _bili_video_format_latest_message(up_name, video):
     from .ztime import epoch_to_text
 
     pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
-    bvid = str(video.get("bvid") or "").strip()
-    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
     page_link = _bili_video_page_link(up_name, video)
     return (
-        f"订阅UP最新视频：{up_name}\n"
-        f"{video.get('title') or '无标题'}\n"
+        f"视频标题：{video.get('title') or '无标题'}\n"
+        f"UP名字：{up_name}\n"
         f"发布时间：{pubdate_text}\n"
-        f"详情页：{page_link}\n"
-        f"B站直链：{video_url}"
+        f"略缩图：{_bili_video_pic_url(video)}\n"
+        f"跳转链接：{page_link}"
     )
 
 

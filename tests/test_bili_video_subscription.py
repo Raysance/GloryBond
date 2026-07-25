@@ -39,7 +39,7 @@ class FakeRedis:
         return str(value) in self.sets.get(key, set())
 
 
-def video(bvid, title, pubdate, up_name="罗翔说刑法", aid="100001"):
+def video(bvid, title, pubdate, up_name="罗翔说刑法", aid="100001", pic="https://i0.hdslb.com/bfs/archive/thumb.jpg"):
     return {
         "up_name": up_name,
         "up_mid": "517327498",
@@ -48,7 +48,7 @@ def video(bvid, title, pubdate, up_name="罗翔说刑法", aid="100001"):
         "title": title,
         "pubdate": pubdate,
         "url": f"https://www.bilibili.com/video/{bvid}",
-        "pic": "",
+        "pic": pic,
     }
 
 
@@ -168,10 +168,13 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         self.assertEqual(len(self.sent_messages), 1)
         self.assertEqual(self.sent_messages[0]["msg_type"], "private")
         self.assertEqual(self.sent_messages[0]["to_id"], ZFUNC.confs["QQBot"]["super_qid"])
-        self.assertIn("B站订阅新视频：罗翔说刑法", self.sent_messages[0]["content"])
-        self.assertIn("BV-new", self.sent_messages[0]["content"])
-        self.assertIn("详情页：https://hok.example.test/bili-video?key=", self.sent_messages[0]["content"])
-        self.assertIn("B站直链：https://www.bilibili.com/video/BV-new", self.sent_messages[0]["content"])
+        self.assertIn("视频标题：最新视频", self.sent_messages[0]["content"])
+        self.assertIn("UP名字：罗翔说刑法", self.sent_messages[0]["content"])
+        self.assertIn("发布时间：", self.sent_messages[0]["content"])
+        self.assertIn("略缩图：https://i0.hdslb.com/bfs/archive/thumb.jpg", self.sent_messages[0]["content"])
+        self.assertIn("跳转链接：https://hok.example.test/bili-video?key=", self.sent_messages[0]["content"])
+        self.assertNotIn("B站直链", self.sent_messages[0]["content"])
+        self.assertNotIn("https://www.bilibili.com/video/BV-new", self.sent_messages[0]["content"])
         pushed_payloads = [json.loads(value) for value in self.fake_redis.values.values()]
         self.assertEqual(pushed_payloads[-1]["app_url"], "bilibili://video/100001?page=0")
         self.assertEqual(
@@ -191,10 +194,13 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
 
         result = ZFUNC.bili_video_latest_for_user("10001")
 
-        self.assertIn("订阅UP最新视频：罗翔说刑法", result)
-        self.assertIn("最新视频", result)
-        self.assertIn("详情页：https://hok.example.test/bili-video?key=", result)
-        self.assertIn("B站直链：https://www.bilibili.com/video/BV-new", result)
+        self.assertIn("视频标题：最新视频", result)
+        self.assertIn("UP名字：罗翔说刑法", result)
+        self.assertIn("发布时间：", result)
+        self.assertIn("略缩图：https://i0.hdslb.com/bfs/archive/thumb.jpg", result)
+        self.assertIn("跳转链接：https://hok.example.test/bili-video?key=", result)
+        self.assertNotIn("B站直链", result)
+        self.assertNotIn("https://www.bilibili.com/video/BV-new", result)
         query_payloads = [json.loads(value) for value in self.fake_redis.values.values()]
         self.assertEqual(query_payloads[-1]["app_url"], "bilibili://video/116975984513331?page=0")
         self.assertEqual(
