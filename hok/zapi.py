@@ -609,11 +609,13 @@ class BilibiliVideoAPI:
     _wbi_keys_ts = 0
 
     @classmethod
-    def _request_json(cls, path_or_url, *, params=None):
+    def _request_json(cls, path_or_url, *, params=None, headers=None):
         url = str(path_or_url or "")
         if url.startswith("/"):
             url = f"{cls.API_BASE}{url}"
-        response = requests.get(url, params=params, headers=cls.REQUEST_HEADERS, timeout=30)
+        request_headers = dict(cls.REQUEST_HEADERS)
+        request_headers.update(headers or {})
+        response = requests.get(url, params=params, headers=request_headers, timeout=30)
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
@@ -760,19 +762,73 @@ class BilibiliVideoAPI:
         ]
 
     @classmethod
+    def _space_video_rows(cls, mid, page_size):
+        headers = {
+            "Referer": f"https://space.bilibili.com/{mid}/video",
+            "Origin": "https://space.bilibili.com",
+        }
+        attempts = [
+            (
+                "/x/space/arc/search",
+                {
+                    "mid": mid,
+                    "pn": 1,
+                    "ps": page_size,
+                    "order": "pubdate",
+                    "jsonp": "jsonp",
+                },
+            ),
+            (
+                "/x/space/wbi/arc/search",
+                lambda: cls._wbi_sign({
+                    "mid": mid,
+                    "pn": 1,
+                    "ps": page_size,
+                    "order": "pubdate",
+                    "platform": "web",
+                    "web_location": "1550101",
+                }),
+            ),
+        ]
+        last_error = None
+        for path, params in attempts:
+            try:
+                if callable(params):
+                    params = params()
+                payload = cls._request_json(path, params=params, headers=headers)
+                return (((payload.get("data") or {}).get("list") or {}).get("vlist") or [])
+            except Exception as error:
+                last_error = error
+        raise last_error
+
+    @classmethod
     def search_videos_by_mid(cls, mid, *, up_name=None, page_size=20):
         mid = str(mid or "").strip()
         if not mid:
             raise ValueError("bilibili_video_search_error: empty mid")
         current_name = str(up_name or "").strip()
-        if not current_name:
-            current_name = cls.get_user_card(mid).get("name") or ""
-        if not current_name:
-            raise ValueError(f"bilibili_video_search_error: empty up_name mid={mid}")
-        return [
-            video for video in cls.search_videos(current_name, page_size=page_size)
-            if str(video.get("up_mid") or "") == mid
-        ]
+        size = max(1, min(int(page_size or 20), 50))
+        rows = cls._space_video_rows(mid, size)[:size]
+        videos = []
+        for row in rows:
+            bvid = str(row.get("bvid") or "").strip()
+            if not bvid:
+                continue
+            author = cls._strip_html(row.get("author")) or current_name
+            title = cls._strip_html(row.get("title"))
+            pubdate = row.get("created") or row.get("pubdate") or row.get("senddate") or 0
+            videos.append({
+                "up_name": author,
+                "up_mid": str(row.get("mid") or mid).strip(),
+                "aid": str(row.get("aid") or row.get("id") or "").strip(),
+                "bvid": bvid,
+                "title": title,
+                "pubdate": int(pubdate or 0),
+                "url": f"https://www.bilibili.com/video/{bvid}",
+                "pic": str(row.get("pic") or ""),
+            })
+        videos.sort(key=lambda item: int(item.get("pubdate") or 0), reverse=True)
+        return videos
 
 
 def bilibili_search_videos_by_exact_author(up_name, *, page_size=20):
