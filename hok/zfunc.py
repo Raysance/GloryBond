@@ -3299,11 +3299,10 @@ def _bili_video_format_video_message(up_name, video):
     pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
     page_link = _bili_video_page_link(up_name, video)
     return (
-        f"视频标题：{video.get('title') or '无标题'}\n"
-        f"UP名字：{up_name}\n"
-        f"发布时间：{pubdate_text}\n"
-        f"略缩图：\n{_bili_video_pic_message_segment(video)}\n"
-        f"跳转链接：{page_link}"
+        f"【{video.get('title') or '无标题'}】\n"
+        f"{up_name} · {pubdate_text}\n\n"
+        f"{_bili_video_pic_message_segment(video)}\n\n"
+        f"{page_link}"
     )
 
 
