@@ -2274,6 +2274,45 @@ class BattlePowerHistory:
             return True
         return False
 
+    @staticmethod
+    def begin_in_progress(gameseq):
+        gameseq = str(gameseq)
+        with dmc.BattlePowerInProgressLock:
+            progress = dmc.BattlePowerInProgress.get(gameseq)
+            if progress:
+                return progress, False
+            progress = {
+                "event": threading.Event(),
+                "error": "",
+            }
+            dmc.BattlePowerInProgress[gameseq] = progress
+            return progress, True
+
+    @staticmethod
+    def finish_in_progress(gameseq, progress, error=None):
+        gameseq = str(gameseq)
+        if error:
+            progress["error"] = str(error)
+        with dmc.BattlePowerInProgressLock:
+            current_progress = dmc.BattlePowerInProgress.get(gameseq)
+            if current_progress is progress:
+                dmc.BattlePowerInProgress.pop(gameseq, None)
+        progress["event"].set()
+
+    @staticmethod
+    def wait_in_progress(gameseq, progress, gen_image):
+        gameseq = str(gameseq)
+        log_message(f"BATTLE_POWER_WAIT_IN_PROGRESS: GameSeq={gameseq}")
+        progress["event"].wait()
+        saved_power_data = BattlePowerHistory.load(gameseq)
+        if saved_power_data:
+            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
+        if progress.get("error"):
+            raise Exception(f"battle_power_process_wait_failed: GameSeq={gameseq} {progress['error']}")
+        if BattlePowerHistory.failed_exists(gameseq):
+            raise Exception(f"battle_power_process_wait_skipped_failed: GameSeq={gameseq}")
+        raise Exception(f"battle_power_process_wait_missing_result: GameSeq={gameseq}")
+
 def mark_battle_power_failed(gameseq, reason, candidate=None):
     return BattlePowerHistory.mark_failed(gameseq, reason, candidate)
 
@@ -2281,29 +2320,43 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
     from .ztime import time_r
 
     spoiler_info = spoiler_info or {}
+    progress = None
+    is_owner = False
     if (not spoiler_info):
         saved_power_data = BattlePowerHistory.load(gameseq)
         if saved_power_data:
             return BattlePowerHistory.saved_response(saved_power_data, gen_image)
         if BattlePowerHistory.failed_exists(gameseq):
             raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
-    ret = coplayer_process(
-        gameSvrId,
-        relaySvrId,
-        gameseq,
-        pvptype,
-        roleid,
-        spoiler_info=spoiler_info,
-        from_web=from_web,
-        return_power_data=True,
-        official_priority=official_priority,
-        save_power_history=save_power_history,
-    )
-    snd_msg,pic_path,stats,power_data = ret
-    if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
-        power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-        BattlePowerHistory.save(power_data)
-    return snd_msg,pic_path,stats,power_data
+        if save_power_history:
+            progress, is_owner = BattlePowerHistory.begin_in_progress(gameseq)
+            if not is_owner:
+                return BattlePowerHistory.wait_in_progress(gameseq, progress, gen_image)
+    try:
+        ret = coplayer_process(
+            gameSvrId,
+            relaySvrId,
+            gameseq,
+            pvptype,
+            roleid,
+            spoiler_info=spoiler_info,
+            from_web=from_web,
+            return_power_data=True,
+            official_priority=official_priority,
+            save_power_history=save_power_history,
+        )
+        snd_msg,pic_path,stats,power_data = ret
+        if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
+            power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
+            BattlePowerHistory.save(power_data)
+        return snd_msg,pic_path,stats,power_data
+    except Exception as e:
+        if progress and is_owner:
+            progress["error"] = repr(e)
+        raise
+    finally:
+        if progress and is_owner:
+            BattlePowerHistory.finish_in_progress(gameseq, progress)
 
 def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
     from .ztime import time_r
