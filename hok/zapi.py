@@ -715,7 +715,29 @@ class BilibiliVideoAPI:
         }
 
     @classmethod
-    def search_videos(cls, keyword, *, page_size=20):
+    def _video_from_search_row(cls, row):
+        author = cls._strip_html(row.get("author"))
+        bvid = str(row.get("bvid") or "").strip()
+        if not bvid:
+            return None
+        title = cls._strip_html(row.get("title"))
+        pubdate = row.get("pubdate") or row.get("senddate") or 0
+        arcurl = str(row.get("arcurl") or "").replace("http://", "https://", 1)
+        if not arcurl:
+            arcurl = f"https://www.bilibili.com/video/{bvid}"
+        return {
+            "up_name": author,
+            "up_mid": str(row.get("mid") or row.get("uid") or "").strip(),
+            "aid": str(row.get("aid") or row.get("id") or "").strip(),
+            "bvid": bvid,
+            "title": title,
+            "pubdate": int(pubdate or 0),
+            "url": arcurl,
+            "pic": str(row.get("pic") or ""),
+        }
+
+    @classmethod
+    def search_videos(cls, keyword, *, page_size=20, page=1):
         keyword = str(keyword or "").strip()
         if not keyword:
             raise ValueError("bilibili_video_search_error: empty keyword")
@@ -723,7 +745,7 @@ class BilibiliVideoAPI:
             "search_type": "video",
             "keyword": keyword,
             "order": "pubdate",
-            "page": 1,
+            "page": max(1, int(page or 1)),
             "duration": 0,
             "tids": 0,
         })
@@ -731,25 +753,9 @@ class BilibiliVideoAPI:
         rows = ((payload.get("data") or {}).get("result") or [])[:int(page_size or 20)]
         videos = []
         for row in rows:
-            author = cls._strip_html(row.get("author"))
-            bvid = str(row.get("bvid") or "").strip()
-            if not bvid:
-                continue
-            title = cls._strip_html(row.get("title"))
-            pubdate = row.get("pubdate") or row.get("senddate") or 0
-            arcurl = str(row.get("arcurl") or "").replace("http://", "https://", 1)
-            if not arcurl:
-                arcurl = f"https://www.bilibili.com/video/{bvid}"
-            videos.append({
-                "up_name": author,
-                "up_mid": str(row.get("mid") or row.get("uid") or "").strip(),
-                "aid": str(row.get("aid") or row.get("id") or "").strip(),
-                "bvid": bvid,
-                "title": title,
-                "pubdate": int(pubdate or 0),
-                "url": arcurl,
-                "pic": str(row.get("pic") or ""),
-            })
+            video = cls._video_from_search_row(row)
+            if video:
+                videos.append(video)
         videos.sort(key=lambda item: int(item.get("pubdate") or 0), reverse=True)
         return videos
 
@@ -760,6 +766,23 @@ class BilibiliVideoAPI:
             video for video in cls.search_videos(up_name, page_size=page_size)
             if video.get("up_name") == up_name
         ]
+
+    @classmethod
+    def _search_videos_by_mid_from_keyword(cls, mid, up_name, page_size):
+        up_name = str(up_name or "").strip()
+        if not up_name:
+            return []
+        videos_by_bvid = {}
+        target_count = max(1, int(page_size or 20))
+        for page in range(1, 8):
+            for video in cls.search_videos(up_name, page_size=20, page=page):
+                if str(video.get("up_mid") or "") == mid:
+                    videos_by_bvid[video["bvid"]] = video
+            if len(videos_by_bvid) >= target_count:
+                break
+        videos = list(videos_by_bvid.values())
+        videos.sort(key=lambda item: int(item.get("pubdate") or 0), reverse=True)
+        return videos[:target_count]
 
     @classmethod
     def _space_video_rows(cls, mid, page_size):
@@ -808,7 +831,10 @@ class BilibiliVideoAPI:
             raise ValueError("bilibili_video_search_error: empty mid")
         current_name = str(up_name or "").strip()
         size = max(1, min(int(page_size or 20), 50))
-        rows = cls._space_video_rows(mid, size)[:size]
+        try:
+            rows = cls._space_video_rows(mid, size)[:size]
+        except Exception:
+            return cls._search_videos_by_mid_from_keyword(mid, current_name, size)
         videos = []
         for row in rows:
             bvid = str(row.get("bvid") or "").strip()

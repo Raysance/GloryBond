@@ -3419,11 +3419,14 @@ def bili_video_subscribe_user(user_qid, up_name):
 
     resolved_mid = str(best_up.get("mid") or "").strip()
     resolved_name = str(best_up.get("name") or "").strip()
-    videos = bilibili_search_videos_by_mid(
-        resolved_mid,
-        up_name=resolved_name,
-        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
-    )
+    try:
+        videos = bilibili_search_videos_by_mid(
+            resolved_mid,
+            up_name=resolved_name,
+            page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
+        )
+    except Exception as error:
+        return f"B站视频接口暂时不可用：{resolved_name}({resolved_mid})，错误：{repr(error)}"
     if not videos:
         return f"已匹配到 {resolved_name}({resolved_mid})，但未找到该 UP 的公开视频，订阅未保存"
 
