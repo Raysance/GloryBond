@@ -3249,7 +3249,24 @@ def _bili_video_pic_url(video):
         return "https:" + pic_url
     if pic_url.startswith("http://"):
         return pic_url.replace("http://", "https://", 1)
-    return pic_url or "暂无"
+    return pic_url
+
+
+def _cq_escape(value):
+    return (
+        str(value or "")
+        .replace("&", "&amp;")
+        .replace("[", "&#91;")
+        .replace("]", "&#93;")
+        .replace(",", "&#44;")
+    )
+
+
+def _bili_video_pic_message_segment(video):
+    pic_url = _bili_video_pic_url(video)
+    if not pic_url:
+        return "暂无"
+    return f"[CQ:image,file={_cq_escape(pic_url)}]"
 
 
 def _bili_video_page_link(up_name, video):
@@ -3276,7 +3293,7 @@ def _bili_video_page_link(up_name, video):
     })
 
 
-def _bili_video_format_push_message(up_name, video, subscribers):
+def _bili_video_format_video_message(up_name, video):
     from .ztime import epoch_to_text
 
     pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
@@ -3285,23 +3302,18 @@ def _bili_video_format_push_message(up_name, video, subscribers):
         f"视频标题：{video.get('title') or '无标题'}\n"
         f"UP名字：{up_name}\n"
         f"发布时间：{pubdate_text}\n"
-        f"略缩图：{_bili_video_pic_url(video)}\n"
+        f"略缩图：\n{_bili_video_pic_message_segment(video)}\n"
         f"跳转链接：{page_link}"
     )
+
+
+def _bili_video_format_push_message(up_name, video, subscribers):
+    return _bili_video_format_video_message(up_name, video)
 
 
 def _bili_video_format_latest_message(up_name, video):
-    from .ztime import epoch_to_text
+    return _bili_video_format_video_message(up_name, video)
 
-    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
-    page_link = _bili_video_page_link(up_name, video)
-    return (
-        f"视频标题：{video.get('title') or '无标题'}\n"
-        f"UP名字：{up_name}\n"
-        f"发布时间：{pubdate_text}\n"
-        f"略缩图：{_bili_video_pic_url(video)}\n"
-        f"跳转链接：{page_link}"
-    )
 
 
 def _bili_video_similarity(query, candidate_name):
