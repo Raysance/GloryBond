@@ -13,8 +13,6 @@ import secrets
 import yaml
 import time
 from urllib.parse import urlencode
-from urllib.request import Request as UrlRequest
-from urllib.request import urlopen
 from dotenv import load_dotenv
 
 
@@ -75,38 +73,6 @@ def key_to_filename(key: str, reqtype: str):
         ret_json["DateTo"]="模拟DateTo"
         ret_json["time"]="模拟time"
         return ret_json,filepath
-
-def normalize_https_url(url: str):
-    url = str(url or "").strip()
-    if url.startswith("//"):
-        return "https:" + url
-    if url.startswith("http://"):
-        return url.replace("http://", "https://", 1)
-    return url
-
-def fetch_bili_video_cover(bvid: str, aid: str):
-    query = {}
-    if bvid:
-        query["bvid"] = bvid
-    elif aid:
-        query["aid"] = aid
-    if not query:
-        return ""
-    api_url = "https://api.bilibili.com/x/web-interface/view?" + urlencode(query)
-    try:
-        req = UrlRequest(
-            api_url,
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Referer": "https://www.bilibili.com/",
-            },
-        )
-        with urlopen(req, timeout=3) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except Exception:
-        return ""
-    data = payload.get("data") if isinstance(payload, dict) else {}
-    return normalize_https_url((data or {}).get("pic") or "")
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
@@ -229,7 +195,7 @@ async def show_benefit_visualizer(request: Request, key: str):
         }
     )
 
-@app.get("/bili-video", response_class=HTMLResponse)
+@app.get("/bili-video")
 async def show_bili_video(request: Request, key: str):
     if os.path.basename(key) != key or key in ("", ".", ".."):
         return templates.TemplateResponse(
@@ -249,53 +215,23 @@ async def show_bili_video(request: Request, key: str):
 
     bvid = str(video.get("bvid") or "").strip()
     aid = str(video.get("aid") or video.get("avid") or "").strip()
-    up_mid = str(video.get("up_mid") or "").strip()
     if not bvid:
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"视频参数非法"}
         )
 
-    video_url = str(video.get("url") or f"https://www.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
     mobile_url = str(video.get("mobile_url") or f"https://m.bilibili.com/video/{bvid}").replace("http://", "https://", 1)
     app_url = str(video.get("app_url") or "")
     if aid:
         app_url = f"bilibili://video/{aid}?page=0"
     if not app_url:
         app_url = mobile_url
-    app_url_alt = f"bilibili://video/{aid}" if aid else app_url
     yyb_url = "https://a.app.qq.com/o/simple.jsp?" + urlencode({
         "pkgname": "tv.danmaku.bili",
         "ckey": "CK1474482145968",
         "android_schema": app_url,
     }) if app_url.startswith("bilibili://") else mobile_url
-    up_url = str(video.get("up_url") or (f"https://space.bilibili.com/{up_mid}" if up_mid else "")).replace("http://", "https://", 1)
-    pic_url = normalize_https_url(video.get("pic") or "")
-    if not pic_url:
-        pic_url = fetch_bili_video_cover(bvid, aid)
-
-    return templates.TemplateResponse(
-        "CommonPages/BiliVideoDetail.html",
-        {
-            "request": request,
-            "video": {
-                "up_name": str(video.get("up_name") or "未知UP"),
-                "up_mid": up_mid,
-                "up_url": up_url,
-                "aid": aid,
-                "bvid": bvid,
-                "title": str(video.get("title") or "无标题"),
-                "pubdate": video.get("pubdate") or "",
-                "pubdate_text": str(video.get("pubdate_text") or ""),
-                "url": video_url,
-                "mobile_url": mobile_url,
-                "pic": pic_url,
-                "app_url": app_url,
-                "app_url_alt": app_url_alt,
-                "yyb_url": yyb_url,
-            },
-            "key": key,
-        }
-    )
+    return RedirectResponse(url=yyb_url, status_code=302)
 
 def check_key_valid(key:str, reqtype:str):
     if key is None:
