@@ -8,10 +8,10 @@
 
 - `hok/__init__.py`：NoneBot 插件入口；注册插件元信息并集中加载配置、静态变量、动态变量、API、事件、文件、业务函数、定时任务与时间工具。
 - `hok/config.py`：Pydantic 配置模型定义；除非明确需要，否则不要新增依赖或复杂逻辑。
-- `hok/zdynamic.py`：**动态变量**导入与初始化必须放在这里；其他模块通过 `from . import zdynamic as dmc` 读写动态变量。
+- `hok/zdynamic.py`：**动态变量**导入与初始化必须放在这里；其他模块通过 `from . import zdynamic as dmc` 读取动态配置初始值；运行时需要跨部署持久化的状态必须通过 Redis 业务接口保存。
 - `hok/zevent.py`：所有消息收发的**最初层**与路由层；只做初步解析、分发与调用接口，不在此实现具体业务算法/流程细节；普通用户的“代表局”自然语言查询在此路由且必须以 `#` 或 `＃` 开头，正式回复不得附带调试信息；`##rep3` 仅供管理员按日期区间调试每日三类指数冠军；B 站 UP 视频订阅命令只在此做命令剥离并调用 `zfunc.py`，用户命令支持 `#订阅xxx`、`#取消订阅`、`#最新视频`、`#我的订阅`，不要求包含“B站”关键词。
 - `hok/zfile.py`：文件/IO 读写统一入口；所有 IO（读写文件、落盘缓存、路径拼接等）必须通过此模块提供的接口完成。
-- `hok/zfunc.py`：业务函数的**具体执行流程**（面向 `zevent.py` 暴露接口）；业务流程编排、调用工具、组装输出在此完成；`representative_battle_query_impl()` 负责普通用户代表局查询并将正式文字、图片路径和图片下方 AI 文案与调试载荷隔离；`representative_battle_range_debug_impl()` 仅组装每日三类指数冠军的纯文本区间调试结果；B 站 UP 视频订阅状态、Redis 去重、Web 详情页链接和推送消息组装在此完成，订阅身份必须以 UP 的 `mid` 为准，昵称仅用于展示、模糊匹配和搜索关键词缓存。
+- `hok/zfunc.py`：业务函数的**具体执行流程**（面向 `zevent.py` 暴露接口）；业务流程编排、调用工具、组装输出在此完成；`representative_battle_query_impl()` 负责普通用户代表局查询并将正式文字、图片路径和图片下方 AI 文案与调试载荷隔离；`representative_battle_range_debug_impl()` 仅组装每日三类指数冠军的纯文本区间调试结果；B 站 UP 视频订阅状态、Redis 去重、Web 详情页链接和推送消息组装在此完成，订阅身份必须以 UP 的 `mid` 为准，昵称仅用于展示、模糊匹配和搜索关键词缓存；B 站订阅持久化以 Redis key `bili:video_subscriptions` 为准，战绩隐身禁用名单以 Redis key `battle:invisible_disabled_qids` 为准。
 - `hok/zmemory.py`：所有 AI 对话记忆、摘要、长期记忆、表情记忆相关的读写与策略接口。
 - `hok/zscheduler.py`：所有定时/间隔任务的声明、注册与定义（不要在别处私自创建 scheduler 任务）；每日 23:30 的 `notify_msg()` 统一发送当日王者战报，并按“代表局文字 → 图片 → AI 文案”的顺序发送代表性对局；B 站 UP 新视频轮询任务只在此注册，实际检查与推送编排调用 `zfunc.py`。
 - `hok/zstatic.py`：**静态变量**导入必须放在这里（从文件与系统环境变量导入）；其他模块通过 `from .zstatic import *` 获取静态变量。
@@ -68,11 +68,11 @@
 
 - `config.yaml`：王者荣耀/Steam/AI 的 API-Key、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
 - `variables_static.json`：用户 QQ 号、王者荣耀 roleid/userid、用户昵称、SteamID、常见俚语缩写、赛季起止时间、英雄 ID 映射、部分功能 prompt 等稳定数据。
-- `variables_dynamic.json`：动态变量初始值，例如是否记忆、机器人是否开放、英雄梯度、今日新闻、上一次查询战绩时间、今日导出失败用户名单、B 站 UP 视频订阅与轮询开关等。
+- `variables_dynamic.json`：动态变量初始值，例如是否记忆、机器人是否开放、英雄梯度、今日新闻、上一次查询战绩时间、今日导出失败用户名单、B 站 UP 视频轮询开关等；运行时需要跨部署持久化的业务状态必须放 Redis，不得依赖 Git 工作区文件保存订阅、用户状态或去重状态。
 
 原则：
 1. **任何可能变化的值**不得硬编码在业务逻辑里，必须进入上述文件或对应的静态/动态变量模块。
-2. `zstatic.py` 负责加载静态配置；`zdynamic.py` 负责加载动态配置并提供可写入口。
+2. `zstatic.py` 负责加载静态配置；`zdynamic.py` 负责加载动态配置初始值，不作为运行时持久化写入入口。
 
 ### 2.2 Linux 环境变量（在 `hok/zstatic.py` 导入）
 
@@ -88,7 +88,8 @@
 1. **入口与路由**：`zevent.py` 仅做“接收 → 解析 → 选择接口 → 调用”，不承载业务细节。
 2. **流程编排**：业务流程（多步调用、拼装文本/图片/数据）写在 `zfunc.py`，并保持接口可被 `zevent.py` 直接调用。
 3. **状态与缓存**：
-   - 运行时可变状态：统一放在 `zdynamic.py`（通过 `dmc.xxx` 访问）。
+   - 动态配置初始值：统一放在 `zdynamic.py`（通过 `dmc.xxx` 访问）。
+   - 运行时需要跨部署持久化的业务状态：统一放 Redis，并通过 `zfunc.py` 暴露业务接口访问。
    - 静态映射/常量：统一放在 `zstatic.py`。
 4. **IO 与时间**：IO 一律走 `zfile.py`；时间一律走 `ztime.py`。
 5. **发送消息**：所有对外消息发送必须走 `utils/message_sender.py`，用于统一出口与后续可观测性。

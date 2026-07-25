@@ -10,6 +10,38 @@ from wcwidth import wcswidth
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "battle:invisible_disabled_qids"
+
+
+def _redis_get_json(key, default=None):
+    raw = dmc.redis_deamon.get(key)
+    if not raw:
+        return default
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8")
+    return json.loads(raw)
+
+
+def _redis_set_json(key, value):
+    dmc.redis_deamon.set(key, json.dumps(value, ensure_ascii=False))
+
+
+def get_battle_invisible_disabled_qids():
+    try:
+        value = _redis_get_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, default=[])
+    except Exception as error:
+        log_message(f"BATTLE_VISIBILITY_REDIS_READ_ERROR: {repr(error)}")
+        value = []
+    if not isinstance(value, list):
+        value = []
+    return sorted({str(item) for item in value if str(item or "").strip()})
+
+
+def save_battle_invisible_disabled_qids(disabled_qids):
+    disabled_qids = sorted({str(item) for item in disabled_qids if str(item or "").strip()})
+    _redis_set_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, disabled_qids)
+    return disabled_qids
+
 def _to_pinyin(s):
     from pypinyin import lazy_pinyin
     
@@ -41,7 +73,6 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         return target_qids
 
     def sync_battle_visibility_qid(visible):
-        from .zfile import update_dynamic_variable
         from .utils.message_sender import BATTLE_INVISIBLE_MUTE_SECONDS
         from .utils.message_sender import add_group_ban_task
 
@@ -49,7 +80,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         if not target_qids:
             log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
             return
-        disabled_qids = [str(item) for item in getattr(dmc, "BattleInvisibleDisabledQids", [])]
+        disabled_qids = get_battle_invisible_disabled_qids()
         target_qid_set = set(target_qids)
         changed_qids = []
         if visible:
@@ -64,9 +95,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
                     changed_qids.append(user_qid)
                     log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
         changed = bool(changed_qids)
-        dmc.BattleInvisibleDisabledQids = disabled_qids
         if changed:
-            update_dynamic_variable("BattleInvisibleDisabledQids", disabled_qids)
+            save_battle_invisible_disabled_qids(disabled_qids)
             duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
             source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
             for user_qid in target_qids:
@@ -3130,8 +3160,10 @@ def get_emoji_url(index):
     return emoji_url
 
 
-def _bili_video_get_subscriptions():
-    subscriptions = getattr(dmc, "BiliVideoUserSubscriptions", {})
+_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "bili:video_subscriptions"
+
+
+def _bili_video_normalize_subscriptions(subscriptions):
     if not isinstance(subscriptions, dict):
         subscriptions = {}
     normalized = {}
@@ -3157,11 +3189,20 @@ def _bili_video_get_subscriptions():
     return normalized
 
 
-def _bili_video_save_subscriptions(subscriptions):
-    from .zfile import update_dynamic_variable
+def _bili_video_get_subscriptions():
+    try:
+        subscriptions = _bili_video_normalize_subscriptions(
+            _redis_get_json(_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY, default={})
+        )
+        return subscriptions
+    except Exception as error:
+        log_message(f"BILI_VIDEO_SUBSCRIPTION_REDIS_READ_ERROR: {repr(error)}")
+        return {}
 
-    dmc.BiliVideoUserSubscriptions = subscriptions
-    update_dynamic_variable("BiliVideoUserSubscriptions", subscriptions)
+
+def _bili_video_save_subscriptions(subscriptions):
+    subscriptions = _bili_video_normalize_subscriptions(subscriptions)
+    _redis_set_json(_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY, subscriptions)
 
 
 def _bili_video_identity_key(up_mid, up_name=""):

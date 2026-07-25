@@ -27,7 +27,9 @@ def is_registered_qid(user_qid):
     return str(user_qid) in {str(item) for item in qid.values()}
 
 def is_battle_visible_qid_enabled(user_qid):
-    disabled_qids = getattr(dmc, "BattleInvisibleDisabledQids", [])
+    from .zfunc import get_battle_invisible_disabled_qids
+
+    disabled_qids = get_battle_invisible_disabled_qids()
     return str(user_qid) not in {str(item) for item in disabled_qids}
 
 def is_bot_request_message(event):

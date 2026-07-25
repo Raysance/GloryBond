@@ -21,6 +21,9 @@ class FakeRedis:
         self.values[key] = value
         return True
 
+    def get(self, key):
+        return self.values.get(key)
+
     def delete(self, key):
         self.values.pop(key, None)
         return True
@@ -52,14 +55,16 @@ def video(bvid, title, pubdate, up_name="罗翔说刑法", aid="100001", pic="ht
     }
 
 
+def save_subscriptions(subscriptions):
+    ZFUNC._bili_video_save_subscriptions(subscriptions)
+
+
 class BiliVideoSubscriptionTests(unittest.TestCase):
     def setUp(self):
-        self.original_subscriptions = getattr(ZFUNC.dmc, "BiliVideoUserSubscriptions", {})
         self.original_redis = ZFUNC.dmc.redis_deamon
         self.original_search_users = ZAPI.bilibili_search_users
         self.original_search_by_mid = ZAPI.bilibili_search_videos_by_mid
         self.original_user_card = ZAPI.bilibili_get_user_card
-        self.original_save = ZFUNC._bili_video_save_subscriptions
         self.original_message_sender = sys.modules.get("hok.utils.message_sender")
         self.original_confs = dict(ZFUNC.confs)
         self.fake_redis = FakeRedis()
@@ -67,15 +72,9 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
 
         ZFUNC.confs.setdefault("QQBot", {})["super_qid"] = 999001
         ZFUNC.confs.setdefault("WebService", {})["server_domain"] = "example.test"
-        ZFUNC.dmc.BiliVideoUserSubscriptions = {}
         ZFUNC.dmc.redis_deamon = self.fake_redis
         ZFUNC.dmc.BiliVideoApiPageSize = 20
         ZFUNC.dmc.BiliVideoPushEnabled = True
-
-        def fake_save(subscriptions):
-            ZFUNC.dmc.BiliVideoUserSubscriptions = subscriptions
-
-        ZFUNC._bili_video_save_subscriptions = fake_save
 
         sender_module = types.ModuleType("hok.utils.message_sender")
 
@@ -90,12 +89,10 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         sys.modules["hok.utils.message_sender"] = sender_module
 
     def tearDown(self):
-        ZFUNC.dmc.BiliVideoUserSubscriptions = self.original_subscriptions
         ZFUNC.dmc.redis_deamon = self.original_redis
         ZAPI.bilibili_search_users = self.original_search_users
         ZAPI.bilibili_search_videos_by_mid = self.original_search_by_mid
         ZAPI.bilibili_get_user_card = self.original_user_card
-        ZFUNC._bili_video_save_subscriptions = self.original_save
         ZFUNC.confs.clear()
         ZFUNC.confs.update(self.original_confs)
         if self.original_message_sender is None:
@@ -117,25 +114,34 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
 
         self.assertIn("订阅成功：罗翔说刑法(517327498)", result)
         self.assertEqual(
-            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_name"],
+            ZFUNC._bili_video_get_subscriptions()["10001"]["up_name"],
             "罗翔说刑法",
         )
         self.assertEqual(
-            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_mid"],
+            ZFUNC._bili_video_get_subscriptions()["10001"]["up_mid"],
             "517327498",
         )
         self.assertEqual(
-            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["query"],
+            ZFUNC._bili_video_get_subscriptions()["10001"]["query"],
             "罗翔刑法",
         )
+        saved_subscriptions = json.loads(self.fake_redis.get("bili:video_subscriptions"))
+        self.assertEqual(saved_subscriptions["10001"]["up_mid"], "517327498")
         self.assertTrue(self.fake_redis.sismember("bili:video_seen:mid:517327498", "BV-new"))
         self.assertTrue(self.fake_redis.sismember("bili:video_seen:mid:517327498", "BV-old"))
         self.assertEqual(self.sent_messages, [])
 
-    def test_one_subscription_per_user_limit(self):
+    def test_subscriptions_do_not_fallback_to_dynamic_variable(self):
         ZFUNC.dmc.BiliVideoUserSubscriptions = {
-            "10001": {"up_mid": "517327498", "up_name": "罗翔说刑法", "subscribed_at": "2026-07-25 12:00:00"}
+            "10001": {"up_mid": "517327498", "up_name": "旧文件订阅", "subscribed_at": ""}
         }
+
+        self.assertEqual(ZFUNC._bili_video_get_subscriptions(), {})
+
+    def test_one_subscription_per_user_limit(self):
+        save_subscriptions({
+            "10001": {"up_mid": "517327498", "up_name": "罗翔说刑法", "subscribed_at": "2026-07-25 12:00:00"}
+        })
         ZAPI.bilibili_search_users = lambda query, page_size=10: []
         ZAPI.bilibili_search_videos_by_mid = lambda mid, up_name=None, page_size=20: []
 
@@ -143,15 +149,15 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
 
         self.assertIn("每人最多订阅 1 个 UP", result)
         self.assertEqual(
-            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_name"],
+            ZFUNC._bili_video_get_subscriptions()["10001"]["up_name"],
             "罗翔说刑法",
         )
 
     def test_check_pushes_new_video_to_admin_only_and_deduplicates(self):
-        ZFUNC.dmc.BiliVideoUserSubscriptions = {
+        save_subscriptions({
             "10001": {"up_mid": "517327498", "up_name": "罗翔旧昵称", "subscribed_at": ""},
             "10002": {"up_mid": "517327498", "up_name": "罗翔旧昵称", "subscribed_at": ""},
-        }
+        })
         self.fake_redis.sadd("bili:video_seen:mid:517327498", "BV-old")
         ZAPI.bilibili_get_user_card = lambda mid: {"mid": str(mid), "name": "罗翔说刑法"}
         ZAPI.bilibili_search_videos_by_mid = lambda mid, up_name=None, page_size=20: [
@@ -182,14 +188,14 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         pushed_payloads = [json.loads(value) for value in self.fake_redis.values.values()]
         self.assertEqual(pushed_payloads[-1]["app_url"], "bilibili://video/100001?page=0")
         self.assertEqual(
-            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_name"],
+            ZFUNC._bili_video_get_subscriptions()["10001"]["up_name"],
             "罗翔说刑法",
         )
 
     def test_latest_query_for_user_returns_current_video_detail_link(self):
-        ZFUNC.dmc.BiliVideoUserSubscriptions = {
+        save_subscriptions({
             "10001": {"up_mid": "517327498", "up_name": "罗翔旧昵称", "subscribed_at": ""}
-        }
+        })
         ZAPI.bilibili_get_user_card = lambda mid: {"mid": str(mid), "name": "罗翔说刑法"}
         ZAPI.bilibili_search_videos_by_mid = lambda mid, up_name=None, page_size=20: [
             video("BV-new", "最新视频", 200, aid="116975984513331"),
@@ -212,9 +218,36 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         query_payloads = [json.loads(value) for value in self.fake_redis.values.values()]
         self.assertEqual(query_payloads[-1]["app_url"], "bilibili://video/116975984513331?page=0")
         self.assertEqual(
-            ZFUNC.dmc.BiliVideoUserSubscriptions["10001"]["up_name"],
+            ZFUNC._bili_video_get_subscriptions()["10001"]["up_name"],
             "罗翔说刑法",
         )
+
+
+class RuntimeStateRedisTests(unittest.TestCase):
+    def setUp(self):
+        self.original_redis = ZFUNC.dmc.redis_deamon
+        self.fake_redis = FakeRedis()
+        ZFUNC.dmc.redis_deamon = self.fake_redis
+
+    def tearDown(self):
+        ZFUNC.dmc.redis_deamon = self.original_redis
+
+    def test_battle_visibility_disabled_qids_are_stored_in_redis(self):
+        ZFUNC.save_battle_invisible_disabled_qids(["10002", "10001", "10001"])
+
+        self.assertEqual(
+            json.loads(self.fake_redis.get("battle:invisible_disabled_qids")),
+            ["10001", "10002"],
+        )
+        self.assertEqual(
+            ZFUNC.get_battle_invisible_disabled_qids(),
+            ["10001", "10002"],
+        )
+
+    def test_battle_visibility_does_not_fallback_to_dynamic_variable(self):
+        ZFUNC.dmc.BattleInvisibleDisabledQids = ["10001"]
+
+        self.assertEqual(ZFUNC.get_battle_invisible_disabled_qids(), [])
 
 
 if __name__ == "__main__":
