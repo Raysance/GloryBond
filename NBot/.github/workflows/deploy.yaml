@@ -15,75 +15,13 @@ jobs:
           # 如果 8080 端口没有进程，避免 kill 报错导致工作流中断，加了 || true
           lsof -i:8080 | awk '/python/ {print $2}' | uniq | xargs -r kill || true
 
-      - name: Backup Local Changes
+      - name: Pull Without Touching History
         run: |
-          # 1. 获取远程最新元数据（但不修改工作区）
           cd /QQBot/NBot/
           git fetch origin main
-          
-          # 2. 创建存放冲突/新增文件的目标目录
-          BACKUP_DIR="/data/history/doubt"
-          mkdir -p "$BACKUP_DIR"
-          
-          # 3. 获取当前时间戳（格式如：20260604_153045）
-          DATETIME=$(date +"%Y%m%d_%H%M%S")
-          
-          echo "==== 开始检查 /data/history/ 目录下的本地变更 ===="
-          
-          # 4. 处理【已修改且有区别】的文件
-          git diff --name-only origin/main -- /data/history/ | while read -r file; do
-            if [ -f "$file" ] && [[ "$file" != "$BACKUP_DIR"* ]]; then
-              echo "发现有区别的文件: $file"
-              
-              # 提取文件路径、纯文件名、拓展名
-              dir_name=$(dirname "$file")
-              base_name=$(basename "$file")
-              filename="${base_name%.*}"
-              extension="${base_name##*.}"
-              
-              # 构造带时间戳的新文件名
-              if [ "$filename" = "$extension" ]; then
-                # 说明文件没有拓展名（例如 /data/history/README）
-                new_basename="${filename}_${DATETIME}"
-              else
-                # 有拓展名（例如 /data/history/config.py -> config_20260604_153045.py）
-                new_basename="${filename}_${DATETIME}.${extension}"
-              fi
-              
-              # 创建对应的备份子目录并复制
-              mkdir -p "$BACKUP_DIR/$dir_name"
-              cp "$file" "$BACKUP_DIR/$dir_name/$new_basename"
-            fi
-          done
-          
-          # 5. 处理【本地存在但远程没有】的未追踪文件
-          git status --porcelain -- /data/history/ | grep '??' | awk '{print $2}' | while read -r file; do
-            if [ -f "$file" ] && [[ "$file" != "$BACKUP_DIR"* ]]; then
-              echo "发现远程不存在的本地文件: $file"
-              
-              dir_name=$(dirname "$file")
-              base_name=$(basename "$file")
-              filename="${base_name%.*}"
-              extension="${base_name##*.}"
-              
-              if [ "$filename" = "$extension" ]; then
-                new_basename="${filename}_${DATETIME}"
-              else
-                new_basename="${filename}_${DATETIME}.${extension}"
-              fi
-              
-              mkdir -p "$BACKUP_DIR/$dir_name"
-              cp "$file" "$BACKUP_DIR/$dir_name/$new_basename"
-            fi
-          done
-          
-          echo "==== 备份完成 ===="
 
-      - name: Force Pull and Reset
-        run: |
-          # 5. 安全地强制覆盖本地工作区
-          cd /QQBot/NBot
-          git reset --hard origin/main
+          git reset --mixed origin/main
+          git restore --source=origin/main --worktree -- . ':(exclude)data/history'
 
       - name: Restart Nonebot
         run: |

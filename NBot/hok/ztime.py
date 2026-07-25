@@ -79,6 +79,111 @@ def epoch_to_text(timestamp, format_str="%Y-%m-%d %H:%M:%S"):
         return None
     return datetime.datetime.fromtimestamp(int(timestamp)).strftime(format_str)
 
+
+def _chinese_day_count(text):
+    digits = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+    if text == "十":
+        return 10
+    if "十" in text:
+        tens_text, ones_text = text.split("十", 1)
+        tens = digits.get(tens_text, 1) if tens_text else 1
+        ones = digits.get(ones_text, 0) if ones_text else 0
+        return tens * 10 + ones
+    return digits.get(text)
+
+
+def parse_representative_battle_date(query_text, now=None):
+    """Extract one natural-language date for representative-battle queries."""
+    reference_time = time_sul(now)
+    text = str(query_text or "").strip()
+
+    full_date_match = re.search(
+        r"(?<!\d)(\d{4})(?:年|[-/.])(\d{1,2})(?:月|[-/.])(\d{1,2})(?:日|号)?",
+        text,
+    )
+    if full_date_match:
+        year, month, day = (int(value) for value in full_date_match.groups())
+        try:
+            return datetime.date(year, month, day).strftime("%Y-%m-%d")
+        except ValueError as error:
+            raise ValueError(f"无效日期：{full_date_match.group(0)}") from error
+
+    month_day_match = re.search(r"(?<!\d)(\d{1,2})月(\d{1,2})(?:日|号)?", text)
+    if month_day_match:
+        month, day = (int(value) for value in month_day_match.groups())
+        try:
+            return datetime.date(reference_time.year, month, day).strftime("%Y-%m-%d")
+        except ValueError as error:
+            raise ValueError(f"无效日期：{month_day_match.group(0)}") from error
+
+    numeric_days_match = re.search(r"(?<!\d)(\d+)天前", text)
+    if numeric_days_match:
+        days = int(numeric_days_match.group(1))
+        return (reference_time - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    chinese_days_match = re.search(r"([一二两三四五六七八九十]+)天前", text)
+    if chinese_days_match:
+        days = _chinese_day_count(chinese_days_match.group(1))
+        if days is not None:
+            return (reference_time - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    relative_days = (
+        (("大前天",), 3),
+        (("前天",), 2),
+        (("昨天", "昨日"), 1),
+        (("今天", "今日"), 0),
+    )
+    for keywords, days in relative_days:
+        if any(keyword in text for keyword in keywords):
+            return (reference_time - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    return reference_time.strftime("%Y-%m-%d")
+
+
+def parse_representative_battle_date_range(query_text, now=None):
+    """Extract an inclusive date range from a representative-battle debug query."""
+    text = str(query_text or "").strip()
+    full_date_pattern = re.compile(
+        r"(?<!\d)(\d{4})(?:年|[-/.])(\d{1,2})(?:月|[-/.])(\d{1,2})(?:日|号)?"
+    )
+    full_date_matches = list(full_date_pattern.finditer(text))
+
+    def validated_date(match):
+        year, month, day = (int(value) for value in match.groups())
+        try:
+            return datetime.date(year, month, day).strftime("%Y-%m-%d")
+        except ValueError as error:
+            raise ValueError(f"无效日期：{match.group(0)}") from error
+
+    if len(full_date_matches) >= 2:
+        start_date = validated_date(full_date_matches[0])
+        end_date = validated_date(full_date_matches[1])
+    else:
+        range_parts = re.split(r"\s*(?:到|至|~|～)\s*", text, maxsplit=1)
+        if len(range_parts) == 2:
+            start_date = parse_representative_battle_date(range_parts[0], now=now)
+            end_date = parse_representative_battle_date(range_parts[1], now=now)
+        else:
+            target_date = parse_representative_battle_date(text, now=now)
+            start_date = target_date
+            end_date = target_date
+
+    if start_date > end_date:
+        raise ValueError(f"开始日期不能晚于结束日期：{start_date} > {end_date}")
+    return start_date, end_date
+
+
+def inclusive_date_strings(start_date, end_date):
+    """Return every YYYY-MM-DD date in an inclusive range."""
+    current_date = datetime.datetime.strptime(start_date, "%Y-%m-%d").date()
+    final_date = datetime.datetime.strptime(end_date, "%Y-%m-%d").date()
+    dates = []
+    while current_date <= final_date:
+        dates.append(current_date.strftime("%Y-%m-%d"))
+        current_date += timedelta(days=1)
+    return dates
+
+
 def parse_fuzzy_time(fuzzy_str):
     """
     解析模糊时间描述，返回(start_time, end_time)

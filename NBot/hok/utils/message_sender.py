@@ -10,6 +10,7 @@ driver = nonebot.get_driver()
 
 MESSAGE_SEND_INTERVAL = 3
 MESSAGE_CHECK_INTERVAL = 0.1
+BATTLE_INVISIBLE_MUTE_SECONDS = 24 * 60 * 60
 
 
 @driver.on_startup
@@ -56,6 +57,68 @@ def _resolve_destination(event=None, msg_type=None, to_id=None):
     return msg_type, to_id
 
 
+def _enqueue_payload(payload):
+    return dmc.MessageQueue.lpush("MessageQueue", json.dumps(payload, ensure_ascii=False))
+
+
+def _format_group_ban_action(duration):
+    try:
+        duration = int(duration)
+    except (TypeError, ValueError):
+        duration = 0
+    return "禁言" if duration > 0 else "解禁"
+
+
+async def _handle_group_ban(bot, msg_json):
+    group_id = _normalize_target_id(msg_json.get("group_id") or confs["QQBot"]["group_qid"])
+    user_id = _normalize_target_id(msg_json.get("user_id"))
+    try:
+        duration = int(msg_json.get("duration", 0))
+    except (TypeError, ValueError):
+        duration = 0
+    source = msg_json.get("source", "")
+    action = _format_group_ban_action(duration)
+    if group_id is None or user_id is None:
+        add_msg(
+            f"GROUP_BAN_TASK_ERROR: invalid target action={action} group_id={group_id} user_id={user_id} source={source}",
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+    try:
+        await bot.set_group_ban(group_id=group_id, user_id=user_id, duration=duration)
+    except Exception as e:
+        add_msg(
+            f"GROUP_BAN_TASK_FAILED: action={action} group_id={group_id} user_id={user_id} "
+            f"duration={duration} source={source} error={repr(e)}",
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+
+
+async def _handle_group_poke(bot, msg_json):
+    group_id = _normalize_target_id(msg_json.get("group_id") or confs["QQBot"]["group_qid"])
+    user_id = _normalize_target_id(msg_json.get("user_id"))
+    source = msg_json.get("source", "")
+    if group_id is None or user_id is None:
+        add_msg(
+            f"GROUP_POKE_TASK_ERROR: invalid target group_id={group_id} user_id={user_id} source={source}",
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+    try:
+        await bot.group_poke(group_id=group_id, user_id=user_id)
+    except Exception as e:
+        add_msg(
+            f"GROUP_POKE_TASK_FAILED: group_id={group_id} user_id={user_id} source={source} error={repr(e)}",
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+
+
 
 async def message_sender_loop():
     while True:
@@ -74,6 +137,14 @@ async def message_sender_loop():
             dmc.MessageQueue.lpush("MessageQueue", result)
             continue
         msg_json = json.loads(result)
+        if msg_json.get("kind") == "group_ban":
+            await _handle_group_ban(bot, msg_json)
+            dmc.last_msg_send_ts = time.time()
+            continue
+        if msg_json.get("kind") == "group_poke":
+            await _handle_group_poke(bot, msg_json)
+            dmc.last_msg_send_ts = time.time()
+            continue
         msg_type = msg_json.get("type")
         to_id = msg_json.get("toid")
         msg_raw = msg_json.get("content", "")
@@ -96,4 +167,25 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
         "toid": resolved_id,
         "content": _stringify_message_content(content),
     }
-    return dmc.MessageQueue.lpush("MessageQueue", json.dumps(payload, ensure_ascii=False))
+    return _enqueue_payload(payload)
+
+
+def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):
+    payload = {
+        "kind": "group_ban",
+        "group_id": _normalize_target_id(group_qid or confs["QQBot"]["group_qid"]),
+        "user_id": _normalize_target_id(user_qid),
+        "duration": int(duration),
+        "source": str(source),
+    }
+    return _enqueue_payload(payload)
+
+
+def add_group_poke_task(user_qid, *, group_qid=None, source=""):
+    payload = {
+        "kind": "group_poke",
+        "group_id": _normalize_target_id(group_qid or confs["QQBot"]["group_qid"]),
+        "user_id": _normalize_target_id(user_qid),
+        "source": str(source),
+    }
+    return _enqueue_payload(payload)

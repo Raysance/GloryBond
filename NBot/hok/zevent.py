@@ -3,6 +3,7 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 from .utils.message_sender import add_msg
+from .utils.message_sender import add_group_poke_task
 from . import zscheduler
 
 import nonebot
@@ -26,7 +27,9 @@ def is_registered_qid(user_qid):
     return str(user_qid) in {str(item) for item in qid.values()}
 
 def is_battle_visible_qid_enabled(user_qid):
-    disabled_qids = getattr(dmc, "BattleInvisibleDisabledQids", [])
+    from .zfunc import get_battle_invisible_disabled_qids
+
+    disabled_qids = get_battle_invisible_disabled_qids()
     return str(user_qid) not in {str(item) for item in disabled_qids}
 
 def is_bot_request_message(event):
@@ -53,9 +56,53 @@ async def handle_all_messages(event: MessageEvent):
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
 
+def _bili_video_plain_command(event):
+    return event.get_plaintext().strip().lstrip("#＃").strip()
+
+async def judge_bili_video_subscribe(event)->bool:
+    raw = _bili_video_plain_command(event)
+    if raw in {"订阅", "订阅最新视频", "订阅UP最新视频", "订阅up最新视频"}:
+        return False
+    return raw.startswith("订阅B站") or raw.startswith("订阅b站") or raw.startswith("订阅")
+
+async def judge_bili_video_unsubscribe(event)->bool:
+    raw = _bili_video_plain_command(event)
+    return raw in {"取消B站订阅", "取消b站订阅", "取消订阅"}
+
+async def judge_bili_video_latest(event)->bool:
+    raw = _bili_video_plain_command(event)
+    return raw in {
+        "最新视频",
+        "查询最新视频",
+        "订阅最新视频",
+        "查询订阅最新视频",
+        "我的最新视频",
+        "我的订阅最新视频",
+        "订阅UP最新视频",
+        "订阅up最新视频",
+    }
+
+async def judge_bili_video_mine(event)->bool:
+    raw = _bili_video_plain_command(event)
+    return raw in {
+        "我的订阅",
+        "我的UP订阅",
+        "我的up订阅",
+        "我的B站订阅",
+        "我的b站订阅",
+        "订阅状态",
+        "查询订阅",
+    }
+
 async def judge_not_duration_rank(event)->bool:
     raw = event.get_plaintext()
     return ("时长排行" not in raw) and ("时长排名" not in raw)
+
+
+async def judge_representative_battle_query(event)->bool:
+    return is_registered_qid(event.get_user_id()) and is_battle_visible_qid_enabled(event.get_user_id())
+
+
 async def judge_herostatistics_query(event)->bool:
     from .zfunc import qid2nick
     from .zfunc import extract_name,extract_heroname
@@ -116,17 +163,19 @@ async def check_sleep(event)->bool:
 # EVENT
 _group_poke = on_notice()
 _qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
-_repair=on_keyword({"##r"},rule=judge_super,priority=1, block=True)
+_repair=on_fullmatch("##r",rule=judge_super,priority=1, block=True)
 _execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
 _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
 _dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
+_representative_range_debug=on_keyword({"##rep3"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
 _super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
 _all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
+_bili_video_admin = on_keyword({"##bili"},rule=judge_super,priority=1, block=True)
 
 _sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
@@ -137,6 +186,16 @@ _show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
+_bili_video_latest = on_message(rule=Rule(judge_to_me, judge_bili_video_latest), priority=3, block=True)
+_bili_video_mine = on_message(rule=Rule(judge_to_me, judge_bili_video_mine), priority=3, block=True)
+_bili_video_unsubscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_unsubscribe), priority=3, block=True)
+_bili_video_subscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_subscribe), priority=3, block=True)
+_representative_battle = on_keyword(
+    set(representative_battle_keywords),
+    rule=Rule(judge_to_me, judge_representative_battle_query),
+    priority=3,
+    block=True,
+)
 
 _atall=on_fullmatch(tuple(atall_keywords),priority=4, block=True)
 _btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
@@ -212,15 +271,46 @@ async def f_exporthistory(event):
             add_msg("导出完成", event=event)
     except Exception as e:
         add_msg(f"导出失败: {str(e)+traceback.format_exc()}", event=event)
+
+
+@_representative_battle.handle()
+async def f_representative_battle(event: MessageEvent):
+    from .zfile import existing_absolute_path
+    from .zfunc import representative_battle_query_impl
+
+    raw_msg = event.get_plaintext().strip()
+    try:
+        query_result = await asyncio.to_thread(representative_battle_query_impl, raw_msg)
+        if not query_result["found"]:
+            add_msg(f"{query_result['target_date']} 暂无可用的代表局", event=event)
+            return
+
+        final_msg = Message(query_result["text"])
+        image_path = existing_absolute_path(query_result["image_path"])
+        if image_path:
+            final_msg += MessageSegment.image(f"file://{image_path}")
+        if query_result["commentary"]:
+            final_msg += MessageSegment.text(f"\n{query_result['commentary']}")
+        add_msg(final_msg, event=event)
+    except ValueError as error:
+        add_msg(str(error), event=event)
+    except Exception as error:
+        log_message(
+            "REPRESENTATIVE_BATTLE_QUERY_ERROR: "
+            f"query={raw_msg!r} error={error!r}\n{traceback.format_exc()}"
+        )
+        add_msg(f"代表局查询失败：query={raw_msg!r} error={error!r}", event=event)
+
+
 @_dailyrepbattle.handle()
 async def f_dailyrepbattle(event: MessageEvent):
+    from .zfile import existing_absolute_path
     from .zfunc import get_daily_representative_battle
     from .utils.message_sender import add_msg
     from nonebot.adapters.onebot.v11 import MessageSegment
-    import os
 
-    # 解析日期参数，例如 ##best 2026-04-20
-    # 由于使用 on_keyword，我们需要手动剥离 ##best
+    # 解析日期参数，例如 ##srep 2026-04-20
+    # 由于使用 on_keyword，我们需要手动剥离 ##srep
     raw_msg = event.get_plaintext().strip()
     target_date = raw_msg.replace("##srep", "").strip() or None
 
@@ -228,30 +318,59 @@ async def f_dailyrepbattle(event: MessageEvent):
         # 传递可选的日期参数
         rep_res = get_daily_representative_battle(target_date=target_date)
         if not rep_res:
-            await _debug_rep.finish(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成")
+            add_msg(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成", event=event)
             return
 
         # 构造发给发送者的消息
         if isinstance(rep_res, (list, tuple)) and len(rep_res) >= 2:
             text_part = rep_res[0]
             img_path = rep_res[1]
-            final_msg = text_part
+            final_msg = Message(text_part)
+            commentary = None
             
             # 调试信息：输出筛选准则
             if len(rep_res) >= 3:
                 best_info = rep_res[2]
+                commentary = best_info.get("AiCommentary")
                 debug_info = f"\n\n[调试-筛选准则]\n"
-                debug_info += f"● 代表性得分: {best_info.get('RepScore')}\n"
-                debug_info += f"● 触发标签: {' '.join(best_info.get('RawTags', []))}\n"
+                debug_info += f"● 代表类型: {best_info.get('RepresentativeCategory')}\n"
+                debug_info += f"● 代表性指数: {best_info.get('RepScore')}/100\n"
+                category_scores = best_info.get("CategoryScores", {})
+                if category_scores:
+                    score_text = " / ".join(f"{name}{score}" for name, score in category_scores.items())
+                    debug_info += f"● 三类指数: {score_text}\n"
+                debug_info += f"● 依据标签: {' '.join(best_info.get('RawTags', [])) or '无'}\n"
+                breakdown = best_info.get("ScoreBreakdown", [])
+                if breakdown:
+                    debug_info += "● 代表类型分项:\n"
+                    for item in breakdown:
+                        debug_info += (
+                            f"  - {item.get('factor')} "
+                            f"{item.get('contribution')}/{item.get('max_weight')}"
+                            f"（{item.get('condition')}）\n"
+                        )
+                filter_summary = best_info.get("FilterSummary", {})
+                if filter_summary:
+                    debug_info += (
+                        "● 筛选统计: "
+                        f"扫描{filter_summary.get('scanned', 0)}局，"
+                        f"地图剔除{filter_summary.get('official_map_rejected', 0)}局，"
+                        f"规则剔除{filter_summary.get('rule_rejected', 0)}局，"
+                        f"合并重复视角{filter_summary.get('duplicate_perspectives', 0)}个，"
+                        f"最终候选{filter_summary.get('eligible_unique_battles', 0)}局\n"
+                    )
+                debug_info += f"● 深度数据: {'已参与评分' if best_info.get('HasDetail') else '缺失，仅按摘要评分'}\n"
                 if best_info.get('DetailReason'):
                     debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
                 final_msg += debug_info
 
-            if img_path and os.path.exists(img_path):
-                final_msg += MessageSegment.image(f"file:///{os.path.abspath(img_path)}")
+            image_path = existing_absolute_path(img_path)
+            if image_path:
+                final_msg += MessageSegment.image(f"file://{image_path}")
+            if commentary:
+                final_msg += MessageSegment.text(f"\n{commentary}")
             
             # 1. 发送给发送者 (私聊)
-            user_id = event.get_user_id()
             add_msg(final_msg, event=event)
             # 使用普通的 add_msg 或直接 return 而不是 finish
             add_msg("代表局调试结果已私聊发送", event=event)
@@ -263,6 +382,26 @@ async def f_dailyrepbattle(event: MessageEvent):
     except Exception as e:
         import traceback
         add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
+
+
+@_representative_range_debug.handle()
+async def f_representative_range_debug(event: MessageEvent):
+    from .zfunc import representative_battle_range_debug_impl
+
+    raw_msg = event.get_plaintext().strip()
+    try:
+        result = await asyncio.to_thread(representative_battle_range_debug_impl, raw_msg)
+        for day_report in result["day_reports"]:
+            add_msg(day_report, event=event)
+    except ValueError as error:
+        add_msg(str(error), event=event)
+    except Exception as error:
+        log_message(
+            "REPRESENTATIVE_BATTLE_RANGE_DEBUG_ERROR: "
+            f"query={raw_msg!r} error={error!r}\n{traceback.format_exc()}"
+        )
+        add_msg(f"代表局区间调试失败：query={raw_msg!r} error={error!r}", event=event)
+
 
 @_kpl_push.handle()
 async def f_kpl_push(event: MessageEvent):
@@ -294,6 +433,19 @@ async def f_kpl_push(event: MessageEvent):
     except Exception:
         add_msg("KPL 手动触发崩溃，堆栈已私聊", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+@_bili_video_admin.handle()
+async def f_bili_video_admin(event: MessageEvent):
+    from .zfunc import bili_video_admin_command
+
+    raw_msg = event.get_plaintext().strip()
+    try:
+        result = await asyncio.to_thread(bili_video_admin_command, raw_msg)
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站订阅管理崩溃，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
 @_blocked.handle()
 async def f_blocked(event):
     from .zfunc import qid2nick
@@ -584,6 +736,66 @@ async def f_forever_mem(event):
     add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
     await _forever_mem.finish()
 
+
+def _strip_bili_video_command(raw_msg, prefixes):
+    text = str(raw_msg or "").strip()
+    text = text.lstrip("#＃").strip()
+    for prefix in prefixes:
+        if text.startswith(prefix):
+            return text[len(prefix):].strip()
+    return text
+
+
+@_bili_video_subscribe.handle()
+async def f_bili_video_subscribe(event: MessageEvent):
+    from .zfunc import bili_video_subscribe_user
+
+    raw_msg = event.get_plaintext().strip()
+    up_name = _strip_bili_video_command(raw_msg, ["订阅B站", "订阅b站", "订阅"])
+    try:
+        result = await asyncio.to_thread(bili_video_subscribe_user, event.get_user_id(), up_name)
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站订阅失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_bili_video_unsubscribe.handle()
+async def f_bili_video_unsubscribe(event: MessageEvent):
+    from .zfunc import bili_video_unsubscribe_user
+
+    try:
+        result = await asyncio.to_thread(bili_video_unsubscribe_user, event.get_user_id())
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站取消订阅失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_bili_video_latest.handle()
+async def f_bili_video_latest(event: MessageEvent):
+    from .zfunc import bili_video_latest_for_user
+
+    try:
+        result = await asyncio.to_thread(bili_video_latest_for_user, event.get_user_id())
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站最新视频查询失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_bili_video_mine.handle()
+async def f_bili_video_mine(event: MessageEvent):
+    from .zfunc import bili_video_my_subscription
+
+    try:
+        result = await asyncio.to_thread(bili_video_my_subscription, event.get_user_id())
+        add_msg(result, event=event)
+    except Exception:
+        add_msg("B站订阅查询失败，堆栈已私聊", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
 @_manual.handle()
 async def f_manual(event):
     log_message("CMD: MANUAL")
@@ -649,7 +861,7 @@ async def f_rnk(bot,event):
         groupqid=None
     snd_msg=qid2nick(userqid)+" "+generate_greeting()+"\n"
     if (groupqid):
-        await bot.group_poke(group_id=groupqid, user_id=userqid)
+        add_group_poke_task(userqid, group_qid=groupqid, source="rank_query")
     try:
         rnk_info = await asyncio.to_thread(rnk_process, rcv_msg=rcv_msg, caller=qid2nick(userqid), show_zero=False, show_analyze=True, debug=debug)
         snd_msg+=rnk_info[0]
@@ -681,7 +893,7 @@ async def f_single(bot,event):
     except Exception as e:
         groupqid=None
     if (groupqid):
-        await bot.group_poke(group_id=groupqid, user_id=userqid)
+        add_group_poke_task(userqid, group_qid=groupqid, source="single_query")
     try:
         sgl_info = await asyncio.to_thread(single_process, rcv_msg)
     except Exception as e:
@@ -1118,7 +1330,7 @@ async def f_chat(bot,event):
         group_id = None
         
     if group_id:
-        await bot.group_poke(group_id=group_id, user_id=user_id)
+        add_group_poke_task(user_id, group_qid=group_id, source="chat")
 
     # 1. 主动聊天记忆 (当前用户最多5条)
     active_msg = await asyncio.to_thread(zm.load_active_chat, user_id, 5)
