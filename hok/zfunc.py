@@ -3459,9 +3459,8 @@ def bili_video_subscribe_user(user_qid, up_name):
     _bili_video_mark_seen(resolved_mid, resolved_name, [video.get("bvid") for video in videos])
     latest = videos[0]
     return (
-        f"订阅成功：{resolved_name}({resolved_mid})\n"
-        f"搜索词：{up_name}\n"
-        f"已将当前最新视频标记为已读：{latest.get('title') or latest.get('bvid')}"
+        f"订阅成功：{resolved_name}({resolved_mid})\n\n"
+        f"{_bili_video_format_latest_message(resolved_name, latest)}"
     )
 
 
