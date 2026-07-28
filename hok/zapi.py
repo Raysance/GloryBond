@@ -21,6 +21,14 @@ def _redact_hok_log_value(value):
     return value
 
 
+def _compact_hok_log_text(value, max_len=500):
+    text = "" if value is None else str(value)
+    text = text.replace("\n", " ").replace("\r", " ")
+    if len(text) > max_len:
+        text = text[:max_len - 3] + "..."
+    return text
+
+
 class WzryOfficialAPI:
     LOW_PRIORITY_PERIOD_SECONDS = 5
 
@@ -258,9 +266,14 @@ class WzryOfficialAPI:
                 data=watchbattle_data
         retry_time=3
         error_msg=""
+        last_status_code=None
+        last_response_text=""
+        last_decoded_response={}
         while(retry_time):
             try:
                 encoded_response = requests.post(url, headers=headers, json=data)
+                last_status_code = encoded_response.status_code
+                last_response_text = _compact_hok_log_text(encoded_response.text)
             except Exception as e:
                 error_msg="Network error: "+str(e)
                 retry_time=0
@@ -279,8 +292,12 @@ class WzryOfficialAPI:
                     error_msg="Decode error: "+str(e)
                     retry_time=0
                     break
+            last_decoded_response = decoded_response
             res=decoded_response.get("data",{})
-            error_msg=decoded_response.get("returnMsg","")
+            error_msg=decoded_response.get("returnMsg","") or decoded_response.get("msg","") or decoded_response.get("message","")
+            if not error_msg and not res:
+                fallback_response = last_response_text or _compact_hok_log_text(decoded_response)
+                error_msg = f"empty_data status={last_status_code} response={fallback_response}"
             # print(res,error_msg)
             if res: break
             if ("登录态失效" in error_msg or "频繁" in error_msg or "繁忙" in error_msg or "不允许被观战" in error_msg or "本场对局已结束" in error_msg):
@@ -308,6 +325,9 @@ class WzryOfficialAPI:
                         "url": url,
                         "request_data": _redact_hok_log_value(data),
                         "returnMsg": error_msg,
+                        "status_code": last_status_code,
+                        "response_text": last_response_text,
+                        "decoded_response": _redact_hok_log_value(last_decoded_response),
                     },
                 )
             except Exception as log_error:
