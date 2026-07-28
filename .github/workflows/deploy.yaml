@@ -26,5 +26,6 @@ jobs:
       - name: Restart Nonebot
         run: |
           cd /QQBot/NBot
+          mkdir -p log
           chmod +x deploy_runner.sh
           nohup ./deploy_runner.sh &

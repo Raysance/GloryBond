@@ -53,6 +53,42 @@ def safe_hero_name(hero_id, default=None):
     hero_id = str(hero_id)
     return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
 
+
+def _compact_report_value(value, max_len=220):
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
+    except Exception:
+        text = repr(value)
+    text = str(text).replace("\n", " ").replace("\r", " ")
+    if len(text) > max_len:
+        text = text[:max_len - 3] + "..."
+    return text
+
+
+def _build_traversal_error(source, realname, params, error):
+    return {
+        "source": source,
+        "name": realname,
+        "nickname": namenick.get(realname, realname),
+        "params": params,
+        "error": repr(error),
+    }
+
+
+def format_traversal_error_report(title, errors):
+    if not errors:
+        return ""
+    lines = [f"{title}异常汇总 count={len(errors)}"]
+    for index, item in enumerate(errors, 1):
+        name = item.get("name", "")
+        nickname = item.get("nickname", name)
+        source = item.get("source", "")
+        params = _compact_report_value(item.get("params", {}), 260)
+        error = _compact_report_value(item.get("error", ""), 180)
+        lines.append(f"{index}. {source} {nickname}/{name} params={params} err={error}")
+    return "\n".join(lines)
+
+
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
     def get_battle_visibility_qids(user_name):
         related_names = {user_name}
@@ -505,11 +541,19 @@ def online_process():
     def process_user(realname):
         userid = userlist[realname]
         roleid = roleidlist[realname]
-        
-        profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
-        # except Exception as e:
-            # return {'online_cnt': 0, 'battle_info': None, 'nickname': ''}
-            
+        errors = []
+
+        try:
+            profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
+        except Exception as e:
+            errors.append(_build_traversal_error(
+                "online.profile",
+                realname,
+                {"reqtype": "profile", "userid": userid, "roleid": roleid},
+                e,
+            ))
+            return {'online_cnt': 0, 'battle_info': None, 'nickname': '', 'errors': errors}
+
         
         user_online_cnt = 0
         user_battle_info = None
@@ -520,9 +564,29 @@ def online_process():
             if online:
                 if not user_nickname:
                     user_nickname = role_info['roleName']
-                btlist_res = wzry_get_official(reqtype="btlist", userid=userid, roleid=roleid)
                 user_online_cnt += 1
-                
+
+                params = {
+                    "reqtype": "btlist",
+                    "userid": userid,
+                    "roleid": roleid,
+                    "roleName": role_info.get("roleName"),
+                    "shortRoleJobName": role_info.get("shortRoleJobName"),
+                }
+                try:
+                    btlist_res = wzry_get_official(reqtype="btlist", userid=userid, roleid=roleid)
+                except Exception as e:
+                    errors.append(_build_traversal_error("online.btlist", realname, params, e))
+                    if not user_battle_info:
+                        user_battle_info = {
+                            'battleId': None,
+                            'job': role_info.get('shortRoleJobName', ''),
+                            'mapName': None,
+                            'heroName': None,
+                            'duration': None
+                        }
+                    continue
+
                 if btlist_res["isGaming"]:
                     user_battle_info = {
                         'battleId': btlist_res['gaming'].get('battleId', ''),
@@ -540,67 +604,84 @@ def online_process():
                         'duration': None
                     }
         
-        return {'online_cnt': user_online_cnt, 'battle_info': user_battle_info, 'nickname': user_nickname}
+        return {'online_cnt': user_online_cnt, 'battle_info': user_battle_info, 'nickname': user_nickname, 'errors': errors}
 
     snd_msg = ""
     total_online_cnt = 0
     battle_groups = {}  # 按战局ID分组: {battleId: [玩家信息]}
     idle_users = []  # 在线但不在游戏中的玩家
     steam_online_users = []
+    traversal_errors = []
     
     def process_steam_user(steam_id):
         return steam_api_user_status(confs['Steam']['api_key'], steam_id)
         
-    try:
-        workers = len(userlist) + len(steam_userlist)
-        with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-            future_to_user = {
-                executor.submit(process_user, realname): ('wzry', realname) 
-                for realname in userlist
-            }
-            for realname, steam_id in steam_userlist.items():
-                future_to_user[executor.submit(process_steam_user, steam_id)] = ('steam', realname)
-                    
-            for future in as_completed(future_to_user):
-                req_type, realname = future_to_user[future]
-                if req_type == 'wzry':
+    workers = len(userlist) + len(steam_userlist)
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+        future_to_user = {
+            executor.submit(process_user, realname): ('wzry', realname)
+            for realname in userlist
+        }
+        for realname, steam_id in steam_userlist.items():
+            future_to_user[executor.submit(process_steam_user, steam_id)] = ('steam', realname)
+
+        for future in as_completed(future_to_user):
+            req_type, realname = future_to_user[future]
+            if req_type == 'wzry':
+                try:
                     result = future.result()
-                    if result and result['online_cnt'] > 0:
-                        total_online_cnt += result['online_cnt']
-                        battle_info = result['battle_info']
-                        
-                        if battle_info and battle_info['battleId']:
-                            # 有对战号，加入对应战局组
-                            battle_id = battle_info['battleId']
-                            if battle_id not in battle_groups:
-                                battle_groups[battle_id] = []
-                            battle_groups[battle_id].append({
-                                'name': result['nickname'],
-                                'info': battle_info
+                except Exception as e:
+                    traversal_errors.append(_build_traversal_error(
+                        "online.wzry_future",
+                        realname,
+                        {
+                            "userid": userlist.get(realname),
+                            "roleid": roleidlist.get(realname),
+                        },
+                        e,
+                    ))
+                    continue
+                traversal_errors.extend(result.get('errors', []))
+                if result and result['online_cnt'] > 0:
+                    total_online_cnt += result['online_cnt']
+                    battle_info = result['battle_info']
+
+                    if battle_info and battle_info['battleId']:
+                        # 有对战号，加入对应战局组
+                        battle_id = battle_info['battleId']
+                        if battle_id not in battle_groups:
+                            battle_groups[battle_id] = []
+                        battle_groups[battle_id].append({
+                            'name': result['nickname'],
+                            'info': battle_info
+                        })
+                    elif battle_info:
+                        # 在线但不在游戏中
+                        idle_users.append({
+                            'name': result['nickname'],
+                            'job': battle_info['job']
+                        })
+            elif req_type == 'steam':
+                steam_id = steam_userlist.get(realname)
+                try:
+                    result = future.result()
+                    if result:
+                        state = result.get('personastate', 0)
+                        game = result.get('gameextrainfo', '')
+                        # 如果有游戏信息或者状态不为 0 (离线)，则认为在线
+                        if state > 0 or game:
+                            steam_online_users.append({
+                                'name': result.get('personaname', realname),
+                                'game': game,
+                                'state': state
                             })
-                        elif battle_info:
-                            # 在线但不在游戏中
-                            idle_users.append({
-                                'name': result['nickname'],
-                                'job': battle_info['job']
-                            })
-                elif req_type == 'steam':
-                    try:
-                        result = future.result()
-                        if result:
-                            state = result.get('personastate', 0)
-                            game = result.get('gameextrainfo', '')
-                            # 如果有游戏信息或者状态不为 0 (离线)，则认为在线
-                            if state > 0 or game:
-                                steam_online_users.append({
-                                    'name': result.get('personaname', realname),
-                                    'game': game,
-                                    'state': state
-                                })
-                    except:
-                        pass
-    except Exception as e:
-        return str(e)
+                except Exception as e:
+                    traversal_errors.append(_build_traversal_error(
+                        "online.steam_status",
+                        realname,
+                        {"steam_id": steam_id},
+                        e,
+                    ))
     
     if total_online_cnt or steam_online_users:
         if total_online_cnt:
@@ -640,7 +721,7 @@ def online_process():
     else:
         snd_msg = "🐟🐟无人在线"
     
-    return snd_msg
+    return snd_msg, format_traversal_error_report("在线遍历", traversal_errors)
 def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=False):
     if (caller==None): caller=""
     from .zfunc import wzry_data
@@ -660,24 +741,54 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     filename_hashed,filepath=WebArtifacts.history_artifact(round(time.time()*1000000))
     website_link=WebArtifacts.history_route_link(filename_hashed,"all",caller=caller,time_text=now_time)
     gameinfo=[]
+    traversal_errors = []
 
     def visit_wzry_data(key):
         try:
             game_data = wzry_data(realname=key)
-            return game_data
+            return {"data": game_data, "error": None}
         except Exception as e:
-            return None
+            params = {
+                "realname": key,
+                "calls": [
+                    {"reqtype": "btlist", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
+                    {"reqtype": "profile", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
+                ],
+            }
+            return {"data": None, "error": _build_traversal_error("rank.wzry_data", key, params, e)}
 
     gameinfo = []
     with ThreadPoolExecutor(max_workers=1) as executor:
         future_to_key = {executor.submit(visit_wzry_data, key): key for key in userlist}
         for future in as_completed(future_to_key):
-            result = future.result()
-            if result is not None:
-                gameinfo.append(result)
+            key = future_to_key[future]
+            try:
+                result = future.result()
+            except Exception as e:
+                traversal_errors.append(_build_traversal_error(
+                    "rank.future",
+                    key,
+                    {
+                        "realname": key,
+                        "calls": [
+                            {"reqtype": "btlist", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
+                            {"reqtype": "profile", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
+                        ],
+                    },
+                    e,
+                ))
+                continue
+            if result.get("error"):
+                traversal_errors.append(result["error"])
+            if result.get("data") is not None:
+                gameinfo.append(result["data"])
     if (not gameinfo):
         log_message(f"ERROR: 王者荣耀数据源错误")
-        return
+        return [
+            str(time_r().strftime("%Y-%m-%d %H:%M")) + "\n\n王者荣耀数据源错误，暂无可用排行数据",
+            [],
+            format_traversal_error_report("排行遍历", traversal_errors),
+        ]
     filename_export=os.path.join("data","history",today_sul_date+".json")
     writerl(filename_export,gameinfo)
     if (not show_zero): gameinfo=[item for item in gameinfo if item['today_num']!=0]
@@ -688,7 +799,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
     snd_msg+=str(time_r().strftime("%Y-%m-%d %H:%M"))+"\n"
     if (not gameinfo or sorted_btl[0]['today_num']==0): 
         snd_msg+="\n今日还没有战绩哦"
-        return [snd_msg,[]]
+        return [snd_msg, [], format_traversal_error_report("排行遍历", traversal_errors)]
     else:
         if (show_analyze):
             extreme_data=Analyses.get_extreme_data()
@@ -722,7 +833,7 @@ def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=Fals
         snd_msg+="\n"
         snd_msg+=website_link+"\n\n"
         if ("$" not in rcv_msg): snd_msg+=ai_parser([snd_msg],"rnk")
-        return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick}]   
+        return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick},format_traversal_error_report("排行遍历", traversal_errors)]
 def single_process(rcv_msg):
     def extract_history_query(s):
         import re

@@ -6,6 +6,8 @@
 *.pyc
 **/.mypy_cache/
 *.log
+/log/
+/nbot_thisrun.log
 .DS_Store
 __MACOSX/
 
@@ -24,4 +26,3 @@ __MACOSX/
 /hok/debug_tools/*/
 !/hok/debug_tools/AGENTS.md
 emojiref.json
-

@@ -168,6 +168,19 @@ def append_jsonl(filepath: str, item):
     return filepath
 
 
+def append_hok_exception_log(error_msg, context=None):
+    """Append one HOK Exception record to the runtime error log."""
+    from .ztime import time_r
+
+    item = {
+        "time": time_r().strftime("%Y-%m-%d %H:%M:%S"),
+        "type": "HOK Exception",
+        "error": str(error_msg),
+        "context": context or {},
+    }
+    return append_jsonl(os.path.join("log", "error.log"), item)
+
+
 def first_existing_path(paths):
     """Return the first existing path from an ordered candidate list."""
     for path in paths:

@@ -835,8 +835,14 @@ async def f_atall(bot,event):
 async def f_showonline(bot,event):
     from .zfunc import online_process
     try:
-        snd_msg = await asyncio.to_thread(online_process)
+        online_result = await asyncio.to_thread(online_process)
+        if isinstance(online_result, tuple):
+            snd_msg, error_report = online_result
+        else:
+            snd_msg, error_report = online_result, ""
         add_msg(snd_msg, event=event)
+        if error_report:
+            add_msg(error_report, msg_type="private", to_id=confs["QQBot"]["super_qid"])
     except Exception as e:
         add_msg(f"Online Check Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
@@ -864,12 +870,17 @@ async def f_rnk(bot,event):
         add_group_poke_task(userqid, group_qid=groupqid, source="rank_query")
     try:
         rnk_info = await asyncio.to_thread(rnk_process, rcv_msg=rcv_msg, caller=qid2nick(userqid), show_zero=False, show_analyze=True, debug=debug)
+        if not rnk_info:
+            add_msg("王者荣耀数据源错误，暂无可用排行数据", event=event)
+            return
         snd_msg+=rnk_info[0]
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
     add_msg(snd_msg, event=event)
+    if len(rnk_info) > 2 and rnk_info[2]:
+        add_msg(rnk_info[2], msg_type="private", to_id=confs["QQBot"]["super_qid"])
     # if (groupqid):
     #     for poked in rnk_info[1]:
     #         if (poked!="" and poked in idname):

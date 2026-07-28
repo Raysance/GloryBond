@@ -2,10 +2,24 @@
 from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
+from .zfile import append_hok_exception_log
 
 from openai import OpenAI
 import requests
 from ratelimit import limits, sleep_and_retry
+
+
+def _redact_hok_log_value(value):
+    if isinstance(value, dict):
+        sensitive_keys = {"token", "openid", "gameopenid"}
+        return {
+            key: "***" if str(key).lower() in sensitive_keys else _redact_hok_log_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_hok_log_value(item) for item in value]
+    return value
+
 
 class WzryOfficialAPI:
     LOW_PRIORITY_PERIOD_SECONDS = 5
@@ -274,7 +288,31 @@ class WzryOfficialAPI:
                 break
             time.sleep(2)
             retry_time-=1
-        if (not retry_time): raise Exception(str("HOK Exception: "+error_msg))
+        if (not retry_time):
+            hok_error = "HOK Exception: " + error_msg
+            try:
+                append_hok_exception_log(
+                    hok_error,
+                    {
+                        "reqtype": reqtype,
+                        "userid": userid,
+                        "roleid": roleid,
+                        "gameseq": gameseq,
+                        "gameSvrId": gameSvrId,
+                        "relaySvrId": relaySvrId,
+                        "pvptype": pvptype,
+                        "heroid": heroid,
+                        "rankId": rankId,
+                        "rankSegment": rankSegment,
+                        "battle_id": battle_id,
+                        "url": url,
+                        "request_data": _redact_hok_log_value(data),
+                        "returnMsg": error_msg,
+                    },
+                )
+            except Exception as log_error:
+                log_message(f"HOK_EXCEPTION_LOG_WRITE_ERROR: {repr(log_error)}", logging.ERROR)
+            raise Exception(str(hok_error))
         # import os
         # import jso
         # save_path = os.path.join("resources","wzry_data_format", f"{reqtype}.json")
