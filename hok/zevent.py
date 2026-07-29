@@ -67,7 +67,12 @@ async def judge_bili_video_subscribe(event)->bool:
 
 async def judge_bili_video_unsubscribe(event)->bool:
     raw = _bili_video_plain_command(event)
-    return raw in {"取消B站订阅", "取消b站订阅", "取消订阅"}
+    return (
+        raw in {"取消B站订阅", "取消b站订阅", "取消订阅"}
+        or raw.startswith("取消B站订阅")
+        or raw.startswith("取消b站订阅")
+        or raw.startswith("取消订阅")
+    )
 
 async def judge_bili_video_latest(event)->bool:
     raw = _bili_video_plain_command(event)
@@ -764,8 +769,10 @@ async def f_bili_video_subscribe(event: MessageEvent):
 async def f_bili_video_unsubscribe(event: MessageEvent):
     from .zfunc import bili_video_unsubscribe_user
 
+    raw_msg = event.get_plaintext().strip()
+    query_text = _strip_bili_video_command(raw_msg, ["取消B站订阅", "取消b站订阅", "取消订阅"])
     try:
-        result = await asyncio.to_thread(bili_video_unsubscribe_user, event.get_user_id())
+        result = await asyncio.to_thread(bili_video_unsubscribe_user, event.get_user_id(), query_text)
         add_msg(result, event=event)
     except Exception:
         add_msg("B站取消订阅失败，堆栈已私聊", event=event)
