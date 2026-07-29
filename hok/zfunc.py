@@ -3274,14 +3274,6 @@ def get_emoji_url(index):
 _BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "bili:video_subscriptions"
 
 
-def _bili_video_super_qid():
-    return str((confs.get("QQBot") or {}).get("super_qid") or "").strip()
-
-
-def _bili_video_is_super_user(user_qid):
-    return str(user_qid or "").strip() == _bili_video_super_qid()
-
-
 def _bili_video_normalize_subscription_item(item):
     if isinstance(item, dict):
         up_name = str(item.get("up_name") or "").strip()
@@ -3317,15 +3309,12 @@ def _bili_video_normalize_subscriptions(subscriptions):
             ]
             if not items:
                 continue
-            if _bili_video_is_super_user(user_qid):
-                normalized[user_qid] = items
-            else:
-                normalized[user_qid] = items[0]
+            normalized[user_qid] = items
         else:
             normalized_item = _bili_video_normalize_subscription_item(item)
             if not normalized_item:
                 continue
-            normalized[user_qid] = [normalized_item] if _bili_video_is_super_user(user_qid) else normalized_item
+            normalized[user_qid] = [normalized_item]
     return normalized
 
 
@@ -3363,10 +3352,8 @@ def _bili_video_set_subscription_items_for_user(subscriptions, user_qid, items):
     ]
     if not items:
         subscriptions.pop(user_qid, None)
-    elif _bili_video_is_super_user(user_qid):
-        subscriptions[user_qid] = items
     else:
-        subscriptions[user_qid] = items[0]
+        subscriptions[user_qid] = items
     return subscriptions
 
 
@@ -3624,17 +3611,12 @@ def bili_video_subscribe_user(user_qid, up_name):
     from .ztime import time_r
 
     user_qid = str(user_qid)
-    is_super_user = _bili_video_is_super_user(user_qid)
     up_name = str(up_name or "").strip()
     if not up_name:
         return "参数错误，格式：#订阅 UP昵称"
 
     subscriptions = _bili_video_get_subscriptions()
     current_items = _bili_video_subscription_items_for_user(subscriptions, user_qid)
-    if current_items and not is_super_user:
-        current_up = current_items[0]["up_name"]
-        current_mid = current_items[0].get("up_mid") or "未知mid"
-        return f"你已经订阅了 {current_up}({current_mid})，每人最多订阅 1 个 UP。请先发送 #取消订阅"
 
     best_up, _ = _bili_video_resolve_best_up(up_name)
     if not best_up:
@@ -3663,17 +3645,12 @@ def bili_video_subscribe_user(user_qid, up_name):
         "query": up_name,
         "subscribed_at": time_to_str(time_r()),
     }
-    if is_super_user:
-        current_items.append(new_item)
-        _bili_video_set_subscription_items_for_user(subscriptions, user_qid, current_items)
-    else:
-        _bili_video_set_subscription_items_for_user(subscriptions, user_qid, [new_item])
+    current_items.append(new_item)
+    _bili_video_set_subscription_items_for_user(subscriptions, user_qid, current_items)
     _bili_video_save_subscriptions(subscriptions)
     _bili_video_mark_seen(resolved_mid, resolved_name, [video.get("bvid") for video in videos])
     latest = videos[0]
-    prefix = f"订阅成功：{resolved_name}({resolved_mid})"
-    if is_super_user:
-        prefix += f"\n当前管理员订阅数：{len(current_items)}"
+    prefix = f"订阅成功：{resolved_name}({resolved_mid})\n当前订阅数：{len(current_items)}"
     return (
         f"{prefix}\n\n"
         f"{_bili_video_format_latest_message(resolved_name, latest)}"
@@ -3686,11 +3663,6 @@ def bili_video_unsubscribe_user(user_qid, query_text=""):
     current_items = _bili_video_subscription_items_for_user(subscriptions, user_qid)
     if not current_items:
         return "你当前没有 B站 UP 订阅"
-    if not _bili_video_is_super_user(user_qid):
-        current = current_items[0]
-        subscriptions.pop(user_qid, None)
-        _bili_video_save_subscriptions(subscriptions)
-        return f"已取消订阅：{_bili_video_format_subscription_label(current)}"
 
     query_text = str(query_text or "").strip()
     if not query_text and len(current_items) > 1:
