@@ -228,6 +228,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     today_up_tourna=fin
     today_up_peak=fin
     today_btl_aver=fin # 今日平均评分
+    today_btl_contribute_aver=fin # 今日平均贡献
     today_details=[] # 今日所有战局
     today_game_cnt={} # 今日每个地图局数
     gaming_info={} # 当前正在进行的游戏信息
@@ -317,7 +318,9 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
     unaccessible_battles=export_btldetail(today_details,roleid)
-    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
+    if (BtlVisible):
+        today_btl_contribute_aver = calculate_official_battle_contribution_average(today_details, roleid)
+    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"btl_contribute_aver":today_btl_contribute_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
 def dump_specific_user(userid, roleid, target_date):
     """
     模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
@@ -979,6 +982,10 @@ def single_process(rcv_msg):
 
         # 历史数据中的 btl_aver 可能由旧口径生成，查询时统一按正式对局重算。
         gameinfo["btl_aver"] = calculate_official_battle_average(gameinfo.get("details", []))
+        gameinfo["btl_contribute_aver"] = calculate_official_battle_contribution_average(
+            gameinfo.get("details", []),
+            gameinfo.get("roleid", roleidlist[matching_name]),
+        )
         
         win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
                     for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
@@ -1008,6 +1015,7 @@ def single_process(rcv_msg):
                 f"        场次：{gameinfo['today_num']}\n"
                 f"{win_content}"
                 f"        平均评分: {gameinfo['btl_aver'] if gameinfo['btl_aver']!=fin else serr}\n"
+                f"        平均贡献: {gameinfo.get('btl_contribute_aver', 0):.2f}\n"
                 f"      当前段位: {gameinfo['rank_name']} {gameinfo['rank_star']}⭐\n"
                 f"{StarUpContent}"
                 f"{PeakUpContent}"
@@ -1098,22 +1106,7 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
     if (strict_filter and not check_btl_official_with_matching(res['head']['mapName'])): return None,None,res['head']['mapName']
     
     my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
-    my_team_total_money=0
-    my_team_total_grade=0
-    my_money=0
-    my_grade=0
-    am_i_assist=False
-    for single_info in my_team_detail:
-        my_team_total_money+=int(single_info['battleStats']['money'])
-        my_team_total_grade+=float(single_info['battleStats']['gradeGame'])
-        if (single_info['basicInfo']['userId']==res['head']['userId']):
-            my_money=int(single_info['battleStats']['money'])
-            my_grade=float(single_info['battleStats']['gradeGame'])
-            for equipments in single_info['battleRecords']['finalEquips']:
-                if (any(keyword in equipments['equipName'] for keyword in {"学识宝石","近卫","极影"})):
-                    am_i_assist=True
-    team_contribute_factor=(5 * my_grade / my_team_total_grade) * pow((5 * my_money / my_team_total_money), -0.5)
-    if (am_i_assist): team_contribute_factor*=0.9
+    team_contribute_factor=calculate_battle_contribution_factor(res) or 0
     team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
     my_userid=res['head']['userId']
     our_player_infos_suf=[]
@@ -3942,6 +3935,7 @@ def merge_crossday_gamedata(gamedata):
         res["peak_up"]=[]
     if ("visible" not in res): res["visible"]=True
     res["btl_aver"] = calculate_official_battle_average(res["details"])
+    res["btl_contribute_aver"] = calculate_official_battle_contribution_average(res["details"], res["roleid"])
 
     return res
 def calculate_official_battle_average(details):
@@ -3951,6 +3945,65 @@ def calculate_official_battle_average(details):
         if check_btl_official(btl["MapName"])
     ]
     average = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
+    return round(average, 3)
+def _battle_all_roles(battle_detail):
+    return battle_detail.get("redRoles", []) + battle_detail.get("blueRoles", [])
+def _find_battle_role(battle_detail, roleid=None, userid=None):
+    for role in _battle_all_roles(battle_detail):
+        basic_info = role.get("basicInfo", {})
+        if roleid is not None and str(basic_info.get("roleId")) == str(roleid):
+            return role
+        if userid is not None and str(basic_info.get("userId")) == str(userid):
+            return role
+    return None
+def _battle_role_has_assist_equip(role):
+    for equipment in role.get("battleRecords", {}).get("finalEquips", []):
+        equip_name = equipment.get("equipName", "")
+        if any(keyword in equip_name for keyword in {"学识宝石", "近卫", "极影"}):
+            return True
+    return False
+def calculate_battle_contribution_factor(battle_detail, roleid=None, userid=None, role=None):
+    head = battle_detail.get("head", {})
+    target_role = role or _find_battle_role(
+        battle_detail,
+        roleid=roleid if roleid is not None else head.get("roleId"),
+        userid=userid if userid is not None else head.get("userId"),
+    )
+    if not target_role:
+        return None
+    target_camp = target_role.get("basicInfo", {}).get("acntCamp")
+    team_roles = [
+        item for item in _battle_all_roles(battle_detail)
+        if item.get("basicInfo", {}).get("acntCamp") == target_camp
+    ]
+    if not team_roles:
+        return None
+    stats = target_role.get("battleStats", {})
+    my_grade = float(stats.get("gradeGame", 0))
+    my_money = float(stats.get("money", 0))
+    team_total_grade = sum(float(item.get("battleStats", {}).get("gradeGame", 0)) for item in team_roles)
+    team_total_money = sum(float(item.get("battleStats", {}).get("money", 0)) for item in team_roles)
+    if team_total_grade <= 0 or team_total_money <= 0 or my_money <= 0:
+        return None
+    factor = (5 * my_grade / team_total_grade) * pow((5 * my_money / team_total_money), -0.5)
+    if _battle_role_has_assist_equip(target_role):
+        factor *= 0.9
+    return factor
+def calculate_official_battle_contribution_average(details, roleid):
+    official_btls_contributes = []
+    for btl in details:
+        if not check_btl_official(btl.get("MapName", "")):
+            continue
+        gameseq = btl.get("GameSeq")
+        if not gameseq:
+            continue
+        battle_detail = fetch_battle(gameseq, roleid)
+        if not battle_detail:
+            continue
+        contribution = calculate_battle_contribution_factor(battle_detail, roleid=roleid)
+        if contribution is not None:
+            official_btls_contributes.append(contribution)
+    average = sum(official_btls_contributes) / len(official_btls_contributes) if official_btls_contributes else 0
     return round(average, 3)
 def check_btl_official(btlname):
     import re
@@ -5058,16 +5111,8 @@ def history_query_handler(rcv_msg):
                         # 贡献度系数区间
                         if is_match and query_target.get("ContributeRange"):
                             try:
-                                total_grade = sum(float(r.get("battleStats", {}).get("gradeGame", 0)) for r in team_roles)
-                                total_money = sum(float(r.get("battleStats", {}).get("money", 0)) for r in team_roles)
-                                my_grade = float(stats.get("gradeGame", 0))
-                                my_money = float(stats.get("money", 0))
-                                
-                                if total_grade > 0 and total_money > 0 and my_money > 0:
-                                    # factor = (5 * my_grade / total_grade) * pow((5 * my_money / total_money), -0.5)
-                                    term1 = (5 * my_grade / total_grade)
-                                    term2 = pow((5 * my_money / total_money), -0.5)
-                                    factor = term1 * term2
+                                factor = calculate_battle_contribution_factor(btl_detail, role=my_role)
+                                if factor is not None:
                                     mn, mx = map(float, query_target["ContributeRange"])
                                     if not (mn <= factor <= mx): is_match = False
                                 else:
@@ -5121,13 +5166,7 @@ def history_query_handler(rcv_msg):
                                 total = sum(float(x.get("battleStats", {}).get("totalBeheroHurtCnt", 0)) for x in t_roles)
                                 return (float(stats.get("totalBeheroHurtCnt", 0)) / total * 100) if total > 0 else 0
                             elif field_name == "ContributeComparison":
-                                total_g = sum(float(x.get("battleStats", {}).get("gradeGame", 0)) for x in t_roles)
-                                total_m = sum(float(x.get("battleStats", {}).get("money", 0)) for x in t_roles)
-                                my_g = float(stats.get("gradeGame", 0))
-                                my_m = float(stats.get("money", 0))
-                                if total_g > 0 and total_m > 0 and my_m > 0:
-                                    return (5 * my_g / total_g) * pow((5 * my_m / total_m), -0.5)
-                                return 0
+                                return calculate_battle_contribution_factor(btl_detail, role=role) or 0
                             return -1
 
                         comp_fields = ["ScoreComparison", "MoneyComparison", "DamageComparison", "DamageTakenComparison", "ContributeComparison"]
