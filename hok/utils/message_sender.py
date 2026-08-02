@@ -16,6 +16,7 @@ BATTLE_INVISIBLE_MUTE_SECONDS = 24 * 60 * 60
 @driver.on_startup
 async def _start_message_sender_loop() -> None:
     asyncio.create_task(message_sender_loop())
+    add_msg("HOK_QQBot 已启动成功", msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 
 def _stringify_message_content(content):
