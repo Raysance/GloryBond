@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException, Query, Body, Cookie
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
 
@@ -365,7 +365,73 @@ def service_overall_status(services: dict) -> str:
         return "degraded"
     return "ok"
 
-@app.get("/health", response_class=JSONResponse)
+def compact_repository_info(repository: dict) -> dict:
+    if repository.get("status") != "ok":
+        return {"status": repository.get("status", "unknown")}
+    return {
+        "commit": repository.get("short_head"),
+        "branch": repository.get("branch"),
+    }
+
+def compact_process_info(processes: dict) -> dict:
+    return {
+        "count": processes.get("count", 0),
+        "commands": processes.get("commands", []),
+    }
+
+def compact_service_state(service: dict) -> str:
+    systemd = service.get("systemd", {})
+    if systemd.get("matched"):
+        return f"{systemd.get('matched')}:{systemd.get('state')}"
+    return systemd.get("state", "unknown")
+
+def remove_empty_health_fields(value):
+    if isinstance(value, dict):
+        return {
+            key: remove_empty_health_fields(item)
+            for key, item in value.items()
+            if item is not None and item != []
+        }
+    return value
+
+def compact_health_payload(services: dict) -> dict:
+    return remove_empty_health_fields({
+        "status": service_overall_status(services),
+        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "web": {
+            "status": services["web"]["status"],
+            "pid": services["web"]["pid"],
+            "uptime_seconds": services["web"]["uptime_seconds"],
+            **compact_repository_info(services["web"]["repository"]),
+        },
+        "redis": {
+            "status": services["redis"]["status"],
+            "service": compact_service_state(services["redis"]),
+            "processes": compact_process_info(services["redis"].get("processes", {})),
+            "latency_ms": services["redis"].get("latency_ms"),
+            "version": services["redis"].get("redis_version"),
+            "queues": services["redis"].get("queues"),
+            "error": services["redis"].get("error"),
+        },
+        "nginx": {
+            "status": services["nginx"]["status"],
+            "service": compact_service_state(services["nginx"]),
+            "processes": compact_process_info(services["nginx"].get("processes", {})),
+        },
+        "qqbot": {
+            "status": services["qqbot"]["status"],
+            "service": compact_service_state(services["qqbot"]),
+            "processes": compact_process_info(services["qqbot"].get("processes", {})),
+            **compact_repository_info(services["qqbot"]["repository"]),
+        },
+        "onebot": {
+            "status": services["onebot"]["status"],
+            "service": compact_service_state(services["onebot"]),
+            "processes": compact_process_info(services["onebot"].get("processes", {})),
+        },
+    })
+
+@app.get("/health")
 async def health_check():
     processes = process_snapshot()
     services = {
@@ -380,11 +446,10 @@ async def health_check():
         "qqbot": check_qqbot_health(processes),
         "onebot": check_onebot_health(processes),
     }
-    return {
-        "status": service_overall_status(services),
-        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "services": services,
-    }
+    return Response(
+        json.dumps(compact_health_payload(services), ensure_ascii=False, indent=2),
+        media_type="application/json",
+    )
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
