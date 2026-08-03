@@ -395,8 +395,12 @@ def remove_empty_health_fields(value):
     return value
 
 def compact_health_payload(services: dict) -> dict:
+    overall_status = service_overall_status(services)
+    if overall_status == "ok":
+        return {"status": "ok"}
+
     return remove_empty_health_fields({
-        "status": service_overall_status(services),
+        "status": overall_status,
         "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "web": {
             "status": services["web"]["status"],
