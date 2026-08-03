@@ -161,7 +161,8 @@ def process_snapshot() -> list[dict]:
     return processes
 
 def summarize_processes(processes: list[dict], matcher) -> dict:
-    matches = [proc for proc in processes if matcher(proc)]
+    shell_commands = {"bash", "dash", "fish", "sh", "zsh"}
+    matches = [proc for proc in processes if proc["command"] not in shell_commands and matcher(proc)]
     return {
         "count": len(matches),
         "pids": [proc["pid"] for proc in matches[:5]],
