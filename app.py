@@ -12,6 +12,8 @@ import datetime
 import secrets
 import yaml
 import time
+import subprocess
+import shutil
 from urllib.parse import urlencode
 from dotenv import load_dotenv
 
@@ -46,6 +48,7 @@ globals().update(varia)
 
 # 初始化fastapi与redis
 app = FastAPI()
+APP_STARTED_AT = time.time()
 r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
@@ -87,6 +90,300 @@ def is_mobile_request(request: Request):
         "micromessenger",
     )
     return any(token in user_agent for token in mobile_tokens)
+
+def health_service_names(env_name: str, defaults: list[str]) -> list[str]:
+    raw = os.environ.get(env_name)
+    if not raw:
+        return defaults
+    names = [item.strip() for item in raw.split(",") if item.strip()]
+    return names or defaults
+
+def run_health_command(command: list[str], timeout: float = 1.5) -> dict:
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        return {
+            "ok": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+        }
+    except FileNotFoundError:
+        return {"ok": False, "error": "command_not_found"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "timeout"}
+    except Exception as exc:
+        return {"ok": False, "error": repr(exc)}
+
+def systemd_service_state(service_names: list[str]) -> dict:
+    if not shutil.which("systemctl"):
+        return {"available": False, "state": "unavailable"}
+
+    checked = {}
+    for service_name in service_names:
+        result = run_health_command(["systemctl", "is-active", service_name])
+        state = result.get("stdout") or result.get("stderr") or result.get("error") or "unknown"
+        checked[service_name] = state
+        if result.get("ok") and state == "active":
+            return {"available": True, "state": "active", "matched": service_name, "checked": checked}
+
+    return {"available": True, "state": "inactive", "checked": checked}
+
+def process_snapshot() -> list[dict]:
+    result = run_health_command(["ps", "-eo", "pid=,comm=,args="])
+    if not result.get("ok"):
+        result = run_health_command(["ps", "-axo", "pid=,comm=,args="])
+    if not result.get("ok"):
+        return []
+
+    processes = []
+    current_pid = os.getpid()
+    for line in result.get("stdout", "").splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) < 2:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        if pid == current_pid:
+            continue
+        processes.append({
+            "pid": pid,
+            "command": os.path.basename(parts[1]),
+            "args": parts[2] if len(parts) > 2 else parts[1],
+        })
+    return processes
+
+def summarize_processes(processes: list[dict], matcher) -> dict:
+    matches = [proc for proc in processes if matcher(proc)]
+    return {
+        "count": len(matches),
+        "pids": [proc["pid"] for proc in matches[:5]],
+        "commands": sorted({proc["command"] for proc in matches})[:5],
+    }
+
+def git_repository_info(path: str) -> dict:
+    if not path or not os.path.exists(path):
+        return {"status": "missing", "path": path}
+    if not shutil.which("git"):
+        return {"status": "unknown", "path": path, "error": "git_command_not_found"}
+
+    root_result = run_health_command(["git", "-C", path, "rev-parse", "--show-toplevel"])
+    if not root_result.get("ok"):
+        return {
+            "status": "unknown",
+            "path": path,
+            "error": root_result.get("stderr") or root_result.get("error") or "not_a_git_repository",
+        }
+
+    repo_root = root_result.get("stdout") or path
+    head_result = run_health_command(["git", "-C", repo_root, "rev-parse", "HEAD"])
+    short_head_result = run_health_command(["git", "-C", repo_root, "rev-parse", "--short", "HEAD"])
+    branch_result = run_health_command(["git", "-C", repo_root, "rev-parse", "--abbrev-ref", "HEAD"])
+    if not head_result.get("ok"):
+        return {
+            "status": "unknown",
+            "path": path,
+            "root": repo_root,
+            "error": head_result.get("stderr") or head_result.get("error") or "head_unavailable",
+        }
+
+    return {
+        "status": "ok",
+        "path": path,
+        "root": repo_root,
+        "head": head_result.get("stdout"),
+        "short_head": short_head_result.get("stdout") if short_head_result.get("ok") else None,
+        "branch": branch_result.get("stdout") if branch_result.get("ok") else None,
+    }
+
+def check_redis_health(processes: list[dict]) -> dict:
+    started = time.time()
+    systemd = systemd_service_state(health_service_names("HEALTH_REDIS_SERVICES", ["redis", "redis-server"]))
+    process_info = summarize_processes(
+        processes,
+        lambda proc: proc["command"] == "redis-server" or "redis-server" in proc["args"].lower(),
+    )
+    try:
+        r_com.ping()
+        latency_ms = round((time.time() - started) * 1000, 2)
+        info = {}
+        try:
+            raw_info = r_com.info(section="server")
+            info["redis_version"] = raw_info.get("redis_version")
+        except Exception:
+            pass
+        return {
+            "status": "ok",
+            "latency_ms": latency_ms,
+            "host": REDIS_HOST,
+            "port": REDIS_PORT,
+            "systemd": systemd,
+            "processes": process_info,
+            "dbs": {
+                "common": REDIS_DB,
+                "liked_set": REDIS_DB_LIKED_SET,
+                "share_queue": REDIS_DB_SHARE_QUEUE,
+                "analyze_queue": REDIS_DB_ANALYZE_QUEUE,
+                "chat_memory": REDIS_DB_CHAT_MEMORY,
+            },
+            "queues": {
+                "Shared_queue": r_share_queue.llen("Shared_queue"),
+                "Analyze_queue": r_analyze_queue.llen("Analyze_queue"),
+            },
+            **info,
+        }
+    except Exception as exc:
+        return {
+            "status": "down",
+            "host": REDIS_HOST,
+            "port": REDIS_PORT,
+            "systemd": systemd,
+            "processes": process_info,
+            "error": repr(exc),
+        }
+
+def check_nginx_health(processes: list[dict]) -> dict:
+    service_names = health_service_names("HEALTH_NGINX_SERVICES", ["nginx"])
+    systemd = systemd_service_state(service_names)
+    process_info = summarize_processes(
+        processes,
+        lambda proc: proc["command"] == "nginx" or "nginx:" in proc["args"].lower(),
+    )
+    status = "ok" if systemd.get("state") == "active" or process_info["count"] > 0 else "down"
+    return {
+        "status": status,
+        "systemd": systemd,
+        "processes": process_info,
+    }
+
+def qqbot_path_candidates() -> list[str]:
+    candidates = [
+        os.environ.get("QQBOT_PATH"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "HOK_QQBot")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "NBot")),
+    ]
+    deduped = []
+    for path in candidates:
+        if path and path not in deduped:
+            deduped.append(path)
+    return deduped
+
+def check_qqbot_health(processes: list[dict]) -> dict:
+    service_names = health_service_names(
+        "HEALTH_QQBOT_SERVICES",
+        ["hok-qqbot", "hok_qqbot", "HOK_QQBot", "qqbot", "nonebot"],
+    )
+    systemd = systemd_service_state(service_names)
+    path_candidates = qqbot_path_candidates()
+    existing_paths = [path for path in path_candidates if os.path.exists(path)]
+    normalized_paths = [path.lower() for path in path_candidates]
+
+    def matches_qqbot_process(proc: dict) -> bool:
+        args = proc["args"].lower()
+        if "hok_qqbot_web" in args or "hok_qqbot_web" in proc["command"].lower():
+            return False
+        if "nb run" in args or "nonebot" in args:
+            return True
+        return any(path and path in args for path in normalized_paths)
+
+    process_info = summarize_processes(processes, matches_qqbot_process)
+    status = "ok" if systemd.get("state") == "active" or process_info["count"] > 0 else "down"
+    if status == "down" and existing_paths:
+        status = "degraded"
+    repository_path = existing_paths[0] if existing_paths else (path_candidates[0] if path_candidates else "")
+
+    return {
+        "status": status,
+        "systemd": systemd,
+        "processes": process_info,
+        "repository": git_repository_info(repository_path),
+        "paths": {
+            "configured": path_candidates,
+            "existing": existing_paths,
+        },
+    }
+
+def onebot_path_candidates() -> list[str]:
+    candidates = [
+        os.environ.get("ONEBOT_PATH"),
+        os.environ.get("NAPCAT_PATH"),
+        "/root/Napcat",
+        "/root/NapCat",
+    ]
+    deduped = []
+    for path in candidates:
+        if path and path not in deduped:
+            deduped.append(path)
+    return deduped
+
+def check_onebot_health(processes: list[dict]) -> dict:
+    service_names = health_service_names(
+        "HEALTH_ONEBOT_SERVICES",
+        ["napcat", "NapCat", "onebot", "qq"],
+    )
+    systemd = systemd_service_state(service_names)
+    path_candidates = onebot_path_candidates()
+    existing_paths = [path for path in path_candidates if os.path.exists(path)]
+    normalized_paths = [path.lower() for path in path_candidates]
+
+    def matches_onebot_process(proc: dict) -> bool:
+        args = proc["args"].lower()
+        command = proc["command"].lower()
+        if "napcat" in args or "onebot" in args:
+            return True
+        if command == "qq" and any(path and path in args for path in normalized_paths):
+            return True
+        return False
+
+    process_info = summarize_processes(processes, matches_onebot_process)
+    status = "ok" if systemd.get("state") == "active" or process_info["count"] > 0 else "down"
+    if status == "down" and existing_paths:
+        status = "degraded"
+
+    return {
+        "status": status,
+        "systemd": systemd,
+        "processes": process_info,
+        "paths": {
+            "configured": path_candidates,
+            "existing": existing_paths,
+        },
+    }
+
+def service_overall_status(services: dict) -> str:
+    if services["web"]["status"] == "down" or services["redis"]["status"] == "down":
+        return "down"
+    if any(item["status"] != "ok" for item in services.values()):
+        return "degraded"
+    return "ok"
+
+@app.get("/health", response_class=JSONResponse)
+async def health_check():
+    processes = process_snapshot()
+    services = {
+        "web": {
+            "status": "ok",
+            "pid": os.getpid(),
+            "uptime_seconds": int(time.time() - APP_STARTED_AT),
+            "repository": git_repository_info(os.path.dirname(os.path.abspath(__file__))),
+        },
+        "redis": check_redis_health(processes),
+        "nginx": check_nginx_health(processes),
+        "qqbot": check_qqbot_health(processes),
+        "onebot": check_onebot_health(processes),
+    }
+    return {
+        "status": service_overall_status(services),
+        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "services": services,
+    }
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
