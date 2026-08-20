@@ -89,6 +89,66 @@ def format_traversal_error_report(title, errors):
     return "\n".join(lines)
 
 
+def peak_rank_process(player_names=None):
+    """Build the peak-score ranking exclusively from local history JSON."""
+    from .zfile import list_history_dates_descending, read_history_date
+
+    requested_names = set(player_names if player_names is not None else userlist.keys())
+    latest_records = {}
+
+    for history_date in list_history_dates_descending(start_date=this_season_start_date):
+        if not requested_names:
+            break
+        daily_data = read_history_date(history_date)
+        if not isinstance(daily_data, list):
+            continue
+        for player in daily_data:
+            if not isinstance(player, dict):
+                continue
+            realname = str(player.get("key") or "").strip()
+            if realname not in requested_names:
+                continue
+
+            valid_details = []
+            for index, detail in enumerate(player.get("details") or []):
+                if not isinstance(detail, dict):
+                    continue
+                try:
+                    peak_score = int(detail.get("PeakGradeAfterGame"))
+                except (TypeError, ValueError):
+                    continue
+                if peak_score <= 0:
+                    continue
+                try:
+                    timestamp = int(detail.get("GameTime_Timestamp") or 0)
+                except (TypeError, ValueError):
+                    timestamp = 0
+                valid_details.append((timestamp, index, peak_score))
+
+            if not valid_details:
+                continue
+            _, _, peak_score = max(valid_details, key=lambda item: (item[0], item[1]))
+            latest_records[realname] = {
+                "realname": realname,
+                "name": namenick.get(realname) or player.get("nickname") or realname,
+                "score": peak_score,
+                "date": history_date,
+            }
+            requested_names.remove(realname)
+
+    ranking = sorted(
+        latest_records.values(),
+        key=lambda item: (-item["score"], item["name"], item["realname"]),
+    )
+    if not ranking:
+        return "【巅峰排名】\n本地历史 JSON 中暂无有效巅峰数据"
+
+    lines = ["【巅峰排名】"]
+    for index, item in enumerate(ranking, 1):
+        lines.append(f"{index}. {item['name']}  {item['score']}")
+    return "\n".join(lines)
+
+
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
     def get_battle_visibility_qids(user_name):
         related_names = {user_name}

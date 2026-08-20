@@ -38,6 +38,24 @@ def read_history_date(target_date):
     return readerl(os.path.join("data", "history", f"{target_date}.json"))
 
 
+def list_history_dates_descending(start_date=None):
+    """Return local daily history dates from the optional inclusive lower bound."""
+    history_dir = os.path.join("data", "history")
+    if not os.path.isdir(history_dir):
+        return []
+    dates = []
+    for filename in os.listdir(history_dir):
+        match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})\.json", filename)
+        if not match:
+            continue
+        history_date = match.group(1)
+        if start_date and history_date < str(start_date):
+            continue
+        if os.path.isfile(os.path.join(history_dir, filename)):
+            dates.append(history_date)
+    return sorted(dates, reverse=True)
+
+
 def read_battle_detail(gameseq):
     """Read one cached battle-detail payload through the project's IO boundary."""
     return readerl(os.path.join("data", "history", "battles", f"{gameseq}.json"))

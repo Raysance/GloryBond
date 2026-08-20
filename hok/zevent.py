@@ -191,6 +191,12 @@ _show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
+_peak_rank=on_fullmatch(
+    ("#巅峰排名", "＃巅峰排名", "#巅峰排行", "＃巅峰排行"),
+    rule=judge_to_me,
+    priority=3,
+    block=True,
+)
 _bili_video_latest = on_message(rule=Rule(judge_to_me, judge_bili_video_latest), priority=3, block=True)
 _bili_video_mine = on_message(rule=Rule(judge_to_me, judge_bili_video_mine), priority=3, block=True)
 _bili_video_unsubscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_unsubscribe), priority=3, block=True)
@@ -740,6 +746,21 @@ async def f_forever_mem(event):
     snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
     add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
     await _forever_mem.finish()
+
+
+@_peak_rank.handle()
+async def f_peak_rank(event):
+    from .zfunc import peak_rank_process
+
+    try:
+        result = await asyncio.to_thread(peak_rank_process)
+        add_msg(result, event=event)
+    except Exception as e:
+        add_msg(
+            f"巅峰排名失败：location=zevent.f_peak_rank params={{'source': 'local_json'}} error={repr(e)}",
+            event=event,
+        )
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 
 def _strip_bili_video_command(raw_msg, prefixes):
