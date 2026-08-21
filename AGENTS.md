@@ -32,6 +32,11 @@
 - 错误场景优先复用 `templates/ErrorPages/illegal.html` 或 `templates/ErrorPages/expired.html`。
 - 不要新增无必要的全局路由、兼容旧路由、调试接口或临时 fallback。
 
+## Git 提交规范
+
+- 所有代码修改和提交都必须直接在 `main` 分支上完成。
+- Commit message 必须使用英文。
+
 ## 编码与维护规范
 
 - 保持变更最小化，优先修正根因，不做无关重构。
