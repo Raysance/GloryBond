@@ -38,6 +38,11 @@ def read_history_date(target_date):
     return readerl(os.path.join("data", "history", f"{target_date}.json"))
 
 
+def read_honor_districts():
+    """Read the honor-rank district tree through the project's IO boundary."""
+    return readerl(os.path.join("data", "honor", "districts.json"))
+
+
 def list_history_dates_descending(start_date=None):
     """Return local daily history dates from the optional inclusive lower bound."""
     history_dir = os.path.join("data", "history")

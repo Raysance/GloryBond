@@ -62,27 +62,24 @@ class WzryOfficialAPI:
             return
 
     @classmethod
-    def get_official(cls, reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal"):
+    def get_official(cls, reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal",honor_adcode=156):
         import time
 
         if priority == "low":
             cls.wait_official_low_priority_turn()
         else:
             dmc.OfficialForegroundActiveUntil = time.time() + 5
-        return cls._get_official_impl(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id)
+        return cls._get_official_impl(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id, honor_adcode)
 
     @staticmethod
     @sleep_and_retry
     @limits(calls=1, period=1)
-    def _get_official_impl(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
+    def _get_official_impl(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,honor_adcode=156):
         import time
         from .tools.endecoder import decrypt_game_data
         from .tools.endecoder import get_full_request_params
 
         encoded_params = get_full_request_params(confs["wzry"]["pubkey"],confs["wzry"]["roleid"],confs["wzry"]["encoderes"])
-        print(f"crand: {encoded_params['crand']}")
-        print(f"encodeparam: {encoded_params['encodeparam']}")
-        print(f"traceparent: {encoded_params['traceparent']}")
         roleid=str(roleid)
         userid=str(userid)
         btldetail_url = "https://kohcamp.qq.com/game/battledetail"
@@ -93,6 +90,7 @@ class WzryOfficialAPI:
         allhero_url= "https://ssl.kohsocialapp.qq.com/play/h5getherolist"
         herostatistics_url="https://kohcamp.qq.com/gametoolbox/hero/record/pagedetails"
         heroranklist_url="https://kohcamp.qq.com/gametoolbox/hero/getdetailranklistbyid"
+        honor_ranklist_url="https://kohcamp.qq.com/game/honor/ranklist"
         watchbattle_url = "https://kohcamp.qq.com/game/watchBattle"
         headers = {
             "Host": "kohcamp.qq.com",
@@ -223,6 +221,13 @@ class WzryOfficialAPI:
             # 顶端排位 4
             # 赛事 5
         }
+        honor_ranklist_data = {
+            "recommendPrivacy": 0,
+            "areaId": 1,
+            "adcode": int(honor_adcode),
+            "roleId": roleid,
+            "heroId": int(heroid),
+        }
         watchbattle_data = {
             "recommendPrivacy": 0,
             "battleID": battle_id,
@@ -231,7 +236,6 @@ class WzryOfficialAPI:
             "userID": userid
         }
         # watchbattle_data = {'recommendPrivacy': 0, 'battleID': '177399_1742766640_1774529852', 'roleID': '2000000010', 'type': 1, 'userID': '2000000061'}
-        print(watchbattle_data)
 
         match reqtype:
             case "btldetail":
@@ -261,6 +265,9 @@ class WzryOfficialAPI:
             case "heroranklist":
                 url=heroranklist_url
                 data=heroranklist_data
+            case "honorranklist":
+                url=honor_ranklist_url
+                data=honor_ranklist_data
             case "watchbattle":
                 url=watchbattle_url
                 data=watchbattle_data
@@ -322,6 +329,7 @@ class WzryOfficialAPI:
                         "rankId": rankId,
                         "rankSegment": rankSegment,
                         "battle_id": battle_id,
+                        "honor_adcode": honor_adcode,
                         "url": url,
                         "request_data": _redact_hok_log_value(data),
                         "returnMsg": error_msg,
@@ -345,8 +353,8 @@ def _wait_official_low_priority_turn():
     return WzryOfficialAPI.wait_official_low_priority_turn()
 
 
-def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal"):
-    return WzryOfficialAPI.get_official(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id, priority)
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal",honor_adcode=156):
+    return WzryOfficialAPI.get_official(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id, priority, honor_adcode)
 
 @sleep_and_retry
 @limits(calls=100, period=1)

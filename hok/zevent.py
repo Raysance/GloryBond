@@ -48,7 +48,8 @@ async def handle_all_messages(event: MessageEvent):
     if (not is_registered_qid(user_id)) or (not is_battle_visible_qid_enabled(user_id)):
         return
     msg_text = event.get_plaintext().strip()
-    if msg_text and not msg_text.startswith("#"):
+    is_honor_power_query = "战力" in msg_text and "查询" in msg_text
+    if msg_text and not msg_text.startswith("#") and not is_honor_power_query:
         for k in sorted(common_expr.keys(), key=len, reverse=True):
             msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
         await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
@@ -137,6 +138,16 @@ async def judge_herostatistics_query(event)->bool:
         right_ok = True
     return left_ok and right_ok
 
+
+async def judge_honor_power_query(event)->bool:
+    raw = event.get_plaintext()
+    return (
+        "战力" in raw
+        and "查询" in raw
+        and is_registered_qid(event.get_user_id())
+        and is_battle_visible_qid_enabled(event.get_user_id())
+    )
+
 def get_validated_name(event):
     from .zfunc import qid2nick, extract_name
     userqid = event.get_user_id()
@@ -194,6 +205,11 @@ _forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
 _peak_rank=on_fullmatch(
     ("#巅峰排名", "＃巅峰排名", "#巅峰排行", "＃巅峰排行"),
     rule=judge_to_me,
+    priority=3,
+    block=True,
+)
+_honor_power_query = on_message(
+    rule=judge_honor_power_query,
     priority=3,
     block=True,
 )
@@ -1016,6 +1032,30 @@ async def f_heropower(bot,event):
     except Exception as e:
         add_msg(f"HeroPower Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_honor_power_query.handle()
+async def f_honor_power_query(bot, event):
+    from .zfunc import honor_power_query_process
+    from .zfunc import qid2realname
+
+    realname = qid2realname(event.get_user_id())
+    try:
+        snd_msg = await asyncio.to_thread(
+            honor_power_query_process,
+            realname,
+            event.get_plaintext(),
+        )
+        add_msg(snd_msg, event=event)
+    except Exception as e:
+        add_msg(
+            f"战力查询失败：location=zevent.f_honor_power_query "
+            f"params={{'realname': {realname!r}}} error={repr(e)}",
+            event=event,
+        )
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
 @_herostatistics.handle()
 async def f_herostatistics(bot,event):
     from .zfunc import (
