@@ -45,8 +45,8 @@ class HonorPowerQueryTests(unittest.TestCase):
             self.calls.append(kwargs)
             return {
                 "list": [
-                    {"rankNo": 99, "rankValue": "13900"},
-                    {"rankNo": 100, "rankValue": "13890"},
+                    {"rankNo": rank_no, "rankValue": str(20001 - rank_no)}
+                    for rank_no in range(1, 101)
                 ]
             }
 
@@ -65,7 +65,11 @@ class HonorPowerQueryTests(unittest.TestCase):
 
         self.assertIn("【不知火舞战力查询】", result)
         self.assertIn("四川省成都市武侯区", result)
-        self.assertIn("上榜战力 13890", result)
+        self.assertIn("榜单人数 100", result)
+        self.assertIn("榜单 0%  第 1 名  战力 20000", result)
+        self.assertIn("榜单 25%  第 25 名  战力 19976", result)
+        self.assertIn("榜单 50%  第 50 名  战力 19951", result)
+        self.assertIn("榜单 100%  第 100 名  战力 19901", result)
         self.assertEqual(
             self.calls,
             [
@@ -88,6 +92,17 @@ class HonorPowerQueryTests(unittest.TestCase):
 
         self.assertEqual(result, "未识别到英雄，请使用：#战力查询 英雄名 地区名")
         self.assertEqual(self.calls, [])
+
+    def test_percentile_points_follow_actual_short_list_length(self):
+        points = ZFUNC._honor_rank_percentile_points([
+            {"rankNo": rank_no, "rankValue": str(1000 - rank_no)}
+            for rank_no in range(1, 11)
+        ])
+
+        self.assertEqual(
+            [(point["percentage"], point["rank_no"]) for point in points],
+            [(0, 1), (25, 3), (50, 5), (100, 10)],
+        )
 
     def test_supports_pinyin_hero_name_in_any_position(self):
         original_to_pinyin = ZFUNC._to_pinyin

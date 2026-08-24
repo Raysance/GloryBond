@@ -1347,6 +1347,36 @@ def resolve_honor_district(region_query, district_payload=None):
     return matched_entries[0], None
 
 
+def _honor_rank_percentile_points(rank_list):
+    valid_ranks = []
+    for fallback_rank_no, player_rank in enumerate(rank_list, 1):
+        try:
+            rank_value = int(player_rank.get("rankValue") or 0)
+            rank_no = int(player_rank.get("rankNo") or fallback_rank_no)
+        except (TypeError, ValueError):
+            continue
+        if rank_value > 0:
+            valid_ranks.append({"rank_no": rank_no, "rank_value": rank_value})
+
+    if not valid_ranks:
+        return []
+
+    points = []
+    rank_count = len(valid_ranks)
+    for percentage in (0, 25, 50, 100):
+        if percentage == 0:
+            index = 0
+        else:
+            index = math.ceil(rank_count * percentage / 100) - 1
+        selected = valid_ranks[index]
+        points.append({
+            "percentage": percentage,
+            "rank_no": selected["rank_no"],
+            "rank_value": selected["rank_value"],
+        })
+    return points
+
+
 def honor_power_query_process(realname, query_text):
     """Query one hero's honor threshold for an arbitrary configured district."""
     from .zapi import wzry_get_official
@@ -1367,18 +1397,15 @@ def honor_power_query_process(realname, query_text):
         honor_adcode=district["adcode"],
     )
 
-    rank_list = rank_info.get("list") or []
-    threshold = 0
-    for player_rank in reversed(rank_list):
-        try:
-            threshold = int(player_rank.get("rankValue") or 0)
-        except (TypeError, ValueError):
-            continue
-        if threshold > 0:
-            break
+    rank_points = _honor_rank_percentile_points(rank_info.get("list") or [])
     lines = [f"【{hero_name}战力查询】", line_delim, district["display_name"]]
-    if threshold > 0:
-        lines.append(f"上榜战力 {threshold}")
+    if rank_points:
+        lines.append(f"榜单人数 {len(rank_info.get('list') or [])}")
+        for point in rank_points:
+            lines.append(
+                f"榜单 {point['percentage']}%  "
+                f"第 {point['rank_no']} 名  战力 {point['rank_value']}"
+            )
     else:
         lines.append("暂无荣耀排行数据")
     return "\n".join(lines)
