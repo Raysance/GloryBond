@@ -59,30 +59,6 @@ def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详
     file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
     return file_exist(file_path)
 
-def enrich_battle_list_skills(payload):
-    """从本地战局详情补齐 SingleBattleList 需要的召唤师技能。"""
-    profile = payload.get("profile", {})
-    target_role_id = profile.get("targetRoleId")
-    for battle in payload.get("btlist", {}).get("list", []):
-        if battle.get("skill", {}).get("skillIcon"):
-            continue
-        detail = fetch_battle(battle.get("gameSeq"))
-        if not detail:
-            continue
-        for player in detail.get("redRoles", []) + detail.get("blueRoles", []):
-            if str(player.get("basicInfo", {}).get("roleId")) != str(target_role_id):
-                continue
-            skill = player.get("battleRecords", {}).get("skill", {}) or {}
-            if skill.get("skillIcon"):
-                battle["skill"] = {
-                    "skillId": skill.get("skillId"),
-                    "skillIcon": skill.get("skillIcon", ""),
-                    "skillName": skill.get("skillName", ""),
-                }
-            break
-    return payload
-
-
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=3, period=1)
 def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
