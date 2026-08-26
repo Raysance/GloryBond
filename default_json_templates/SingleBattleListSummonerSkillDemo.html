@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SingleBattleList · 召唤师技能 Demo</title>
+    <style>
+        :root { --ink:#243247; --muted:#718096; --line:#e5eaf1; --blue:#4b83d1; --red:#e36363; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; color:var(--ink); background:#f2f5f9; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+        main { width:min(940px,calc(100% - 28px)); margin:32px auto; }
+        header { margin-bottom:18px; }
+        h1 { margin:0 0 5px; font-size:24px; letter-spacing:-.02em; }
+        header p { margin:0; color:var(--muted); font-size:14px; }
+        .teams { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+        .team { overflow:hidden; border:1px solid var(--line); border-radius:16px; background:#fff; box-shadow:0 10px 30px rgba(29,50,78,.07); }
+        .team-title { display:flex; justify-content:space-between; align-items:center; padding:15px 18px 12px; border-bottom:1px solid var(--line); font-weight:700; }
+        .team.red .team-title { color:var(--red); }
+        .team.blue .team-title { color:var(--blue); }
+        .player { display:grid; grid-template-columns:52px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:82px; padding:11px 15px; border-bottom:1px solid var(--line); }
+        .player:last-child { border-bottom:0; }
+        .portrait { position:relative; width:48px; height:48px; }
+        .hero { width:48px; height:48px; display:block; object-fit:cover; border-radius:50%; background:#e8edf3; border:2px solid #eef2f6; }
+        .summoner-skill { position:absolute; right:-3px; bottom:-3px; width:22px; height:22px; object-fit:cover; border-radius:50%; background:#fff; border:2px solid #fff; box-shadow:0 1px 5px rgba(15,30,50,.32); }
+        .name { overflow:hidden; font-size:15px; font-weight:650; white-space:nowrap; text-overflow:ellipsis; }
+        .hero-name { margin-top:4px; color:var(--muted); font-size:12px; }
+        .skill-name { color:#53657b; font-size:12px; padding:5px 8px; border-radius:999px; background:#f2f5f9; white-space:nowrap; }
+        .loading { grid-column:1/-1; padding:40px; color:var(--muted); text-align:center; }
+        @media (max-width:700px) {
+            main { margin:18px auto; }
+            .teams { grid-template-columns:1fr; }
+            h1 { font-size:21px; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <h1>SingleBattleList · 召唤师技能</h1>
+        <p>数据来自 default_json_templates/btldetail.json，技能图标叠放在英雄头像右下角。</p>
+    </header>
+    <section class="teams" id="teams"><div class="loading">正在读取默认战局数据……</div></section>
+</main>
+<script>
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
+
+    function playerCard(player) {
+        const basic = player.basicInfo || {};
+        const records = player.battleRecords || {};
+        const hero = records.usedHero || {};
+        const skill = records.skill || {};
+        return `
+            <article class="player">
+                <div class="portrait">
+                    <img class="hero" src="${escapeHtml(hero.heroIcon)}" alt="${escapeHtml(hero.heroName || '英雄')}">
+                    ${skill.skillIcon ? `<img class="summoner-skill" src="${escapeHtml(skill.skillIcon)}" alt="${escapeHtml(skill.skillName || '召唤师技能')}" title="${escapeHtml(skill.skillName || '召唤师技能')}">` : ''}
+                </div>
+                <div>
+                    <div class="name">${escapeHtml(basic.roleName || '未知玩家')}</div>
+                    <div class="hero-name">${escapeHtml(hero.heroName || '未知英雄')}</div>
+                </div>
+                <span class="skill-name">${escapeHtml(skill.skillName || '未选技能')}</span>
+            </article>`;
+    }
+
+    function teamCard(label, color, players) {
+        return `<section class="team ${color}"><div class="team-title"><span>${label}</span><span>${players.length} 人</span></div>${players.map(playerCard).join('')}</section>`;
+    }
+
+    fetch('btldetail.json')
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('teams').innerHTML = teamCard('红方', 'red', data.redRoles || []) + teamCard('蓝方', 'blue', data.blueRoles || []);
+        })
+        .catch(error => {
+            document.getElementById('teams').innerHTML = `<div class="loading">读取 Demo JSON 失败：${escapeHtml(error.message)}</div>`;
+        });
+</script>
+</body>
+</html>

@@ -495,6 +495,10 @@ async def show_btlperson(request:Request,key: str):
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
         )
+    payload_path = os.path.join(file_path_root, "temp_files", os.path.basename(jsonpath))
+    payload = readerl(payload_path)
+    if payload:
+        writerl(payload_path, enrich_battle_list_skills(payload))
     return templates.TemplateResponse(
         "CommonPages/SingleBattleList.html",
         {
@@ -636,7 +640,7 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":f"网络参数错误 {str(e)}"}
         )
-    res={"btlist":btlist_res,"profile":profile_res}
+    res=enrich_battle_list_skills({"btlist":btlist_res,"profile":profile_res})
     file_name=secrets.token_hex(8)+".json"
     save_path=os.path.join(file_path_root,"temp_files", file_name)
     writerl(save_path,res)
