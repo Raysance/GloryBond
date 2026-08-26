@@ -378,9 +378,37 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
     unaccessible_battles=export_btldetail(today_details,roleid)
+    _enrich_battle_list_skills_from_cache(res, roleid)
+    if savepath:
+        writerl(savepath, res)
     if (BtlVisible):
         today_btl_contribute_aver = calculate_official_battle_contribution_average(today_details, roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"btl_contribute_aver":today_btl_contribute_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
+
+def _enrich_battle_list_skills_from_cache(payload, roleid):
+    """从本地战局详情为单人战绩卡片补齐召唤师技能。"""
+    from .zfile import read_battle_detail
+
+    battle_list = payload.get("btlist", {}).get("list", [])
+    for battle in battle_list:
+        if battle.get("skill", {}).get("skillIcon"):
+            continue
+        detail = read_battle_detail(battle.get("gameSeq"))
+        if not detail:
+            continue
+        for player in detail.get("redRoles", []) + detail.get("blueRoles", []):
+            if str(player.get("basicInfo", {}).get("roleId")) != str(roleid):
+                continue
+            skill = player.get("battleRecords", {}).get("skill", {}) or {}
+            if skill.get("skillIcon"):
+                battle["skill"] = {
+                    "skillId": skill.get("skillId"),
+                    "skillIcon": skill.get("skillIcon", ""),
+                    "skillName": skill.get("skillName", ""),
+                }
+            break
+
+
 def dump_specific_user(userid, roleid, target_date):
     """
     模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
