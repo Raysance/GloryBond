@@ -9,7 +9,8 @@ class ChatRole:
 
     key: str
     display_name: str
-    prompt: str
+    profile: str
 
-    def render_prompt(self) -> str:
-        return f"\n【角色扮演：{self.display_name}】\n{self.prompt.strip()}\n"
+    def render_profile(self) -> str:
+        """Render only the selected character's identity and mannerisms."""
+        return f"\n【角色信息：{self.display_name}】\n{self.profile.strip()}\n"

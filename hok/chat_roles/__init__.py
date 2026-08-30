@@ -1,6 +1,7 @@
 """Registry for portable, independently maintained chat roles."""
 
 from .base import ChatRole
+from .instructions import build_common_roleplay_instructions
 from .makise_kurisu import ROLE as MAKISE_KURISU
 
 
@@ -12,8 +13,8 @@ def register_role(role: ChatRole, *, replace: bool = False) -> None:
     if not isinstance(role, ChatRole):
         raise TypeError("role must be a ChatRole")
     role_key = role.key.strip()
-    if not role_key or not role.prompt.strip():
-        raise ValueError("role key and prompt must not be empty")
+    if not role_key or not role.profile.strip():
+        raise ValueError("role key and profile must not be empty")
     if role_key in _ROLES and not replace:
         raise ValueError(f"chat role already registered: {role_key}")
     _ROLES[role_key] = role
@@ -26,7 +27,11 @@ def get_role(role_key: str):
 
 def build_role_prompt(role_key: str) -> str:
     role = get_role(role_key)
-    return role.render_prompt() if role else ""
+    if not role:
+        return ""
+    role_prompt = role.render_profile()
+    role_prompt += build_common_roleplay_instructions()
+    return role_prompt
 
 
 def list_roles():

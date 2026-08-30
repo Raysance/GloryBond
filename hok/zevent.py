@@ -1411,17 +1411,8 @@ async def f_chat(bot,event):
     if group_id:
         add_group_poke_task(user_id, group_qid=group_id, source="chat")
 
-    # 1. 主动聊天记忆 (当前用户最多5条)
+    # chat 动态上下文只加载当前用户经 f_chat 捕获的直接人机对话
     active_msg = await asyncio.to_thread(zm.load_active_chat, user_id, 5)
-    # 2. 被动聊天记忆 (所有用户各1条背景)
-    passive_msg = await asyncio.to_thread(zm.load_global_passive_memory, 1)
-    # 3. 主动强制记忆 (所有用户各5条)
-    forced_msg = await asyncio.to_thread(zm.load_all_forced_memory, 5)
-    # 4. 历史聊天提炼内容 (当前用户最多3条)
-    summary_msg = await asyncio.to_thread(zm.load_user_summary_memory, user_id, 3)
-    
-    # 额外：最近战绩表现
-    history_msg = await asyncio.to_thread(zm.load_user_history_natural, user_id)
     
     nick = qid2nick(user_id)
     rcv_msg = event.get_plaintext().replace("我", nick)
@@ -1429,7 +1420,6 @@ async def f_chat(bot,event):
     for k in sorted(common_expr.keys(), key=len, reverse=True):
         rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
     
-    rcv_msg += " " + (str(event.reply.message) if event.reply else "") + " "
     snd_msg = ""
     
     network = "&" in rcv_msg
@@ -1439,8 +1429,8 @@ async def f_chat(bot,event):
         
     try:
         # 组装上下文列表传递给 ai_parser
-        # 映射关系: [当前消息, 主动对话史, 强制记忆, 昵称, 全局被动背景, 提炼记录, 战绩历史, QID]
-        context_list = [rcv_msg, active_msg, forced_msg, nick, passive_msg, summary_msg, history_msg, user_id]
+        # 映射关系: [当前消息, 当前用户与 Bot 的直接对话史, 昵称, QID]
+        context_list = [rcv_msg, active_msg, nick, user_id]
         snd_msg += await asyncio.to_thread(ai_parser, context_list, "chat", network, use_mem=use_mem_current)
         
         # 只有进入 f_chat 并且成功回复的消息才计入主动记忆
