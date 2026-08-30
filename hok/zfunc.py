@@ -470,6 +470,7 @@ def export_past():
 def ai_parser(user_query,msg_type,network=False,use_mem=None):
     from .zapi import ai_api,ark_api
     from .ztime import get_timebased_rand
+    from .chat_roles import build_role_prompt
 
     if use_mem is None:
         use_mem = dmc.use_mem
@@ -493,6 +494,7 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
         case "tq":
             whole_query += tq_pmpt + user_query[0]
         case "chat":
+            role_prompt = build_role_prompt(chat_role)
             if use_mem:
                 context_msg = f"""
                 【情境信息】
@@ -522,9 +524,9 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
                 
                 当前请求: {user_query[0]}
                 """
-                whole_query += style_template + context_msg + chat_pmpt
+                whole_query += role_prompt + style_template + context_msg + chat_pmpt
             else:
-                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
+                whole_query += role_prompt + style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
         case "poke":
             whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
         case "festival":
