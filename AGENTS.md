@@ -99,9 +99,25 @@
 
 ### 3.1 Git 发布规则
 
-本仓库的代码变更一律直接在 `main` 完成，禁止新建、切换或推送任何功能分支，禁止创建 Pull Request。
-当用户要求“推送远程”或类似发布动作时，必须直接提交并推送 `origin/main`；不得改用其他分支、草稿 PR 或功能 PR 代替。
-Git commit message 必须使用英文，不得使用中文提交信息。
+通用规则：
+
+1. Git commit message 必须使用英文，不得使用中文提交信息。
+2. 一个完整的逻辑变更应形成一个语义清晰的最终提交；禁止 `A backup`、`Update config`等无法说明变更目的的泛化提交信息。
+3. 发布前必须先同步并确认 `origin/main` 的最新状态；禁止通过多层 merge commit 解决本可避免的历史分叉。
+
+#### 3.1.1 Codex Desktop / 本地开发
+
+1. 代码变更一律直接在 `main` 完成，禁止新建、切换或推送功能分支，禁止创建 Pull Request。
+2. 开始改动和推送前先执行等价于 `git pull --ff-only origin main` 的快进同步；如本地与远程已分叉，必须停止发布并先查明原因，不得自动创建 merge commit。
+3. 当用户要求“推送远程”或类似发布动作时，必须直接提交并推送 `origin/main`。
+
+#### 3.1.2 Codex Cloud
+
+1. Codex Cloud 因隔离环境需要使用任务分支时，允许将该分支和 Pull Request 作为临时交付载体；这是对 Desktop “禁止功能分支和 PR”规则的唯一例外。
+2. Cloud 任务必须从最新 `origin/main` 开始。如任务期间 `main` 已更新，应将任务分支 rebase 到最新 `origin/main`；禁止执行 `git merge origin/main` 把 `main` 再合回任务分支。
+3. 一个 Cloud 任务只允许对应一个 Pull Request，不得为同一任务反复新建 PR 或嵌套合并分支。
+4. Cloud PR 合入 `main` 时必须使用 **Squash and merge**，禁止使用 **Create a merge commit**；无论 Cloud 分支内有多少中间提交，最终 `main` 只保留一个语义清晰的 squash commit。
+5. PR 合并后应删除 Cloud 任务分支；后续任务必须重新从最新 `origin/main` 开始，不得复用已合并分支。
 
 ### 3.2 库导入边界（严格）
 
