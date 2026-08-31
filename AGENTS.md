@@ -113,11 +113,7 @@
 
 #### 3.1.2 Codex Cloud
 
-1. Codex Cloud 因隔离环境需要使用任务分支时，允许将该分支和 Pull Request 作为临时交付载体；这是对 Desktop “禁止功能分支和 PR”规则的唯一例外。
-2. Cloud 任务必须从最新 `origin/main` 开始。如任务期间 `main` 已更新，应将任务分支 rebase 到最新 `origin/main`；禁止执行 `git merge origin/main` 把 `main` 再合回任务分支。
-3. 一个 Cloud 任务只允许对应一个 Pull Request，不得为同一任务反复新建 PR 或嵌套合并分支。
-4. Cloud PR 合入 `main` 时必须使用 **Squash and merge**，禁止使用 **Create a merge commit**；无论 Cloud 分支内有多少中间提交，最终 `main` 只保留一个语义清晰的 squash commit。
-5. PR 合并后应删除 Cloud 任务分支；后续任务必须重新从最新 `origin/main` 开始，不得复用已合并分支。
+Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cloud 的 Git 操作方式。
 
 ### 3.2 库导入边界（严格）
 
