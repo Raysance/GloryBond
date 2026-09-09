@@ -134,6 +134,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 1. 优先复用项目内现有命名、结构与导入方式，例如 `from .zstatic import *`、`from . import zdynamic as dmc`。
 2. 用户可见文本（群消息、提示语）必须可检索、可定位，避免“只有一个笼统的失败”。
+3. 单人单英雄查询默认复用 `single_player_single_hero_process()` 的本赛季统计分支，起始日期使用 `this_season_start_date`；消息路由不得因未包含“本赛季”关键词而覆盖此默认值。
 
 ## 6. NBot 变更自检清单
 

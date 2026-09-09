@@ -1084,7 +1084,7 @@ async def f_herostatistics(bot,event):
 
         try:
             if (not player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname, this_season=this_season)
+                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname)
             elif (not player_plural and hero_plural):
                 snd_msg = await asyncio.to_thread(single_player_mult_hero_process, matching_name, this_season=this_season)
             elif (player_plural and not hero_plural):

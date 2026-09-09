@@ -1425,7 +1425,7 @@ def honor_power_query_process(realname, query_text):
 
 
 # 单一玩家、单一英雄
-def single_player_single_hero_process(username,heroid,heroname,this_season=False):
+def single_player_single_hero_process(username,heroid,heroname,this_season=True):
     from .zapi import wzry_get_official
     from .ztime import time_r, time_delta,str_to_time
 
