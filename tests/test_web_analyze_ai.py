@@ -4,15 +4,14 @@ from pathlib import Path
 
 
 class WebAnalyzeAiTests(unittest.TestCase):
-    def test_web_analyze_enables_and_sends_lineup_commentary_after_image(self):
-        scheduler_path = Path(__file__).resolve().parents[1] / "hok" / "zscheduler.py"
-        source = scheduler_path.read_text(encoding="utf-8")
+    def assert_entry_disables_lineup_commentary(self, source_path, handler_name):
+        source = source_path.read_text(encoding="utf-8-sig")
         tree = ast.parse(source)
         handler = next(
             node
             for node in tree.body
             if isinstance(node, ast.AsyncFunctionDef)
-            and node.name == "run_web_analyze_btls_processor"
+            and node.name == handler_name
         )
 
         power_call = next(
@@ -29,12 +28,31 @@ class WebAnalyzeAiTests(unittest.TestCase):
             keyword for keyword in power_call.keywords if keyword.arg == "with_ai_analysis"
         )
 
-        self.assertIsInstance(ai_keyword.value, ast.Constant)
-        self.assertIs(ai_keyword.value.value, True)
+        self.assertIsInstance(ai_keyword.value, ast.Name)
+        self.assertEqual(ai_keyword.value.id, "with_ai_analysis")
+        disabled_assignment = next(
+            node
+            for node in ast.walk(handler)
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "with_ai_analysis" for target in node.targets)
+        )
+        self.assertIsInstance(disabled_assignment.value, ast.Constant)
+        self.assertIs(disabled_assignment.value.value, False)
         handler_source = ast.get_source_segment(source, handler)
-        image_offset = handler_source.index("snd_msg += MessageSegment.image(pic_path)")
-        commentary_offset = handler_source.index('power_data.get("aiAnalysis")', image_offset)
+        image_offset = handler_source.index("MessageSegment.image(pic_path)")
+        commentary_offset = handler_source.index(
+            'with_ai_analysis and power_data.get("aiAnalysis")',
+            image_offset,
+        )
         self.assertLess(image_offset, commentary_offset)
+
+    def test_web_analyze_keeps_lineup_commentary_disabled_by_parameter(self):
+        source_path = Path(__file__).resolve().parents[1] / "hok" / "zscheduler.py"
+        self.assert_entry_disables_lineup_commentary(source_path, "run_web_analyze_btls_processor")
+
+    def test_poke_keeps_lineup_commentary_disabled_by_parameter(self):
+        source_path = Path(__file__).resolve().parents[1] / "hok" / "zevent.py"
+        self.assert_entry_disables_lineup_commentary(source_path, "f_group_poke")
 
 
 if __name__ == "__main__":

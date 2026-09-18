@@ -677,13 +677,14 @@ async def f_group_poke(bot, event):
                 elif (dmc.LastBtlMsgStatus and calc_gap(time_r(),str_to_time(dmc.LastBtlMsgTime))<600):
                     dmc.LastBtlMsgStatus=False
                     dmc.LastBtlMsgCoolDownTime=time_to_str(add_second(time_r(),30))
+                    with_ai_analysis = False
                     try:
                         ret_msg = await asyncio.to_thread(
                             battle_power_process,
                             **dmc.LastBtlParams,
                             roleid=dmc.LastBtlRoleId,
                             spoiler_info={},
-                            with_ai_analysis=True,
+                            with_ai_analysis=with_ai_analysis,
                         )
                     except Exception as e:
                         add_msg(str(e), event=event)
@@ -693,7 +694,7 @@ async def f_group_poke(bot, event):
                     snd_msg=MessageSegment.text(txt_msg)
                     if pic_path:
                         snd_msg+=MessageSegment.image(pic_path)
-                    if power_data.get("aiAnalysis"):
+                    if with_ai_analysis and power_data.get("aiAnalysis"):
                         snd_msg+=MessageSegment.text("\n" + power_data["aiAnalysis"])
                     add_msg(snd_msg, event=event)
                     return
