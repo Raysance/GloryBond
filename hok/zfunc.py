@@ -118,6 +118,54 @@ def hero_matchup_process(my_detail, op_detail, matchup_api=None):
         return {"winRate": None, "sampleMatches": 0, "queryMode": "error", "error": repr(error)}
 
 
+_BATTLE_POSITION_NAMES = {
+    0: "对抗路",
+    1: "中路",
+    2: "发育路",
+    3: "打野",
+    4: "游走",
+}
+
+
+def _battle_lineup_items(detail_list):
+    items = []
+    for player in detail_list:
+        battle_records = player.get("battleRecords") or {}
+        used_hero = battle_records.get("usedHero") or {}
+        try:
+            position = int(battle_records.get("position"))
+        except (TypeError, ValueError):
+            position = -1
+        hero_name = used_hero.get("heroName") or safe_hero_name(used_hero.get("heroId"))
+        items.append({"position": position, "heroName": hero_name})
+    return items
+
+
+def battle_lineup_ai_process(my_lineup, op_lineup, ai_func=None):
+    if ai_func is None:
+        ai_func = ai_parser
+
+    def position_value(item):
+        try:
+            return int(item.get("position", -1))
+        except (TypeError, ValueError):
+            return -1
+
+    def format_side(lineup):
+        ordered = sorted(lineup, key=position_value)
+        return "、".join(
+            f"{_BATTLE_POSITION_NAMES.get(position_value(item), '未知分路')}{item.get('heroName') or '未知英雄'}"
+            for item in ordered
+        )
+
+    context = f"我方：{format_side(my_lineup)}；对方：{format_side(op_lineup)}。"
+    try:
+        return str(ai_func([context], "battle_lineup") or "").strip()
+    except Exception as error:
+        log_message(f"BATTLE_LINEUP_AI_ERROR: {repr(error)}")
+        return ""
+
+
 def _compact_report_value(value, max_len=220):
     try:
         text = json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
@@ -580,6 +628,8 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
                 whole_query += role_prompt + style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
         case "poke":
             whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
+        case "battle_lineup":
+            whole_query = battle_lineup_pmpt + user_query[0]
         case "festival":
             whole_query = festival_pmpt[0] + user_query[0] + festival_pmpt[1]
         case "raise_question":
@@ -2169,7 +2219,7 @@ def spoiler_process(battle_id,roleid,userid):
     # ret_txt=describe_txt + win_rate_str + coplayer_txt
     ret_txt=describe_txt + coplayer_txt
     return ret_txt,pic_path
-def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal",save_power_history=False):
+def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal",save_power_history=False,with_ai_analysis=False):
     from .zapi import wzry_get_official
     from .zfunc import check_btl_official_with_matching
     from .tools.gen_coplayer_analyses import CoPlayerProcess
@@ -2356,6 +2406,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
                 "nickname": nickname,
                 "isAuth": is_auth,
                 "heroName": heroName,
+                "position": player.get("battleRecords", {}).get("position"),
                 "playerAvatarUrl": player_avatar_url,
                 "heroAvatarUrl": heroAvatar,
                 "heroPower": heroPower,
@@ -2419,6 +2470,15 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
     gameres=res['head']['gameResult']
     my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
     op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
+    lineup_ai_future = None
+    lineup_ai_executor = None
+    if with_ai_analysis and not is_spoiler:
+        lineup_ai_executor = ThreadPoolExecutor(max_workers=1)
+        lineup_ai_future = lineup_ai_executor.submit(
+            battle_lineup_ai_process,
+            _battle_lineup_items(my_side_detail),
+            _battle_lineup_items(op_side_detail),
+        )
     # my_side_detail=my_side_detail[0:1]
     # op_side_detail=op_side_detail[0:1]
     # 并行获取所有玩家的数据
@@ -2449,6 +2509,14 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
     my_side_total_tier = get_hero_tier(my_side_detail)
     op_side_total_tier = get_hero_tier(op_side_detail)
     matchup = hero_matchup_process(my_side_detail, op_side_detail)
+    ai_analysis = ""
+    if lineup_ai_future:
+        try:
+            ai_analysis = lineup_ai_future.result()
+        except Exception as error:
+            log_message(f"BATTLE_LINEUP_AI_FUTURE_ERROR: {repr(error)}")
+        finally:
+            lineup_ai_executor.shutdown(wait=False)
 
     delta_level=my_side_total_level-op_side_total_level
 
@@ -2520,6 +2588,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
             },
             "players": my_side_power_data + op_side_power_data,
             "matchup": matchup,
+            "aiAnalysis": ai_analysis,
         }
         if (save_power_history and not is_spoiler):
             from .ztime import time_r
@@ -2705,7 +2774,11 @@ class BattlePowerHistory:
         return params
 
     @staticmethod
-    def saved_response(power_data, gen_image):
+    def saved_response(power_data, gen_image, with_ai_analysis=False):
+        if with_ai_analysis and not power_data.get("aiAnalysis"):
+            my_lineup = [player for player in power_data.get("players", []) if player.get("side") == "my"]
+            op_lineup = [player for player in power_data.get("players", []) if player.get("side") == "op"]
+            power_data["aiAnalysis"] = battle_lineup_ai_process(my_lineup, op_lineup)
         stats = BattlePowerHistory.stats(power_data)
         pic_path = BattlePowerHistory.image(power_data) if gen_image else ""
         return BattlePowerHistory.message(power_data),pic_path,stats,power_data
@@ -2761,13 +2834,13 @@ class BattlePowerHistory:
         progress["event"].set()
 
     @staticmethod
-    def wait_in_progress(gameseq, progress, gen_image):
+    def wait_in_progress(gameseq, progress, gen_image, with_ai_analysis=False):
         gameseq = str(gameseq)
         log_message(f"BATTLE_POWER_WAIT_IN_PROGRESS: GameSeq={gameseq}")
         progress["event"].wait()
         saved_power_data = BattlePowerHistory.load(gameseq)
         if saved_power_data:
-            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
+            return BattlePowerHistory.saved_response(saved_power_data, gen_image, with_ai_analysis)
         if progress.get("error"):
             raise Exception(f"battle_power_process_wait_failed: GameSeq={gameseq} {progress['error']}")
         if BattlePowerHistory.failed_exists(gameseq):
@@ -2777,7 +2850,7 @@ class BattlePowerHistory:
 def mark_battle_power_failed(gameseq, reason, candidate=None):
     return BattlePowerHistory.mark_failed(gameseq, reason, candidate)
 
-def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True):
+def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True, with_ai_analysis=False):
     from .ztime import time_r
 
     spoiler_info = spoiler_info or {}
@@ -2786,13 +2859,13 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
     if (not spoiler_info):
         saved_power_data = BattlePowerHistory.load(gameseq)
         if saved_power_data:
-            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
+            return BattlePowerHistory.saved_response(saved_power_data, gen_image, with_ai_analysis)
         if BattlePowerHistory.failed_exists(gameseq):
             raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
         if save_power_history:
             progress, is_owner = BattlePowerHistory.begin_in_progress(gameseq)
             if not is_owner:
-                return BattlePowerHistory.wait_in_progress(gameseq, progress, gen_image)
+                return BattlePowerHistory.wait_in_progress(gameseq, progress, gen_image, with_ai_analysis)
     try:
         ret = coplayer_process(
             gameSvrId,
@@ -2805,6 +2878,7 @@ def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoile
             return_power_data=True,
             official_priority=official_priority,
             save_power_history=save_power_history,
+            with_ai_analysis=with_ai_analysis,
         )
         snd_msg,pic_path,stats,power_data = ret
         if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):

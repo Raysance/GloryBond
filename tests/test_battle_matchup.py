@@ -67,6 +67,24 @@ class BattleMatchupTests(unittest.TestCase):
         self.assertEqual(result["queryMode"], "error")
         self.assertIsNone(result["winRate"])
 
+    def test_lineup_ai_receives_only_hero_and_position_context(self):
+        captured = {}
+
+        def ai_func(user_query, msg_type):
+            captured["query"] = user_query[0]
+            captured["type"] = msg_type
+            return "我方前排更稳，对方中野爆发更高，前期河道团将决定节奏。"
+
+        result = ZFUNC.battle_lineup_ai_process(
+            [{"position": 3, "heroName": "赵云"}, {"position": 0, "heroName": "廉颇"}],
+            [{"position": None, "heroName": "小乔"}],
+            ai_func=ai_func,
+        )
+
+        self.assertEqual(captured["type"], "battle_lineup")
+        self.assertEqual(captured["query"], "我方：对抗路廉颇、打野赵云；对方：未知分路小乔。")
+        self.assertIn("河道团", result)
+
 
 if __name__ == "__main__":
     unittest.main()

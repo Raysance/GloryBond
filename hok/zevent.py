@@ -677,15 +677,23 @@ async def f_group_poke(bot, event):
                     dmc.LastBtlMsgStatus=False
                     dmc.LastBtlMsgCoolDownTime=time_to_str(add_second(time_r(),30))
                     try:
-                        ret_msg = await asyncio.to_thread(battle_power_process, **dmc.LastBtlParams, roleid=dmc.LastBtlRoleId,spoiler_info={})
+                        ret_msg = await asyncio.to_thread(
+                            battle_power_process,
+                            **dmc.LastBtlParams,
+                            roleid=dmc.LastBtlRoleId,
+                            spoiler_info={},
+                            with_ai_analysis=True,
+                        )
                     except Exception as e:
                         add_msg(str(e), event=event)
                         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
                         return
-                    txt_msg,pic_path,_,_=ret_msg
+                    txt_msg,pic_path,_,power_data=ret_msg
                     snd_msg=MessageSegment.text(txt_msg)
                     if pic_path:
                         snd_msg+=MessageSegment.image(pic_path)
+                    if power_data.get("aiAnalysis"):
+                        snd_msg+=MessageSegment.text("\n" + power_data["aiAnalysis"])
                     add_msg(snd_msg, event=event)
                     return
                 elif (time_r()<str_to_time(dmc.LastBtlMsgCoolDownTime)):# 若两条戳一戳时间较近，防止误触发戳一戳消息，直接屏蔽

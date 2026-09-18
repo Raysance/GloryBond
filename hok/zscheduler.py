@@ -362,10 +362,18 @@ async def run_web_analyze_btls_processor():
 
         snd_msg += "\n\n"
 
-        btl_msg, pic_path,_,_ = await asyncio.to_thread(battle_power_process, **game_params,spoiler_info={},from_web=True)
+        btl_msg, pic_path,_,power_data = await asyncio.to_thread(
+            battle_power_process,
+            **game_params,
+            spoiler_info={},
+            from_web=True,
+            with_ai_analysis=True,
+        )
         snd_msg += MessageSegment.text(btl_msg)
         if pic_path:
             snd_msg += MessageSegment.image(pic_path)
+        if power_data.get("aiAnalysis"):
+            snd_msg += MessageSegment.text("\n" + power_data["aiAnalysis"])
         snd_msg += "\n\n───来自网页分享───"
         
         if (Special):
