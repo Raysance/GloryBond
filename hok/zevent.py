@@ -208,6 +208,7 @@ _peak_rank=on_fullmatch(
     priority=3,
     block=True,
 )
+_hero_tier=on_fullmatch(("#梯度", "＃梯度"),rule=judge_to_me,priority=3,block=True)
 _honor_power_query = on_message(
     rule=judge_honor_power_query,
     priority=3,
@@ -782,6 +783,25 @@ async def f_peak_rank(event):
     except Exception as e:
         add_msg(
             f"巅峰排名失败：location=zevent.f_peak_rank params={{'source': 'local_json'}} error={repr(e)}",
+            event=event,
+        )
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_hero_tier.handle()
+async def f_hero_tier(event):
+    from .zfile import existing_absolute_path
+    from .zfunc import hero_tier_query_process
+
+    try:
+        image_path = await asyncio.to_thread(hero_tier_query_process)
+        absolute_path = existing_absolute_path(image_path)
+        if not absolute_path:
+            raise Exception(f"hero_tier_image_missing: path={image_path!r}")
+        add_msg(MessageSegment.image(f"file://{absolute_path}"), event=event)
+    except Exception as error:
+        add_msg(
+            f"梯度查询失败：location=zevent.f_hero_tier params={{'command': '#梯度'}} error={error!r}",
             event=event,
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])

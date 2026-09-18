@@ -546,6 +546,33 @@ def tianyuanzhiyi_tier_api():
         return {}
 
 
+def tianyuanzhiyi_hero_avatars_api(tier_items, max_workers=12):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    headers = {"user-agent": "HOK_QQBot/1.0"}
+
+    def fetch_avatar(item):
+        hero_id = str(item.get("heroId"))
+        avatar_url = item.get("avatarUrl")
+        if not avatar_url:
+            return hero_id, None
+        response = requests.get(avatar_url, headers=headers, timeout=15)
+        response.raise_for_status()
+        return hero_id, response.content
+
+    avatars = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(fetch_avatar, item) for item in tier_items]
+        for future in as_completed(futures):
+            try:
+                hero_id, content = future.result()
+                if content:
+                    avatars[hero_id] = content
+            except Exception as error:
+                log_message(f"TIANYUAN_HERO_AVATAR_ERROR: {repr(error)}")
+    return avatars
+
+
 def _tianyuanzhiyi_canonical_json(value):
     if value is None:
         return "null"

@@ -5,6 +5,7 @@ from . import zdynamic as dmc
 import shutil
 import os
 import io
+import hashlib
 import requests
 
 def readera(filepath):
@@ -146,6 +147,60 @@ def existing_absolute_path(file_path):
     if not file_path or not os.path.exists(file_path):
         return None
     return os.path.abspath(file_path)
+
+
+def hero_tier_image_path():
+    """Return the output path regenerated for every tier query."""
+    return os.path.join(temp_path, "temp_files", "hero_tier.png")
+
+
+def hero_tier_avatar_cache_path(hero_item):
+    """Key one long-lived hero asset by hero id and source URL fingerprint."""
+    hero_id = re.sub(r"[^0-9A-Za-z_-]", "", str(hero_item.get("heroId") or "unknown")) or "unknown"
+    avatar_url = str(hero_item.get("avatarUrl") or "")
+    url_fingerprint = hashlib.sha1(avatar_url.encode("utf-8")).hexdigest()[:12]
+    return os.path.join(
+        project_root,
+        "resources",
+        "wzry_images",
+        "hero_avatars",
+        f"{hero_id}_{url_fingerprint}.img",
+    )
+
+
+def load_hero_tier_avatar_cache(tier_items):
+    """Return cached avatar bytes and the hero items still needing download."""
+    avatars = {}
+    missing_items = []
+    for item in tier_items:
+        hero_id = str(item.get("heroId"))
+        cache_path = hero_tier_avatar_cache_path(item)
+        try:
+            with open(cache_path, "rb") as file:
+                content = file.read()
+        except FileNotFoundError:
+            content = b""
+        if content:
+            avatars[hero_id] = content
+        else:
+            missing_items.append(item)
+    return avatars, missing_items
+
+
+def save_hero_tier_avatar_cache(tier_items, avatar_bytes):
+    """Persist newly downloaded avatar bytes through the IO boundary."""
+    items_by_id = {str(item.get("heroId")): item for item in tier_items}
+    saved = 0
+    for hero_id, content in avatar_bytes.items():
+        item = items_by_id.get(str(hero_id))
+        if not item or not content:
+            continue
+        cache_path = hero_tier_avatar_cache_path(item)
+        ensure_dir(os.path.dirname(cache_path))
+        with open(cache_path, "wb") as file:
+            file.write(content)
+        saved += 1
+    return saved
 
 
 def get_file_list(root_path,end_with):

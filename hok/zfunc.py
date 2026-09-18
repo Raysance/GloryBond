@@ -54,6 +54,28 @@ def safe_hero_name(hero_id, default=None):
     return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
 
 
+def hero_tier_query_process():
+    from .zapi import tianyuanzhiyi_hero_avatars_api, tianyuanzhiyi_tier_api
+    from .zfile import (
+        hero_tier_image_path,
+        load_hero_tier_avatar_cache,
+        save_hero_tier_avatar_cache,
+    )
+    from .tools.gen_hero_tier import generate_hero_tier_image
+
+    tier_data = tianyuanzhiyi_tier_api()
+    if not isinstance(tier_data, dict) or not tier_data.get("tiers"):
+        raise Exception(f"hero_tier_query_error: empty response {tier_data!r}")
+    avatar_bytes, missing_items = load_hero_tier_avatar_cache(tier_data["tiers"])
+    if missing_items:
+        downloaded = tianyuanzhiyi_hero_avatars_api(missing_items)
+        save_hero_tier_avatar_cache(missing_items, downloaded)
+        avatar_bytes.update(downloaded)
+    output_path = hero_tier_image_path()
+    generate_hero_tier_image(tier_data, output_path, avatar_bytes=avatar_bytes)
+    return output_path
+
+
 def _battle_matchup_composition(detail_list):
     composition = {}
     for player in detail_list:
