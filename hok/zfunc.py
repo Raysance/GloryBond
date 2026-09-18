@@ -163,6 +163,17 @@ def _battle_lineup_items(detail_list):
     return items
 
 
+def _format_battle_lineup_ai_text(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    lines = [line.strip() for line in text.replace("\r\n", "\n").split("\n") if line.strip()]
+    if len(lines) > 1:
+        return "\n".join(lines)
+    sentences = [item.strip() for item in re.findall(r"[^。！？!?]+[。！？!?]?", text) if item.strip()]
+    return "\n".join(sentences)
+
+
 def battle_lineup_ai_process(my_lineup, op_lineup, ai_func=None):
     if ai_func is None:
         ai_func = ai_parser
@@ -182,7 +193,7 @@ def battle_lineup_ai_process(my_lineup, op_lineup, ai_func=None):
 
     context = f"我方：{format_side(my_lineup)}；对方：{format_side(op_lineup)}。"
     try:
-        return str(ai_func([context], "battle_lineup") or "").strip()
+        return _format_battle_lineup_ai_text(ai_func([context], "battle_lineup"))
     except Exception as error:
         log_message(f"BATTLE_LINEUP_AI_ERROR: {repr(error)}")
         return ""

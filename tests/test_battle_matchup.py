@@ -85,6 +85,21 @@ class BattleMatchupTests(unittest.TestCase):
         self.assertEqual(captured["query"], "我方：对抗路廉颇、打野赵云；对方：未知分路小乔。")
         self.assertIn("河道团", result)
 
+    def test_lineup_prompt_requests_natural_readable_analysis(self):
+        self.assertIn("三句连贯、容易读懂", ZFUNC.battle_lineup_pmpt)
+        self.assertIn("每句单独一行", ZFUNC.battle_lineup_pmpt)
+        self.assertIn("禁止把多个英雄名连成一串", ZFUNC.battle_lineup_pmpt)
+        self.assertIn("禁止堆砌术语", ZFUNC.battle_lineup_pmpt)
+
+    def test_lineup_commentary_formats_sentences_as_separate_lines(self):
+        result = ZFUNC.battle_lineup_ai_process(
+            [{"position": 0, "heroName": "廉颇"}],
+            [{"position": 0, "heroName": "姬小满"}],
+            ai_func=lambda *_: "我方适合正面接团。对方单带更灵活。关键是先稳住边线。",
+        )
+
+        self.assertEqual(result, "我方适合正面接团。\n对方单带更灵活。\n关键是先稳住边线。")
+
 
 if __name__ == "__main__":
     unittest.main()
