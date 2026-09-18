@@ -13,6 +13,8 @@ def time_r(): # time_real
 def date_r():
     date_real = datetime.datetime.now().strftime("%Y-%m-%d")
     return date_real
+def epoch_ms():
+    return int(time_r().timestamp() * 1000)
 def time_r_delta(delta=0):
     time_real=time_r()
     time_back=time_real-timedelta(days=delta)

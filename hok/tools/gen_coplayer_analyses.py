@@ -160,8 +160,8 @@ class CoPlayerProcess:
         return list(self._players)
 
     # 便捷实例方法：基于当前实例内的玩家列表直接生成图片
-    def gen(self, output_path: str, *, title: str = "COMPARISON") -> Tuple[str, bool]:
-        return generate_player_strength_image(output_path, players=self.players(), title=title)
+    def gen(self, output_path: str, *, title: str = "COMPARISON", subtitle: Optional[str] = None) -> Tuple[str, bool]:
+        return generate_player_strength_image(output_path, players=self.players(), title=title, subtitle=subtitle)
 
 
 # 提供一个默认的全局收集器，满足“我会在 coplayer_process 中创建并多次加入玩家信息”的使用习惯
@@ -431,6 +431,7 @@ def generate_player_strength_image(
     players: Optional[List[PlayerInfo]] = None,
     *,
     title: str = "Comparison",
+    subtitle: Optional[str] = None,
 ) -> Tuple[str, bool]:
     """
     生成玩家实力信息图片。
@@ -452,7 +453,7 @@ def generate_player_strength_image(
     # 画布尺寸根据玩家数量自适应（分组：我方/对方）
     width = 1600
     margin = 48
-    header_h = 128
+    header_h = 170 if subtitle else 128
     footer_h = 28
     section_title_h = 48
     card_h = 260  # 提高单卡高度，给信息与条形更多空间
@@ -491,6 +492,8 @@ def generate_player_strength_image(
     title_font = _try_load_font(44, bold=True)
     sub_font = _try_load_font(22)
     _safe_text(draw, (margin + 32, margin + 28), title, title_font, TEXT_PRIMARY)
+    if subtitle:
+        _safe_text(draw, (margin + 32, margin + 88), subtitle, sub_font, TEXT_SECONDARY)
 
     # 顶部右侧徽标/点缀
     dot_x = width - margin - 32

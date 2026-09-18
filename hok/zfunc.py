@@ -54,6 +54,70 @@ def safe_hero_name(hero_id, default=None):
     return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
 
 
+def _battle_matchup_composition(detail_list):
+    composition = {}
+    for player in detail_list:
+        battle_records = player.get("battleRecords") or {}
+        used_hero = battle_records.get("usedHero") or {}
+        position = battle_records.get("position")
+        hero_id = used_hero.get("heroId")
+        try:
+            position = int(position)
+            hero_id = int(hero_id)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= position <= 4:
+            composition[str(position)] = hero_id
+    return composition
+
+
+def hero_matchup_process(my_detail, op_detail, matchup_api=None):
+    if matchup_api is None:
+        from .zapi import tianyuanzhiyi_matchup_api
+
+        matchup_api = tianyuanzhiyi_matchup_api
+    my_heroes = _battle_matchup_composition(my_detail)
+    op_heroes = _battle_matchup_composition(op_detail)
+    if len(my_heroes) + len(op_heroes) < 2:
+        return {"winRate": None, "sampleMatches": 0, "queryMode": "unavailable"}
+    try:
+        exact = matchup_api(my_heroes, op_heroes, days=30)
+        exact_matches = int(exact.get("totalMatchesFound") or 0)
+        if exact_matches:
+            return {
+                "winRate": float(exact.get("camp1WinRate") or 0),
+                "sampleMatches": exact_matches,
+                "queryMode": "exact",
+                "queryCount": 1,
+            }
+
+        samples = []
+        queried_pairs = 0
+        for position in sorted(set(my_heroes) & set(op_heroes), key=int):
+            queried_pairs += 1
+            result = matchup_api(
+                {position: my_heroes[position]},
+                {position: op_heroes[position]},
+                days=30,
+            )
+            match_count = int(result.get("totalMatchesFound") or 0)
+            if match_count:
+                samples.append((float(result.get("camp1WinRate") or 0), match_count))
+        total_matches = sum(match_count for _, match_count in samples)
+        if not total_matches:
+            return {"winRate": None, "sampleMatches": 0, "queryMode": "lane_pairs", "queryCount": queried_pairs}
+        weighted_rate = sum(rate * match_count for rate, match_count in samples) / total_matches
+        return {
+            "winRate": weighted_rate,
+            "sampleMatches": total_matches,
+            "queryMode": "lane_pairs",
+            "queryCount": queried_pairs,
+        }
+    except Exception as error:
+        log_message(f"TIANYUAN_MATCHUP_ERROR: {repr(error)}")
+        return {"winRate": None, "sampleMatches": 0, "queryMode": "error", "error": repr(error)}
+
+
 def _compact_report_value(value, max_len=220):
     try:
         text = json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
@@ -2384,6 +2448,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
     
     my_side_total_tier = get_hero_tier(my_side_detail)
     op_side_total_tier = get_hero_tier(op_side_detail)
+    matchup = hero_matchup_process(my_side_detail, op_side_detail)
 
     delta_level=my_side_total_level-op_side_total_level
 
@@ -2407,17 +2472,28 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
         f"我方英雄梯度：{round(my_side_total_tier,2)}\n"
         f"对方底蕴：{round(op_side_total_level,2) if op_side_total_level else "unknown"}\n"
         f"对方英雄梯度：{round(op_side_total_tier,2)}\n"
+        + (
+            f"英雄对位胜率：{round(matchup['winRate'] * 100, 1)}%（近30天，{matchup['sampleMatches']}局）\n"
+            if matchup.get("winRate") is not None
+            else "英雄对位胜率：暂无有效样本\n"
+        )
     )
     save_path=os.path.join(temp_path,"temp_files","coplayer_analyses.png")
 
     pic_title="对局预言" if is_spoiler else "对局底蕴"
-    out_path, ok = gen_inst.gen(save_path,title=pic_title)
+    matchup_subtitle = (
+        f"英雄对位胜率 {matchup['winRate'] * 100:.1f}% · 近30天 {matchup['sampleMatches']} 局"
+        if matchup.get("winRate") is not None
+        else "英雄对位胜率 · 暂无有效样本"
+    )
+    out_path, ok = gen_inst.gen(save_path,title=pic_title,subtitle=matchup_subtitle)
 
     stats = {
         "my_side_level": my_side_total_level,
         "op_side_level": op_side_total_level,
         "my_side_tier": my_side_total_tier,
-        "op_side_tier": op_side_total_tier
+        "op_side_tier": op_side_total_tier,
+        "matchup": matchup,
     }
 
     if (return_power_data):
@@ -2443,6 +2519,7 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
                 "requestErrors": op_side_req_error,
             },
             "players": my_side_power_data + op_side_power_data,
+            "matchup": matchup,
         }
         if (save_power_history and not is_spoiler):
             from .ztime import time_r
@@ -2479,12 +2556,18 @@ class BattlePowerHistory:
         my_side_tier = my_side.get("tier") or 0
         op_side_tier = op_side.get("tier") or 0
         delta_level = my_side_level - op_side_level
+        matchup = power_data.get("matchup") or {}
         return (
             f"实力天平倾斜度：{BattlePowerHistory.display_value(delta_level) if op_side_level else "unknown"}\n"
             f"我方底蕴：{BattlePowerHistory.display_value(my_side_level)}\n"
             f"我方英雄梯度：{round(my_side_tier,2)}\n"
             f"对方底蕴：{BattlePowerHistory.display_value(op_side_level)}\n"
             f"对方英雄梯度：{round(op_side_tier,2)}\n"
+            + (
+                f"英雄对位胜率：{round(matchup['winRate'] * 100, 1)}%（近30天，{matchup.get('sampleMatches', 0)}局）\n"
+                if matchup.get("winRate") is not None
+                else "英雄对位胜率：暂无有效样本\n"
+            )
         )
 
     @staticmethod
@@ -2495,7 +2578,8 @@ class BattlePowerHistory:
             "my_side_level": my_side.get("level") or 0,
             "op_side_level": op_side.get("level") or 0,
             "my_side_tier": my_side.get("tier") or 0,
-            "op_side_tier": op_side.get("tier") or 0
+            "op_side_tier": op_side.get("tier") or 0,
+            "matchup": power_data.get("matchup") or {},
         }
 
     @staticmethod
@@ -2538,7 +2622,13 @@ class BattlePowerHistory:
         for player in power_data.get("players", []):
             BattlePowerHistory.add_player_to_image(gen_inst, player)
         save_path=os.path.join(temp_path,"temp_files","coplayer_analyses.png")
-        gen_inst.gen(save_path,title="对局底蕴")
+        matchup = power_data.get("matchup") or {}
+        subtitle = (
+            f"英雄对位胜率 {matchup['winRate'] * 100:.1f}% · 近30天 {matchup.get('sampleMatches', 0)} 局"
+            if matchup.get("winRate") is not None
+            else "英雄对位胜率 · 暂无有效样本"
+        )
+        gen_inst.gen(save_path,title="对局底蕴",subtitle=subtitle)
         return save_path
 
     @staticmethod
