@@ -9,8 +9,8 @@
 - `hok/__init__.py`：NoneBot 插件入口；注册插件元信息并集中加载配置、静态变量、动态变量、API、事件、文件、业务函数、定时任务与时间工具。
 - `hok/config.py`：Pydantic 配置模型定义；除非明确需要，否则不要新增依赖或复杂逻辑。
 - `hok/zdynamic.py`：**动态变量**导入与初始化必须放在这里；其他模块通过 `from . import zdynamic as dmc` 读取动态配置初始值；运行时需要跨部署持久化的状态必须通过 Redis 业务接口保存。
-- `hok/zevent.py`：所有消息收发的**最初层**与路由层；只做初步解析、分发与调用接口，不在此实现具体业务算法/流程细节；普通用户的“代表局”自然语言查询在此路由且必须以 `#` 或 `＃` 开头，正式回复不得附带调试信息；`##rep3` 仅供管理员按日期区间调试每日三类指数冠军；`#巅峰排名` / `#巅峰排行` 仅调用 `zfunc.py` 的本地 JSON 排名流程；`#梯度` / `＃梯度` 仅调用 `zfunc.py` 的梯度长图流程；消息中同时出现“战力”和“查询”时调用 `zfunc.py` 的指定地区荣耀战力查询流程，英雄名和地区名顺序不限；B 站 UP 视频订阅命令只在此做命令剥离并调用 `zfunc.py`，用户命令支持 `#订阅xxx`、`#取消订阅`、`#最新视频`、`#我的订阅`，不要求包含“B站”关键词。
-- `hok/zfile.py`：文件/IO 读写统一入口；所有 IO（读写文件、落盘缓存、路径拼接等）必须通过此模块提供的接口完成；荣耀战力地区树统一从 `data/honor/districts.json` 读取；本地巅峰排名所需的历史日期枚举和每日 JSON 读取也由此模块提供，日期枚举支持包含下界过滤；梯度英雄头像属于长期资产，按英雄 ID 与头像 URL 指纹保存在 `resources/wzry_images/hero_avatars/`，`file_transfer/` 只保存每次查询重新生成的梯度长图；HOK Exception 运行时错误记录统一追加到 `log/error.log`。
+- `hok/zevent.py`：所有消息收发的**最初层**与路由层；只做初步解析、分发与调用接口，不在此实现具体业务算法/流程细节；普通业务消息先根据 `variables_static.json` 的玩家、英雄与本地地区树完成实体占位，再调用 `tools/intent_router.py` 的本地 ONNX Embedding 路由，每条消息只编码一次并缓存路由结果；低置信度或候选差值不足时保持沉默，AI chat 仍只允许单个 `#` / `＃` 前缀触发；所有 `##` 管理命令必须使用锚定格式规则且不得进入语义路由；普通用户的“代表局”自然语言查询在此路由且必须以 `#` 或 `＃` 开头，正式回复不得附带调试信息；`##rep3` 仅供管理员按日期区间调试每日三类指数冠军；`#巅峰排名` / `#巅峰排行` 仅调用 `zfunc.py` 的本地 JSON 排名流程；`#梯度` / `＃梯度` 仅调用 `zfunc.py` 的梯度长图流程；消息中同时出现“战力”和“查询”时调用 `zfunc.py` 的指定地区荣耀战力查询流程，英雄名和地区名顺序不限；B 站 UP 视频订阅命令只在此做命令剥离并调用 `zfunc.py`，用户命令支持 `#订阅xxx`、`#取消订阅`、`#最新视频`、`#我的订阅`，不要求包含“B站”关键词；可能调用王者或 AI/B站远程接口的群聊 handler 在开始处理时统一通过消息出口安排一次戳一戳确认，本地即时流程不发送确认戳一戳。
+- `hok/zfile.py`：文件/IO 读写统一入口；所有 IO（读写文件、落盘缓存、路径拼接等）必须通过此模块提供的接口完成；意图路由 ONNX 模型与 example 向量缓存统一位于项目 `.cache/intent_router/`，example 向量按模型名、占位后 example 与标签指纹保存为 gzip JSON，只有指纹变化时重新计算；荣耀战力地区树统一从 `data/honor/districts.json` 读取；本地巅峰排名所需的历史日期枚举和每日 JSON 读取也由此模块提供，日期枚举支持包含下界过滤；梯度英雄头像属于长期资产，按英雄 ID 与头像 URL 指纹保存在 `resources/wzry_images/hero_avatars/`，`file_transfer/` 只保存每次查询重新生成的梯度长图；HOK Exception 运行时错误记录统一追加到 `log/error.log`。
 - `hok/zfunc.py`：业务函数的**具体执行流程**（面向 `zevent.py` 暴露接口）；业务流程编排、调用工具、组装输出在此完成；`peak_rank_process()` 只读取 `this_season_start_date` 当日及之后的本地每日历史 JSON，为每位玩家选取最近的有效巅峰赛后分并生成排名，禁止调用实时战绩或外部 API；`honor_power_query_process()` 从整句中模糊识别中文或拼音英雄名，并按最具体地区优先从本地地区树解析任意地区 `adcode`，只调用一次指定地区 `ranklist`，输出榜单 0% / 25% / 50% / 100% 四个位置的实际名次与战力，不查询本人战力或名次；`representative_battle_query_impl()` 负责普通用户代表局查询并将正式文字、图片路径和图片下方 AI 文案与调试载荷隔离；`representative_battle_range_debug_impl()` 仅组装每日三类指数冠军的纯文本区间调试结果；B 站 UP 视频订阅状态、Redis 去重、Web 详情页链接和推送消息组装在此完成，订阅身份必须以 UP 的 `mid` 为准，昵称仅用于展示、模糊匹配和搜索关键词缓存；B 站订阅持久化以 Redis key `bili:video_subscriptions` 为准，所有用户均可订阅多个 UP；战绩隐身禁用名单以 Redis key `battle:invisible_disabled_qids` 为准；戳一戳底蕴的英雄对位指标优先查询完整阵容，无样本时按五路对位拆分并汇总；阵容 AI 短评能力保留在 `with_ai_analysis` 参数后，启用时与玩家底蕴数据并行获取并缓存，当前戳一戳与网页底蕴分享入口均传入 `False` 禁用。
 - `hok/zmemory.py`：所有 AI 对话记忆、摘要、长期记忆、表情记忆相关的读写与策略接口；chat 动态上下文只允许加载当前用户经 `f_chat()` 捕获的直接人机对话，不得混入历史 summary、强制记忆、群聊被动发言、其他用户上下文或回复引用内容。
 - `hok/chat_roles/`：chat 角色扮演的可插拔角色包；每个角色模块的 `ChatRole` 只维护该角色自身的信息与表达特征，角色无关的通用约束集中维护并在角色信息之后单独追加；角色通过包级注册表接入，当前默认角色由 `variables_static.json` 的 `chat_role` 指定。
@@ -53,6 +53,7 @@
 - `hok/tools/gen_kpl_match_card.py`：KPL 总比分、总体评分及全部小局数据长图生成器。
 - `hok/tools/representative_battle.py`：基于战绩 JSON 的代表性对局候选过滤、优秀/糟糕/极端三类指数计算与确定性排序工具。
 - `hok/tools/PowerAnalyzeEvaluator.py`：战力分析结果一致性评估脚本。
+- `hok/tools/intent_router.py`：基于 `BAAI/bge-small-zh-v1.5` ONNX 的本地意图路由器；集中维护各 handler 的自然语言 example、实体占位、余弦候选聚合、置信度拒绝与高风险 handler 的必要条件校验，不得在此读取配置文件或写缓存。
 
 ### 1.2 Debug Tools（`hok/debug_tools/`）
 

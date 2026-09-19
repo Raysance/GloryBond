@@ -9,6 +9,7 @@ from . import zscheduler
 import nonebot
 import asyncio
 import time
+from functools import lru_cache
 from nonebot import get_plugin_config,require
 from nonebot_plugin_apscheduler import scheduler
 from nonebot.rule import to_me,Rule
@@ -20,6 +21,123 @@ from nonebot.adapters.onebot.v11.event import PokeNotifyEvent
 from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command,on_regex,on_fullmatch
 require("nonebot_plugin_apscheduler")
 driver = nonebot.get_driver()
+
+from .tools.intent_router import (
+    EmbeddingIntentRouter,
+    EntityNormalizer,
+    FastEmbedBackend,
+    collect_hero_aliases,
+    collect_player_aliases,
+)
+from .zfile import (
+    get_intent_router_model_cache_dir,
+    load_intent_router_embeddings,
+    read_honor_districts,
+    save_intent_router_embeddings,
+)
+
+
+def _build_intent_router():
+    router_settings = intent_router_config
+    district_payload = read_honor_districts()
+    normalizer = EntityNormalizer(
+        player_aliases=collect_player_aliases(namenick, nameref, extra_namenick),
+        hero_aliases=collect_hero_aliases(HeroList, HeroName_replacements),
+        region_aliases=EntityNormalizer.district_aliases(district_payload),
+    )
+    embedder = FastEmbedBackend(
+        cache_dir=get_intent_router_model_cache_dir(),
+        model_name=router_settings["model_name"],
+        local_files_only=True,
+        threads=router_settings["threads"],
+    )
+    return EmbeddingIntentRouter(
+        normalizer=normalizer,
+        embedder=embedder,
+        cache_loader=load_intent_router_embeddings,
+        cache_writer=save_intent_router_embeddings,
+        min_score=router_settings["min_score"],
+        min_margin=router_settings["min_margin"],
+    )
+
+
+try:
+    _local_intent_router = _build_intent_router()
+except Exception as error:
+    _local_intent_router = None
+    log_message(f"INTENT_ROUTER_INIT_ERROR: {error!r}", level=logging.ERROR)
+
+
+@lru_cache(maxsize=1024)
+def resolve_message_intent(raw_msg):
+    raw = str(raw_msg or "").strip()
+    if not raw or raw.replace("＃", "#").startswith("##"):
+        return None
+    if "战力" in raw and "查询" in raw:
+        return "honor_power_query"
+    if _local_intent_router is None:
+        return None
+    decision = _local_intent_router.classify(raw)
+    log_message(
+        "INTENT_ROUTE: "
+        f"intent={decision.intent!r} score={decision.score:.4f} "
+        f"margin={decision.margin:.4f} normalized={decision.normalized_text!r}"
+    )
+    return decision.intent
+
+
+def intent_rule(*intent_names):
+    accepted = set(intent_names)
+
+    async def _check(event):
+        resolved = await asyncio.to_thread(
+            resolve_message_intent,
+            event.get_plaintext(),
+        )
+        return resolved in accepted
+
+    return Rule(_check)
+
+
+def strict_admin_rule(command, allow_args=False):
+    pattern = re.compile(
+        rf"^{re.escape(command)}(?:\s+.+)?$" if allow_args else rf"^{re.escape(command)}$",
+        re.DOTALL,
+    )
+
+    async def _check(event):
+        return bool(pattern.fullmatch(event.get_plaintext().strip())) and await judge_super(event)
+
+    return Rule(_check)
+
+
+def strict_user_rule(command, allow_args=False):
+    command_pattern = re.escape(command)
+    pattern = re.compile(
+        rf"^{command_pattern}(?:\s+.+)?$" if allow_args else rf"^{command_pattern}$",
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    async def _check(event):
+        raw = event.get_plaintext().strip().replace("＃", "#", 1)
+        return bool(pattern.fullmatch(raw))
+
+    return Rule(_check)
+
+
+async def judge_chat_request(event):
+    raw = event.get_plaintext().strip().replace("＃", "#")
+    return raw.startswith("#") and not raw.startswith("##")
+
+
+def acknowledge_remote_request(event, source):
+    group_id = getattr(event, "group_id", None)
+    if group_id is not None:
+        add_group_poke_task(
+            event.get_user_id(),
+            group_qid=group_id,
+            source=source,
+        )
 
 _all_messages = on_message(priority=0, block=False)
 
@@ -37,7 +155,8 @@ def is_bot_request_message(event):
     return raw_msg.startswith("#") or raw_msg.startswith("＃")
 
 async def judge_qid_blocked(event)->bool:
-    if not is_bot_request_message(event):
+    resolved = await asyncio.to_thread(resolve_message_intent, event.get_plaintext())
+    if not is_bot_request_message(event) and resolved is None:
         return False
     return (not is_registered_qid(event.get_user_id())) or (not is_battle_visible_qid_enabled(event.get_user_id()))
 
@@ -49,13 +168,25 @@ async def handle_all_messages(event: MessageEvent):
         return
     msg_text = event.get_plaintext().strip()
     is_honor_power_query = "战力" in msg_text and "查询" in msg_text
-    if msg_text and not msg_text.startswith("#") and not is_honor_power_query:
+    if (
+        msg_text
+        and not msg_text.startswith(("#", "＃"))
+        and not is_honor_power_query
+        and await asyncio.to_thread(resolve_message_intent, msg_text) is None
+    ):
         for k in sorted(common_expr.keys(), key=len, reverse=True):
             msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
         await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
 
 async def judge_to_me(event)->bool:
     return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
+
+
+async def judge_bot_request(event)->bool:
+    if await judge_to_me(event):
+        return True
+    resolved = await asyncio.to_thread(resolve_message_intent, event.get_plaintext())
+    return resolved is not None
 
 def _bili_video_plain_command(event):
     return event.get_plaintext().strip().lstrip("#＃").strip()
@@ -179,22 +310,22 @@ async def check_sleep(event)->bool:
 # EVENT
 _group_poke = on_notice()
 _qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
-_repair=on_fullmatch("##r",rule=judge_super,priority=1, block=True)
-_execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
-_test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
-_update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
-_forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
-_dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
-_representative_range_debug=on_keyword({"##rep3"},rule=judge_super,priority=1, block=True)
-_pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
-_super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
-_all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
-_emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
-_kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
-_bili_video_admin = on_keyword({"##bili"},rule=judge_super,priority=1, block=True)
+_repair=on_message(rule=strict_admin_rule("##r"),priority=1, block=True)
+_execute=on_message(rule=strict_admin_rule("##e", allow_args=True),priority=1, block=True)
+_test=on_message(rule=strict_admin_rule("##t", allow_args=True),priority=1, block=True)
+_update_local=on_message(rule=strict_admin_rule("##u", allow_args=True),priority=1, block=True)
+_forward=on_message(rule=strict_admin_rule("##f", allow_args=True),priority=1, block=True)
+_dailyrepbattle=on_message(rule=strict_admin_rule("##srep", allow_args=True),priority=1, block=True)
+_representative_range_debug=on_message(rule=strict_admin_rule("##rep3", allow_args=True),priority=1, block=True)
+_pure_chat=on_message(rule=strict_admin_rule("##c", allow_args=True),priority=1, block=True)
+_super_only = on_message(rule=strict_admin_rule("##amnesia"),priority=1, block=True)
+_all_only = on_message(rule=strict_admin_rule("##memory"),priority=1, block=True)
+_admin_emoji_gen = on_message(rule=strict_admin_rule("##emoji", allow_args=True),priority=1, block=True)
+_kpl_push = on_message(rule=strict_admin_rule("##kpl", allow_args=True),priority=1, block=True)
+_bili_video_admin = on_message(rule=strict_admin_rule("##bili", allow_args=True),priority=1, block=True)
 
-_sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, block=True)
-_blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
+_sleep_blocked = on_message(rule=Rule(judge_bot_request,check_sleep), priority=2, block=True)
+_blocked=on_message(rule=Rule(judge_bot_request,check_repair,judge_unsuper),priority=2, block=True)
 
 _show_code=on_fullmatch("code",rule=judge_to_me,priority=3, block=True)
 _empty_cache = on_keyword({"empty_cache"},rule=judge_to_me,priority=3, block=True)
@@ -214,38 +345,33 @@ _honor_power_query = on_message(
     priority=3,
     block=True,
 )
-_bili_video_latest = on_message(rule=Rule(judge_to_me, judge_bili_video_latest), priority=3, block=True)
-_bili_video_mine = on_message(rule=Rule(judge_to_me, judge_bili_video_mine), priority=3, block=True)
-_bili_video_unsubscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_unsubscribe), priority=3, block=True)
-_bili_video_subscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_subscribe), priority=3, block=True)
-_representative_battle = on_keyword(
-    set(representative_battle_keywords),
-    rule=Rule(judge_to_me, judge_representative_battle_query),
-    priority=3,
-    block=True,
-)
+_bili_video_latest = on_message(rule=intent_rule("bili_latest"), priority=3, block=True)
+_bili_video_mine = on_message(rule=intent_rule("bili_mine"), priority=3, block=True)
+_bili_video_unsubscribe = on_message(rule=intent_rule("bili_unsubscribe"), priority=3, block=True)
+_bili_video_subscribe = on_message(rule=intent_rule("bili_subscribe"), priority=3, block=True)
+_representative_battle = on_message(rule=intent_rule("representative_battle"), priority=3, block=True)
 
-_atall=on_fullmatch(tuple(atall_keywords),priority=4, block=True)
-_btlview=on_keyword(set(btlview_keywords),rule=judge_to_me,priority=4, block=True)
-_btldetail=on_keyword(set(btldetail_keywords),rule=judge_to_me,priority=4, block=True)
-_heropower=on_keyword(set(heropower_keywords),rule=judge_to_me,priority=4, block=True)
-_history_query=on_keyword({"查询"},rule=judge_to_me,priority=4, block=True)
-_herostatistics=on_message(rule=Rule(judge_herostatistics_query),priority=4, block=True)
-_todayhero=on_keyword({"今日英雄"},rule=judge_to_me,priority=4, block=True)
-_showonline=on_keyword({"在线"},rule=judge_to_me,priority=4, block=True)
-_gradeanalyze=on_keyword({"分析"},rule=judge_to_me,priority=4, block=True)
-_watchbattle=on_keyword({"ob"},rule=judge_to_me,priority=4, block=True)
-_spoiler=on_keyword({"预言"},rule=judge_to_me,priority=4, block=True)
-_recentpower=on_keyword({"底蕴"},rule=judge_to_me,priority=4, block=True)
-_recentgames = on_keyword({"时长"}, rule=judge_to_me, priority=4, block=True)
-_diycode = on_keyword({"diy"},rule=judge_to_me,priority=4, block=True)
-_exporthistory = on_keyword({"exp"},rule=judge_to_me,priority=4, block=True)
-_emoji_gen = on_keyword({"emoji"},rule=judge_to_me,priority=4, block=True)
+_atall=on_message(rule=intent_rule("atall"),priority=4, block=True)
+_btlview=on_message(rule=intent_rule("btlview"),priority=4, block=True)
+_btldetail=on_message(rule=intent_rule("btldetail"),priority=4, block=True)
+_heropower=on_message(rule=intent_rule("heropower"),priority=4, block=True)
+_history_query=on_message(rule=intent_rule("history_query"),priority=4, block=True)
+_herostatistics=on_message(rule=intent_rule("herostatistics"),priority=4, block=True)
+_todayhero=on_message(rule=intent_rule("todayhero"),priority=4, block=True)
+_showonline=on_message(rule=intent_rule("showonline"),priority=4, block=True)
+_gradeanalyze=on_message(rule=intent_rule("gradeanalyze"),priority=4, block=True)
+_watchbattle=on_message(rule=intent_rule("watchbattle"),priority=4, block=True)
+_spoiler=on_message(rule=intent_rule("spoiler"),priority=4, block=True)
+_recentpower=on_message(rule=intent_rule("recentpower"),priority=4, block=True)
+_recentgames = on_message(rule=intent_rule("recentgames"), priority=4, block=True)
+_diycode = on_message(rule=strict_user_rule("#diy", allow_args=True),priority=4, block=True)
+_exporthistory = on_message(rule=strict_user_rule("#exp", allow_args=True),priority=4, block=True)
+_emoji_gen = on_message(rule=strict_user_rule("#emoji", allow_args=True),priority=4, block=True)
 
-_rnk=on_keyword(set(rnk_keywords),rule=Rule(judge_to_me,judge_not_duration_rank),priority=5, block=True)
-_single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
+_rnk=on_message(rule=intent_rule("rank"),priority=5, block=True)
+_single=on_message(rule=intent_rule("single"),priority=5, block=True)
 
-_chat=on_message(rule=judge_to_me,priority=6, block=True)
+_chat=on_message(rule=judge_chat_request,priority=6, block=True)
 # HANDLER
 @_qid_blocked.handle()
 async def f_qid_blocked(event):
@@ -307,6 +433,7 @@ async def f_representative_battle(event: MessageEvent):
     from .zfunc import representative_battle_query_impl
 
     raw_msg = event.get_plaintext().strip()
+    acknowledge_remote_request(event, "representative_battle")
     try:
         query_result = await asyncio.to_thread(representative_battle_query_impl, raw_msg)
         if not query_result["found"]:
@@ -575,6 +702,7 @@ async def f_show_code(bot,event):
     add_msg(Message("Code on Github："), event=event)
     add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
+@_admin_emoji_gen.handle()
 @_emoji_gen.handle()
 async def f_emoji_gen(event):
     from .tools.gen_emoji_image import generate_user_kmoji_image
@@ -794,6 +922,7 @@ async def f_hero_tier(event):
     from .zfile import existing_absolute_path
     from .zfunc import hero_tier_query_process
 
+    acknowledge_remote_request(event, "hero_tier")
     try:
         image_path = await asyncio.to_thread(hero_tier_query_process)
         absolute_path = existing_absolute_path(image_path)
@@ -817,12 +946,35 @@ def _strip_bili_video_command(raw_msg, prefixes):
     return text
 
 
+def _extract_bili_video_target(raw_msg, unsubscribe=False):
+    text = str(raw_msg or "").strip().lstrip("#＃").strip()
+    if unsubscribe:
+        prefix_pattern = (
+            r"^(?:请|帮我|给我)?(?:取消订阅|退订|取消关注|停止推送|停止追踪|不再提醒|别再推送)"
+            r"(?:B站|b站|哔哩哔哩)?(?:UP主|up主|UP|up|博主|作者)?"
+        )
+    else:
+        prefix_pattern = (
+            r"^(?:请|帮我|给我)?(?:订阅|关注一下|关注|添加(?:一个)?|追踪)"
+            r"(?:B站|b站|哔哩哔哩)?(?:UP主|up主|UP|up|博主|作者)?"
+        )
+    text = re.sub(prefix_pattern, "", text, count=1).strip()
+    text = re.sub(
+        r"(?:的)?(?:最新视频|新视频|视频更新|更新提醒|视频推送|视频)(?:了)?$",
+        "",
+        text,
+    ).strip()
+    text = re.sub(r"(?:这个)?(?:UP主|up主|UP|up|博主|作者)$", "", text).strip()
+    return text
+
+
 @_bili_video_subscribe.handle()
 async def f_bili_video_subscribe(event: MessageEvent):
     from .zfunc import bili_video_subscribe_user
 
     raw_msg = event.get_plaintext().strip()
-    up_name = _strip_bili_video_command(raw_msg, ["订阅B站", "订阅b站", "订阅"])
+    up_name = _extract_bili_video_target(raw_msg)
+    acknowledge_remote_request(event, "bili_subscribe")
     try:
         result = await asyncio.to_thread(bili_video_subscribe_user, event.get_user_id(), up_name)
         add_msg(result, event=event)
@@ -836,7 +988,8 @@ async def f_bili_video_unsubscribe(event: MessageEvent):
     from .zfunc import bili_video_unsubscribe_user
 
     raw_msg = event.get_plaintext().strip()
-    query_text = _strip_bili_video_command(raw_msg, ["取消B站订阅", "取消b站订阅", "取消订阅"])
+    query_text = _extract_bili_video_target(raw_msg, unsubscribe=True)
+    acknowledge_remote_request(event, "bili_unsubscribe")
     try:
         result = await asyncio.to_thread(bili_video_unsubscribe_user, event.get_user_id(), query_text)
         add_msg(result, event=event)
@@ -849,6 +1002,7 @@ async def f_bili_video_unsubscribe(event: MessageEvent):
 async def f_bili_video_latest(event: MessageEvent):
     from .zfunc import bili_video_latest_for_user
 
+    acknowledge_remote_request(event, "bili_latest")
     try:
         result = await asyncio.to_thread(bili_video_latest_for_user, event.get_user_id())
         add_msg(result, event=event)
@@ -861,6 +1015,7 @@ async def f_bili_video_latest(event: MessageEvent):
 async def f_bili_video_mine(event: MessageEvent):
     from .zfunc import bili_video_my_subscription
 
+    acknowledge_remote_request(event, "bili_mine")
     try:
         result = await asyncio.to_thread(bili_video_my_subscription, event.get_user_id())
         add_msg(result, event=event)
@@ -897,6 +1052,7 @@ async def f_atall(bot,event):
     # for name,id in qid.items():
     #     at_msg+=MessageSegment.at(str(id))
     # await _atall.send(at_msg)
+    acknowledge_remote_request(event, "atall")
     try:
         urge_msg = await asyncio.to_thread(ai_parser, [str(datetime.datetime.now()), str(namenick), dmc.today_news], "urge_game")
         add_msg(urge_msg, event=event)
@@ -907,6 +1063,7 @@ async def f_atall(bot,event):
 @_showonline.handle()
 async def f_showonline(bot,event):
     from .zfunc import online_process
+    acknowledge_remote_request(event, "showonline")
     try:
         online_result = await asyncio.to_thread(online_process)
         if isinstance(online_result, tuple):
@@ -1029,6 +1186,7 @@ async def f_btlview(bot,event):
         return analyze_time_gap
 
     from .zfunc import view_process
+    acknowledge_remote_request(event, "battle_view")
     rcv_msg=event.get_plaintext()
     time_gap=get_last_number_after_dash(rcv_msg)
     try:
@@ -1041,6 +1199,7 @@ async def f_btlview(bot,event):
 @_btldetail.handle()
 async def f_btldetail(bot,event):
     from .zfunc import btldetail_process
+    acknowledge_remote_request(event, "battle_detail")
     try:
         last_btl_params=dmc.last_request_btllist[0]['Params']
         linkurl, picpath, mapname = await asyncio.to_thread(btldetail_process, **last_btl_params)
@@ -1052,6 +1211,7 @@ async def f_btldetail(bot,event):
 async def f_heropower(bot,event):
     from .zfunc import heropower_process
     
+    acknowledge_remote_request(event, "hero_power")
     matching_name = get_validated_name(event)
     if not matching_name: return
 
@@ -1068,6 +1228,7 @@ async def f_honor_power_query(bot, event):
     from .zfunc import honor_power_query_process
     from .zfunc import qid2realname
 
+    acknowledge_remote_request(event, "honor_power")
     realname = qid2realname(event.get_user_id())
     try:
         snd_msg = await asyncio.to_thread(
@@ -1098,18 +1259,21 @@ async def f_herostatistics(bot,event):
     )
 
     userqid = event.get_user_id()
+    acknowledge_remote_request(event, "hero_statistics")
     rcv_msg_raw = event.get_plaintext().replace("我", qid2nick(userqid))
     this_season = "本赛季" in rcv_msg_raw
     rcv_msg = rcv_msg_raw.replace("本赛季","")
     try:
-        player_plural=False
-        hero_plural=False
-        rcv_msg = rcv_msg.lstrip("#＃").strip()
-        rcv_left, rcv_right = rcv_msg.split("的", 1)
-        if ("群u" in rcv_left): player_plural=True
-        else: matching_name = extract_name(rcv_left,precise=True)
-        if ("英雄" in rcv_right): hero_plural=True
-        else: heroid, heroname = extract_heroname(rcv_right,precise=True)
+        player_plural = any(word in rcv_msg for word in ("群u", "群友", "大家", "全员"))
+        hero_result = extract_heroname(rcv_msg, precise=False)
+        hero_plural = hero_result is None and "英雄" in rcv_msg
+        matching_name = None if player_plural else extract_name(rcv_msg, precise=False)
+        if hero_result:
+            heroid, heroname = hero_result
+        if not player_plural and not matching_name:
+            raise ValueError("未识别到玩家名字")
+        if not hero_plural and not hero_result:
+            raise ValueError("未识别到英雄名字")
 
         try:
             if (not player_plural and not hero_plural):
@@ -1131,11 +1295,15 @@ async def f_herostatistics(bot,event):
 async def f_todayhero(bot,event):
     from .zfunc import qid2realname
     from .zfunc import todayhero_process
+    from .zfunc import extract_name
 
+    acknowledge_remote_request(event, "today_hero")
     userqid=event.get_user_id()
     realname=qid2realname(userqid)
     rcv_msg=event.get_plaintext()
-    if ("的" in rcv_msg): snd_msg="只能查询自己的今日英雄"
+    mentioned_player = extract_name(rcv_msg)
+    if mentioned_player and "~" not in rcv_msg:
+        snd_msg="只能查询自己的今日英雄"
     else:
         ai_comment=False if ("$" in rcv_msg) else True
         ignore_limit=True if ("%" in rcv_msg) else False
@@ -1174,6 +1342,7 @@ async def f_todayhero(bot,event):
 async def f_gradeanalyze(bot,event):
     from .zfunc import gradeanalyze_process
 
+    acknowledge_remote_request(event, "grade_analyze")
     matching_name = get_validated_name(event)
     if not matching_name: return
 
@@ -1190,6 +1359,7 @@ async def f_watchbattle(bot,event):
     from .zfunc import watchbattle_process
     from .zfile import file_exist
 
+    acknowledge_remote_request(event, "watch_battle")
     matching_name = get_validated_name(event)
     if not matching_name: return
 
@@ -1216,12 +1386,9 @@ async def f_spoiler(bot, event):
     cache = getattr(dmc, "spoiler_cache", None)
     now = time.time()
 
-    query_realname = None
-    if "的预言" in raw_msg:
-        query_realname = extract_name(rcv_msg)
-        if not query_realname:
-            add_msg("没有提到玩家名字哦", event=event)
-            return
+    acknowledge_remote_request(event, "spoiler")
+    query_realname = extract_name(rcv_msg)
+    if query_realname:
 
         try:
             btlist_res = await asyncio.to_thread(
@@ -1269,6 +1436,7 @@ async def f_spoiler(bot, event):
 async def f_recentpower(bot,event):
     from .zfunc import recent_power_process, power_rank_process, qid2nick
 
+    acknowledge_remote_request(event, "recent_power")
     rcv_msg = event.get_plaintext().replace("我", qid2nick(event.get_user_id()))
     if ("排行" in rcv_msg or "排名" in rcv_msg):
         try:
@@ -1311,6 +1479,7 @@ async def f_recentgames(event):
     from .zfunc import recentgames_process, gametime_rank_process, qid2nick, extract_name
     from .utils.message_sender import add_msg
     from nonebot.adapters.onebot.v11 import MessageSegment
+    acknowledge_remote_request(event, "recent_games")
     userqid = event.get_user_id()
     rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid)).replace("的", "").replace("时长", "")
     if ("排行" in rcv_msg or "排名" in rcv_msg):
@@ -1346,6 +1515,7 @@ async def f_history_query(event: Event):
     from .zfile import writerl
     import hashlib
 
+    acknowledge_remote_request(event, "history_query")
     userqid = event.get_user_id()
     rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
     
