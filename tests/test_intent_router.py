@@ -140,6 +140,14 @@ class IntentRouterTests(unittest.TestCase):
         self.assertEqual(decision.intent, "herostatistics")
         self.assertIn("hero", decision.entities.entity_types)
 
+    def test_hero_match_search_is_not_treated_as_hero_statistics(self):
+        normalized = self.normalizer.normalize("我的貂蝉的排位赛有哪些").text
+        router = self.build_router({normalized: "history_query"})
+        self.assertEqual(
+            router.classify("我的貂蝉的排位赛有哪些").intent,
+            "history_query",
+        )
+
     def test_subscription_validator_rejects_unrelated_short_sentence(self):
         normalized = self.normalizer.normalize("我的貂蝉").text
         router = self.build_router({normalized: "bili_mine"})

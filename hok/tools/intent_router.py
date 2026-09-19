@@ -86,6 +86,7 @@ INTENT_EXAMPLES = {
         "检索符合条件的历史战绩",
         "我要看和示例玩家65双排赢的比赛",
         "查找上个月评分最高的对局",
+        "我的貂蝉的排位赛有哪些",
     ],
     "herostatistics": [
         "我的貂蝉",
@@ -568,6 +569,14 @@ class EmbeddingIntentRouter:
                 )
             )
         if intent == "herostatistics":
+            history_retrieval = any(
+                word in raw
+                for word in ("哪些", "找出", "查找", "昨天", "前天", "上周", "上个月")
+            ) and any(
+                word in raw for word in ("对局", "比赛", "排位", "巅峰赛", "局")
+            )
+            if history_retrieval:
+                return False
             return (has_hero or "英雄" in raw) and has_player
         if intent in {"heropower", "gradeanalyze", "watchbattle", "single"}:
             return has_player
