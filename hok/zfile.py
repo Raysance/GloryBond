@@ -6,52 +6,7 @@ import shutil
 import os
 import io
 import hashlib
-import gzip
 import requests
-
-
-def get_intent_router_model_cache_dir():
-    """Return and create the runtime-only ONNX model cache directory."""
-    cache_dir = os.path.join(project_root, ".cache", "intent_router", "models")
-    os.makedirs(cache_dir, exist_ok=True)
-    return cache_dir
-
-
-def _intent_router_embedding_cache_path(fingerprint):
-    cache_dir = os.path.join(project_root, ".cache", "intent_router", "embeddings")
-    os.makedirs(cache_dir, exist_ok=True)
-    safe_fingerprint = re.sub(r"[^A-Za-z0-9_-]", "", str(fingerprint))
-    return os.path.join(cache_dir, f"{safe_fingerprint}.json.gz")
-
-
-def load_intent_router_embeddings(fingerprint):
-    """Load a cached example matrix without allowing pickled payloads."""
-    cache_path = _intent_router_embedding_cache_path(fingerprint)
-    if not os.path.isfile(cache_path):
-        return None
-    try:
-        with gzip.open(cache_path, "rt", encoding="utf-8") as cache_file:
-            return json.load(cache_file)
-    except Exception as error:
-        log_message(f"INTENT_ROUTER_CACHE_LOAD_ERROR: {error!r}")
-        return None
-
-
-def save_intent_router_embeddings(fingerprint, embeddings):
-    """Atomically persist the normalized example matrix."""
-    cache_path = _intent_router_embedding_cache_path(fingerprint)
-    temporary_path = f"{cache_path}.tmp"
-    try:
-        with gzip.open(temporary_path, "wt", encoding="utf-8") as cache_file:
-            json.dump(embeddings, cache_file, ensure_ascii=False, separators=(",", ":"))
-        os.replace(temporary_path, cache_path)
-    except Exception as error:
-        log_message(f"INTENT_ROUTER_CACHE_SAVE_ERROR: {error!r}")
-        try:
-            if os.path.isfile(temporary_path):
-                os.remove(temporary_path)
-        except Exception:
-            pass
 
 def readera(filepath):
     try:

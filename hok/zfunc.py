@@ -4330,42 +4330,16 @@ def get_peak_alter_list(details,processed,reverse=1):
                 item_b["used"]=True
         peak_alter_list.append([PeakBefore,PeakAfter])
     return peak_alter_list
-_player_entity_normalizer = None
-_player_alias_targets = None
-_hero_entity_normalizer = None
-_hero_alias_targets = None
-
-
-def _get_player_entity_matcher():
-    global _player_entity_normalizer, _player_alias_targets
-    if _player_entity_normalizer is None:
-        from .tools.intent_router import EntityNormalizer, collect_player_aliases
-
-        _player_alias_targets = {}
-        for realname, nicknames in nameref.items():
-            _player_alias_targets.setdefault(str(realname), realname)
-            for nickname in nicknames:
-                _player_alias_targets.setdefault(str(nickname), realname)
-        for realname, nickname in namenick.items():
-            _player_alias_targets.setdefault(str(realname), realname)
-            _player_alias_targets.setdefault(str(nickname), realname)
-        for realname, nickname in extra_namenick.items():
-            _player_alias_targets.setdefault(str(realname), realname)
-            _player_alias_targets.setdefault(str(nickname), realname)
-        for realname in extra_useridlist:
-            _player_alias_targets.setdefault(str(realname), realname)
-        aliases = collect_player_aliases(namenick, nameref, extra_namenick)
-        aliases.update(str(item) for item in extra_useridlist)
-        _player_entity_normalizer = EntityNormalizer(player_aliases=aliases)
-    return _player_entity_normalizer, _player_alias_targets
-
-
 def extract_name(from_text,precise=False):
-    from .tools.intent_router import resolve_exact_phonetic_target
-
-    normalizer, alias_targets = _get_player_entity_matcher()
-    surface = normalizer.extract_surface(from_text, "player", precise=precise)
-    return resolve_exact_phonetic_target(surface, alias_targets)
+    for is_origin in [True,False]:
+        for realname,nicknames in nameref.items():
+            for nickname in nicknames:
+                if txt_contain(nickname,from_text,precise,is_origin):
+                    return realname
+    for realname,_ in extra_useridlist.items():
+        if txt_contain(realname,from_text,p=True,ori=True):
+            return realname
+    return None
 def merge_crossday_gamedata(gamedata):
     if (not gamedata): return {}
     res=gamedata[-1]
@@ -5078,44 +5052,29 @@ def representative_battle_range_debug_impl(query_text):
     }
 
 
-def _get_hero_entity_matcher():
-    global _hero_entity_normalizer, _hero_alias_targets
-    if _hero_entity_normalizer is None:
-        from .tools.intent_router import EntityNormalizer, collect_hero_aliases
-
-        _hero_alias_targets = {}
-        for heroid, heroname in HeroList.items():
-            _hero_alias_targets[str(heroname)] = str(heroid)
-        for heroid, heroname in HeroName_replacements.items():
-            _hero_alias_targets[str(heroname)] = str(heroid)
-        aliases = collect_hero_aliases(HeroList, HeroName_replacements)
-        _hero_entity_normalizer = EntityNormalizer(hero_aliases=aliases)
-    return _hero_entity_normalizer, _hero_alias_targets
-
-
 def extract_heroname(origin_text,precise=False):
-    from .tools.intent_router import resolve_exact_phonetic_target
-
-    normalizer, alias_targets = _get_hero_entity_matcher()
-    surface = normalizer.extract_surface(origin_text, "hero", precise=precise)
-    heroid = resolve_exact_phonetic_target(surface, alias_targets)
-    if heroid == "-1":
+    if txt_contain("轮椅",origin_text,precise,True):
         heroid=-1
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=safe_hero_name(heroid)
             if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元流之子(射手)","艾琳","杨戬","盾山","张飞","云缨"]):break
         return heroid,heroname
-    if heroid == "-2":
+    if txt_contain("下水道",origin_text,precise,True):
         heroid=-2
         while(True):
             heroid = random.choice(list(HeroList))
             heroname=safe_hero_name(heroid)
             if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
         return heroid,heroname
-    if heroid is None:
-        return None
-    return heroid, safe_hero_name(heroid)
+    for is_origin in [True,False]:
+        for heroid,heroname in HeroList.items():
+            if txt_contain(heroname,origin_text,precise,is_origin):
+                return heroid,heroname
+        for heroid,heroname in HeroName_replacements.items():
+            if txt_contain(heroname,origin_text,precise,is_origin):
+                return heroid,safe_hero_name(heroid)
+    return None
 def txt_contain(x,y,p,ori):
     if (ori):
         if (p):
