@@ -148,6 +148,49 @@ class IntentRouterTests(unittest.TestCase):
         self.assertIn("hero", self.normalizer.normalize("我玩的影胜率如何").entity_types)
         self.assertIn("player", self.normalizer.normalize("查脚最近战绩").entity_types)
 
+    def test_player_and_hero_homophones_use_exact_pinyin_keys(self):
+        if self.normalizer._lazy_pinyin is None:
+            self.skipTest("pypinyin is not installed in this test environment")
+        player = self.normalizer.normalize("查小娟王最近战绩")
+        hero = self.normalizer.normalize("看看我玩的雕蝉数据")
+        self.assertEqual(player.text, "查<PLAYER>最近战绩")
+        self.assertEqual(hero.text, "看看我玩的<HERO>数据")
+
+    def test_partial_phonetic_names_do_not_match(self):
+        if self.normalizer._lazy_pinyin is None:
+            self.skipTest("pypinyin is not installed in this test environment")
+        normalizer = INTENT_ROUTER.EntityNormalizer(
+            player_aliases={"示例玩家41"},
+            hero_aliases={"貂蝉"},
+        )
+        self.assertEqual(
+            normalizer.normalize("查小卷最近战绩").entity_types,
+            frozenset(),
+        )
+        self.assertEqual(
+            normalizer.normalize("看看我玩的雕数据").entity_types,
+            frozenset(),
+        )
+
+    def test_exact_phonetic_target_resolution_never_uses_substrings(self):
+        if self.normalizer._lazy_pinyin is None:
+            self.skipTest("pypinyin is not installed in this test environment")
+        aliases = {"示例玩家41": "example_user_5", "貂蝉": "141"}
+        self.assertEqual(
+            INTENT_ROUTER.resolve_exact_phonetic_target("小娟王", aliases),
+            "example_user_5",
+        )
+        self.assertEqual(
+            INTENT_ROUTER.resolve_exact_phonetic_target("雕蝉", aliases),
+            "141",
+        )
+        self.assertIsNone(
+            INTENT_ROUTER.resolve_exact_phonetic_target("小娟", aliases)
+        )
+        self.assertIsNone(
+            INTENT_ROUTER.resolve_exact_phonetic_target("超级小娟王", aliases)
+        )
+
     def test_my_diaochan_can_only_reach_hero_statistics(self):
         normalized = self.normalizer.normalize("我的貂蝉").text
         router = self.build_router({normalized: "herostatistics"})

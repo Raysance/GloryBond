@@ -1,6 +1,7 @@
 """Entity-aware local embedding router for natural-language bot requests."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 import hashlib
 import json
 import math
@@ -10,6 +11,15 @@ from typing import Optional
 
 MODEL_NAME = "BAAI/bge-small-zh-v1.5"
 NONE_INTENT = "__none__"
+
+
+@lru_cache(maxsize=4096)
+def _exact_phonetic_key(value):
+    try:
+        from pypinyin import lazy_pinyin
+    except ImportError:
+        return None
+    return "".join(lazy_pinyin(str(value))).casefold()
 
 
 INTENT_EXAMPLES = {
@@ -320,10 +330,30 @@ class EntityNormalizer:
     _HERO_CONTEXT = (
         "我玩", "我用", "我的", "玩", "用", "拿", "选", "练", "英雄",
         "战力", "胜率", "出装", "铭文", "熟练度", "对线", "技能", "攻略",
+        "查询", "数据", "统计", "表现", "战绩", "对局", "皮肤",
     )
     _PLAYER_CONTEXT = (
         "战绩", "战况", "底蕴", "时长", "在线", "观战", "预言", "评分",
         "上分", "英雄", "最近", "现在", "这把", "的", "查", "看", "分析",
+    )
+    _HERO_PHONETIC_LEFT = (
+        "我的", "我玩", "我用", "玩", "用", "拿", "选", "练", "使用",
+        "查询", "查", "看看", "查看", "统计", "分析", "推荐", "的",
+    )
+    _HERO_PHONETIC_RIGHT = (
+        "战力", "胜率", "数据", "统计", "表现", "战绩", "对局", "排位",
+        "巅峰赛", "出装", "铭文", "熟练度", "技能", "攻略", "皮肤",
+        "伤害", "玩家", "怎么样", "如何", "怎么出", "的",
+    )
+    _PLAYER_PHONETIC_LEFT = (
+        "查询", "查询一下", "查", "查一下", "看看", "给我看看", "看",
+        "查看", "观战", "ob", "预言", "预测", "分析", "统计", "比较",
+        "找", "找出", "和", "跟", "叫", "催", "的",
+    )
+    _PLAYER_PHONETIC_RIGHT = (
+        "战绩", "战况", "底蕴", "时长", "在线", "最近", "现在", "这把",
+        "上一把", "上一局", "本赛季", "使用", "玩", "正在", "的", "表现",
+        "评分", "状态", "上分", "英雄",
     )
 
     def __init__(self, player_aliases=(), hero_aliases=(), region_aliases=()):
@@ -338,8 +368,34 @@ class EntityNormalizer:
                 if not alias:
                     continue
                 aliases.setdefault(alias, set()).add(entity_type)
-        self._aliases = tuple(
-            sorted(aliases.items(), key=lambda item: (-len(item[0]), item[0]))
+        self._literal_aliases = []
+        self._chinese_exact = {}
+        self._phonetic_exact = {}
+        self._lazy_pinyin = None
+        try:
+            from pypinyin import lazy_pinyin
+
+            self._lazy_pinyin = lazy_pinyin
+        except ImportError:
+            pass
+
+        for alias, entity_types in aliases.items():
+            if re.fullmatch(r"[\u4e00-\u9fff]+", alias):
+                exact_key = (len(alias), alias)
+                self._chinese_exact.setdefault(exact_key, set()).update(entity_types)
+                phonetic_types = entity_types.intersection({"player", "hero"})
+                if self._lazy_pinyin is not None and phonetic_types:
+                    phonetic_key = (len(alias), "".join(self._lazy_pinyin(alias)))
+                    self._phonetic_exact.setdefault(phonetic_key, set()).update(
+                        phonetic_types
+                    )
+            else:
+                self._literal_aliases.append((alias, entity_types))
+        self._literal_aliases = tuple(
+            sorted(self._literal_aliases, key=lambda item: (-len(item[0]), item[0]))
+        )
+        self._chinese_lengths = tuple(
+            sorted({length for length, _ in self._chinese_exact}, reverse=True)
         )
 
     @staticmethod
@@ -373,6 +429,23 @@ class EntityNormalizer:
         window = text[max(0, start - 4):min(len(text), end + 6)]
         return any(marker in window for marker in self._PLAYER_CONTEXT)
 
+    def _phonetic_has_context(self, entity_type, text, start, end):
+        if text.strip() == text[start:end]:
+            return True
+        left = text[:start].rstrip()
+        right = text[end:].lstrip()
+        if entity_type == "hero":
+            left_markers = self._HERO_PHONETIC_LEFT
+            right_markers = self._HERO_PHONETIC_RIGHT
+        else:
+            left_markers = self._PLAYER_PHONETIC_LEFT
+            right_markers = self._PLAYER_PHONETIC_RIGHT
+        left_boundary = not left or any(left.endswith(item) for item in left_markers)
+        right_boundary = not right or any(
+            right.startswith(item) for item in right_markers
+        )
+        return left_boundary and right_boundary
+
     @staticmethod
     def _resolve_ambiguous_type(text, start, end, entity_types):
         if len(entity_types) == 1:
@@ -402,7 +475,7 @@ class EntityNormalizer:
                     (index, index + len(placeholder), entity_type, placeholder)
                 )
                 offset = index + len(placeholder)
-        for alias, entity_types in self._aliases:
+        for alias, entity_types in self._literal_aliases:
             if self._is_ascii_token(alias):
                 pattern = re.compile(
                     rf"(?<![A-Za-z0-9_]){re.escape(alias)}(?![A-Za-z0-9_])",
@@ -438,6 +511,54 @@ class EntityNormalizer:
                     continue
                 matches.append((start, end, selected_type, alias))
 
+        for run_match in re.finditer(r"[\u4e00-\u9fff]+", source):
+            run = run_match.group(0)
+            syllables = self._lazy_pinyin(run) if self._lazy_pinyin is not None else ()
+            for length in self._chinese_lengths:
+                if length > len(run):
+                    continue
+                for relative_start in range(len(run) - length + 1):
+                    candidate = run[relative_start:relative_start + length]
+                    exact_types = self._chinese_exact.get(
+                        (length, candidate), set()
+                    )
+                    phonetic_types = set()
+                    if syllables:
+                        phonetic_key = "".join(
+                            syllables[relative_start:relative_start + length]
+                        )
+                        phonetic_types = self._phonetic_exact.get(
+                            (length, phonetic_key), set()
+                        )
+                    entity_types = exact_types.union(phonetic_types)
+                    if not entity_types:
+                        continue
+                    start = run_match.start() + relative_start
+                    end = start + length
+                    selected_type = self._resolve_ambiguous_type(
+                        source, start, end, entity_types
+                    )
+                    if selected_type is None:
+                        continue
+                    is_exact = selected_type in exact_types
+                    if not is_exact and not self._phonetic_has_context(
+                        selected_type, source, start, end
+                    ):
+                        continue
+                    if (
+                        selected_type == "hero"
+                        and length == 1
+                        and not self._one_char_hero_has_context(source, start, end)
+                    ):
+                        continue
+                    if (
+                        selected_type == "player"
+                        and length == 1
+                        and not self._one_char_player_has_context(source, start, end)
+                    ):
+                        continue
+                    matches.append((start, end, selected_type, candidate))
+
         selected = []
         occupied_until = -1
         for item in sorted(matches, key=lambda row: (row[0], -(row[1] - row[0]))):
@@ -465,6 +586,42 @@ class EntityNormalizer:
             present,
             {key: tuple(items) for key, items in values.items() if items},
         )
+
+    def extract_surface(self, text, entity_type, precise=False):
+        result = self.normalize(text)
+        values = result.values.get(entity_type, ())
+        if not values:
+            return None
+        if precise and result.text != self.PLACEHOLDERS[entity_type]:
+            return None
+        return values[0]
+
+
+def resolve_exact_phonetic_target(surface, alias_targets):
+    """Resolve one complete surface form without substring or edit-distance matching."""
+    source = str(surface or "").strip()
+    if not source:
+        return None
+    direct_targets = {
+        target
+        for alias, target in alias_targets.items()
+        if str(alias).strip().casefold() == source.casefold()
+    }
+    if len(direct_targets) == 1:
+        return next(iter(direct_targets))
+    if len(direct_targets) > 1:
+        return None
+    source_key = _exact_phonetic_key(source)
+    if source_key is None:
+        return None
+    phonetic_targets = {
+        target
+        for alias, target in alias_targets.items()
+        if _exact_phonetic_key(alias) == source_key
+    }
+    if len(phonetic_targets) == 1:
+        return next(iter(phonetic_targets))
+    return None
 
 
 class FastEmbedBackend:
