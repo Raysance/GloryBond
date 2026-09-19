@@ -11,6 +11,7 @@ import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "battle:invisible_disabled_qids"
+_GROUP_CHAT_HISTORY_REDIS_PREFIX = "chat:group_history:"
 
 
 def _redis_get_json(key, default=None):
@@ -41,6 +42,104 @@ def save_battle_invisible_disabled_qids(disabled_qids):
     disabled_qids = sorted({str(item) for item in disabled_qids if str(item or "").strip()})
     _redis_set_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, disabled_qids)
     return disabled_qids
+
+
+def _group_chat_history_key(group_id):
+    return f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}{str(group_id)}"
+
+
+def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply_to_message_id=None):
+    """Persist one inbound group message for on-demand AI retrieval.
+
+    ``ChatHistoryMaxMessages`` is an optional safety cap.  A value less than or
+    equal to zero keeps the complete history and never trims the Redis list.
+    """
+    from .ztime import current_datetime_text, current_epoch_seconds
+
+    normalized_text = str(text or "").strip()
+    if not normalized_text:
+        return None
+    key = _group_chat_history_key(group_id)
+    if message_id in (None, ""):
+        message_id = f"{current_epoch_seconds()}:{user_id}"
+    record = {
+        "group_id": str(group_id),
+        "user_id": str(user_id),
+        "message_id": str(message_id),
+        "reply_to_message_id": str(reply_to_message_id) if reply_to_message_id not in (None, "") else None,
+        "time": current_datetime_text(),
+        "timestamp": current_epoch_seconds(),
+        "text": normalized_text,
+    }
+    redis_client = dmc.redis_deamon_chat_memory
+    redis_client.rpush(key, json.dumps(record, ensure_ascii=False))
+    max_messages = int(getattr(dmc, "ChatHistoryMaxMessages", 0) or 0)
+    if max_messages > 0:
+        redis_client.ltrim(key, -max_messages, -1)
+    return record
+
+
+def load_group_chat_history(group_id, limit=None):
+    key = _group_chat_history_key(group_id)
+    if limit is None:
+        raw_records = dmc.redis_deamon_chat_memory.lrange(key, 0, -1)
+    else:
+        raw_records = dmc.redis_deamon_chat_memory.lrange(key, -max(1, int(limit)), -1)
+    records = []
+    for raw in raw_records:
+        try:
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            record = json.loads(raw)
+        except Exception:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def search_group_chat_history(group_id, queries, *, user_ids=None, time_start=None, time_end=None,
+                              limit=8, exclude_message_id=None):
+    from .zmemory import search_history_records
+    from .ztime import parse_chat_time_bound
+
+    records = load_group_chat_history(group_id)
+    start_timestamp = parse_chat_time_bound(time_start, is_end=False)
+    end_timestamp = parse_chat_time_bound(time_end, is_end=True)
+    if start_timestamp is not None:
+        records = [record for record in records if int(record.get("timestamp") or 0) >= start_timestamp]
+    if end_timestamp is not None:
+        records = [record for record in records if int(record.get("timestamp") or 0) <= end_timestamp]
+    return search_history_records(
+        records,
+        queries,
+        user_ids=user_ids,
+        limit=limit,
+        exclude_message_id=exclude_message_id,
+    )
+
+
+def fetch_group_chat_context(group_id, message_id, *, before=5, after=8):
+    from .zmemory import fetch_history_context
+
+    records = load_group_chat_history(group_id)
+    return fetch_history_context(
+        records,
+        message_id,
+        before=before,
+        after=after,
+        max_chars=max(500, int(getattr(dmc, "ChatHistoryContextChars", 6000))),
+    )
+
+
+def fetch_group_chat_reply_thread(group_id, message_id, *, max_depth=4):
+    from .zmemory import fetch_history_reply_thread
+
+    return fetch_history_reply_thread(
+        load_group_chat_history(group_id),
+        message_id,
+        max_depth=max_depth,
+    )
 
 def _to_pinyin(s):
     from pypinyin import lazy_pinyin

@@ -1,6 +1,9 @@
 import os
 import json
 import datetime
+import math
+import re
+from collections import Counter
 from typing import List, Dict, Optional
 from . import zdynamic as dmc
 
@@ -136,7 +139,7 @@ class ZMemory:
 
     # --- 4. 历史聊天提炼记忆 (Summary Memory) ---
     def save_summary_memory(self, qid: str, content: str):
-        """保存由 daily_user_summary 提炼出的记忆"""
+        """保存历史兼容的提炼记忆；当前不再由定时任务自动生成。"""
         key = self._get_key("summary_mem", qid)
         item = {
             "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -244,4 +247,145 @@ class ZMemory:
             self.redis.delete(self._get_key(cat, qid))
 
 instance = ZMemory()
+
+
+_HISTORY_TOKEN_RE = re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]+")
+
+
+def tokenize_history_text(text: str) -> List[str]:
+    """Tokenize colloquial group text for deterministic local retrieval."""
+    normalized = " ".join(str(text or "").lower().split())
+    try:
+        import jieba
+
+        rough_tokens = jieba.lcut(normalized)
+    except ModuleNotFoundError:
+        rough_tokens = _HISTORY_TOKEN_RE.findall(normalized)
+    tokens = []
+    seen = set()
+    for rough in rough_tokens:
+        for token in _HISTORY_TOKEN_RE.findall(str(rough).lower()):
+            if token and token not in seen:
+                tokens.append(token)
+                seen.add(token)
+            if re.fullmatch(r"[\u4e00-\u9fff]{3,}", token):
+                for size in (2, 3):
+                    for index in range(len(token) - size + 1):
+                        gram = token[index:index + size]
+                        if gram not in seen:
+                            tokens.append(gram)
+                            seen.add(gram)
+    return tokens
+
+
+def _bm25_scores(query_tokens: List[str], documents: List[List[str]]) -> List[float]:
+    if not query_tokens or not documents:
+        return [0.0 for _ in documents]
+    document_count = len(documents)
+    average_length = sum(len(document) for document in documents) / max(document_count, 1)
+    document_frequency = Counter()
+    for document in documents:
+        document_frequency.update(set(document))
+    scores = []
+    for document in documents:
+        frequencies = Counter(document)
+        document_length = max(len(document), 1)
+        score = 0.0
+        for term in query_tokens:
+            frequency = frequencies.get(term, 0)
+            if not frequency:
+                continue
+            inverse_frequency = math.log(1 + (document_count - document_frequency[term] + 0.5) / (document_frequency[term] + 0.5))
+            denominator = frequency + 1.5 * (1 - 0.75 + 0.75 * document_length / max(average_length, 1))
+            score += inverse_frequency * (frequency * 2.5) / denominator
+        scores.append(score)
+    return scores
+
+
+def search_history_records(records, queries, *, user_ids=None, limit=8, exclude_message_id=None):
+    """Search group records with multi-query BM25 and reciprocal-rank fusion."""
+    normalized_queries = []
+    for query in queries or []:
+        query = str(query or "").strip()
+        if query and query not in normalized_queries:
+            normalized_queries.append(query)
+    allowed_users = {str(item) for item in user_ids or [] if str(item or "").strip()}
+    candidates = []
+    for record in records or []:
+        if exclude_message_id is not None and str(record.get("message_id")) == str(exclude_message_id):
+            continue
+        if allowed_users and str(record.get("user_id")) not in allowed_users:
+            continue
+        if str(record.get("text") or "").strip():
+            candidates.append(record)
+    documents = [tokenize_history_text(record.get("text", "")) for record in candidates]
+    fused_scores = Counter()
+    query_scores = {}
+    for query in normalized_queries:
+        scores = _bm25_scores(tokenize_history_text(query), documents)
+        ranking = sorted(range(len(scores)), key=lambda index: (scores[index], index), reverse=True)
+        ranking = [index for index in ranking if scores[index] > 0]
+        for rank, index in enumerate(ranking[: max(limit * 3, 10)], 1):
+            fused_scores[index] += 1.0 / (60 + rank)
+            query_scores.setdefault(index, []).append({"query": query, "bm25": round(scores[index], 4)})
+    ranked = sorted(fused_scores, key=lambda index: (fused_scores[index], index), reverse=True)[: max(1, int(limit))]
+    results = []
+    for index in ranked:
+        record = dict(candidates[index])
+        record["score"] = round(fused_scores[index], 6)
+        record["matches"] = query_scores.get(index, [])
+        results.append(record)
+    return results
+
+
+def fetch_history_context(records, message_id, *, before=5, after=8, max_chars=6000):
+    """Expand one historical message with nearby records from the same group."""
+    target_index = None
+    for index, record in enumerate(records or []):
+        if str(record.get("message_id")) == str(message_id):
+            target_index = index
+            break
+    if target_index is None:
+        return []
+    start = max(0, target_index - max(0, int(before)))
+    end = min(len(records), target_index + max(0, int(after)) + 1)
+    picked = []
+    char_count = 0
+    for record in records[start:end]:
+        text = str(record.get("text") or "")
+        if picked and char_count + len(text) > max(1, int(max_chars)):
+            break
+        picked.append(dict(record))
+        char_count += len(text)
+    return picked
+
+
+def fetch_history_reply_thread(records, message_id, *, max_depth=4, max_records=30):
+    """Follow reply parents and children around one historical message."""
+    indexed = {str(record.get("message_id")): (index, record) for index, record in enumerate(records or [])}
+    target_id = str(message_id)
+    if target_id not in indexed:
+        return []
+    children = {}
+    for record in records or []:
+        parent_id = record.get("reply_to_message_id")
+        if parent_id not in (None, ""):
+            children.setdefault(str(parent_id), []).append(str(record.get("message_id")))
+    visited = set()
+    queue = [(target_id, 0)]
+    while queue and len(visited) < max(1, int(max_records)):
+        current_id, depth = queue.pop(0)
+        if current_id in visited or current_id not in indexed:
+            continue
+        visited.add(current_id)
+        if depth >= max(0, int(max_depth)):
+            continue
+        record = indexed[current_id][1]
+        parent_id = record.get("reply_to_message_id")
+        if parent_id not in (None, ""):
+            queue.append((str(parent_id), depth + 1))
+        for child_id in children.get(current_id, []):
+            queue.append((child_id, depth + 1))
+    ordered_ids = sorted(visited, key=lambda item: indexed[item][0])
+    return [dict(indexed[item][1]) for item in ordered_ids]
  

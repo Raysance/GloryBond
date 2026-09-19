@@ -44,10 +44,33 @@ async def judge_qid_blocked(event)->bool:
 @_all_messages.handle()
 async def handle_all_messages(event: MessageEvent):
     from .zmemory import instance as zm
+    from .zfunc import record_group_chat_message
     user_id = event.get_user_id()
+    msg_text = event.get_plaintext().strip()
+    group_id = getattr(event, "group_id", None)
+    if group_id and msg_text:
+        reply_to_message_id = None
+        for segment in getattr(event, "original_message", ()) or ():
+            if getattr(segment, "type", None) == "reply":
+                reply_to_message_id = getattr(segment, "data", {}).get("id")
+                break
+        try:
+            await asyncio.to_thread(
+                record_group_chat_message,
+                group_id,
+                user_id,
+                msg_text,
+                message_id=getattr(event, "message_id", None),
+                reply_to_message_id=reply_to_message_id,
+            )
+        except Exception as error:
+            log_message(
+                f"GROUP_CHAT_HISTORY_WRITE_ERROR: group_id={group_id} user_id={user_id} "
+                f"message_id={getattr(event, 'message_id', None)} error={error!r}",
+                level=logging.ERROR,
+            )
     if (not is_registered_qid(user_id)) or (not is_battle_visible_qid_enabled(user_id)):
         return
-    msg_text = event.get_plaintext().strip()
     is_honor_power_query = "战力" in msg_text and "查询" in msg_text
     if msg_text and not msg_text.startswith("#") and not is_honor_power_query:
         for k in sorted(common_expr.keys(), key=len, reverse=True):
@@ -1427,8 +1450,8 @@ async def f_history_query(event: Event):
 
 @_chat.handle()
 async def f_chat(bot,event):
-    from .zmemory import instance as zm
-    from .zfunc import qid2nick, ai_parser
+    from .zchat import chat_process
+    from .zfunc import qid2nick
     
     user_id = event.get_user_id()
     
@@ -1440,11 +1463,8 @@ async def f_chat(bot,event):
     if group_id:
         add_group_poke_task(user_id, group_qid=group_id, source="chat")
 
-    # chat 动态上下文只加载当前用户经 f_chat 捕获的直接人机对话
-    active_msg = await asyncio.to_thread(zm.load_active_chat, user_id, 5)
-    
     nick = qid2nick(user_id)
-    rcv_msg = event.get_plaintext().replace("我", nick)
+    rcv_msg = event.get_plaintext().strip().lstrip("#＃").strip()
     
     for k in sorted(common_expr.keys(), key=len, reverse=True):
         rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
@@ -1452,22 +1472,28 @@ async def f_chat(bot,event):
     snd_msg = ""
     
     network = "&" in rcv_msg
+    rcv_msg = rcv_msg.replace("&", "").strip()
     use_mem_current = dmc.use_mem
-    if "nomem" in rcv_msg: 
+    if "nomem" in rcv_msg:
         use_mem_current = False
+        rcv_msg = rcv_msg.replace("nomem", "").strip()
         
     try:
-        # 组装上下文列表传递给 ai_parser
-        # 映射关系: [当前消息, 当前用户与 Bot 的直接对话史, 昵称, QID]
-        context_list = [rcv_msg, active_msg, nick, user_id]
-        snd_msg += await asyncio.to_thread(ai_parser, context_list, "chat", network, use_mem=use_mem_current)
-        
-        # 只有进入 f_chat 并且成功回复的消息才计入主动记忆
-        if snd_msg and "Error" not in snd_msg:
-             await asyncio.to_thread(zm.save_active_chat, user_id, rcv_msg, snd_msg)
-             
+        snd_msg = await asyncio.to_thread(
+            chat_process,
+            user_text=rcv_msg,
+            user_id=user_id,
+            nickname=nick,
+            group_id=group_id,
+            message_id=getattr(event, "message_id", None),
+            use_memory=use_mem_current,
+            network=network,
+        )
     except Exception as e:
-        add_msg(str(e), event=event)
+        add_msg(
+            f"AI对话失败：location=zevent.f_chat params={{'user_id': {user_id!r}, 'group_id': {group_id!r}}} error={e!r}",
+            event=event,
+        )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
 

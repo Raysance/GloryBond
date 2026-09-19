@@ -105,53 +105,6 @@ def _dump_today_impl():
     log_message("DUMPEND "+dump_date+".json")
     return
 
-@scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute, second=00, id="daily_user_summary")
-def daily_user_summary():
-    """每天深夜总结每个人的发言并存入长期记忆 (支持并行并行处理)"""
-    from .zmemory import instance as zm
-    from .zfunc import ai_parser, qid2nick
-    from .zstatic import qid as qid_list
-    import concurrent.futures
-    import datetime
-
-    log_message("DAILY_SUMMARY: Starting daily user chat summary...")
-    
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    def process_single_user(realname, user_qid):
-        user_qid = str(user_qid)
-        raw_logs = zm.get_passive_logs(user_qid)
-        
-        if not raw_logs:
-            return
-            
-        logs_text = "\n".join(raw_logs)
-        nick = qid2nick(user_qid)
-        
-        # 构造总结请求
-        prompt = f"以下是用户 {nick} (QID: {user_qid}) 在过去 24 小时内的聊天记录片段：\n\n{logs_text}\n\n请用一两句话总结该用户的今日状态、提到的重要事项或表现出的偏好特点。直接返回总结内容，不要包含‘本段记录显示’等废话。"
-        
-        try:
-            # 使用 ai_parser 进行总结
-            summary = ai_parser([prompt], "summary", network=False)
-            if summary and "Error" not in summary:
-                # 记录内容包含时间、用户名和总结内容
-                memory_content = f"[{now_str}] 整理自{nick}发言: {summary}"
-                # 存入提炼记忆 (Summary memory)
-                zm.save_summary_memory(user_qid, memory_content)
-                log_message(f"DAILY_SUMMARY: Saved summary for {nick}")
-                # 清除原始日志 (被动记忆)
-                zm.clear_passive_logs(user_qid)
-        except Exception as e:
-            log_message(f"DAILY_SUMMARY_ERROR: {str(e)} for user {nick}")
-
-    # 使用线程池并行处理
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(process_single_user, name, qid) for name, qid in qid_list.items()]
-        concurrent.futures.wait(futures)
-    
-    log_message("DAILY_SUMMARY: All summaries completed.")
-
 @scheduler.scheduled_job(
     "cron",
     hour=23,

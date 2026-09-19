@@ -10,6 +10,23 @@ from dateutil import parser
 def time_r(): # time_real
     time_real=datetime.datetime.now()
     return time_real
+def current_datetime_text():
+    return time_r().strftime("%Y-%m-%d %H:%M:%S")
+def current_epoch_seconds():
+    return int(time_r().timestamp())
+def parse_chat_time_bound(value, is_end=False):
+    """Parse a chat-history time bound in the deployment host timezone."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip()
+    if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        return int(float(text))
+    parsed = parser.parse(text)
+    if is_end and re.fullmatch(r"\d{4}-\d{1,2}-\d{1,2}", text):
+        parsed = parsed.replace(hour=23, minute=59, second=59)
+    return int(parsed.timestamp())
 def date_r():
     date_real = datetime.datetime.now().strftime("%Y-%m-%d")
     return date_real

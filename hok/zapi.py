@@ -395,6 +395,55 @@ def ai_function(user_query):
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     return response.choices[0].message.content
+
+
+def ai_chat_completion(messages, tools=None, tool_choice="auto", network=False):
+    """Run one OpenAI-compatible chat turn and normalize tool calls."""
+    log_message("VISIT: ai_chat_completion")
+    try:
+        if network:
+            client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_app_url)
+            model = confs["QQBot"]["ark_bot_id"]
+        else:
+            client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
+            model = confs["QQBot"].get("deepseek_chat_model") or "deepseek-v4-flash"
+        request = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "timeout": 30,
+        }
+        if tools:
+            request["tools"] = tools
+            request["tool_choice"] = tool_choice
+        response = client.chat.completions.create(**request)
+    except Exception as error:
+        raise Exception(f"ai_chat_completion_error: {error}") from error
+
+    message = response.choices[0].message
+    normalized_calls = []
+    for call in getattr(message, "tool_calls", None) or []:
+        function = getattr(call, "function", None)
+        normalized_calls.append({
+            "id": str(getattr(call, "id", "")),
+            "type": str(getattr(call, "type", "function") or "function"),
+            "function": {
+                "name": str(getattr(function, "name", "")),
+                "arguments": str(getattr(function, "arguments", "{}") or "{}"),
+            },
+        })
+    assistant_message = {
+        "role": "assistant",
+        "content": getattr(message, "content", None) or "",
+    }
+    if normalized_calls:
+        assistant_message["tool_calls"] = normalized_calls
+    return {
+        "content": assistant_message["content"],
+        "tool_calls": normalized_calls,
+        "assistant_message": assistant_message,
+        "model": model,
+    }
 def ark_api(user_query): # 火山引擎-豆包联网模型
     log_message("VISIT: ark_api_common")
     try:
