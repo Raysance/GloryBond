@@ -85,6 +85,21 @@ class IntentRouterTests(unittest.TestCase):
                     failures.append((intent, example, decision.intent))
         self.assertEqual(failures, [])
 
+    def test_examples_are_already_entity_normalized(self):
+        failures = []
+        for intent, examples in INTENT_ROUTER.INTENT_EXAMPLES.items():
+            for example in examples:
+                stripped = example.lstrip("#＃").strip()
+                normalized = self.normalizer.normalize(stripped)
+                if normalized.text != stripped:
+                    failures.append((intent, example, normalized.text))
+        self.assertEqual(failures, [])
+
+    def test_explicit_placeholders_preserve_entity_types(self):
+        result = self.normalizer.normalize("查<PLAYER>在<REGION>玩<HERO>的数据")
+        self.assertEqual(result.text, "查<PLAYER>在<REGION>玩<HERO>的数据")
+        self.assertEqual(result.entity_types, frozenset({"player", "hero", "region"}))
+
     def test_all_configured_player_aliases_are_masked_in_player_context(self):
         failures = []
         for alias in self.players:
@@ -106,13 +121,13 @@ class IntentRouterTests(unittest.TestCase):
             self.skipTest("pypinyin is not installed in this test environment")
         result = self.normalizer.normalize("看看我的diaochan数据")
         self.assertIn("hero", result.entity_types)
-        self.assertIn("某英雄", result.text)
+        self.assertIn("<HERO>", result.text)
 
     def test_regions_are_loaded_from_district_tree(self):
         for region in ("安徽省", "安庆市", "大观区"):
             result = self.normalizer.normalize(f"查询貂蝉在{region}的战力")
             self.assertIn("region", result.entity_types)
-            self.assertIn("某地区", result.text)
+            self.assertIn("<REGION>", result.text)
 
     def test_new_entities_need_no_new_intent_examples(self):
         normalizer = INTENT_ROUTER.EntityNormalizer(
@@ -123,7 +138,7 @@ class IntentRouterTests(unittest.TestCase):
         result = normalizer.normalize("查新玩家阿星在新城区玩新英雄天衡的数据")
         self.assertEqual(
             result.text,
-            "查某玩家在某地区玩某英雄的数据",
+            "查<PLAYER>在<REGION>玩<HERO>的数据",
         )
         self.assertEqual(result.entity_types, frozenset({"player", "hero", "region"}))
 
