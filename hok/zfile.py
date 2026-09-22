@@ -35,7 +35,15 @@ def readerl(filepath):
 
 
 def read_history_date(target_date):
-    """Read one daily history payload through the project's IO boundary."""
+    """Read one daily history payload from PostgreSQL, with JSON archive fallback."""
+    try:
+        from .zdb import read_history_date as read_history_date_from_db
+
+        database_payload = read_history_date_from_db(target_date)
+        if database_payload:
+            return database_payload
+    except Exception as exc:
+        log_message(f"POSTGRES_HISTORY_READ_FALLBACK: date={target_date} error={repr(exc)}", logging.WARNING)
     return readerl(os.path.join("data", "history", f"{target_date}.json"))
 
 
@@ -45,7 +53,15 @@ def read_honor_districts():
 
 
 def list_history_dates_descending(start_date=None):
-    """Return local daily history dates from the optional inclusive lower bound."""
+    """Return database history dates, with the JSON archive as fallback."""
+    try:
+        from .zdb import list_history_dates_descending as list_history_dates_from_db
+
+        database_dates = list_history_dates_from_db(start_date=start_date)
+        if database_dates:
+            return database_dates
+    except Exception as exc:
+        log_message(f"POSTGRES_HISTORY_DATES_FALLBACK: start={start_date} error={repr(exc)}", logging.WARNING)
     history_dir = os.path.join("data", "history")
     if not os.path.isdir(history_dir):
         return []
@@ -63,17 +79,160 @@ def list_history_dates_descending(start_date=None):
 
 
 def read_battle_detail(gameseq):
-    """Read one cached battle-detail payload through the project's IO boundary."""
+    """Read one battle detail from PostgreSQL, with JSON archive fallback."""
+    try:
+        from .zdb import read_battle_detail as read_battle_detail_from_db
+
+        database_payload = read_battle_detail_from_db(gameseq)
+        if database_payload:
+            return database_payload
+    except Exception as exc:
+        log_message(f"POSTGRES_BATTLE_READ_FALLBACK: GameSeq={gameseq} error={repr(exc)}", logging.WARNING)
     return readerl(os.path.join("data", "history", "battles", f"{gameseq}.json"))
+
+
+def read_personal_history(target_date, userid):
+    """Read a personal snapshot from PostgreSQL, with JSON archive fallback."""
+    try:
+        from .zdb import read_personal_snapshot
+
+        database_payload = read_personal_snapshot(target_date, userid)
+        if database_payload:
+            return database_payload
+    except Exception as exc:
+        log_message(
+            f"POSTGRES_PERSONAL_READ_FALLBACK: date={target_date} userid={userid} error={repr(exc)}",
+            logging.WARNING,
+        )
+    return readerl(os.path.join("data", "history", "personal", str(target_date), f"{userid}.json"))
+
+
+def read_hero_tier(target_date):
+    """Read one hero-tier snapshot from PostgreSQL, with JSON archive fallback."""
+    try:
+        from .zdb import read_hero_tier_date
+
+        database_payload = read_hero_tier_date(target_date)
+        if database_payload:
+            return database_payload
+    except Exception as exc:
+        log_message(f"POSTGRES_HERO_TIER_READ_FALLBACK: date={target_date} error={repr(exc)}", logging.WARNING)
+    return readerl(os.path.join("data", "herotier", f"{target_date}.json"))
+
+
+def battle_detail_exists(gameseq):
+    """Check PostgreSQL first and retain compatibility with the JSON archive."""
+    try:
+        from .zdb import battle_detail_exists as battle_detail_exists_in_db
+
+        if battle_detail_exists_in_db(gameseq):
+            return True
+    except Exception as exc:
+        log_message(f"POSTGRES_BATTLE_EXISTS_FALLBACK: GameSeq={gameseq} error={repr(exc)}", logging.WARNING)
+    return file_exist(os.path.join("data", "history", "battles", f"{gameseq}.json"))
 
 
 def writerl(filepath,data):
     try:
         with open(filepath, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
+        _sync_postgres_archive(filepath, data)
         return None
     except Exception as e:
         return None
+
+
+def classify_postgres_archive_path(filepath):
+    """Describe a managed JSON archive path without changing the source file."""
+    absolute_path = os.path.abspath(str(filepath))
+    try:
+        relative_path = os.path.relpath(absolute_path, os.path.abspath(project_root)).replace(os.sep, "/")
+    except Exception:
+        return None
+    match = re.fullmatch(r"data/history/(\d{4}-\d{2}-\d{2})\.json", relative_path)
+    if match:
+        return {"kind": "history", "date": match.group(1), "source_path": relative_path}
+    match = re.fullmatch(r"data/history/battles/(\d+)\.json", relative_path)
+    if match:
+        return {"kind": "battle", "game_seq": match.group(1), "source_path": relative_path}
+    match = re.fullmatch(r"data/history/personal/(\d{4}-\d{2}-\d{2})/(\d+)\.json", relative_path)
+    if match:
+        return {
+            "kind": "personal",
+            "date": match.group(1),
+            "user_id": match.group(2),
+            "source_path": relative_path,
+        }
+    match = re.fullmatch(r"data/history/power/(\d+)\.json", relative_path)
+    if match:
+        return {"kind": "power", "game_seq": match.group(1), "source_path": relative_path}
+    match = re.fullmatch(r"data/herotier/(\d{4}-\d{2}-\d{2})\.json", relative_path)
+    if match:
+        return {"kind": "hero_tier", "date": match.group(1), "source_path": relative_path}
+    return None
+
+
+def _sync_postgres_archive(filepath, data):
+    descriptor = classify_postgres_archive_path(filepath)
+    if not descriptor:
+        return None
+    try:
+        from . import zdb
+
+        kind = descriptor["kind"]
+        if kind == "history":
+            return zdb.replace_history_date(descriptor["date"], data, descriptor["source_path"])
+        if kind == "battle":
+            return zdb.upsert_battle_detail(descriptor["game_seq"], data, descriptor["source_path"])
+        if kind == "personal":
+            return zdb.upsert_personal_snapshot(
+                descriptor["date"], descriptor["user_id"], data, descriptor["source_path"]
+            )
+        if kind == "power":
+            return zdb.upsert_battle_power(descriptor["game_seq"], data, descriptor["source_path"])
+        if kind == "hero_tier":
+            return zdb.replace_hero_tier_date(descriptor["date"], data, descriptor["source_path"])
+    except Exception as exc:
+        log_message(
+            f"POSTGRES_ARCHIVE_SYNC_ERROR: path={descriptor['source_path']} error={repr(exc)}",
+            logging.ERROR,
+        )
+    return None
+
+
+def list_postgres_archive_files(kinds=None):
+    """List importable JSON archives through the project's IO boundary."""
+    requested = set(kinds or ("history", "battle", "personal", "power", "hero_tier"))
+    roots = {
+        "history": os.path.join(project_root, "data", "history"),
+        "battle": os.path.join(project_root, "data", "history", "battles"),
+        "personal": os.path.join(project_root, "data", "history", "personal"),
+        "power": os.path.join(project_root, "data", "history", "power"),
+        "hero_tier": os.path.join(project_root, "data", "herotier"),
+    }
+    entries = []
+    for kind in requested:
+        root = roots.get(kind)
+        if not root or not os.path.isdir(root):
+            continue
+        if kind in {"history", "hero_tier"}:
+            candidates = [os.path.join(root, name) for name in os.listdir(root)]
+        else:
+            candidates = []
+            for current_root, _, filenames in os.walk(root):
+                candidates.extend(os.path.join(current_root, name) for name in filenames)
+        for path in candidates:
+            if not path.endswith(".json") or not os.path.isfile(path):
+                continue
+            descriptor = classify_postgres_archive_path(path)
+            if descriptor and descriptor["kind"] == kind:
+                entries.append((path, descriptor))
+    return sorted(entries, key=lambda item: item[1]["source_path"])
+
+
+def postgres_archive_metadata(filepath):
+    stat_result = os.stat(filepath)
+    return {"size": stat_result.st_size, "mtime_ns": stat_result.st_mtime_ns}
 def chats_dumper(qid, question, answer): # 输出各自的chat
     from .ztime import time_r
     current_time = time_r().strftime("%Y-%m-%d %H:%M:%S")

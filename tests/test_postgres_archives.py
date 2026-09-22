@@ -1,0 +1,82 @@
+import os
+import unittest
+
+from local_debugger import import_hok_module, project_root
+
+
+ZDB = import_hok_module("zdb")
+ZFILE = import_hok_module("zfile")
+
+
+class PostgresArchiveTests(unittest.TestCase):
+    def test_classifies_supported_archives(self):
+        root = str(project_root())
+        cases = {
+            os.path.join(root, "data", "history", "2026-09-22.json"): {
+                "kind": "history",
+                "date": "2026-09-22",
+                "source_path": "data/history/2026-09-22.json",
+            },
+            os.path.join(root, "data", "history", "battles", "1782530763.json"): {
+                "kind": "battle",
+                "game_seq": "1782530763",
+                "source_path": "data/history/battles/1782530763.json",
+            },
+            os.path.join(root, "data", "history", "personal", "2026-09-22", "123.json"): {
+                "kind": "personal",
+                "date": "2026-09-22",
+                "user_id": "123",
+                "source_path": "data/history/personal/2026-09-22/123.json",
+            },
+            os.path.join(root, "data", "history", "power", "1782530763.json"): {
+                "kind": "power",
+                "game_seq": "1782530763",
+                "source_path": "data/history/power/1782530763.json",
+            },
+            os.path.join(root, "data", "herotier", "2026-09-22.json"): {
+                "kind": "hero_tier",
+                "date": "2026-09-22",
+                "source_path": "data/herotier/2026-09-22.json",
+            },
+        }
+        for filepath, expected in cases.items():
+            with self.subTest(filepath=filepath):
+                self.assertEqual(ZFILE.classify_postgres_archive_path(filepath), expected)
+
+    def test_history_reader_prefers_postgres(self):
+        original_db_reader = ZDB.read_history_date
+        original_json_reader = ZFILE.readerl
+        try:
+            ZDB.read_history_date = lambda target_date: [{"date": target_date, "source": "postgres"}]
+            ZFILE.readerl = lambda filepath: self.fail(f"unexpected JSON read: {filepath}")
+            self.assertEqual(
+                ZFILE.read_history_date("2026-09-22"),
+                [{"date": "2026-09-22", "source": "postgres"}],
+            )
+        finally:
+            ZDB.read_history_date = original_db_reader
+            ZFILE.readerl = original_json_reader
+
+    def test_history_reader_falls_back_without_modifying_archive(self):
+        original_db_reader = ZDB.read_history_date
+        original_json_reader = ZFILE.readerl
+        requested_paths = []
+        try:
+            def fail_database(_target_date):
+                raise RuntimeError("database unavailable")
+
+            def fake_json_reader(filepath):
+                requested_paths.append(filepath)
+                return [{"source": "json"}]
+
+            ZDB.read_history_date = fail_database
+            ZFILE.readerl = fake_json_reader
+            self.assertEqual(ZFILE.read_history_date("2026-09-22"), [{"source": "json"}])
+            self.assertEqual(requested_paths, [os.path.join("data", "history", "2026-09-22.json")])
+        finally:
+            ZDB.read_history_date = original_db_reader
+            ZFILE.readerl = original_json_reader
+
+
+if __name__ == "__main__":
+    unittest.main()

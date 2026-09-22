@@ -20,6 +20,11 @@ temp_path=os.path.join(project_root,"file_transfer")
 confs={}
 with open('config.yaml', 'r') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
+postgres_dsn = str(
+    os.environ.get("HOK_DATABASE_DSN")
+    or confs.get("PostgreSQL", {}).get("dsn")
+    or "REDACTED_CREDENTIAL"
+)
 
 # 引入程序静态变量
 with open('variables_static.json', 'r', encoding='utf-8') as file:
@@ -29,4 +34,3 @@ for heroid,heroname in varia["HeroList"].items():
 for heroid,heroname in varia["HeroName_replacements"].items():
     varia["HeroNames"].append(heroname)
 globals().update(varia)
-

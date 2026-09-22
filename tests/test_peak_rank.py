@@ -73,7 +73,7 @@ class PeakRankTests(unittest.TestCase):
 
         result = ZFUNC.peak_rank_process(player_names=["alpha"])
 
-        self.assertEqual(result, "【巅峰排名】\n本地历史 JSON 中暂无有效巅峰数据")
+        self.assertEqual(result, "【巅峰排名】\n本地历史中暂无有效巅峰数据")
 
 
 if __name__ == "__main__":

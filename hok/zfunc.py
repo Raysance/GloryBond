@@ -385,7 +385,7 @@ def peak_rank_process(player_names=None):
         key=lambda item: (-item["score"], item["name"], item["realname"]),
     )
     if not ranking:
-        return "【巅峰排名】\n本地历史 JSON 中暂无有效巅峰数据"
+        return "【巅峰排名】\n本地历史中暂无有效巅峰数据"
 
     lines = ["【巅峰排名】"]
     for index, item in enumerate(ranking, 1):
@@ -449,8 +449,6 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         return -1
         
     def get_star_before_today_most_recent(target_id, target_date_obj=None):
-        from .zfile import readerl
-        from .zfile import get_file_list
         from .ztime import time_sul
 
         if target_date_obj:
@@ -458,33 +456,29 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             yesterday_sul = today_dt - datetime.timedelta(days=1)
         else:
             yesterday_sul = time_sul() - datetime.timedelta(days=1)
-        yesterday_str = yesterday_sul.strftime("%Y-%m-%d")
-        
-        json_files = get_file_list(os.path.join("data","history"),".json")
-        def extract_date(filename):
-            try:
-                base_name = os.path.basename(filename)
-                date_str = base_name.split('.')[0]  # 去掉.json后缀
-                return datetime.datetime.strptime(date_str, "%Y-%m-%d")
-            except:
-                return datetime.datetime.min  # 无效文件名排到最后
-        # 按日期排序（从新到旧）
-        json_files.sort(key=extract_date, reverse=True)
-        for file_path in json_files:
-            file_base = os.path.basename(file_path)
-            if yesterday_str not in file_base:
-                # 检查日期，如果文件日期晚于昨天，跳过；如果早于昨天，也停止（因为我们要找的是截止到昨天的最新星数）
-                # 用户的要求是“从昨天筛选”，通常意味着我们要找昨天那个文件。
-                # 如果昨天没打，可能需要找比昨天更早的。
-                file_date = extract_date(file_path)
-                if file_date > yesterday_sul: continue
-            
-            data = readerl(file_path)
-            for player in data:
-                if (int(player["id"]) == int(target_id)):
-                    for detail in player["details"][::-1]:
-                        if (detail["MapType"]==1):
-                            return detail["StarAfterGame"]
+        try:
+            from .zdb import latest_rank_star_before
+
+            database_star = latest_rank_star_before(target_id, yesterday_sul.strftime("%Y-%m-%d"))
+            if database_star is not None:
+                return database_star
+        except Exception as exc:
+            log_message(
+                f"POSTGRES_LATEST_STAR_FALLBACK: userid={target_id} before={yesterday_sul} error={repr(exc)}",
+                logging.WARNING,
+            )
+
+        from .zfile import list_history_dates_descending, read_history_date
+
+        for history_date in list_history_dates_descending():
+            if history_date > yesterday_sul.strftime("%Y-%m-%d"):
+                continue
+            for player in read_history_date(history_date):
+                if int(player["id"]) != int(target_id):
+                    continue
+                for detail in player["details"][::-1]:
+                    if detail["MapType"] == 1:
+                        return detail["StarAfterGame"]
         return -1
 
     from .zapi import wzry_get_official
@@ -1180,6 +1174,9 @@ def single_process(rcv_msg):
     from .ztime import str_to_time
     from .ztime import time_to_str
     from .zfile import readerl
+    from .zfile import read_history_date
+    from .zfile import read_personal_history
+    from .zfile import list_history_dates_descending
     from .zfile import copyfile
     from .zfile import file_exist
     from .ztime import time_r
@@ -1217,18 +1214,20 @@ def single_process(rcv_msg):
             traceback_cnt=history_query[1][0]
             traceback_date=str(time_r_delta(traceback_cnt).strftime("%Y-%m-%d"))
             exhibit_date_woyear=str(time_r_delta(traceback_cnt).strftime("%m-%d"))
-            rough_filepath=os.path.join("data","history",traceback_date+".json")
-            if (not file_exist(rough_filepath)): traceback_date=str(record_begin_date)
-            rough_filepath=os.path.join("data","history",traceback_date+".json")
-            histories=readerl(rough_filepath)
+            available_dates = set(list_history_dates_descending())
+            if traceback_date not in available_dates:
+                traceback_date = str(record_begin_date)
+            histories=read_history_date(traceback_date)
             gameinfo=[history for history in histories if (history["id"]==userlist[matching_name])][0]
             
             if ("roleid" not in gameinfo): gameinfo["roleid"]=str(roleidlist[gameinfo["key"]])
             if ("visible" not in gameinfo): gameinfo["visible"]=True
             
-            detail_filepath=os.path.join("data","history","personal",traceback_date,str(userlist[matching_name])+".json")
             try:
-                copyfile(detail_filepath,website_filepath)
+                personal_payload = read_personal_history(traceback_date, userlist[matching_name])
+                if not personal_payload:
+                    raise FileNotFoundError(f"personal snapshot missing: {traceback_date}/{userlist[matching_name]}")
+                writerl(website_filepath, personal_payload)
             except Exception as e:
                 exhibit_date_woyear+=" 链接失效"
             website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
@@ -1241,18 +1240,19 @@ def single_process(rcv_msg):
             if (traceback_from<traceback_to): traceback_to,traceback_from=traceback_from,traceback_to
             traceback_date_from=time_r_delta(traceback_from)
             traceback_date_to=time_r_delta(traceback_to)
-            traceback_date_from_path=os.path.join("data","history",traceback_date_from.strftime('%Y-%m-%d')+".json")
-            if (not file_exist(traceback_date_from_path)): traceback_date_from=str_to_time(record_begin_date)
-            traceback_date_to_path=os.path.join("data","history",traceback_date_to.strftime('%Y-%m-%d')+".json")
-            if (not file_exist(traceback_date_to_path)): traceback_date_to=str_to_time(record_begin_date)
+            available_dates = set(list_history_dates_descending())
+            if traceback_date_from.strftime('%Y-%m-%d') not in available_dates:
+                traceback_date_from=str_to_time(record_begin_date)
+            if traceback_date_to.strftime('%Y-%m-%d') not in available_dates:
+                traceback_date_to=str_to_time(record_begin_date)
             
             gameinfo_raw=[]
             
             scan_date=traceback_date_from
             while(scan_date<=traceback_date_to):
-                rough_filepath=os.path.join("data","history",scan_date.strftime('%Y-%m-%d')+".json")
-                if (file_exist(rough_filepath)):
-                    histories=readerl(rough_filepath)
+                scan_date_text = scan_date.strftime('%Y-%m-%d')
+                if scan_date_text in available_dates:
+                    histories=read_history_date(scan_date_text)
                     matching_history = next((history for history in histories if history["key"] == matching_name), None)
                     if matching_history:
                         gameinfo_raw.append(matching_history)
@@ -2198,12 +2198,23 @@ def allhero_process(realname):
     return ret_text
 def gradeanalyze_process(realname):
     from .tools import gen_grade_chart
+    from .ztime import str_to_time, time_r
 
     userid=userlist[realname]
-    data_path=os.path.join("data","history")
     pic_visit_path=os.path.join(temp_path,"wzry_grade_chart","grade_chart.png")
     pic_save_path=os.path.join(temp_path,"wzry_grade_chart")
-    analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
+    history_data, _ = fetch_history(
+        userid=userid,
+        start_date=str_to_time(record_begin_date),
+        end_date=time_r(),
+        filter_official=True,
+    )
+    analyze_msg=gen_grade_chart.gen_from_history(
+        userid,
+        namenick.get(realname, realname),
+        history_data.get(realname, []),
+        pic_save_path,
+    )
     
     return pic_visit_path,analyze_msg
 def watchbattle_process(realname):
@@ -2847,12 +2858,37 @@ class BattlePowerHistory:
         from .zfile import readerl
         from .zfile import file_exist
 
-        if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
+        if not gameseq:
+            return None
+        try:
+            from .zdb import read_battle_power
+
+            database_payload = read_battle_power(gameseq)
+            if isinstance(database_payload, dict):
+                return database_payload
+        except Exception as exc:
+            log_message(f"POSTGRES_POWER_READ_FALLBACK: GameSeq={gameseq} error={repr(exc)}", logging.WARNING)
+        if not file_exist(BattlePowerHistory.path(gameseq)):
             return None
         saved_power_data = readerl(BattlePowerHistory.path(gameseq))
         if isinstance(saved_power_data, dict):
             return saved_power_data
         raise Exception(f"load_battle_power_history_error: invalid saved data GameSeq={gameseq}")
+
+    @staticmethod
+    def exists(gameseq):
+        if not gameseq:
+            return False
+        try:
+            from .zdb import battle_power_exists
+
+            if battle_power_exists(gameseq):
+                return True
+        except Exception as exc:
+            log_message(f"POSTGRES_POWER_EXISTS_FALLBACK: GameSeq={gameseq} error={repr(exc)}", logging.WARNING)
+        from .zfile import file_exist
+
+        return file_exist(BattlePowerHistory.path(gameseq))
 
     @staticmethod
     def save(power_data):
@@ -2934,7 +2970,7 @@ class BattlePowerHistory:
 
         if not gameseq or gameseq in excluded_gameseqs:
             return True
-        if file_exist(BattlePowerHistory.path(gameseq)):
+        if BattlePowerHistory.exists(gameseq):
             return True
         if BattlePowerHistory.failed_exists(gameseq):
             return True
@@ -3111,10 +3147,10 @@ def recent_power_process(realname, days=7):
     missing = 0
     for detail in valid_details:
         gameseq = detail.get("GameSeq")
-        if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
+        if not gameseq or not BattlePowerHistory.exists(gameseq):
             missing += 1
             continue
-        power_data = readerl(BattlePowerHistory.path(gameseq))
+        power_data = BattlePowerHistory.load(gameseq)
         if not isinstance(power_data, dict):
             missing += 1
             continue
@@ -3208,9 +3244,9 @@ def power_rank_process(days=7):
         count = 0
         for detail in details:
             gameseq = detail.get("GameSeq")
-            if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
+            if not gameseq or not BattlePowerHistory.exists(gameseq):
                 continue
-            power_data = readerl(BattlePowerHistory.path(gameseq))
+            power_data = BattlePowerHistory.load(gameseq)
             if not isinstance(power_data, dict):
                 continue
             player_record = None
@@ -3274,6 +3310,21 @@ def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True
 
     if (not start_date or start_date<str_to_time(record_begin_date)): start_date=str_to_time(record_begin_date)
     if (not end_date): end_date=time_r()
+    try:
+        from .zdb import fetch_history as fetch_history_from_db
+
+        return fetch_history_from_db(
+            userid=userid,
+            start_date=start_date,
+            end_date=end_date,
+            filter_official=filter_official,
+        )
+    except Exception as exc:
+        log_message(
+            f"POSTGRES_FETCH_HISTORY_FALLBACK: userid={userid} start={start_date} "
+            f"end={end_date} official={filter_official} error={repr(exc)}",
+            logging.WARNING,
+        )
     gamedetails={}
     filenames=sorted(os.listdir(os.path.join("data","history")),reverse=True)
     duration=0

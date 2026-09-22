@@ -42,13 +42,12 @@ from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+10, second=00, id="load_yesterday")
 def load_yesterday(imple_type=0):
     from .ztime import time_sul
-    from .zfile import readerl
+    from .zfile import read_history_date
 
     yesterday_date=(time_sul()-datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     log_message("LOADLIST "+yesterday_date+".json")
     try:
-        filename=os.path.join("data","history",yesterday_date+".json")
-        gameinfo=readerl(filename)
+        gameinfo=read_history_date(yesterday_date)
         for item in gameinfo:
             dmc.infolast[item['key']]={}
             for key,value in item.items():
@@ -253,7 +252,7 @@ def _fetch_hero_tier_impl():
     from .zapi import tianyuanzhiyi_tier_api
     from .ztime import date_r
     from .zfile import file_exist
-    from .zfile import readerl
+    from .zfile import read_hero_tier
     from .zfile import writerl
 
     current_date = date_r()
@@ -261,7 +260,7 @@ def _fetch_hero_tier_impl():
     file_path = os.path.join("data",herotier_dir, f"{current_date}.json")
 
     if file_exist(file_path):
-        dmc.herotier = readerl(file_path)
+        dmc.herotier = read_hero_tier(current_date)
     else:
         tierinfo=tianyuanzhiyi_tier_api()
         for heroinfo in tierinfo["tiers"]:

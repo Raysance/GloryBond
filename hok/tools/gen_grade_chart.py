@@ -393,3 +393,20 @@ def gen(id,folder_path,pic_path):
     data_by_date = load_json_files(folder_path)
     generate_player_charts(data_by_date,pic_path,id)
     return ""
+
+
+def gen_from_history(id, nickname, details, pic_path):
+    """Generate the chart from PostgreSQL-backed legacy battle payloads."""
+    game_scores = extract_game_scores({"details": details or []})
+    if not game_scores:
+        return "没有可用的正式对局评分数据"
+    data = {
+        "timestamps": [item[0] for item in game_scores],
+        "scores": [item[1] for item in game_scores],
+        "nickname": nickname or f"Player_{id}",
+    }
+    generate_player_chart(id, data)
+    output_path = os.path.join(pic_path, "grade_chart.png")
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    return ""
