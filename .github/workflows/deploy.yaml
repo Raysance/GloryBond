@@ -9,15 +9,12 @@ jobs:
     runs-on: self-hosted
     
     steps:
-      - name: Kill Old App, Pull and Restart app
+      - name: Pull and restart app
         run: |
-          fuser -k 8000/tcp || true
-          
           cd /QQBot/Web/
           
           git fetch
           git reset --hard origin/main
 
-          RUNNER_TRACKING_ID=0 nohup python app.py > fastapi_thisrun.log 2>&1 &
-          
-          echo "success"
+          systemctl restart hok-web.service
+          systemctl is-active --quiet hok-web.service

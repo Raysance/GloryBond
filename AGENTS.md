@@ -14,6 +14,12 @@
 - `tools/`：项目辅助脚本。
 - `.github/workflows/`：部署相关 GitHub Actions。
 
+## 部署运行方式
+
+- 部署服务器上的 FastAPI 进程由 `hok-web.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
+- GitHub Actions 完成 `/QQBot/Web` 代码同步后，通过 `systemctl restart hok-web.service` 发布，并以 `systemctl is-active` 验证启动结果。
+- `hok-web.service` 从 `/QQBot/Web` 启动 `app.py`，依赖 Redis 与网络就绪，运行日志统一进入 systemd journal。
+
 ## 数据路径约定
 
 - Web 页面使用的战绩 JSON 统一以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
