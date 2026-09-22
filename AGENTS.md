@@ -65,6 +65,12 @@
 
 `local_debugger/` 是根目录共享本地调试器运行时，用于供 `hok/debug_tools/` 下的调试脚本复用本地导入环境。它只负责准备项目根目录导入路径、必要环境变量、缺失的 import-time 依赖占位，以及绕过 `hok/__init__.py` 的模块导入入口；不得承载线上业务逻辑、不得发起外部请求、不得替代 `hok/` 内已有业务接口。
 
+### 1.4 部署运行方式
+
+- 部署服务器上的 NoneBot 进程由 `hok-nbot.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
+- GitHub Actions 在完成代码同步后通过 `systemctl restart hok-nbot.service` 发布，并以 `systemctl is-active` 验证启动结果。
+- `hok-nbot.service` 从 `/QQBot/NBot` 启动 `deploy_runner.sh`，依赖 Redis、PostgreSQL 与网络就绪，运行日志仍写入 `log/run.log`。
+
 ## 2. 配置与变量的来源（必须遵守）
 
 ### 2.1 配置文件（``）

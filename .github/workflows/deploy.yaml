@@ -10,11 +10,6 @@ jobs:
     if: |
       !contains(github.event.head_commit.message, '[skip ci]')
     steps:
-      - name: Kill Old Nonebot
-        run: |
-          # 如果 8080 端口没有进程，避免 kill 报错导致工作流中断，加了 || true
-          lsof -i:8080 | awk '/python/ {print $2}' | uniq | xargs -r kill || true
-
       - name: Pull Without Touching History
         run: |
           cd /QQBot/NBot/
@@ -25,7 +20,5 @@ jobs:
 
       - name: Restart Nonebot
         run: |
-          cd /QQBot/NBot
-          mkdir -p log
-          chmod +x deploy_runner.sh
-          nohup ./deploy_runner.sh &
+          systemctl restart hok-nbot.service
+          systemctl is-active --quiet hok-nbot.service
