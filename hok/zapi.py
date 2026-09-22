@@ -456,7 +456,14 @@ def ark_api(user_query): # 火山引擎-豆包联网模型
             ],
         )
     except Exception as e:
-        raise Exception("ark_api_error: "+str(e))
+        try:
+            append_hok_exception_log(
+                "ark_api_error: " + repr(e),
+                {"function": "ark_api"},
+            )
+        except Exception as log_error:
+            log_message(f"ARK_API_ERROR_LOG_FAILED: {repr(log_error)}")
+        return ""
     return completion.choices[0].message.content
 
 def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
