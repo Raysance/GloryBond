@@ -5,10 +5,29 @@ import json
 import yaml
 import time
 import os
+import logging
+
+from database import battle_exists as postgres_battle_exists
+from database import fetch_battle as postgres_fetch_battle
+from database import ping as postgres_ping
 
 confs={}
 with open('../NBot/config.yaml', 'r') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
+POSTGRES_DSN = str(
+    os.environ.get("HOK_DATABASE_DSN")
+    or confs.get("PostgreSQL", {}).get("dsn")
+    or "REDACTED_CREDENTIAL"
+)
+
+
+def check_postgres_health():
+    started = time.time()
+    try:
+        postgres_ping(POSTGRES_DSN)
+        return {"status": "ok", "latency_ms": round((time.time() - started) * 1000, 2)}
+    except Exception as exc:
+        return {"status": "down", "error": repr(exc)}
 
 def writerl(filepath,data):
     try:
@@ -29,7 +48,13 @@ def readerl(filepath):
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
     file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
-    res=readerl(file_path)
+    try:
+        res = postgres_fetch_battle(POSTGRES_DSN, gameseq)
+    except Exception as exc:
+        logging.warning("POSTGRES_BATTLE_READ_FALLBACK GameSeq=%s error=%r", gameseq, exc)
+        res = None
+    if not res:
+        res=readerl(file_path)
     if (res and roleid):
         # 找到对应的玩家信息并更新head
         target_role = None
@@ -56,6 +81,11 @@ def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
             }
     return res
 def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详情
+    try:
+        if postgres_battle_exists(POSTGRES_DSN, gameseq):
+            return True
+    except Exception as exc:
+        logging.warning("POSTGRES_BATTLE_EXISTS_FALLBACK GameSeq=%s error=%r", gameseq, exc)
     file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
     return file_exist(file_path)
 

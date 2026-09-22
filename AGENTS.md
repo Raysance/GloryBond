@@ -3,6 +3,7 @@
 ## 项目总结构
 
 - `app.py`：FastAPI 主应用入口，集中定义页面路由、管理后台路由、Redis 连接、模板渲染和队列写入逻辑。
+- `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
 - `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
 - `templates/`：Jinja2 HTML 模板根目录。
 - `templates/CommonPages/`：普通用户侧页面模板，包括全部战绩、单人战绩、周期战绩、战斗详情、查询页、B 站订阅视频详情页等。
@@ -18,13 +19,14 @@
 
 - 部署服务器上的 FastAPI 进程由 `hok-web.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
 - GitHub Actions 完成 `/QQBot/Web` 代码同步后，通过 `systemctl restart hok-web.service` 发布，并以 `systemctl is-active` 验证启动结果。
-- `hok-web.service` 从 `/QQBot/Web` 启动 `app.py`，依赖 Redis 与网络就绪，运行日志统一进入 systemd journal。
+- `hok-web.service` 从 `/QQBot/Web` 启动 `app.py`，依赖 Redis、PostgreSQL 与网络就绪，运行日志统一进入 systemd journal。
 
 ## 数据路径约定
 
-- Web 页面使用的战绩 JSON 统一以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
+- 临时组合查询结果继续以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
+- 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；既有 `data/history/battles/*.json` 只作为只读故障回退，不得由 Web 修改、移动或删除。
 - 物理文件根路径由 `BOT_PATH` 环境变量拼接：`os.path.join(os.environ["BOT_PATH"], "file_transfer")`。
-- 不要为同一份 JSON 数据额外新增 API 代理接口，除非用户明确要求。
+- 除 PostgreSQL 单局战绩的 `/battle-data/{game_seq}` 适配外，不要为同一份 JSON 数据额外新增 API 代理接口，除非用户明确要求。
 - 不要为历史目录、调试目录或示例数据做冗余 fallback。
 - `key` 表示 `temp_files` 下对应 JSON 文件名；如未带 `.json`，可在后端补齐 `.json`。
 - 对 `key` 做路径穿越防护，只允许纯文件名，不允许目录分隔符、空文件名、`.` 或 `..`。

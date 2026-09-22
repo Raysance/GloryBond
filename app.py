@@ -279,7 +279,7 @@ def qqbot_path_candidates() -> list[str]:
 def check_qqbot_health(processes: list[dict]) -> dict:
     service_names = health_service_names(
         "HEALTH_QQBOT_SERVICES",
-        ["hok-qqbot", "hok_qqbot", "HOK_QQBot", "qqbot", "nonebot"],
+        ["hok-nbot", "hok-qqbot", "hok_qqbot", "HOK_QQBot", "qqbot", "nonebot"],
     )
     systemd = systemd_service_state(service_names)
     path_candidates = qqbot_path_candidates()
@@ -327,7 +327,7 @@ def onebot_path_candidates() -> list[str]:
 def check_onebot_health(processes: list[dict]) -> dict:
     service_names = health_service_names(
         "HEALTH_ONEBOT_SERVICES",
-        ["napcat", "NapCat", "onebot", "qq"],
+        ["hok-napcat", "napcat", "NapCat", "onebot", "qq"],
     )
     systemd = systemd_service_state(service_names)
     path_candidates = onebot_path_candidates()
@@ -359,7 +359,7 @@ def check_onebot_health(processes: list[dict]) -> dict:
     }
 
 def service_overall_status(services: dict) -> str:
-    if services["web"]["status"] == "down" or services["redis"]["status"] == "down":
+    if any(services[name]["status"] == "down" for name in ("web", "redis", "postgres")):
         return "down"
     if any(item["status"] != "ok" for item in services.values()):
         return "degraded"
@@ -417,6 +417,7 @@ def compact_health_payload(services: dict) -> dict:
             "queues": services["redis"].get("queues"),
             "error": services["redis"].get("error"),
         },
+        "postgres": services["postgres"],
         "nginx": {
             "status": services["nginx"]["status"],
             "service": compact_service_state(services["nginx"]),
@@ -446,6 +447,7 @@ async def health_check():
             "repository": git_repository_info(os.path.dirname(os.path.abspath(__file__))),
         },
         "redis": check_redis_health(processes),
+        "postgres": check_postgres_health(),
         "nginx": check_nginx_health(processes),
         "qqbot": check_qqbot_health(processes),
         "onebot": check_onebot_health(processes),
@@ -622,6 +624,18 @@ def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False
     return r_com.exists(key) or key==SECRET_KEY
+
+
+@app.get("/battle-data/{game_seq}")
+async def battle_data(game_seq: str, roleid: str = Query("0")):
+    if not game_seq.isdigit() or not str(roleid).isdigit():
+        raise HTTPException(status_code=400, detail="invalid battle identifier")
+    payload = fetch_battle(game_seq, int(roleid))
+    if not payload:
+        raise HTTPException(status_code=404, detail="battle detail not found")
+    return JSONResponse(content=payload)
+
+
 @app.get("/jump-person", response_class=HTMLResponse)
 async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
@@ -656,7 +670,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
     if (check_battle_local_exist(gameSeq,targetRoleId)):
-        web_path=os.path.join("file_transfer","battles",gameSeq+".json")
+        web_path=f"/battle-data/{gameSeq}?roleid={targetRoleId}"
     else:
         try:
             res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
