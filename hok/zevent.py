@@ -342,11 +342,10 @@ async def f_kpl_push(event: MessageEvent):
 
 @_bili_video_admin.handle()
 async def f_bili_video_admin(event: MessageEvent):
-    from .zfunc import bili_video_admin_command
+    from .event_handlers.bili_video import admin_reply
 
-    raw_msg = event.get_plaintext().strip()
     try:
-        result = await asyncio.to_thread(bili_video_admin_command, raw_msg)
+        result = await admin_reply(event)
         add_msg(result, event=event)
     except Exception:
         add_msg("B站订阅管理崩溃，堆栈已私聊", event=event)
@@ -686,23 +685,12 @@ async def f_hero_tier(event):
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 
-def _strip_bili_video_command(raw_msg, prefixes):
-    text = str(raw_msg or "").strip()
-    text = text.lstrip("#＃").strip()
-    for prefix in prefixes:
-        if text.startswith(prefix):
-            return text[len(prefix):].strip()
-    return text
-
-
 @_bili_video_subscribe.handle()
 async def f_bili_video_subscribe(event: MessageEvent):
-    from .zfunc import bili_video_subscribe_user
+    from .event_handlers.bili_video import subscribe_reply
 
-    raw_msg = event.get_plaintext().strip()
-    up_name = _strip_bili_video_command(raw_msg, ["订阅B站", "订阅b站", "订阅"])
     try:
-        result = await asyncio.to_thread(bili_video_subscribe_user, event.get_user_id(), up_name)
+        result = await subscribe_reply(event)
         add_msg(result, event=event)
     except Exception:
         add_msg("B站订阅失败，堆栈已私聊", event=event)
@@ -711,12 +699,10 @@ async def f_bili_video_subscribe(event: MessageEvent):
 
 @_bili_video_unsubscribe.handle()
 async def f_bili_video_unsubscribe(event: MessageEvent):
-    from .zfunc import bili_video_unsubscribe_user
+    from .event_handlers.bili_video import unsubscribe_reply
 
-    raw_msg = event.get_plaintext().strip()
-    query_text = _strip_bili_video_command(raw_msg, ["取消B站订阅", "取消b站订阅", "取消订阅"])
     try:
-        result = await asyncio.to_thread(bili_video_unsubscribe_user, event.get_user_id(), query_text)
+        result = await unsubscribe_reply(event)
         add_msg(result, event=event)
     except Exception:
         add_msg("B站取消订阅失败，堆栈已私聊", event=event)
@@ -725,10 +711,10 @@ async def f_bili_video_unsubscribe(event: MessageEvent):
 
 @_bili_video_latest.handle()
 async def f_bili_video_latest(event: MessageEvent):
-    from .zfunc import bili_video_latest_for_user
+    from .event_handlers.bili_video import latest_reply
 
     try:
-        result = await asyncio.to_thread(bili_video_latest_for_user, event.get_user_id())
+        result = await latest_reply(event)
         add_msg(result, event=event)
     except Exception:
         add_msg("B站最新视频查询失败，堆栈已私聊", event=event)
@@ -737,10 +723,10 @@ async def f_bili_video_latest(event: MessageEvent):
 
 @_bili_video_mine.handle()
 async def f_bili_video_mine(event: MessageEvent):
-    from .zfunc import bili_video_my_subscription
+    from .event_handlers.bili_video import my_subscription_reply
 
     try:
-        result = await asyncio.to_thread(bili_video_my_subscription, event.get_user_id())
+        result = await my_subscription_reply(event)
         add_msg(result, event=event)
     except Exception:
         add_msg("B站订阅查询失败，堆栈已私聊", event=event)
