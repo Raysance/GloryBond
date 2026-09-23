@@ -66,6 +66,8 @@
 
 `local_debugger/` 是根目录共享本地调试器运行时，用于供 `hok/debug_tools/` 下的调试脚本复用本地导入环境。它只负责准备项目根目录导入路径、必要环境变量、缺失的 import-time 依赖占位，以及绕过 `hok/__init__.py` 的模块导入入口；不得承载线上业务逻辑、不得发起外部请求、不得替代 `hok/` 内已有业务接口。
 
+本地调试依赖固定保存在被 Git 忽略的 `local_debugger/.venv/`。Codex Desktop 与本地开发会话运行调试脚本时必须优先复用 `local_debugger/.venv/bin/python`；环境不存在时运行 `python3 local_debugger/setup_env.py` 创建，或通过 `python3 local_debugger/run.py <脚本> [参数...]` 自动创建并执行。只有 `pyproject.toml` 依赖发生变化或虚拟环境损坏时才重新同步，不得因切换 session 重复创建临时环境或重复安装依赖。
+
 ### 1.4 PostgreSQL 数据目录与迁移脚本
 
 - `database/schema.sql`：结构化历史库的 schema、表、外键与查询索引。
