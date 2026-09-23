@@ -68,7 +68,7 @@ class RuntimeStateRedisTests(unittest.TestCase):
         ZFUNC.save_battle_invisible_disabled_qids(["10002", "10001", "10001"])
 
         self.assertEqual(
-            json.loads(self.fake_redis.get("battle:invisible_disabled_qids")),
+            json.loads(self.fake_redis.get("hok:battle:invisible_disabled_qids")),
             ["10001", "10002"],
         )
         self.assertEqual(

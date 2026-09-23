@@ -129,8 +129,6 @@ async def message_sender_loop():
             continue
         result = dmc.MessageQueue.rpop(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE)
         if not result:
-            result = dmc.MessageQueue.rpop("MessageQueue")
-        if not result:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
         try:

@@ -274,8 +274,6 @@ async def run_web_shared_btls_processor():
     from .zfunc import btldetail_process
 
     result=dmc.redis_deamon_share_btl.rpop(REDIS_KEY_BATTLE_SHARE_QUEUE)
-    if not result:
-        result=dmc.redis_deamon_share_btl.rpop("Shared_queue")
     if (not result): return
     params_json=result
     params=json.loads(params_json)
@@ -301,8 +299,6 @@ async def run_web_analyze_btls_processor():
     from .ztime import wait
 
     result = dmc.redis_deamon_analyze_btl.rpop(REDIS_KEY_BATTLE_ANALYZE_QUEUE)
-    if not result:
-        result = dmc.redis_deamon_analyze_btl.rpop("Analyze_queue")
     
     if (not result): return
     result=json.loads(result)
@@ -365,9 +361,7 @@ async def run_history_power_idle_processor():
         try:
             return bool(
                 dmc.redis_deamon_share_btl.llen(REDIS_KEY_BATTLE_SHARE_QUEUE)
-                or dmc.redis_deamon_share_btl.llen("Shared_queue")
                 or dmc.redis_deamon_analyze_btl.llen(REDIS_KEY_BATTLE_ANALYZE_QUEUE)
-                or dmc.redis_deamon_analyze_btl.llen("Analyze_queue")
             )
         except Exception as e:
             log_message(f"HISTORY_POWER_QUEUE_CHECK_ERROR: {str(e)}")

@@ -42,8 +42,8 @@ class ZMemory:
             self.parent.redis.expire(key, ttl_seconds)
 
     def __init__(self):
-        self.redis = dmc.redis_deamon_chat_memory
-        self.prefix = "zmem:"
+        self.redis = dmc.redis_deamon
+        self.prefix = "hok:memory:"
         self.emoji = ZMemory.EmojiMemory(self)
 
     def _get_key(self, category: str, qid: str) -> str:

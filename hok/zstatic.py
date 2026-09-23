@@ -6,18 +6,17 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.util import timezone
 
 
-# Redis key schema shared by the NBot runtime. Logical database numbers remain
-# deployment configuration; these names describe the data inside each database.
-REDIS_KEY_WEB_ARTIFACT_PREFIX = "web:artifact:"
-REDIS_KEY_BATTLE_LIKED_IDS = "battle:liked_ids"
-REDIS_KEY_BATTLE_SHARE_QUEUE = "queue:battle:share"
-REDIS_KEY_BATTLE_ANALYZE_QUEUE = "queue:battle:analyze"
-REDIS_KEY_MESSAGE_OUTBOUND_QUEUE = "queue:message:outbound"
-REDIS_KEY_HERO_TODAY_PREFIX = "hero:today:"
-REDIS_KEY_HERO_HISTORY_PREFIX = "hero:history:"
-REDIS_KEY_BATTLE_EVALUATOR_RECORDS = "battle:evaluator:records"
-REDIS_KEY_DIY_CODES = "diy:codes"
-REDIS_KEY_DIY_SUMMARIES = "diy:summaries"
+# Redis key schema shared by NBot and Web. All HOK data lives in DB0.
+REDIS_KEY_WEB_ARTIFACT_PREFIX = "hok:web:artifact:"
+REDIS_KEY_BATTLE_LIKED_IDS = "hok:battle:liked_ids"
+REDIS_KEY_BATTLE_SHARE_QUEUE = "hok:queue:battle:share"
+REDIS_KEY_BATTLE_ANALYZE_QUEUE = "hok:queue:battle:analyze"
+REDIS_KEY_MESSAGE_OUTBOUND_QUEUE = "hok:queue:message:outbound"
+REDIS_KEY_HERO_TODAY_PREFIX = "hok:hero:today:"
+REDIS_KEY_HERO_HISTORY_PREFIX = "hok:hero:history:"
+REDIS_KEY_BATTLE_EVALUATOR_RECORDS = "hok:evaluator:battle:records"
+REDIS_KEY_DIY_CODES = "hok:diy:codes"
+REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
 
 
 env_path = "/QQBot/.env"

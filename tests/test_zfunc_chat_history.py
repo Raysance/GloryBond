@@ -30,13 +30,13 @@ class FakeRedisList:
 
 class GroupChatHistoryBusinessTests(unittest.TestCase):
     def setUp(self):
-        self.original_redis = ZFUNC.dmc.redis_deamon_chat_memory
+        self.original_redis = ZFUNC.dmc.redis_deamon
         self.original_max_messages = getattr(ZFUNC.dmc, "ChatHistoryMaxMessages", None)
-        ZFUNC.dmc.redis_deamon_chat_memory = FakeRedisList()
+        ZFUNC.dmc.redis_deamon = FakeRedisList()
         ZFUNC.dmc.ChatHistoryMaxMessages = 0
 
     def tearDown(self):
-        ZFUNC.dmc.redis_deamon_chat_memory = self.original_redis
+        ZFUNC.dmc.redis_deamon = self.original_redis
         if self.original_max_messages is None:
             delattr(ZFUNC.dmc, "ChatHistoryMaxMessages")
         else:
@@ -67,7 +67,7 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         self.assertEqual(len(records), 150)
         self.assertEqual(records[0]["message_id"], "0")
         self.assertEqual(records[-1]["message_id"], "149")
-        self.assertEqual(ZFUNC.dmc.redis_deamon_chat_memory.trim_calls, [])
+        self.assertEqual(ZFUNC.dmc.redis_deamon.trim_calls, [])
 
     def test_positive_history_cap_remains_available(self):
         ZFUNC.dmc.ChatHistoryMaxMessages = 2

@@ -4,16 +4,15 @@ import json
 # 配置 Redis 连接参数（请根据实际情况修改）
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
-REDIS_DB = 6
-RECORDS_KEY = "battle:evaluator:records"
-LEGACY_RECORDS_KEY = "records"
+REDIS_DB = 0
+RECORDS_KEY = "hok:evaluator:battle:records"
 
 
 def _record_keys(redis_daemon):
-    return [key for key in (RECORDS_KEY, LEGACY_RECORDS_KEY) if redis_daemon.exists(key)]
+    return [RECORDS_KEY] if redis_daemon.exists(RECORDS_KEY) else []
 
 def calculate_consistency_ratio():
-    # 连接到 Redis 6号数据库
+    # 连接到统一的 HOK Redis DB0
     redis_daemon = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
     
     keys = _record_keys(redis_daemon)

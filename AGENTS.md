@@ -25,7 +25,7 @@
 - `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
 - `hok/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
-Redis Key 使用冒号分层命名并由 `zstatic.py` 暴露共享常量。当前规范包括 `web:artifact:<token>`、`battle:liked_ids`、`queue:battle:share`、`queue:battle:analyze`、`queue:message:outbound`、`hero:today:<player>`、`hero:history:<player>`、`battle:evaluator:records`、`diy:codes` 与 `diy:summaries`；业务代码不得重新写入其旧版裸 Key。Redis schema 迁移统一通过 `scripts/migrate_redis_key_schema.py` 执行，正式执行前必须生成可恢复的 DUMP 备份。
+HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），以 `hok:` 为根命名空间；独立 Planit 应用继续使用 DB9。`zdynamic.py` 只创建一个 DB0 Redis 客户端，历史兼容别名必须指向同一客户端，不得再连接 DB1–DB7 或 DB10。Key 使用冒号分层命名并由 `zstatic.py` 暴露共享常量，例如 `hok:web:artifact:<token>`、`hok:battle:liked_ids`、`hok:queue:*`、`hok:hero:*`、`hok:evaluator:*`、`hok:chat:*` 与 `hok:memory:*`。跨 DB 收敛统一通过 `scripts/consolidate_redis_to_db0.py` 执行，正式执行前必须生成可恢复的 DUMP 备份。
 
 ### 1.1 Tools（`hok/tools/`）
 

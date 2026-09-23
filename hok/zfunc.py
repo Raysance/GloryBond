@@ -10,8 +10,8 @@ from wcwidth import wcswidth
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "battle:invisible_disabled_qids"
-_GROUP_CHAT_HISTORY_REDIS_PREFIX = "chat:group_history:"
+_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
+_GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
 def _redis_get_json(key, default=None):
@@ -71,7 +71,7 @@ def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply
         "timestamp": current_epoch_seconds(),
         "text": normalized_text,
     }
-    redis_client = dmc.redis_deamon_chat_memory
+    redis_client = dmc.redis_deamon
     redis_client.rpush(key, json.dumps(record, ensure_ascii=False))
     max_messages = int(getattr(dmc, "ChatHistoryMaxMessages", 0) or 0)
     if max_messages > 0:
@@ -82,9 +82,9 @@ def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply
 def load_group_chat_history(group_id, limit=None):
     key = _group_chat_history_key(group_id)
     if limit is None:
-        raw_records = dmc.redis_deamon_chat_memory.lrange(key, 0, -1)
+        raw_records = dmc.redis_deamon.lrange(key, 0, -1)
     else:
-        raw_records = dmc.redis_deamon_chat_memory.lrange(key, -max(1, int(limit)), -1)
+        raw_records = dmc.redis_deamon.lrange(key, -max(1, int(limit)), -1)
     records = []
     for raw in raw_records:
         try:
@@ -2106,8 +2106,6 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
         if (ignore_limit): hero_info_str=None
         else:
             hero_info_str = dmc.TodayHeroPool.get(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}")
-            if hero_info_str is None:
-                hero_info_str = dmc.TodayHeroPool.get(realname)
         if (hero_info_str):
             hero_info = json.loads(hero_info_str)
             stored_date = hero_info.get("date")
@@ -2126,9 +2124,6 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
         dmc.TodayHeroPool.set(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}", json.dumps(new_data))
 
         history_key = f"{REDIS_KEY_HERO_HISTORY_PREFIX}{realname}"
-        legacy_history_key = f"hero_history:{realname}"
-        if not dmc.TodayHeroPool.exists(history_key) and dmc.TodayHeroPool.exists(legacy_history_key):
-            history_key = legacy_history_key
         history_entry = {
             "date": current_date,
             "heroname": hero_name,
@@ -3849,7 +3844,7 @@ def get_emoji_url(index):
     return emoji_url
 
 
-_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "bili:video_subscriptions"
+_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "hok:bili:subscriptions"
 
 
 def _bili_video_normalize_subscription_item(item):
@@ -3949,7 +3944,10 @@ def _bili_video_identity_key(up_mid, up_name=""):
 
 
 def _bili_video_seen_key(up_mid, up_name=""):
-    return f"bili:video_seen:{_bili_video_identity_key(up_mid, up_name)}"
+    identity = _bili_video_identity_key(up_mid, up_name)
+    if identity.startswith("mid:"):
+        identity = identity[len("mid:"):]
+    return f"hok:bili:seen:{identity}"
 
 
 def _bili_video_seen_exists(up_mid, up_name, bvid):
@@ -4355,7 +4353,7 @@ def bili_video_check_and_push(*, debug=False):
     if not grouped:
         return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH no subscriptions"}
 
-    lock_key = "bili:video_push_lock"
+    lock_key = "hok:lock:bili:video_push"
     locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time_r().timestamp())), nx=True, ex=600))
     if locked:
         return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH locked"}
@@ -4684,8 +4682,8 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, 
     if not preview_only and not getattr(dmc, "KplPushEnabled", True):
         return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH paused by KplPushEnabled=false"}
 
-    lock_key = "kpl:push_lock"
-    pending_key = "kpl:push_pending"
+    lock_key = "hok:lock:kpl:push"
+    pending_key = "hok:kpl:push_pending"
     if force:
         loop_guard = 1
     else:
@@ -4731,7 +4729,7 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, 
             local_result = None
             for etime, it in candidates:
                 cid = int(it.get("cid"))
-                pushed = bool(dmc.redis_deamon.sismember("kpl:pushed_cids", str(cid)))
+                pushed = bool(dmc.redis_deamon.sismember("hok:kpl:pushed_cids", str(cid)))
                 debug_lines.append(f"KPL_PUSH_CAND cid={cid} etime={etime} pushed={pushed} home={it.get('home', {}).get('name')} away={it.get('away', {}).get('name')} score={it.get('score')}")
                 if pushed and not force:
                     continue
@@ -4771,7 +4769,7 @@ def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, 
                 msg = text + MessageSegment.image(f"file:///{os.path.abspath(local_path)}")
                 add_msg(msg, event=event, msg_type="group", to_id=confs["QQBot"]["group_qid"])
 
-                dmc.redis_deamon.sadd("kpl:pushed_cids", str(cid))
+                dmc.redis_deamon.sadd("hok:kpl:pushed_cids", str(cid))
                 local_result = {"pushed": True, "cid": cid, "image_path": local_path, "debug": "\n".join(debug_lines)}
                 break
 
