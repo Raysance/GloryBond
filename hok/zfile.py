@@ -347,6 +347,27 @@ def battle_exhibit_image_path():
     return os.path.join(temp_path, "temp_files", "exhibit.png")
 
 
+def battle_power_image_path():
+    """Return the regenerated battle-power analysis image path."""
+    return os.path.join(temp_path, "temp_files", "coplayer_analyses.png")
+
+
+def battle_power_history_dir():
+    return os.path.join("data", "history", "power")
+
+
+def battle_power_history_path(gameseq):
+    return os.path.join(battle_power_history_dir(), f"{gameseq}.json")
+
+
+def battle_power_failed_dir():
+    return os.path.join("data", "history", "power_failed")
+
+
+def battle_power_failed_path(gameseq):
+    return os.path.join(battle_power_failed_dir(), f"{gameseq}.json")
+
+
 def grade_chart_output_paths():
     directory = os.path.join(temp_path, "wzry_grade_chart")
     return os.path.join(directory, "grade_chart.png"), directory
