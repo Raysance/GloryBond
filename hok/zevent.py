@@ -346,69 +346,10 @@ async def f_show_code(bot,event):
 
 @_emoji_gen.handle()
 async def f_emoji_gen(event):
-    from .tools.gen_emoji_image import generate_user_kmoji_image
-    import re
+    from .event_handlers.emoji import generate_emoji
 
-    def strip_emoji_command(raw_text):
-        text = raw_text.strip()
-        for prefix in ["#emoji", "＃emoji", "##emoji", "＃＃emoji"]:
-            if text.lower().startswith(prefix.lower()):
-                return text[len(prefix):].strip()
-        return text.replace("emoji", "", 1).strip()
-
-    def split_named_arg(text, names):
-        for name in names:
-            for sep in ["=", "：", ":"]:
-                token = name + sep
-                idx = text.find(token)
-                if idx < 0:
-                    continue
-                value_start = idx + len(token)
-                next_positions = []
-                for other in ["template=", "模板=", "模板名=", "prompt=", "提示=", "提示词=", "template:", "模板:", "模板名:", "prompt:", "提示:", "提示词:", "template：", "模板：", "模板名：", "prompt：", "提示：", "提示词："]:
-                    other_idx = text.find(other, value_start)
-                    if other_idx >= 0:
-                        next_positions.append(other_idx)
-                value_end = min(next_positions) if next_positions else len(text)
-                value = text[value_start:value_end].strip()
-                new_text = (text[:idx] + text[value_end:]).strip()
-                return value, new_text
-        return None, text
-
-    raw_tail = strip_emoji_command(event.get_plaintext())
-    template_prefix = None
-    template_name = None
-    template_value, raw_tail = split_named_arg(raw_tail, ["template", "模板", "模板名"])
-    prompt_value, raw_tail = split_named_arg(raw_tail, ["prompt", "提示", "提示词"])
-    prompt_tail = prompt_value if prompt_value is not None else raw_tail
-    if template_value:
-        if re.fullmatch(r"[A-Za-z0-9_]+", template_value):
-            template_prefix = template_value
-        else:
-            template_name = template_value
-    elif raw_tail:
-        parts = raw_tail.split(maxsplit=1)
-        if len(parts) == 2 and re.fullmatch(r"[A-Za-z0-9_]+", parts[0]):
-            template_prefix = parts[0]
-            prompt_tail = parts[1].strip()
-    image_url = None
     try:
-        for seg in event.message:
-            if getattr(seg, "type", "") == "image":
-                image_url = (seg.data or {}).get("url") or (seg.data or {}).get("file")
-                if image_url:
-                    break
-    except Exception:
-        image_url = None
-    try:
-        meta = await asyncio.to_thread(
-            generate_user_kmoji_image,
-            user_qid=event.get_user_id(),
-            custom_image_url=image_url,
-            template_prefix=template_prefix,
-            template_name=template_name,
-            prompt_tail=prompt_tail,
-        )
+        meta = await generate_emoji(event)
         add_msg(
             "PROMPT:\n"+meta["prompt"]+"\n\nREQUEST:\n"+json.dumps(meta.get("request", {}), ensure_ascii=False, indent=2),
             msg_type="private",
