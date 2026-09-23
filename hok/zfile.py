@@ -355,6 +355,13 @@ def write_web_history_payload(filename_hashed, payload):
     return json_path
 
 
+def write_daily_history_export(date_text, payload):
+    """Persist one daily history export through the archive-aware writer."""
+    path = os.path.join("data", "history", f"{date_text}.json")
+    writerl(path, payload)
+    return path
+
+
 def save_kpl_push_image(image_url, cid, date_text):
     """Download one generated KPL push image into its dated asset directory."""
     day_dir = os.path.join("resources", "wzry_images", "kpl", str(date_text))

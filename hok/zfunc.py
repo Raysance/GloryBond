@@ -875,118 +875,17 @@ from .business import online_status as _online_status_business
 
 def online_process():
     return _online_status_business.online_process()
-def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=False):
-    if (caller==None): caller=""
-    from .zfunc import wzry_data
-    from .zfunc import ai_parser
-    from .zfunc import Analyses
-    from .ztime import time_r
-    from .ztime import time_sul
-    from .zfile import writerl
-    global userlist
+from .business import rankings as _rankings_business
 
-    # if (not debug): global userlist
-    # else: userlist=userlis
-    snd_msg=""
-    today_date=str(time_r().strftime("%Y-%m-%d"))
-    today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
-    now_time=str(time_r().strftime("%Y-%m-%d %H:%M:%S"))
-    filename_hashed,filepath=WebArtifacts.history_artifact(round(time.time()*1000000))
-    website_link=WebArtifacts.history_route_link(filename_hashed,"all",caller=caller,time_text=now_time)
-    gameinfo=[]
-    traversal_errors = []
 
-    def visit_wzry_data(key):
-        try:
-            game_data = wzry_data(realname=key)
-            return {"data": game_data, "error": None}
-        except Exception as e:
-            params = {
-                "realname": key,
-                "calls": [
-                    {"reqtype": "btlist", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
-                    {"reqtype": "profile", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
-                ],
-            }
-            return {"data": None, "error": _build_traversal_error("rank.wzry_data", key, params, e)}
-
-    gameinfo = []
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future_to_key = {executor.submit(visit_wzry_data, key): key for key in userlist}
-        for future in as_completed(future_to_key):
-            key = future_to_key[future]
-            try:
-                result = future.result()
-            except Exception as e:
-                traversal_errors.append(_build_traversal_error(
-                    "rank.future",
-                    key,
-                    {
-                        "realname": key,
-                        "calls": [
-                            {"reqtype": "btlist", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
-                            {"reqtype": "profile", "userid": userlist.get(key), "roleid": roleidlist.get(key)},
-                        ],
-                    },
-                    e,
-                ))
-                continue
-            if result.get("error"):
-                traversal_errors.append(result["error"])
-            if result.get("data") is not None:
-                gameinfo.append(result["data"])
-    if (not gameinfo):
-        log_message(f"ERROR: 王者荣耀数据源错误")
-        return [
-            str(time_r().strftime("%Y-%m-%d %H:%M")) + "\n\n王者荣耀数据源错误，暂无可用排行数据",
-            [],
-            format_traversal_error_report("排行遍历", traversal_errors),
-        ]
-    filename_export=os.path.join("data","history",today_sul_date+".json")
-    writerl(filename_export,gameinfo)
-    if (not show_zero): gameinfo=[item for item in gameinfo if item['today_num']!=0]
-    sorted_star=sorted(gameinfo, key=lambda item: (item['star_up']) ,reverse=True)
-    sorted_btl=sorted(gameinfo, key=lambda item: (item['today_num']) ,reverse=True)
-    dumpfile_raw1=[{k: v for k, v in d.items() if k != "key"} for d in sorted_star]
-    writerl(filepath,dumpfile_raw1)
-    snd_msg+=str(time_r().strftime("%Y-%m-%d %H:%M"))+"\n"
-    if (not gameinfo or sorted_btl[0]['today_num']==0): 
-        snd_msg+="\n今日还没有战绩哦"
-        return [snd_msg, [], format_traversal_error_report("排行遍历", traversal_errors)]
-    else:
-        if (show_analyze):
-            extreme_data=Analyses.get_extreme_data()
-            benefit_data=Analyses.get_benefit_data()
-            snd_msg+="\n"
-            snd_msg+="近5天最高最低评分：\n"
-            snd_msg+="      ↑"+namenick[extreme_data[3]]+"的"+extreme_data[5]+"："+str(extreme_data[1])+"分\n"
-            snd_msg+="      ↓"+namenick[extreme_data[2]]+"的"+extreme_data[4]+"："+str(extreme_data[0])+"分\n"
-            snd_msg+="机制受益受害者 ：\n"
-            snd_msg+="      "+namenick[benefit_data[0]]+"："+str(benefit_data[2])+"\n"
-            snd_msg+="      "+namenick[benefit_data[1]]+"："+str(benefit_data[3])+"\n"
-            snd_msg+="\n"
-        snd_msg+="--- 上分榜 ---\n"
-        toppoint_gamenick=sorted_star[0]['nickname'] if (sorted_star[0]['star_up']>0) else ""
-        bottompoint_gamenick=sorted_star[-1]['nickname'] if (sorted_star[-1]['star_up']<0) else ""
-        if(sorted_star[0]['star_up']>0): snd_msg+="今日上分最佳👆："+sorted_star[0]['nickname']+"\n"
-        if(sorted_star[-1]['star_up']<0): snd_msg+="今日掉分最多👇："+sorted_star[-1]['nickname']+"\n"
-
-        for inde,item in enumerate(sorted_star):
-            diff = item['star_up']
-            snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff:+}\n"
-
-        snd_msg+="\n--- 场次榜 ---\n"
-        topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['today_num']>0) else ""
-        if(sorted_btl[0]['today_num']>0): snd_msg+="今日场次最多👆："+sorted_btl[0]['nickname']+"\n"
-
-        for inde,item in enumerate(sorted_btl):
-            diff = item['today_num']
-            snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff}\n"
-
-        snd_msg+="\n"
-        snd_msg+=website_link+"\n\n"
-        if ("$" not in rcv_msg): snd_msg+=ai_parser([snd_msg],"rnk")
-        return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick},format_traversal_error_report("排行遍历", traversal_errors)]
+def rnk_process(rcv_msg, caller=None, show_zero=True, show_analyze=False, debug=False):
+    return _rankings_business.rnk_process(
+        rcv_msg,
+        caller=caller,
+        show_zero=show_zero,
+        show_analyze=show_analyze,
+        debug=debug,
+    )
 def single_process(rcv_msg):
     def extract_history_query(s):
         import re
