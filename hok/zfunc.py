@@ -87,6 +87,47 @@ def save_battle_invisible_disabled_qids(disabled_qids):
     return disabled_qids
 
 
+def _battle_visibility_qids(realname):
+    from .business.battle_visibility import resolve_visibility_qids
+
+    target_qids, missing_names = resolve_visibility_qids(
+        realname,
+        globals().get("sameuser", {}),
+        qid,
+    )
+    for name in missing_names:
+        log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {name}")
+    return target_qids
+
+
+def sync_battle_visibility_state(realname, visible):
+    from .business.battle_visibility import update_disabled_qids
+    from .utils.message_sender import BATTLE_INVISIBLE_MUTE_SECONDS
+    from .utils.message_sender import add_group_ban_task
+
+    target_qids = _battle_visibility_qids(realname)
+    if not target_qids:
+        log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
+        return []
+
+    disabled_qids, changed_qids = update_disabled_qids(
+        get_battle_invisible_disabled_qids(),
+        target_qids,
+        visible=visible,
+    )
+    action = "ENABLE" if visible else "DISABLE"
+    for user_qid in changed_qids:
+        log_message(f"WZRY_VISIBILITY_{action}_QID: {realname} {user_qid}")
+
+    if changed_qids:
+        save_battle_invisible_disabled_qids(disabled_qids)
+        duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
+        source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
+        for user_qid in target_qids:
+            add_group_ban_task(user_qid, duration=duration, source=source)
+    return changed_qids
+
+
 def _group_chat_history_key(group_id):
     return f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}{str(group_id)}"
 
@@ -437,54 +478,6 @@ def peak_rank_process(player_names=None):
 
 
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
-    def get_battle_visibility_qids(user_name):
-        related_names = {user_name}
-        for main_name, alias_names in globals().get("sameuser", {}).items():
-            aliases = set(alias_names if isinstance(alias_names, list) else [])
-            aliases.add(main_name)
-            if user_name in aliases:
-                related_names.update(aliases)
-        target_qids = []
-        for name in sorted(related_names):
-            user_qid = qid.get(name)
-            if not user_qid:
-                log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {name}")
-                continue
-            user_qid = str(user_qid)
-            if user_qid not in target_qids:
-                target_qids.append(user_qid)
-        return target_qids
-
-    def sync_battle_visibility_qid(visible):
-        from .utils.message_sender import BATTLE_INVISIBLE_MUTE_SECONDS
-        from .utils.message_sender import add_group_ban_task
-
-        target_qids = get_battle_visibility_qids(realname)
-        if not target_qids:
-            log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
-            return
-        disabled_qids = get_battle_invisible_disabled_qids()
-        target_qid_set = set(target_qids)
-        changed_qids = []
-        if visible:
-            changed_qids = [user_qid for user_qid in target_qids if user_qid in disabled_qids]
-            disabled_qids = [user_qid for user_qid in disabled_qids if user_qid not in target_qid_set]
-            for user_qid in changed_qids:
-                log_message(f"WZRY_VISIBILITY_ENABLE_QID: {realname} {user_qid}")
-        else:
-            for user_qid in target_qids:
-                if user_qid not in disabled_qids:
-                    disabled_qids.append(user_qid)
-                    changed_qids.append(user_qid)
-                    log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
-        changed = bool(changed_qids)
-        if changed:
-            save_battle_invisible_disabled_qids(disabled_qids)
-            duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
-            source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
-            for user_qid in target_qids:
-                add_group_ban_task(user_qid, duration=duration, source=source)
-
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
             if (detail["MapType"]==1):
@@ -556,7 +549,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     # winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
     BtlVisible=not res["btlist"]["invisible"]
     if sync_battle_visibility:
-        sync_battle_visibility_qid(BtlVisible)
+        sync_battle_visibility_state(realname, BtlVisible)
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=time_r().strftime("%m-%d")
     sul_time=time_sul()
