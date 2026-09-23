@@ -13,17 +13,17 @@ class ArkApiTests(unittest.TestCase):
         original_qqbot = ZAPI.confs.get("QQBot")
         logged = []
 
-        class FailingCompletions:
+        class FailingResponses:
             @staticmethod
             def create(**kwargs):
                 raise RuntimeError("endpoint closed")
 
         class FailingOpenAI:
             def __init__(self, **kwargs):
-                self.chat = type("Chat", (), {"completions": FailingCompletions()})()
+                self.responses = FailingResponses()
 
         ZAPI.OpenAI = FailingOpenAI
-        ZAPI.confs["QQBot"] = {"ark_key": "test-key", "ark_bot_id": "test-bot"}
+        ZAPI.confs["QQBot"] = {"ark_key": "test-key", "ark_responses_model": "test-model"}
         ZAPI.append_hok_exception_log = lambda error, context=None: logged.append(
             (error, context)
         )

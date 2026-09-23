@@ -21,7 +21,7 @@
 - `hok/ztime.py`：时间工具与日期处理统一入口；任何时间计算、格式化、时间窗口判断都应调用这里的接口；代表局查询中的自然语言日期及区间统一由 `parse_representative_battle_date()`、`parse_representative_battle_date_range()` 解析，群聊历史检索时间边界统一由 `parse_chat_time_bound()` 解析。
 - `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
-- `hok/zapi.py`：与外部服务/API 交互的适配层（请求封装、签名、响应解析）；AI chat 在此提供单轮 OpenAI-compatible 请求与 tool call 响应归一化，多轮编排留在 `zchat.py`；其他业务编排仍应留在 `zfunc.py`；荣耀战力查询的指定地区 `ranklist` 请求只在此组装和发送；B 站 UP 视频追踪只在此处理 WBI 签名、用户/视频搜索、用户卡片请求和响应归一化，视频结果需保留 `aid` 与 `bvid`，其中 `aid` 用于事实校验后的 App schema 唤起。
+- `hok/zapi.py`：与外部服务/API 交互的适配层（请求封装、签名、响应解析）；AI chat 在此提供单轮 OpenAI-compatible Responses API 请求，并归一化 `output` 中的 `function_call`，多轮编排留在 `zchat.py`；普通聊天使用 DeepSeek Responses endpoint，`&` 联网聊天使用火山方舟标准 Responses endpoint 与内置 `web_search`，不得回退到应用 Bot 的 Chat Completions endpoint；其他业务编排仍应留在 `zfunc.py`；荣耀战力查询的指定地区 `ranklist` 请求只在此组装和发送；B 站 UP 视频追踪只在此处理 WBI 签名、用户/视频搜索、用户卡片请求和响应归一化，视频结果需保留 `aid` 与 `bvid`，其中 `aid` 用于事实校验后的 App schema 唤起。
 - `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
 - `hok/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
@@ -81,7 +81,7 @@
 
 ### 2.1 配置文件（``）
 
-- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
+- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、AI Responses 模型、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
 - `config.yaml` 的 `PostgreSQL.dsn`：PostgreSQL 本地连接串；部署环境可由 `HOK_DATABASE_DSN` 覆盖。`PostgreSQL.archive_json` 为 `false` 时历史数据数据库单写，写库失败才应急落 JSON。
 - `variables_static.json`：用户 QQ 号、王者荣耀 roleid/userid、用户昵称、SteamID、常见俚语缩写、赛季起止时间、英雄 ID 映射、部分功能 prompt 等稳定数据。
 - `variables_dynamic.json`：动态变量初始值，例如是否记忆、机器人是否开放、英雄梯度、今日新闻、上一次查询战绩时间、今日导出失败用户名单、B 站 UP 视频轮询开关等；运行时需要跨部署持久化的业务状态必须放 Redis，不得依赖 Git 工作区文件保存订阅、用户状态或去重状态。

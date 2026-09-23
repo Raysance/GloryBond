@@ -365,95 +365,119 @@ def ai_api(user_query,temperature): # deepseek官方模型-不联网
     try:
         client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
         
-        response = client.chat.completions.create(
-            model="deepseek-v4-flash",
-            messages=[
-                {"role": "user", "content": user_query},
-            ],
+        response = client.responses.create(
+            model=confs["QQBot"].get("deepseek_chat_model") or "deepseek-flash",
+            input=user_query,
             stream=False,
             temperature=temperature,
+            store=False,
+            include=["reasoning.encrypted_content"],
             timeout=20   # 20秒超时
         )
         # writera("deepseek_output.txt",user_query)
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
     random.seed(int(time.time() * 1000) % 1000000 + os.getpid())
-    return response.choices[0].message.content
+    return _response_output_text(response)
 def ai_function(user_query):
     log_message("VISIT: ai_api_function_call")
     try:
         client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
         
-        response = client.chat.completions.create(
-            model="deepseek-reasoner",
-            messages=[
-                {"role": "user", "content": user_query},
-            ],
+        response = client.responses.create(
+            model=confs["QQBot"].get("deepseek_chat_model") or "deepseek-flash",
+            input=user_query,
             stream=False,
-            temperature=1
+            temperature=1,
+            store=False,
+            include=["reasoning.encrypted_content"],
         )
     except Exception as e:
         raise Exception("deepseek_api_error: "+str(e))
-    return response.choices[0].message.content
+    return _response_output_text(response)
 
 
-def ai_chat_completion(messages, tools=None, tool_choice="auto", network=False):
-    """Run one OpenAI-compatible chat turn and normalize tool calls."""
-    log_message("VISIT: ai_chat_completion")
+def _response_item_value(item, key, default=None):
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _response_output_text(response):
+    output_text = getattr(response, "output_text", None)
+    if output_text:
+        return str(output_text)
+    text_parts = []
+    for item in getattr(response, "output", None) or []:
+        if _response_item_value(item, "type") != "message":
+            continue
+        for content in _response_item_value(item, "content", []) or []:
+            if _response_item_value(content, "type") == "output_text":
+                text = _response_item_value(content, "text", "")
+                if text:
+                    text_parts.append(str(text))
+    return "".join(text_parts)
+
+
+def ai_response_create(input_items, tools=None, tool_choice="auto", network=False):
+    """Run one OpenAI-compatible Responses API turn and normalize function calls."""
+    log_message("VISIT: ai_response_create")
     try:
         if network:
-            client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_app_url)
-            model = confs["QQBot"]["ark_bot_id"]
+            client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_model_url)
+            model = confs["QQBot"]["ark_responses_model"]
         else:
             client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
             model = confs["QQBot"].get("deepseek_chat_model") or "deepseek-v4-flash"
         request = {
             "model": model,
-            "messages": messages,
+            "input": input_items,
             "stream": False,
+            "store": False,
+            "include": ["reasoning.encrypted_content"],
             "timeout": 30,
         }
         if tools:
-            request["tools"] = tools
+            request["tools"] = list(tools)
+            if network:
+                request["tools"].append({"type": "web_search"})
             request["tool_choice"] = tool_choice
-        response = client.chat.completions.create(**request)
+        response = client.responses.create(**request)
     except Exception as error:
-        raise Exception(f"ai_chat_completion_error: {error}") from error
+        raise Exception(f"ai_response_create_error: {error}") from error
 
-    message = response.choices[0].message
+    output_items = list(getattr(response, "output", None) or [])
     normalized_calls = []
-    for call in getattr(message, "tool_calls", None) or []:
-        function = getattr(call, "function", None)
+    for item in output_items:
+        if _response_item_value(item, "type") != "function_call":
+            continue
         normalized_calls.append({
-            "id": str(getattr(call, "id", "")),
-            "type": str(getattr(call, "type", "function") or "function"),
-            "function": {
-                "name": str(getattr(function, "name", "")),
-                "arguments": str(getattr(function, "arguments", "{}") or "{}"),
-            },
+            "id": str(_response_item_value(item, "id", "") or ""),
+            "call_id": str(_response_item_value(item, "call_id", "") or ""),
+            "name": str(_response_item_value(item, "name", "") or ""),
+            "arguments": str(_response_item_value(item, "arguments", "{}") or "{}"),
         })
-    assistant_message = {
-        "role": "assistant",
-        "content": getattr(message, "content", None) or "",
-    }
-    if normalized_calls:
-        assistant_message["tool_calls"] = normalized_calls
     return {
-        "content": assistant_message["content"],
+        "content": _response_output_text(response),
         "tool_calls": normalized_calls,
-        "assistant_message": assistant_message,
-        "model": model,
+        "output_items": output_items,
+        "response_id": str(getattr(response, "id", "") or ""),
+        "model": str(getattr(response, "model", model) or model),
     }
 def ark_api(user_query): # 火山引擎-豆包联网模型
     log_message("VISIT: ark_api_common")
     try:
-        client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_app_url)
+        client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_model_url)
 
-        completion = client.chat.completions.create(
-            model=confs["QQBot"]["ark_bot_id"],
-            messages=[
-                {"role": "user", "content": user_query},
-            ],
+        response = client.responses.create(
+            model=confs["QQBot"]["ark_responses_model"],
+            input=user_query,
+            stream=False,
+            store=False,
+            include=["reasoning.encrypted_content"],
+            tools=[{"type": "web_search"}],
+            tool_choice="auto",
+            timeout=30,
         )
     except Exception as e:
         try:
@@ -464,7 +488,7 @@ def ark_api(user_query): # 火山引擎-豆包联网模型
         except Exception as log_error:
             log_message(f"ARK_API_ERROR_LOG_FAILED: {repr(log_error)}")
         return ""
-    return completion.choices[0].message.content
+    return _response_output_text(response)
 
 def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
     api_key = confs["QQBot"].get("ark_image_key") or confs["QQBot"].get("ark_key") or ""

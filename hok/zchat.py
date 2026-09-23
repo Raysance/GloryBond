@@ -5,7 +5,7 @@ import re
 
 from . import zdynamic as dmc
 from .chat_roles import build_role_prompt
-from .zapi import ai_chat_completion
+from .zapi import ai_response_create
 from .zstatic import chat_pmpt, chat_role, nameref, pmpt_style_templates, qid
 from .ztime import current_datetime_text, get_timebased_rand
 
@@ -13,15 +13,14 @@ from .ztime import current_datetime_text, get_timebased_rand
 def _tool_schema(name, description, properties, required=None):
     return {
         "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": required or [],
-                "additionalProperties": False,
-            },
+        "name": name,
+        "description": description,
+        "strict": False,
+        "parameters": {
+            "type": "object",
+            "properties": properties,
+            "required": required or [],
+            "additionalProperties": False,
         },
     }
 
@@ -361,7 +360,7 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
     from .zmemory import instance as memory
 
     active_memory = memory.load_active_chat(str(user_id), 5) if use_memory else ""
-    messages = build_chat_messages(
+    input_items = build_chat_messages(
         user_text=str(user_text),
         user_id=str(user_id),
         nickname=str(nickname),
@@ -372,13 +371,13 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         current_message_id=message_id,
         original_query=user_text,
     )
-    caller = model_caller or ai_chat_completion
+    caller = model_caller or ai_response_create
     remaining = max(1, int(getattr(dmc, "ChatToolBudget", 8)))
     max_rounds = max(1, int(getattr(dmc, "ChatMaxRounds", 8)))
     response = None
 
     for _round in range(max_rounds):
-        response = caller(messages, tools=tools.schemas(), tool_choice="auto", network=network)
+        response = caller(input_items, tools=tools.schemas(), tool_choice="auto", network=network)
         tool_calls = response.get("tool_calls") or []
         if not tool_calls:
             final_text = normalize_qq_text(response.get("content"))
@@ -387,43 +386,38 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             memory.save_active_chat(str(user_id), str(user_text), final_text)
             return final_text
 
-        messages.append(response.get("assistant_message") or {
-            "role": "assistant",
-            "content": response.get("content") or "",
-            "tool_calls": tool_calls,
-        })
+        input_items.extend(response.get("output_items") or [])
         for call in tool_calls:
-            call_id = str(call.get("id") or "")
-            function = call.get("function") or {}
-            name = str(function.get("name") or "")
+            call_id = str(call.get("call_id") or call.get("id") or "")
+            name = str(call.get("name") or "")
             if remaining <= 0:
                 result = {"ok": False, "error": "tool_budget_exhausted"}
             else:
                 try:
-                    arguments = json.loads(function.get("arguments") or "{}")
+                    arguments = json.loads(call.get("arguments") or "{}")
                     if not isinstance(arguments, dict):
                         raise ValueError("tool arguments must be an object")
                     result = {"ok": True, "data": tools.execute(name, arguments)}
                 except Exception as error:
                     result = {"ok": False, "error": type(error).__name__, "detail": str(error)}
                 remaining -= 1
-            messages.append({
-                "role": "tool",
-                "tool_call_id": call_id,
-                "content": _serialize_tool_result(result),
+            input_items.append({
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": _serialize_tool_result(result),
             })
 
         if remaining <= 0:
-            messages.append({"role": "system", "content": "工具调用次数已用完。请根据已有结果直接给出最终答案，不要继续调用工具。"})
-            response = caller(messages, tools=None, tool_choice="none", network=network)
+            input_items.append({"role": "system", "content": "工具调用次数已用完。请根据已有结果直接给出最终答案，不要继续调用工具。"})
+            response = caller(input_items, tools=None, tool_choice="none", network=network)
             final_text = normalize_qq_text(response.get("content"))
             if not final_text:
                 raise Exception("chat_empty_response_after_tool_budget")
             memory.save_active_chat(str(user_id), str(user_text), final_text)
             return final_text
 
-    messages.append({"role": "system", "content": "已达到最大推理轮数。请根据已有结果立即给出最终答案。"})
-    response = caller(messages, tools=None, tool_choice="none", network=network)
+    input_items.append({"role": "system", "content": "已达到最大推理轮数。请根据已有结果立即给出最终答案。"})
+    response = caller(input_items, tools=None, tool_choice="none", network=network)
     final_text = normalize_qq_text(response.get("content"))
     if not final_text:
         raise Exception("chat_empty_response_after_round_limit")

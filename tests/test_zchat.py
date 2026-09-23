@@ -13,7 +13,7 @@ class FakeTools:
         self.calls = []
 
     def schemas(self):
-        return [{"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}}]
+        return [{"type": "function", "name": "lookup", "parameters": {"type": "object"}}]
 
     def execute(self, name, arguments):
         self.calls.append((name, arguments))
@@ -39,16 +39,17 @@ class ChatLoopTests(unittest.TestCase):
             calls.append([dict(message) for message in messages])
             if len(calls) == 1:
                 tool_calls = [{
-                    "id": "call-1",
-                    "type": "function",
-                    "function": {"name": "lookup", "arguments": '{"name":"alpha"}'},
+                    "id": "fc-1",
+                    "call_id": "call-1",
+                    "name": "lookup",
+                    "arguments": '{"name":"alpha"}',
                 }]
                 return {
                     "content": "",
                     "tool_calls": tool_calls,
-                    "assistant_message": {"role": "assistant", "content": "", "tool_calls": tool_calls},
+                    "output_items": [{"type": "function_call", **tool_calls[0]}],
                 }
-            return {"content": "最终回答", "tool_calls": [], "assistant_message": {"role": "assistant", "content": "最终回答"}}
+            return {"content": "最终回答", "tool_calls": [], "output_items": []}
 
         tools = FakeTools()
         result = ZCHAT.chat_process(
@@ -63,8 +64,8 @@ class ChatLoopTests(unittest.TestCase):
 
         self.assertEqual(result, "最终回答")
         self.assertEqual(tools.calls, [("lookup", {"name": "alpha"})])
-        self.assertEqual(calls[1][-1]["role"], "tool")
-        self.assertEqual(calls[1][-1]["tool_call_id"], "call-1")
+        self.assertEqual(calls[1][-1]["type"], "function_call_output")
+        self.assertEqual(calls[1][-1]["call_id"], "call-1")
         self.assertEqual(self.saved, [("100", "查一下alpha", "最终回答")])
 
     def test_invalid_arguments_still_receive_tool_result(self):
@@ -74,12 +75,13 @@ class ChatLoopTests(unittest.TestCase):
             calls.append([dict(message) for message in messages])
             if len(calls) == 1:
                 tool_calls = [{
-                    "id": "bad-call",
-                    "type": "function",
-                    "function": {"name": "lookup", "arguments": "not-json"},
+                    "id": "fc-bad",
+                    "call_id": "bad-call",
+                    "name": "lookup",
+                    "arguments": "not-json",
                 }]
-                return {"content": "", "tool_calls": tool_calls, "assistant_message": {"role": "assistant", "content": "", "tool_calls": tool_calls}}
-            return {"content": "参数有误，已停止查询", "tool_calls": [], "assistant_message": {"role": "assistant", "content": "参数有误，已停止查询"}}
+                return {"content": "", "tool_calls": tool_calls, "output_items": [{"type": "function_call", **tool_calls[0]}]}
+            return {"content": "参数有误，已停止查询", "tool_calls": [], "output_items": []}
 
         result = ZCHAT.chat_process(
             user_text="测试",
@@ -91,15 +93,15 @@ class ChatLoopTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "参数有误，已停止查询")
-        self.assertEqual(calls[1][-1]["role"], "tool")
-        self.assertIn("JSONDecodeError", calls[1][-1]["content"])
+        self.assertEqual(calls[1][-1]["type"], "function_call_output")
+        self.assertIn("JSONDecodeError", calls[1][-1]["output"])
 
     def test_final_markdown_is_normalized_for_qq(self):
         def fake_model(messages, tools=None, tool_choice="auto", network=False):
             return {
                 "content": "## 结论\n- 使用 `赵云`\n[详情](https://example.com)",
                 "tool_calls": [],
-                "assistant_message": {},
+                "output_items": [],
             }
 
         result = ZCHAT.chat_process(
@@ -117,7 +119,7 @@ class ChatLoopTests(unittest.TestCase):
 class HOKChatToolsTests(unittest.TestCase):
     def test_player_capabilities_are_split_into_structured_tools(self):
         tool_names = {
-            item["function"]["name"]
+            item["name"]
             for item in ZCHAT.HOKChatTools().schemas()
         }
 
