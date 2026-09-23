@@ -42,7 +42,7 @@ def _ensure_redis_conf() -> None:
         "REDIS_DB_TODAY_HERO_POOL": 5,
         "REDIS_DB_BTL_ANALYZE_EVALUATOR_POOL": 6,
         "REDIS_DB_DIY_CODE": 7,
-        "REDIS_DB_CHAT_MEMORY": 8,
+        "REDIS_DB_CHAT_MEMORY": 10,
         "REDIS_TEXT_EXPIRE_SECONDS": 3600,
     }
     path = Path(tempfile.gettempdir()) / "hok_local_debug_redis_conf.json"

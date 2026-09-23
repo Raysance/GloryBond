@@ -137,6 +137,21 @@ class ZMemory:
                 res += "\n"
         return res
 
+    def load_user_forced_memory(self, qid: str, num: int = 5) -> str:
+        """Load only the current user's explicit long-term memories."""
+        key = self._get_key("forced_mem", qid)
+        records = self.redis.lrange(key, -num, -1)
+        memories = []
+        for raw in records:
+            try:
+                item = json.loads(raw)
+            except Exception:
+                continue
+            content = str(item.get("mem") or "").strip()
+            if content:
+                memories.append(content)
+        return "\n".join(memories)
+
     # --- 4. 历史聊天提炼记忆 (Summary Memory) ---
     def save_summary_memory(self, qid: str, content: str):
         """保存历史兼容的提炼记忆；当前不再由定时任务自动生成。"""

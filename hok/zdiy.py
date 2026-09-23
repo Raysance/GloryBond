@@ -86,9 +86,9 @@ def save_code_to_redis(summary, code):
     code_id = hashlib.md5(summary.encode('utf-8')).hexdigest()
     
     # 存储代码
-    dmc.redis_deamon_diy_code.hset("diy_codes", code_id, code)
+    dmc.redis_deamon_diy_code.hset(REDIS_KEY_DIY_CODES, code_id, code)
     # 存储概要映射
-    dmc.redis_deamon_diy_code.hset("diy_summaries", code_id, summary)
+    dmc.redis_deamon_diy_code.hset(REDIS_KEY_DIY_SUMMARIES, code_id, summary)
     
     return code_id
 

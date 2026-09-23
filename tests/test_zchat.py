@@ -23,13 +23,16 @@ class FakeTools:
 class ChatLoopTests(unittest.TestCase):
     def setUp(self):
         self.original_load = ZMEMORY.instance.load_active_chat
+        self.original_load_forced = ZMEMORY.instance.load_user_forced_memory
         self.original_save = ZMEMORY.instance.save_active_chat
         ZMEMORY.instance.load_active_chat = lambda qid, num=5: ""
+        ZMEMORY.instance.load_user_forced_memory = lambda qid, num=5: ""
         self.saved = []
         ZMEMORY.instance.save_active_chat = lambda qid, question, answer: self.saved.append((qid, question, answer))
 
     def tearDown(self):
         ZMEMORY.instance.load_active_chat = self.original_load
+        ZMEMORY.instance.load_user_forced_memory = self.original_load_forced
         ZMEMORY.instance.save_active_chat = self.original_save
 
     def test_tool_result_is_appended_before_second_model_turn(self):
@@ -114,6 +117,26 @@ class ChatLoopTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "结论\n• 使用 赵云\n详情")
+
+    def test_current_user_forced_memory_is_injected_as_system_context(self):
+        seen = []
+        ZMEMORY.instance.load_user_forced_memory = lambda qid, num=5: "偏好辅助英雄"
+
+        def fake_model(messages, tools=None, tool_choice="auto", network=False):
+            seen.extend(messages)
+            return {"content": "收到", "tool_calls": [], "output_items": []}
+
+        result = ZCHAT.chat_process(
+            user_text="推荐英雄",
+            user_id="100",
+            nickname="Alpha",
+            use_memory=True,
+            tool_registry=FakeTools(),
+            model_caller=fake_model,
+        )
+
+        self.assertEqual(result, "收到")
+        self.assertTrue(any("偏好辅助英雄" in item.get("content", "") for item in seen))
 
 
 class HOKChatToolsTests(unittest.TestCase):

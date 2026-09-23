@@ -5,13 +5,18 @@ import json
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
 REDIS_DB = 6
+RECORDS_KEY = "battle:evaluator:records"
+LEGACY_RECORDS_KEY = "records"
+
+
+def _record_keys(redis_daemon):
+    return [key for key in (RECORDS_KEY, LEGACY_RECORDS_KEY) if redis_daemon.exists(key)]
 
 def calculate_consistency_ratio():
     # 连接到 Redis 6号数据库
     redis_daemon = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
     
-    # 获取所有键（这里应该只有 "records"）
-    keys = redis_daemon.keys("*")
+    keys = _record_keys(redis_daemon)
     
     total_count = 0        # 总有效条目数（排除 op_side=0 后）
     consistent_count = 0   # game_res 与 (my_side > op_side) 一致的条目数
@@ -123,7 +128,7 @@ def calculate_consistency_ratio():
 def calculate_additional_stats():
     """重新计算一次以获取实际胜率等额外统计"""
     redis_daemon = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
-    keys = redis_daemon.keys("*")
+    keys = _record_keys(redis_daemon)
     
     my_wins = 0
     op_wins = 0

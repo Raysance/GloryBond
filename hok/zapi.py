@@ -46,10 +46,16 @@ class WzryOfficialAPI:
             shared_queue = getattr(dmc, "redis_deamon_share_btl", None)
             analyze_queue = getattr(dmc, "redis_deamon_analyze_btl", None)
             try:
-                if shared_queue and shared_queue.llen("Shared_queue"):
+                if shared_queue and (
+                    shared_queue.llen(REDIS_KEY_BATTLE_SHARE_QUEUE)
+                    or shared_queue.llen("Shared_queue")
+                ):
                     time.sleep(3)
                     continue
-                if analyze_queue and analyze_queue.llen("Analyze_queue"):
+                if analyze_queue and (
+                    analyze_queue.llen(REDIS_KEY_BATTLE_ANALYZE_QUEUE)
+                    or analyze_queue.llen("Analyze_queue")
+                ):
                     time.sleep(3)
                     continue
             except Exception as e:

@@ -817,7 +817,8 @@ class WebArtifacts:
     def create_route_link(contents,sitetype):
         """Store route contents in Redis and return the public URL."""
         hash_key=WebArtifacts.make_hash()
-        dmc.redis_deamon.set(hash_key,contents,ex=REDIS_TEXT_EXPIRE_SECONDS)
+        redis_key = f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{hash_key}"
+        dmc.redis_deamon.set(redis_key,contents,ex=REDIS_TEXT_EXPIRE_SECONDS)
         return WebArtifacts.route_url(sitetype,hash_key)
 
     @staticmethod
@@ -2103,7 +2104,10 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
         from .ztime import time_r
         current_date = time_r().strftime("%Y-%m-%d")
         if (ignore_limit): hero_info_str=None
-        else: hero_info_str = dmc.TodayHeroPool.get(realname)
+        else:
+            hero_info_str = dmc.TodayHeroPool.get(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}")
+            if hero_info_str is None:
+                hero_info_str = dmc.TodayHeroPool.get(realname)
         if (hero_info_str):
             hero_info = json.loads(hero_info_str)
             stored_date = hero_info.get("date")
@@ -2119,9 +2123,12 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
             "picpath":pic_path,
             "selectinfo":selected_info
         }
-        dmc.TodayHeroPool.set(realname, json.dumps(new_data))
-        
-        history_key = f"hero_history:{realname}"
+        dmc.TodayHeroPool.set(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}", json.dumps(new_data))
+
+        history_key = f"{REDIS_KEY_HERO_HISTORY_PREFIX}{realname}"
+        legacy_history_key = f"hero_history:{realname}"
+        if not dmc.TodayHeroPool.exists(history_key) and dmc.TodayHeroPool.exists(legacy_history_key):
+            history_key = legacy_history_key
         history_entry = {
             "date": current_date,
             "heroname": hero_name,
@@ -2653,7 +2660,10 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
     delta_level=my_side_total_level-op_side_total_level
 
     if (op_side_total_level and my_side_total_level):
+        from .ztime import current_datetime_text
+
         record = {
+            'created_at': current_datetime_text(),
             'game_res': gameres,
             'my_side_total_level': my_side_total_level,
             'op_side_total_level': op_side_total_level,
@@ -2664,7 +2674,9 @@ def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info
             'roleid': roleid,
         }
         redis_client = dmc.BtlAnalyzeEvaluatorPool
-        redis_client.rpush('records', json.dumps(record, ensure_ascii=False))
+        redis_client.rpush(REDIS_KEY_BATTLE_EVALUATOR_RECORDS, json.dumps(record, ensure_ascii=False))
+        max_records = max(1, int(getattr(dmc, "BtlAnalyzeEvaluatorMaxRecords", 10000)))
+        redis_client.ltrim(REDIS_KEY_BATTLE_EVALUATOR_RECORDS, -max_records, -1)
 
     snd_msg=(
         f"实力天平倾斜度：{round(delta_level,2) if op_side_total_level else "unknown"}\n"

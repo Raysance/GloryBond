@@ -1,4 +1,4 @@
-from ..zstatic import confs
+from ..zstatic import REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, confs
 from .. import zdynamic as dmc
 import nonebot
 import asyncio
@@ -59,7 +59,7 @@ def _resolve_destination(event=None, msg_type=None, to_id=None):
 
 
 def _enqueue_payload(payload):
-    return dmc.MessageQueue.lpush("MessageQueue", json.dumps(payload, ensure_ascii=False))
+    return dmc.MessageQueue.lpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, json.dumps(payload, ensure_ascii=False))
 
 
 def _format_group_ban_action(duration):
@@ -127,7 +127,9 @@ async def message_sender_loop():
         if time.time() - last_ts < MESSAGE_SEND_INTERVAL:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
-        result = dmc.MessageQueue.rpop("MessageQueue")
+        result = dmc.MessageQueue.rpop(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE)
+        if not result:
+            result = dmc.MessageQueue.rpop("MessageQueue")
         if not result:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
@@ -135,7 +137,7 @@ async def message_sender_loop():
             bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
         except KeyError:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
-            dmc.MessageQueue.lpush("MessageQueue", result)
+            dmc.MessageQueue.rpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, result)
             continue
         msg_json = json.loads(result)
         if msg_json.get("kind") == "group_ban":
