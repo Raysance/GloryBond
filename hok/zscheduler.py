@@ -232,15 +232,15 @@ def _fetch_news_impl():
 def _fetch_herorank_impl():
     from .zapi import wzry_get_official
     from .ztime import date_r
-    from .zfile import file_exist
-    from .zfile import readerl
+    from .zfile import read_hero_rank
     from .zfile import writerl
 
     current_date = date_r()
     file_path = os.path.join("data","herorank", f"{current_date}.json")
 
-    if file_exist(file_path):
-        dmc.herorank = readerl(file_path)
+    stored_rank = read_hero_rank(current_date)
+    if stored_rank:
+        dmc.herorank = stored_rank
     else:
         for _, rankId in hero_ranklist_rankids.items():
             dmc.herorank[rankId] = wzry_get_official(reqtype="heroranklist", rankId=rankId, rankSegment=4)

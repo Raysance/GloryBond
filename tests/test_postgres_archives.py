@@ -39,6 +39,11 @@ class PostgresArchiveTests(unittest.TestCase):
                 "date": "2026-09-22",
                 "source_path": "data/herotier/2026-09-22.json",
             },
+            os.path.join(root, "data", "herorank", "2026-09-22.json"): {
+                "kind": "hero_rank",
+                "date": "2026-09-22",
+                "source_path": "data/herorank/2026-09-22.json",
+            },
         }
         for filepath, expected in cases.items():
             with self.subTest(filepath=filepath):

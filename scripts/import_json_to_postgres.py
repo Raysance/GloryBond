@@ -14,7 +14,7 @@ def build_parser():
     parser.add_argument(
         "--kind",
         action="append",
-        choices=("history", "battle", "personal", "power", "hero_tier"),
+        choices=("history", "battle", "personal", "power", "hero_tier", "hero_rank"),
         help="Import only this archive kind; repeat for multiple kinds.",
     )
     parser.add_argument("--force", action="store_true", help="Reimport files even when size and mtime match.")

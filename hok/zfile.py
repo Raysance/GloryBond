@@ -120,6 +120,19 @@ def read_hero_tier(target_date):
     return readerl(os.path.join("data", "herotier", f"{target_date}.json"))
 
 
+def read_hero_rank(target_date):
+    """Read one hero-rank snapshot from PostgreSQL, with emergency JSON fallback."""
+    try:
+        from .zdb import read_hero_rank_date
+
+        database_payload = read_hero_rank_date(target_date)
+        if database_payload:
+            return database_payload
+    except Exception as exc:
+        log_message(f"POSTGRES_HERO_RANK_READ_FALLBACK: date={target_date} error={repr(exc)}", logging.WARNING)
+    return readerl(os.path.join("data", "herorank", f"{target_date}.json"))
+
+
 def battle_detail_exists(gameseq):
     """Check PostgreSQL first and retain compatibility with the JSON archive."""
     try:
@@ -178,6 +191,9 @@ def classify_postgres_archive_path(filepath):
     match = re.fullmatch(r"data/herotier/(\d{4}-\d{2}-\d{2})\.json", relative_path)
     if match:
         return {"kind": "hero_tier", "date": match.group(1), "source_path": relative_path}
+    match = re.fullmatch(r"data/herorank/(\d{4}-\d{2}-\d{2})\.json", relative_path)
+    if match:
+        return {"kind": "hero_rank", "date": match.group(1), "source_path": relative_path}
     return None
 
 
@@ -201,6 +217,8 @@ def _sync_postgres_archive(filepath, data):
             return zdb.upsert_battle_power(descriptor["game_seq"], data, descriptor["source_path"])
         if kind == "hero_tier":
             return zdb.replace_hero_tier_date(descriptor["date"], data, descriptor["source_path"])
+        if kind == "hero_rank":
+            return zdb.replace_hero_rank_date(descriptor["date"], data, descriptor["source_path"])
     except Exception as exc:
         log_message(
             f"POSTGRES_ARCHIVE_SYNC_ERROR: path={descriptor['source_path']} error={repr(exc)}",
@@ -212,20 +230,21 @@ def _sync_postgres_archive(filepath, data):
 
 def list_postgres_archive_files(kinds=None):
     """List importable JSON archives through the project's IO boundary."""
-    requested = set(kinds or ("history", "battle", "personal", "power", "hero_tier"))
+    requested = set(kinds or ("history", "battle", "personal", "power", "hero_tier", "hero_rank"))
     roots = {
         "history": os.path.join(project_root, "data", "history"),
         "battle": os.path.join(project_root, "data", "history", "battles"),
         "personal": os.path.join(project_root, "data", "history", "personal"),
         "power": os.path.join(project_root, "data", "history", "power"),
         "hero_tier": os.path.join(project_root, "data", "herotier"),
+        "hero_rank": os.path.join(project_root, "data", "herorank"),
     }
     entries = []
     for kind in requested:
         root = roots.get(kind)
         if not root or not os.path.isdir(root):
             continue
-        if kind in {"history", "hero_tier"}:
+        if kind in {"history", "hero_tier", "hero_rank"}:
             candidates = [os.path.join(root, name) for name in os.listdir(root)]
         else:
             candidates = []

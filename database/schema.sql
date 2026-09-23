@@ -184,6 +184,50 @@ CREATE TABLE IF NOT EXISTS hok.hero_tier_scores (
 CREATE INDEX IF NOT EXISTS hero_tier_scores_hero_date_idx
     ON hok.hero_tier_scores (hero_name, snapshot_date DESC);
 
+CREATE TABLE IF NOT EXISTS hok.hero_rank_snapshots (
+    snapshot_date date NOT NULL,
+    rank_id integer NOT NULL,
+    title text,
+    update_time text,
+    sort_field text,
+    sort_type text,
+    filter_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+    payload jsonb NOT NULL,
+    source_path text,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (snapshot_date, rank_id)
+);
+
+CREATE INDEX IF NOT EXISTS hero_rank_snapshots_rank_date_idx
+    ON hok.hero_rank_snapshots (rank_id, snapshot_date DESC);
+
+CREATE TABLE IF NOT EXISTS hok.hero_rank_entries (
+    snapshot_date date NOT NULL,
+    rank_id integer NOT NULL,
+    rank_index integer NOT NULL,
+    hero_id bigint,
+    hero_name text,
+    hero_career text,
+    tier_rank text,
+    ban_rate numeric(10,6),
+    show_rate numeric(10,6),
+    win_rate numeric(10,6),
+    pick_count bigint,
+    ban_count bigint,
+    payload jsonb NOT NULL,
+    PRIMARY KEY (snapshot_date, rank_id, rank_index),
+    FOREIGN KEY (snapshot_date, rank_id)
+        REFERENCES hok.hero_rank_snapshots (snapshot_date, rank_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS hero_rank_entries_hero_date_idx
+    ON hok.hero_rank_entries (hero_id, snapshot_date DESC);
+CREATE INDEX IF NOT EXISTS hero_rank_entries_name_date_idx
+    ON hok.hero_rank_entries (hero_name, snapshot_date DESC);
+CREATE INDEX IF NOT EXISTS hero_rank_entries_rank_date_idx
+    ON hok.hero_rank_entries (rank_id, snapshot_date DESC, rank_index);
+
 CREATE TABLE IF NOT EXISTS hok.json_import_manifest (
     source_path text PRIMARY KEY,
     data_kind text NOT NULL,

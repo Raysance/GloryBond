@@ -12,7 +12,7 @@
 - `hok/zevent.py`：所有消息收发的**最初层**与路由层；只做初步解析、分发与调用接口，不在此实现具体业务算法/流程细节；群消息最初层提取 `group_id`、`user_id`、`message_id`、引用消息 ID 与纯文本后调用 `zfunc.py` 保存历史，保存失败只记录错误且不得阻断正常路由；普通用户的“代表局”自然语言查询在此路由且必须以 `#` 或 `＃` 开头，正式回复不得附带调试信息；`##rep3` 仅供管理员按日期区间调试每日三类指数冠军；`#巅峰排名` / `#巅峰排行` 仅调用 `zfunc.py` 的本地结构化历史排名流程；`#梯度` / `＃梯度` 仅调用 `zfunc.py` 的梯度长图流程；消息中同时出现“战力”和“查询”时调用 `zfunc.py` 的指定地区荣耀战力查询流程，英雄名和地区名顺序不限；B 站 UP 视频订阅命令只在此做命令剥离并调用 `zfunc.py`，用户命令支持 `#订阅xxx`、`#取消订阅`、`#最新视频`、`#我的订阅`，不要求包含“B站”关键词。
 - `hok/zchat.py`：AI chat 的结构化消息组装、多轮 tool-call 循环、细粒度工具白名单与参数校验入口；玩家战报、单英雄统计、英雄汇总等意图必须使用各自独立的结构化 tool schema，由程序解析玩家/英雄并调用确定的 `zfunc.py` 业务接口，禁止把多个意图重新合并为自然语言总入口；任何 tool call 无论成功或失败都必须生成对应的 tool result；群聊历史检索由模型先基于原 query 生成多组互补查询，再调用本地检索接口，命中后可按 `message_id` 展开上下文。
 - `hok/zfile.py`：文件/IO 读写统一入口；所有 IO（读写文件、落盘缓存、路径拼接等）必须通过此模块提供的接口完成；荣耀战力地区树统一从 `data/honor/districts.json` 读取；本地巅峰排名所需的历史日期枚举和每日 JSON 读取也由此模块提供，日期枚举支持包含下界过滤；梯度英雄头像属于长期资产，按英雄 ID 与头像 URL 指纹保存在 `resources/wzry_images/hero_avatars/`，`file_transfer/` 只保存每次查询重新生成的梯度长图；HOK Exception 运行时错误记录统一追加到 `log/error.log`。
-- `hok/zdb.py`：PostgreSQL 数据访问唯一入口；负责结构化历史、对局详情、个人快照、战力分析、英雄梯度及导入清单的读写。历史业务以 PostgreSQL 为主数据源；仅当数据库写入失败时，`zfile.py` 才生成应急 JSON。
+- `hok/zdb.py`：PostgreSQL 数据访问唯一入口；负责结构化历史、对局详情、个人快照、战力分析、英雄梯度、英雄排行及导入清单的读写。历史业务以 PostgreSQL 为主数据源；仅当数据库写入失败时，`zfile.py` 才生成应急 JSON。
 - `hok/zfunc.py`：业务函数的**具体执行流程**（面向 `zevent.py` 暴露接口）；业务流程编排、调用工具、组装输出在此完成；同时作为 AI chat 工具访问现有业务能力与 Redis 群聊历史的唯一业务接口，负责保存、读取、检索和展开群聊记录，具体分词、BM25 与结果融合算法委托 `zmemory.py`；新版群聊历史按群永久保留全部文本消息，`ChatHistoryMaxMessages` 为 `0` 时禁止裁剪，仅在显式配置正整数时作为安全上限；`peak_rank_process()` 只读取 `this_season_start_date` 当日及之后的本地结构化历史，为每位玩家选取最近的有效巅峰赛后分并生成排名，禁止调用实时战绩或外部 API；`honor_power_query_process()` 从整句中模糊识别中文或拼音英雄名，并按最具体地区优先从本地地区树解析任意地区 `adcode`，只调用一次指定地区 `ranklist`，输出榜单 0% / 25% / 50% / 100% 四个位置的实际名次与战力，不查询本人战力或名次；`representative_battle_query_impl()` 负责普通用户代表局查询并将正式文字、图片路径和图片下方 AI 文案与调试载荷隔离；`representative_battle_range_debug_impl()` 仅组装每日三类指数冠军的纯文本区间调试结果；B 站 UP 视频订阅状态、Redis 去重、Web 详情页链接和推送消息组装在此完成，订阅身份必须以 UP 的 `mid` 为准，昵称仅用于展示、模糊匹配和搜索关键词缓存；B 站订阅持久化以 Redis key `bili:video_subscriptions` 为准，所有用户均可订阅多个 UP；战绩隐身禁用名单以 Redis key `battle:invisible_disabled_qids` 为准；戳一戳底蕴的英雄对位指标优先查询完整阵容，无样本时按五路对位拆分并汇总；阵容 AI 短评能力保留在 `with_ai_analysis` 参数后，启用时与玩家底蕴数据并行获取并缓存，当前戳一戳与网页底蕴分享入口均传入 `False` 禁用。
 - `hok/zmemory.py`：所有 AI 对话记忆、摘要、长期记忆、表情记忆相关的读写与策略接口，并提供群聊历史的 jieba 分词、BM25、多 query 融合和上下文展开算法；chat 动态上下文仍只允许自动加载当前用户经 `f_chat()` 捕获的直接人机对话，不得自动混入历史 summary、强制记忆、群聊被动发言、其他用户上下文或回复引用内容；群聊历史只能由 `zchat.py` 在模型明确调用检索工具时按需注入为 tool result。
 - `hok/chat_roles/`：chat 角色扮演的可插拔角色包；每个角色模块的 `ChatRole` 只维护该角色自身的信息与表达特征，角色无关的通用约束集中维护并在角色信息之后单独追加；角色通过包级注册表接入，当前默认角色由 `variables_static.json` 的 `chat_role` 指定。
@@ -107,7 +107,7 @@
    - 动态配置初始值：统一放在 `zdynamic.py`（通过 `dmc.xxx` 访问）。
    - 运行时需要跨部署持久化的业务状态：统一放 Redis，并通过 `zfunc.py` 暴露业务接口访问。
    - 静态映射/常量：统一放在 `zstatic.py`。
-   - 历史查询数据：PostgreSQL 为主查询源和主写入目标；完成全量 payload 校验与数据库备份后，可清理 `data/history/` 与 `data/herotier/` 下已迁移 JSON。数据库写入失败时，`zfile.py` 才写入同路径应急 JSON，供恢复与补录。
+   - 历史查询数据：PostgreSQL 为主查询源和主写入目标；完成全量 payload 校验与数据库备份后，可清理 `data/history/`、`data/herotier/` 与 `data/herorank/` 下已迁移 JSON。数据库写入失败时，`zfile.py` 才写入同路径应急 JSON，供恢复与补录。
 4. **IO 与时间**：IO 一律走 `zfile.py`；时间一律走 `ztime.py`。
 5. **发送消息**：所有对外消息发送必须走 `utils/message_sender.py`，用于统一出口与后续可观测性。
 6. **运行日志**：部署运行日志统一写入 `log/run.log`，HOK Exception 错误日志统一写入 `log/error.log`；`log/` 为运行时目录，不纳入 Git。

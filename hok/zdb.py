@@ -73,6 +73,8 @@ def import_archive_payload(descriptor, payload):
         return upsert_battle_power(descriptor["game_seq"], payload, source_path)
     if kind == "hero_tier":
         return replace_hero_tier_date(descriptor["date"], payload, source_path)
+    if kind == "hero_rank":
+        return replace_hero_rank_date(descriptor["date"], payload, source_path)
     raise ValueError(f"unsupported archive kind: {kind}")
 
 
@@ -548,6 +550,89 @@ def read_hero_tier_date(snapshot_date):
             return {row["hero_name"]: float(row["score"]) for row in cursor.fetchall()}
 
 
+def replace_hero_rank_date(snapshot_date, payload, source_path=None):
+    if not isinstance(payload, dict):
+        raise ValueError("hero rank payload must be an object")
+    snapshot_date = _date_text(snapshot_date)
+    snapshot_count = 0
+    entry_count = 0
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM hok.hero_rank_snapshots WHERE snapshot_date = %s", (snapshot_date,))
+            for rank_id_raw, rank_payload in payload.items():
+                rank_id = _as_int(rank_id_raw)
+                if rank_id is None or not isinstance(rank_payload, dict):
+                    continue
+                cursor.execute(
+                    """
+                    INSERT INTO hok.hero_rank_snapshots (
+                        snapshot_date, rank_id, title, update_time, sort_field,
+                        sort_type, filter_data, payload, source_path, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                    """,
+                    (
+                        snapshot_date,
+                        rank_id,
+                        rank_payload.get("title"),
+                        str(rank_payload.get("updateTime")) if rank_payload.get("updateTime") is not None else None,
+                        str(rank_payload.get("sortField")) if rank_payload.get("sortField") is not None else None,
+                        str(rank_payload.get("sortType")) if rank_payload.get("sortType") is not None else None,
+                        _jsonb(rank_payload.get("filter") or {}),
+                        _jsonb(rank_payload),
+                        source_path,
+                    ),
+                )
+                snapshot_count += 1
+                entries = rank_payload.get("list") or []
+                if not isinstance(entries, list):
+                    continue
+                for rank_index, entry in enumerate(entries):
+                    if not isinstance(entry, dict):
+                        continue
+                    hero_info = entry.get("heroInfo") or {}
+                    cursor.execute(
+                        """
+                        INSERT INTO hok.hero_rank_entries (
+                            snapshot_date, rank_id, rank_index, hero_id, hero_name,
+                            hero_career, tier_rank, ban_rate, show_rate, win_rate,
+                            pick_count, ban_count, payload
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            snapshot_date,
+                            rank_id,
+                            rank_index,
+                            _as_int(entry.get("heroId") or hero_info.get("heroId")),
+                            hero_info.get("heroName"),
+                            hero_info.get("heroCareer"),
+                            entry.get("tRank"),
+                            _as_float(entry.get("banRate")),
+                            _as_float(entry.get("showRate")),
+                            _as_float(entry.get("winRate")),
+                            _as_int(entry.get("pick")),
+                            _as_int(entry.get("ban")),
+                            _jsonb(entry),
+                        ),
+                    )
+                    entry_count += 1
+    return {"hero_rank_snapshots": snapshot_count, "hero_rank_entries": entry_count}
+
+
+def read_hero_rank_date(snapshot_date):
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT rank_id, payload
+                FROM hok.hero_rank_snapshots
+                WHERE snapshot_date = %s
+                ORDER BY rank_id
+                """,
+                (_date_text(snapshot_date),),
+            )
+            return {str(row["rank_id"]): row["payload"] for row in cursor.fetchall()}
+
+
 def manifest_matches(source_path, source_size, source_mtime_ns):
     with _connect() as connection:
         with connection.cursor() as cursor:
@@ -597,6 +682,8 @@ def table_counts():
         "battle_power",
         "battle_power_players",
         "hero_tier_scores",
+        "hero_rank_snapshots",
+        "hero_rank_entries",
         "json_import_manifest",
     )
     counts = {}
