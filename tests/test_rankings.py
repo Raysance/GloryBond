@@ -82,6 +82,21 @@ class RankingTests(unittest.TestCase):
         self.assertEqual(self.daily_writes, [])
         self.assertEqual(self.web_writes, [])
 
+    def test_traversal_error_report_compacts_large_parameters(self):
+        error = ZFUNC._build_traversal_error(
+            "rank.test",
+            "alice",
+            {"payload": "x" * 400},
+            RuntimeError("offline"),
+        )
+
+        report = ZFUNC.format_traversal_error_report("排行遍历", [error])
+
+        self.assertIn("排行遍历异常汇总 count=1", report)
+        self.assertIn("rank.test", report)
+        self.assertIn("RuntimeError('offline')", report)
+        self.assertLess(len(report), 520)
+
 
 if __name__ == "__main__":
     unittest.main()

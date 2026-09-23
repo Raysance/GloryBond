@@ -1,15 +1,120 @@
 """Group ranking aggregation and presentation."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from .. import zfile
 from ..zfile import write_daily_history_export, write_web_history_payload
-from ..zstatic import namenick, roleidlist, userlist
+from ..zstatic import namenick, roleidlist, this_season_start_date, userlist
 
 
 def _zfunc_attr(name):
     from .. import zfunc
 
     return getattr(zfunc, name)
+
+
+def compact_report_value(value, max_len=220):
+    try:
+        text = json.dumps(
+            value,
+            ensure_ascii=False,
+            default=str,
+            separators=(",", ":"),
+        )
+    except Exception:
+        text = repr(value)
+    text = str(text).replace("\n", " ").replace("\r", " ")
+    if len(text) > max_len:
+        text = text[: max_len - 3] + "..."
+    return text
+
+
+def build_traversal_error(source, realname, params, error):
+    return {
+        "source": source,
+        "name": realname,
+        "nickname": namenick.get(realname, realname),
+        "params": params,
+        "error": repr(error),
+    }
+
+
+def format_traversal_error_report(title, errors):
+    if not errors:
+        return ""
+    lines = [f"{title}异常汇总 count={len(errors)}"]
+    for index, item in enumerate(errors, 1):
+        name = item.get("name", "")
+        nickname = item.get("nickname", name)
+        source = item.get("source", "")
+        params = compact_report_value(item.get("params", {}), 260)
+        error = compact_report_value(item.get("error", ""), 180)
+        lines.append(
+            f"{index}. {source} {nickname}/{name} params={params} err={error}"
+        )
+    return "\n".join(lines)
+
+
+def peak_rank_process(player_names=None):
+    requested_names = set(
+        player_names if player_names is not None else userlist.keys()
+    )
+    latest_records = {}
+    for history_date in zfile.list_history_dates_descending(
+        start_date=this_season_start_date
+    ):
+        if not requested_names:
+            break
+        daily_data = zfile.read_history_date(history_date)
+        if not isinstance(daily_data, list):
+            continue
+        for player in daily_data:
+            if not isinstance(player, dict):
+                continue
+            realname = str(player.get("key") or "").strip()
+            if realname not in requested_names:
+                continue
+            valid_details = []
+            for index, detail in enumerate(player.get("details") or []):
+                if not isinstance(detail, dict):
+                    continue
+                try:
+                    peak_score = int(detail.get("PeakGradeAfterGame"))
+                except (TypeError, ValueError):
+                    continue
+                if peak_score <= 0:
+                    continue
+                try:
+                    timestamp = int(detail.get("GameTime_Timestamp") or 0)
+                except (TypeError, ValueError):
+                    timestamp = 0
+                valid_details.append((timestamp, index, peak_score))
+            if not valid_details:
+                continue
+            _, _, peak_score = max(
+                valid_details,
+                key=lambda item: (item[0], item[1]),
+            )
+            latest_records[realname] = {
+                "realname": realname,
+                "name": namenick.get(realname)
+                or player.get("nickname")
+                or realname,
+                "score": peak_score,
+                "date": history_date,
+            }
+            requested_names.remove(realname)
+    ranking = sorted(
+        latest_records.values(),
+        key=lambda item: (-item["score"], item["name"], item["realname"]),
+    )
+    if not ranking:
+        return "【巅峰排名】\n本地历史中暂无有效巅峰数据"
+    lines = ["【巅峰排名】"]
+    for index, item in enumerate(ranking, 1):
+        lines.append(f"{index}. {item['name']}  {item['score']}")
+    return "\n".join(lines)
 
 
 def rnk_process(rcv_msg, caller=None, show_zero=True, show_analyze=False, debug=False):
