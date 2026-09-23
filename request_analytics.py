@@ -16,6 +16,7 @@ import requests
 
 
 RECENT_REQUESTS_KEY = "web:request_analytics:recent"
+WEB_ARTIFACT_PREFIX = "web:artifact:"
 TRACKED_PATHS = {
     "/all",
     "/person",
@@ -130,7 +131,10 @@ def enrich_request_event(redis_client, event: dict, route_key: str | None) -> di
     if not route_key:
         return event
     try:
-        raw_payload = redis_client.get(route_key)
+        raw_payload = (
+            redis_client.get(f"{WEB_ARTIFACT_PREFIX}{route_key}")
+            or redis_client.get(route_key)
+        )
         if isinstance(raw_payload, bytes):
             raw_payload = raw_payload.decode("utf-8")
         payload = json.loads(raw_payload)

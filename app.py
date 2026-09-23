@@ -65,6 +65,24 @@ r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZ
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
 analytics_tasks = set()
 
+WEB_ARTIFACT_PREFIX = "web:artifact:"
+BATTLE_LIKED_IDS_KEY = "battle:liked_ids"
+BATTLE_SHARE_QUEUE_KEY = "queue:battle:share"
+BATTLE_ANALYZE_QUEUE_KEY = "queue:battle:analyze"
+
+
+def web_artifact_storage_key(key: str) -> str:
+    return f"{WEB_ARTIFACT_PREFIX}{key}"
+
+
+def get_web_artifact(key: str):
+    """Read the namespaced route payload, with temporary legacy fallback."""
+    return r_com.get(web_artifact_storage_key(key)) or r_com.get(key)
+
+
+def web_artifact_exists(key: str) -> bool:
+    return bool(r_com.exists(web_artifact_storage_key(key)) or r_com.exists(key))
+
 confs = {}
 with open('../NBot/config.yaml', 'r') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
@@ -97,7 +115,7 @@ async def collect_request_analytics(request: Request, call_next):
 
 def key_to_filename(key: str, reqtype: str):
     try:
-        content = json.loads(r_com.get(key).decode('utf-8'))
+        content = json.loads(get_web_artifact(key).decode('utf-8'))
         local_path=os.path.join("file_transfer","temp_files",content["filename"]+".json")
         return content,local_path
     except:
@@ -269,8 +287,14 @@ def check_redis_health(processes: list[dict]) -> dict:
                 "chat_memory": REDIS_DB_CHAT_MEMORY,
             },
             "queues": {
-                "Shared_queue": r_share_queue.llen("Shared_queue"),
-                "Analyze_queue": r_analyze_queue.llen("Analyze_queue"),
+                BATTLE_SHARE_QUEUE_KEY: (
+                    r_share_queue.llen(BATTLE_SHARE_QUEUE_KEY)
+                    + r_share_queue.llen("Shared_queue")
+                ),
+                BATTLE_ANALYZE_QUEUE_KEY: (
+                    r_analyze_queue.llen(BATTLE_ANALYZE_QUEUE_KEY)
+                    + r_analyze_queue.llen("Analyze_queue")
+                ),
             },
             **info,
         }
@@ -619,7 +643,7 @@ async def show_bili_video(request: Request, key: str):
             "ErrorPages/illegal.html",{"request": request,"message":"key非法"}
         )
     try:
-        raw = r_com.get(key)
+        raw = get_web_artifact(key)
         if not raw:
             raise ValueError("empty bili video payload")
         video = json.loads(raw.decode("utf-8"))
@@ -657,7 +681,7 @@ async def show_bili_video(request: Request, key: str):
 def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False
-    return r_com.exists(key) or key==SECRET_KEY
+    return key==SECRET_KEY or web_artifact_exists(key)
 
 
 @app.get("/battle-data/{game_seq}")
@@ -742,8 +766,13 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
             }
         )
     happen_time=int(time.time())
-    if (r_liked_set.exists(gameSeq)):
-        result=r_liked_set.delete(gameSeq) 
+    is_liked = bool(
+        r_liked_set.sismember(BATTLE_LIKED_IDS_KEY, gameSeq)
+        or r_liked_set.exists(gameSeq)
+    )
+    if is_liked:
+        r_liked_set.srem(BATTLE_LIKED_IDS_KEY, gameSeq)
+        r_liked_set.delete(gameSeq)
         success_data={
             "success": True,
             "message": "取消收藏成功",
@@ -753,7 +782,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
             }
         }
     else:
-        r_liked_set.set(gameSeq,happen_time)
+        r_liked_set.sadd(BATTLE_LIKED_IDS_KEY, gameSeq)
         success_data={
             "success": True,
             "message": "收藏成功",
@@ -784,7 +813,7 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     }
     try:
         json_params = json.dumps(params)
-        result = r_share_queue.lpush("Shared_queue", json_params)
+        result = r_share_queue.lpush(BATTLE_SHARE_QUEUE_KEY, json_params)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -831,7 +860,7 @@ async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRole
     }
     try:
         json_params = json.dumps(params)
-        result = r_analyze_queue.lpush("Analyze_queue", json_params)
+        result = r_analyze_queue.lpush(BATTLE_ANALYZE_QUEUE_KEY, json_params)
     except Exception as e:
         raise HTTPException(
             status_code=500,

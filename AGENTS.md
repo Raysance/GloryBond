@@ -40,6 +40,7 @@
 - 页面数据路径尽量在后端计算后传入模板，不要让前端拼接业务路径或 Redis key。
 - 管理后台路由保持在 `/admin/...` 命名空间下，并继续使用 `AdminKey` Cookie 和 `SECRET_KEY` 校验。
 - 访问分析数据使用 Redis `web:request_analytics:*` 命名空间；查询参数中的 key、AdminKey、token 等凭据禁止写入统计，后台只返回脱敏 IP。地域查询必须异步执行并按 IP 缓存，不得阻塞普通页面响应。
+- NBot 与 Web 共享的 Redis Key 使用冒号分层命名：网页临时载荷保存为 `web:artifact:<token>`，URL 仍只暴露 token；收藏集合为 `battle:liked_ids`；网页分享与底蕴分析队列分别为 `queue:battle:share`、`queue:battle:analyze`。Web 是两条业务队列的生产者，NBot 是消费者，修改名称或载荷结构时必须同步修改两个项目及 NBot 的 Redis 迁移脚本。
 - 错误场景优先复用 `templates/ErrorPages/illegal.html` 或 `templates/ErrorPages/expired.html`。
 - 不要新增无必要的全局路由、兼容旧路由、调试接口或临时 fallback。
 
