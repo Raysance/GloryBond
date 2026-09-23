@@ -342,6 +342,19 @@ def hero_tier_image_path():
     return os.path.join(temp_path, "temp_files", "hero_tier.png")
 
 
+def web_history_json_path(filename_hashed):
+    """Return the public JSON path for one web history artifact."""
+    return os.path.join(temp_path, "temp_files", f"{filename_hashed}.json")
+
+
+def write_web_history_payload(filename_hashed, payload):
+    """Persist one web history payload through the project's IO boundary."""
+    json_path = web_history_json_path(filename_hashed)
+    ensure_dir(os.path.dirname(json_path))
+    writerl(json_path, payload)
+    return json_path
+
+
 def hero_tier_avatar_cache_path(hero_item):
     """Key one long-lived hero asset by hero id and source URL fingerprint."""
     hero_id = re.sub(r"[^0-9A-Za-z_-]", "", str(hero_item.get("heroId") or "unknown")) or "unknown"

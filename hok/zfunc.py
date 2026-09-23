@@ -3,8 +3,6 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 
-import hashlib
-import secrets
 import redis
 from wcwidth import wcswidth
 import math
@@ -818,13 +816,16 @@ class WebArtifacts:
     @staticmethod
     def make_hash(seed=None):
         """Create a short stable hash from seed or a random token."""
-        source=str(seed) if seed is not None else secrets.token_hex(16)
-        return hashlib.sha256(source.encode()).hexdigest()[:16]
+        from .business.web_artifacts import make_hash
+
+        return make_hash(seed)
 
     @staticmethod
     def history_json_path(filename_hashed):
         """Build the public history JSON path."""
-        return os.path.join(temp_path,"temp_files",filename_hashed+".json")
+        from .zfile import web_history_json_path
+
+        return web_history_json_path(filename_hashed)
 
     @staticmethod
     def history_artifact(seed=None):
@@ -835,18 +836,9 @@ class WebArtifacts:
     @staticmethod
     def route_url(sitetype,hash_key):
         """Build a public route URL for a stored web payload."""
-        routes={
-            "all":"all",
-            "single_oneday":"person",
-            "single_period":"period",
-            "btldetail":"battle",
-            "query_select":"query",
-            "benefit":"benefit",
-            "bili_video":"bili-video",
-        }
-        route=routes.get(sitetype)
-        if (not route): return ""
-        return f"https://hok.{confs["WebService"]["server_domain"]}/{route}?key={hash_key}"
+        from .business.web_artifacts import route_url
+
+        return route_url(sitetype, hash_key, confs["WebService"]["server_domain"])
 
     @staticmethod
     def create_route_link(contents,sitetype):
@@ -859,19 +851,18 @@ class WebArtifacts:
     @staticmethod
     def history_route_link(filename_hashed,sitetype,caller="",time_text="",extra=None):
         """Create a route link for a history JSON artifact."""
-        payload={"filename":filename_hashed,"caller":caller,"time":time_text}
-        if (extra): payload.update(extra)
+        from .business.web_artifacts import history_route_payload
+
+        payload = history_route_payload(filename_hashed, caller, time_text, extra)
         return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),sitetype)
 
     @staticmethod
     def publish_history_json_route(payload,sitetype):
         """Publish a JSON payload to the history JSON path, then return a route URL."""
-        from .zfile import ensure_dir
-        from .zfile import writerl
+        from .zfile import write_web_history_payload
 
-        filename_hashed,json_path=WebArtifacts.history_artifact()
-        ensure_dir(os.path.dirname(json_path))
-        writerl(json_path,payload)
+        filename_hashed = WebArtifacts.make_hash()
+        write_web_history_payload(filename_hashed, payload)
         return WebArtifacts.route_url(sitetype,filename_hashed)
 
     @staticmethod
