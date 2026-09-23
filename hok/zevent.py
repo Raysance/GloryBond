@@ -143,22 +143,22 @@ async def f_exporthistory(event):
 
 @_representative_battle.handle()
 async def f_representative_battle(event: MessageEvent):
+    from .event_handlers.representative import representative_query_reply
     from .zfile import existing_absolute_path
-    from .zfunc import representative_battle_query_impl
 
     raw_msg = event.get_plaintext().strip()
     try:
-        query_result = await asyncio.to_thread(representative_battle_query_impl, raw_msg)
-        if not query_result["found"]:
-            add_msg(f"{query_result['target_date']} 暂无可用的代表局", event=event)
+        result = await representative_query_reply(raw_msg)
+        if result["kind"] == "text":
+            add_msg(result["text"], event=event)
             return
 
-        final_msg = Message(query_result["text"])
-        image_path = existing_absolute_path(query_result["image_path"])
+        final_msg = Message(result["text"])
+        image_path = existing_absolute_path(result["image_path"])
         if image_path:
             final_msg += MessageSegment.image(f"file://{image_path}")
-        if query_result["commentary"]:
-            final_msg += MessageSegment.text(f"\n{query_result['commentary']}")
+        if result["commentary"]:
+            final_msg += MessageSegment.text(f"\n{result['commentary']}")
         add_msg(final_msg, event=event)
     except ValueError as error:
         add_msg(str(error), event=event)
@@ -172,80 +172,22 @@ async def f_representative_battle(event: MessageEvent):
 
 @_dailyrepbattle.handle()
 async def f_dailyrepbattle(event: MessageEvent):
+    from .event_handlers.representative import daily_representative_debug_reply
     from .zfile import existing_absolute_path
-    from .zfunc import get_daily_representative_battle
-    from .utils.message_sender import add_msg
-    from nonebot.adapters.onebot.v11 import MessageSegment
-
-    # 解析日期参数，例如 ##srep 2026-04-20
-    # 由于使用 on_keyword，我们需要手动剥离 ##srep
-    raw_msg = event.get_plaintext().strip()
-    target_date = raw_msg.replace("##srep", "").strip() or None
 
     try:
-        # 传递可选的日期参数
-        rep_res = get_daily_representative_battle(target_date=target_date)
-        if not rep_res:
-            add_msg(f"未发现 {target_date or '今日'} 的对局数据，请确认 history 目录下 JSON 已生成", event=event)
+        result = await daily_representative_debug_reply(event.get_plaintext())
+        if result["kind"] == "text":
+            add_msg(result["text"], event=event)
             return
-
-        # 构造发给发送者的消息
-        if isinstance(rep_res, (list, tuple)) and len(rep_res) >= 2:
-            text_part = rep_res[0]
-            img_path = rep_res[1]
-            final_msg = Message(text_part)
-            commentary = None
-            
-            # 调试信息：输出筛选准则
-            if len(rep_res) >= 3:
-                best_info = rep_res[2]
-                commentary = best_info.get("AiCommentary")
-                debug_info = f"\n\n[调试-筛选准则]\n"
-                debug_info += f"● 代表类型: {best_info.get('RepresentativeCategory')}\n"
-                debug_info += f"● 代表性指数: {best_info.get('RepScore')}/100\n"
-                category_scores = best_info.get("CategoryScores", {})
-                if category_scores:
-                    score_text = " / ".join(f"{name}{score}" for name, score in category_scores.items())
-                    debug_info += f"● 三类指数: {score_text}\n"
-                debug_info += f"● 依据标签: {' '.join(best_info.get('RawTags', [])) or '无'}\n"
-                breakdown = best_info.get("ScoreBreakdown", [])
-                if breakdown:
-                    debug_info += "● 代表类型分项:\n"
-                    for item in breakdown:
-                        debug_info += (
-                            f"  - {item.get('factor')} "
-                            f"{item.get('contribution')}/{item.get('max_weight')}"
-                            f"（{item.get('condition')}）\n"
-                        )
-                filter_summary = best_info.get("FilterSummary", {})
-                if filter_summary:
-                    debug_info += (
-                        "● 筛选统计: "
-                        f"扫描{filter_summary.get('scanned', 0)}局，"
-                        f"地图剔除{filter_summary.get('official_map_rejected', 0)}局，"
-                        f"规则剔除{filter_summary.get('rule_rejected', 0)}局，"
-                        f"合并重复视角{filter_summary.get('duplicate_perspectives', 0)}个，"
-                        f"最终候选{filter_summary.get('eligible_unique_battles', 0)}局\n"
-                    )
-                debug_info += f"● 深度数据: {'已参与评分' if best_info.get('HasDetail') else '缺失，仅按摘要评分'}\n"
-                if best_info.get('DetailReason'):
-                    debug_info += f"● 深度原因: {best_info.get('DetailReason')}"
-                final_msg += debug_info
-
-            image_path = existing_absolute_path(img_path)
-            if image_path:
-                final_msg += MessageSegment.image(f"file://{image_path}")
-            if commentary:
-                final_msg += MessageSegment.text(f"\n{commentary}")
-            
-            # 1. 发送给发送者 (私聊)
-            add_msg(final_msg, event=event)
-            # 使用普通的 add_msg 或直接 return 而不是 finish
-            add_msg("代表局调试结果已私聊发送", event=event)
-            return
-        else:
-            add_msg(f"数据格式异常: {str(rep_res)}", event=event)
-            return
+        final_msg = Message(result["text"])
+        image_path = existing_absolute_path(result["image_path"])
+        if image_path:
+            final_msg += MessageSegment.image(f"file://{image_path}")
+        if result["commentary"]:
+            final_msg += MessageSegment.text(f"\n{result['commentary']}")
+        add_msg(final_msg, event=event)
+        add_msg(result["acknowledgement"], event=event)
             
     except Exception as e:
         import traceback
@@ -254,12 +196,11 @@ async def f_dailyrepbattle(event: MessageEvent):
 
 @_representative_range_debug.handle()
 async def f_representative_range_debug(event: MessageEvent):
-    from .zfunc import representative_battle_range_debug_impl
+    from .event_handlers.representative import representative_range_debug_replies
 
     raw_msg = event.get_plaintext().strip()
     try:
-        result = await asyncio.to_thread(representative_battle_range_debug_impl, raw_msg)
-        for day_report in result["day_reports"]:
+        for day_report in await representative_range_debug_replies(raw_msg):
             add_msg(day_report, event=event)
     except ValueError as error:
         add_msg(str(error), event=event)
