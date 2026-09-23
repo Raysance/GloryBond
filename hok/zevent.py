@@ -839,62 +839,26 @@ async def f_watchbattle(bot,event):
 
 @_spoiler.handle()
 async def f_spoiler(bot, event):
-    from .zfunc import spoiler_process, qid2nick, extract_name
-    from .zapi import wzry_get_official
-    import time
+    from .event_handlers.spoiler import (
+        prepare_spoiler_request,
+        run_spoiler_request,
+    )
 
-    userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
-    raw_msg = rcv_msg.lstrip("#＃").strip()
-
-    cache = getattr(dmc, "spoiler_cache", None)
-    now = time.time()
-
-    query_realname = None
-    if "的预言" in raw_msg:
-        query_realname = extract_name(rcv_msg)
-        if not query_realname:
-            add_msg("没有提到玩家名字哦", event=event)
-            return
-
-        try:
-            btlist_res = await asyncio.to_thread(
-                wzry_get_official,
-                reqtype="btlist",
-                userid=userlist[query_realname],
-                roleid=roleidlist[query_realname],
-            )
-        except Exception as e:
-            add_msg(f"获取实时战局失败: {str(e)}", event=event)
-            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-            return
-
-        gaming_info = btlist_res.get("gaming") if btlist_res.get("isGaming") else None
-        if not gaming_info:
-            add_msg(f"【{namenick.get(query_realname, '未知玩家')}】当前不在对局中，暂时无法预言", event=event)
-            return
-
-        battle_id = gaming_info.get("battleId")
-
-        cache = {
-            "time": now,
-            "realname": query_realname,
-            "battleID": battle_id,
-        }
-        dmc.spoiler_cache = cache
-
-    if not cache or (now - cache["time"] > 300):
-        add_msg("不存在待预言对局", event=event)
-        return
-
-    target_name = namenick.get(cache.get("realname", "未知玩家"), "未知玩家")
-    add_msg(f"正在获取【{target_name}】实时战局并计算底蕴...", event=event)
     try:
-        ret_msg = await asyncio.to_thread(spoiler_process, cache["battleID"], roleidlist.get(cache["realname"]), userlist.get(cache["realname"]))
-        # ret_msg = await asyncio.to_thread(spoiler_process, 0, 0,0)
-        txt_msg,pic_path=ret_msg
-        snd_msg=MessageSegment.text(txt_msg)+MessageSegment.image(pic_path)
-        add_msg(snd_msg, event=event)
+        prepared = await prepare_spoiler_request(event)
+    except Exception as e:
+        add_msg(f"获取实时战局失败: {str(e)}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        return
+    if prepared["kind"] == "text":
+        add_msg(prepared["text"], event=event)
+        return
+    add_msg(prepared["status"], event=event)
+    try:
+        result = await run_spoiler_request(prepared)
+        message = MessageSegment.text(result["text"])
+        message += MessageSegment.image(result["image_path"])
+        add_msg(message, event=event)
     except Exception as e:
         add_msg(f"底蕴计算失败: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
