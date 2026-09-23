@@ -186,6 +186,36 @@ class BattlePowerTests(unittest.TestCase):
 
         self.assertEqual(result, ("123", False, True))
 
+    def test_history_save_accepts_postgres_only_write_without_json_archive(self):
+        history = ZFUNC.BattlePowerHistory
+        originals = {
+            "official": ZFUNC.check_btl_official,
+            "writer": ZFILE.writerl,
+            "db_exists": BATTLE_POWER.zdb.battle_power_exists,
+            "file_exists": ZFILE.file_exist,
+        }
+        writes = []
+        ZFUNC.check_btl_official = lambda _map_name: True
+        ZFILE.writerl = lambda path, payload: writes.append((path, payload))
+        BATTLE_POWER.zdb.battle_power_exists = lambda _gameseq: True
+        ZFILE.file_exist = lambda _path: False
+        try:
+            saved_path = history.save(
+                {
+                    "GameSeq": "1790140310",
+                    "mapName": "排位赛",
+                    "mySide": {"level": 1.23456},
+                }
+            )
+        finally:
+            ZFUNC.check_btl_official = originals["official"]
+            ZFILE.writerl = originals["writer"]
+            BATTLE_POWER.zdb.battle_power_exists = originals["db_exists"]
+            ZFILE.file_exist = originals["file_exists"]
+
+        self.assertEqual(saved_path, ZFILE.battle_power_history_path("1790140310"))
+        self.assertEqual(writes[0][1]["mySide"]["level"], 1.235)
+
     def test_pending_candidate_selects_latest_valid_unprocessed_battle(self):
         original_fetch = ZFUNC.fetch_history
         original_skip = ZFUNC.BattlePowerHistory.should_skip_candidate

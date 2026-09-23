@@ -546,10 +546,9 @@ class BattlePowerHistory:
         if not _runtime().check_btl_official(map_name):
             _runtime().log_message(f"SKIP_SAVE_BATTLE_POWER_NON_OFFICIAL: GameSeq={gameseq} mapName={map_name}")
             return None
-        zfile.ensure_dir(zfile.battle_power_history_dir())
         power_data = BattlePowerHistory.rounded(power_data)
         zfile.writerl(BattlePowerHistory.path(gameseq), power_data)
-        if not zfile.file_exist(BattlePowerHistory.path(gameseq)):
+        if not BattlePowerHistory.exists(gameseq):
             raise Exception(f"save_battle_power_history_error: write failed GameSeq={gameseq}")
         return BattlePowerHistory.path(gameseq)
 
