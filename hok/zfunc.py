@@ -956,24 +956,11 @@ def btldetail_process(
         individual_show=individual_show,
         strict_filter=strict_filter,
     )
-def heropower_process(realname):
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
+from .business import hero_profiles as _hero_profiles_business
 
-    res=wzry_get_official(reqtype="heropower",userid=userid,roleid=roleid)
-    # print(res)
-    ret_text=f"{namenick[realname]}的战力英雄\n"
-    ret_text+=f"─────────────\n"
-    for hero in res['heroList']:
-        try:
-            region_name=hero['honorTitle']['desc']['full'].split("第")[0]
-            metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
-            ret_text+=f"【{hero['basicInfo']['title']}】"
-            ret_text+=f" {hero['basicInfo']['heroFightPower']}\n"
-            ret_text+=f" {region_name}  第 {hero['honorTitle']['rank']} 名\n\n"
-        except Exception as e:
-            pass
-    return ret_text
+
+def heropower_process(realname):
+    return _hero_profiles_business.heropower_process(realname)
 
 
 from .business import hero_statistics as _hero_statistics_business
@@ -1059,23 +1046,7 @@ def todayhero_process(realname, ignore_limit=False, ai_comment=True):
         ai_comment=ai_comment,
     )
 def allhero_process(realname):
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
-
-    res=wzry_get_official(reqtype="allhero",userid=userid,roleid=roleid)
-    ret_text=f"{namenick[realname]}的拿手英雄\n"
-    hero_cnt=0
-    for hero in res['heroList']:
-        if (hero_cnt>5): break
-        hero_cnt+=1
-        # try:
-        ret_text+=f"{hero['name']}： {hero['heroFightPower']}\n"
-        ret_text+=f"   {hero['playNum']}场 {hero['winRate']}\n"
-        # except Exception as e:
-        #     pass
-        # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
-        # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
-    return ret_text
+    return _hero_profiles_business.allhero_process(realname)
 def gradeanalyze_process(realname):
     from .tools import gen_grade_chart
     from .ztime import str_to_time, time_r
