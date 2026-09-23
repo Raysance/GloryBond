@@ -133,12 +133,21 @@ def battle_detail_exists(gameseq):
 
 
 def writerl(filepath,data):
+    descriptor = classify_postgres_archive_path(filepath)
+    if descriptor and not postgres_archive_json:
+        sync_result = _sync_postgres_archive(filepath, data)
+        if sync_result is not False:
+            return None
     try:
+        parent_dir = os.path.dirname(str(filepath))
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         with open(filepath, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
-        _sync_postgres_archive(filepath, data)
+        if descriptor:
+            _sync_postgres_archive(filepath, data)
         return None
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -197,7 +206,8 @@ def _sync_postgres_archive(filepath, data):
             f"POSTGRES_ARCHIVE_SYNC_ERROR: path={descriptor['source_path']} error={repr(exc)}",
             logging.ERROR,
         )
-    return None
+        return False
+    return False
 
 
 def list_postgres_archive_files(kinds=None):

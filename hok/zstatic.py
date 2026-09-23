@@ -25,6 +25,7 @@ postgres_dsn = str(
     or confs.get("PostgreSQL", {}).get("dsn")
     or "REDACTED_CREDENTIAL"
 )
+postgres_archive_json = bool(confs.get("PostgreSQL", {}).get("archive_json", False))
 
 # 引入程序静态变量
 with open('variables_static.json', 'r', encoding='utf-8') as file:

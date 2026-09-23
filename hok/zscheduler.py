@@ -251,7 +251,6 @@ def _fetch_herorank_impl():
 def _fetch_hero_tier_impl():
     from .zapi import tianyuanzhiyi_tier_api
     from .ztime import date_r
-    from .zfile import file_exist
     from .zfile import read_hero_tier
     from .zfile import writerl
 
@@ -259,8 +258,9 @@ def _fetch_hero_tier_impl():
     herotier_dir = "herotier"
     file_path = os.path.join("data",herotier_dir, f"{current_date}.json")
 
-    if file_exist(file_path):
-        dmc.herotier = read_hero_tier(current_date)
+    stored_tier = read_hero_tier(current_date)
+    if stored_tier:
+        dmc.herotier = stored_tier
     else:
         tierinfo=tianyuanzhiyi_tier_api()
         for heroinfo in tierinfo["tiers"]:

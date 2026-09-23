@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 
 from local_debugger import import_hok_module, project_root
@@ -76,6 +77,49 @@ class PostgresArchiveTests(unittest.TestCase):
         finally:
             ZDB.read_history_date = original_db_reader
             ZFILE.readerl = original_json_reader
+
+    def test_managed_archive_writes_only_postgres_when_enabled(self):
+        original_classifier = ZFILE.classify_postgres_archive_path
+        original_sync = ZFILE._sync_postgres_archive
+        original_archive_setting = ZFILE.postgres_archive_json
+        try:
+            ZFILE.classify_postgres_archive_path = lambda _path: {
+                "kind": "history",
+                "date": "2099-01-01",
+                "source_path": "data/history/2099-01-01.json",
+            }
+            ZFILE._sync_postgres_archive = lambda _path, _payload: {"players": 1}
+            ZFILE.postgres_archive_json = False
+            with tempfile.TemporaryDirectory() as temp_dir:
+                target = os.path.join(temp_dir, "history.json")
+                ZFILE.writerl(target, [{"key": "test"}])
+                self.assertFalse(os.path.exists(target))
+        finally:
+            ZFILE.classify_postgres_archive_path = original_classifier
+            ZFILE._sync_postgres_archive = original_sync
+            ZFILE.postgres_archive_json = original_archive_setting
+
+    def test_managed_archive_falls_back_to_json_when_postgres_write_fails(self):
+        original_classifier = ZFILE.classify_postgres_archive_path
+        original_sync = ZFILE._sync_postgres_archive
+        original_archive_setting = ZFILE.postgres_archive_json
+        try:
+            ZFILE.classify_postgres_archive_path = lambda _path: {
+                "kind": "history",
+                "date": "2099-01-01",
+                "source_path": "data/history/2099-01-01.json",
+            }
+            ZFILE._sync_postgres_archive = lambda _path, _payload: False
+            ZFILE.postgres_archive_json = False
+            with tempfile.TemporaryDirectory() as temp_dir:
+                target = os.path.join(temp_dir, "history.json")
+                payload = [{"key": "fallback"}]
+                ZFILE.writerl(target, payload)
+                self.assertEqual(ZFILE.readerl(target), payload)
+        finally:
+            ZFILE.classify_postgres_archive_path = original_classifier
+            ZFILE._sync_postgres_archive = original_sync
+            ZFILE.postgres_archive_json = original_archive_setting
 
 
 if __name__ == "__main__":

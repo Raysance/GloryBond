@@ -502,7 +502,6 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     }
 
     if (savepath):
-        os.makedirs(os.path.dirname(savepath), exist_ok=True)
         writerl(savepath,res)
     roleInfo=[roles for roles in res["profile"]["roleList"] if int(roles["roleId"])==roleid][0]
     nickname=roleInfo["roleName"]
@@ -654,7 +653,7 @@ def dump_specific_user(userid, roleid, target_date):
     :param roleid: 指定的角色ID
     :param target_date: 导出的日期，格式为 '%Y-%m-%d' (精确到天)
     """
-    from .zfile import writerl
+    from .zfile import read_history_date, writerl
 
     log_message(f"DUMPBEGIN specific user {userid} date: {target_date}.json")
     
@@ -680,16 +679,10 @@ def dump_specific_user(userid, roleid, target_date):
 
     aggregated_filename = os.path.join("data","history", target_date + ".json")
     try:
-        if os.path.exists(aggregated_filename):
-            with open(aggregated_filename, 'r', encoding='utf-8') as f:
-                import json
-                existing_data = json.load(f)
-            # Remove old data for this user if exists
-            existing_data = [d for d in existing_data if str(d.get("id")) != str(userid)]
-            existing_data.extend(gameinfo)
-            writerl(aggregated_filename, existing_data)
-        else:
-            writerl(aggregated_filename, gameinfo)
+        existing_data = read_history_date(target_date) or []
+        existing_data = [d for d in existing_data if str(d.get("id")) != str(userid)]
+        existing_data.extend(gameinfo)
+        writerl(aggregated_filename, existing_data)
     except Exception as e:
         log_message(f"Failed to update aggregated file {aggregated_filename}: {e}")
         
@@ -1268,16 +1261,12 @@ def single_process(rcv_msg):
         else: # 当天战局
             gameinfo=wzry_data(matching_name,website_filepath,sync_battle_visibility=True)
             
-            # Save to history file
+            # Update today's structured history snapshot.
             today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
             filename_export=os.path.join("data","history",today_sul_date+".json")
-            if file_exist(filename_export):
-                current_history = readerl(filename_export)
-                # Remove existing entry if any
-                current_history = [item for item in current_history if item.get('key') != matching_name]
-                current_history.append(gameinfo)
-            else:
-                current_history = [gameinfo]
+            current_history = read_history_date(today_sul_date) or []
+            current_history = [item for item in current_history if item.get('key') != matching_name]
+            current_history.append(gameinfo)
             writerl(filename_export, current_history)
             
             battle_visible=gameinfo['visible']
@@ -4628,11 +4617,11 @@ def check_btl_official_with_matching_with_entertain(btlname):
 def export_btldetail(gameinfo,roleid):
     from .zfile import writerl
     from .zapi import wzry_get_official
-    from .zfile import file_exist
+    from .zfile import battle_detail_exists
     unaccessible_battles=[]
     for btl in gameinfo:
         savepath=os.path.join("data","history","battles",str(btl["GameSeq"])+".json")
-        if (file_exist(savepath) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
+        if (battle_detail_exists(btl["GameSeq"]) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
         try:
             res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
             writerl(savepath,res)
