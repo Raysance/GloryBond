@@ -1066,31 +1066,7 @@ def watchbattleinfo_to_coplayer_res(watchbattle_json, roleid=None, game_result=N
         game_result=game_result,
     )
 def spoiler_process(battle_id,roleid,userid):
-    import math
-    raw_res=wzry_get_official(reqtype="watchbattle",battle_id=battle_id,roleid=roleid,userid=userid)
-    res=watchbattleinfo_to_coplayer_res(raw_res)
-    coplayer_txt,pic_path,stats=coplayer_process(-1,-1,-1,-1,-1,spoiler_info=res)
-    
-    # 计算预测胜率
-    # 结合底蕴(level)和英雄梯度(tier)
-    # 修正逻辑：
-    # 底蕴：范围 [10, 70]，差值一般在 [-20, 20]，权重约 0.05
-    # 梯度：范围 [20, 70]，差值可能较大，权重约 0.04
-    def win_rate_sigmoid(level_diff, tier_diff):
-        # 权重设置：底蕴权重 0.05, 梯度权重 0.04
-        score = level_diff * 0.05 + tier_diff * 0.04
-        return 1 / (1 + math.exp(-score))
-
-    level_diff = stats["my_side_level"] - stats["op_side_level"]
-    tier_diff = stats["my_side_tier"] - stats["op_side_tier"]
-    
-    predicted_win_rate = win_rate_sigmoid(level_diff, tier_diff)
-    win_rate_str = f"预测我方胜率：{round(predicted_win_rate * 100, 2)}%\n"
-
-    describe_txt=f"对局预言：{raw_res['battleID']}\n{raw_res['battleInfo']['roleInfo']['roleInfo']['roleName']}  {raw_res['battleInfo']['mapName']}  {raw_res['battleInfo']['roleInfo']['heroName']}\n\n"
-    # ret_txt=describe_txt + win_rate_str + coplayer_txt
-    ret_txt=describe_txt + coplayer_txt
-    return ret_txt,pic_path
+    return _battle_watch_business.spoiler_process(battle_id, roleid, userid)
 def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal",save_power_history=False,with_ai_analysis=False):
     from .zfunc import check_btl_official_with_matching
     from .tools.gen_coplayer_analyses import CoPlayerProcess

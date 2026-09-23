@@ -1,5 +1,7 @@
 """Strict watch-battle response conversion."""
 
+import math
+
 
 def _required_int(value, field_name):
     if value is None:
@@ -99,3 +101,37 @@ def watchbattleinfo_to_coplayer_res(watchbattle_json, roleid=None, game_result=N
         "redRoles": red_roles,
         "blueRoles": blue_roles,
     }
+
+
+def spoiler_process(battle_id, roleid, userid):
+    from .. import zfunc
+
+    raw_result = zfunc.wzry_get_official(
+        reqtype="watchbattle",
+        battle_id=battle_id,
+        roleid=roleid,
+        userid=userid,
+    )
+    converted = watchbattleinfo_to_coplayer_res(raw_result)
+    coplayer_text, picture_path, stats = zfunc.coplayer_process(
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        spoiler_info=converted,
+    )
+
+    level_difference = stats["my_side_level"] - stats["op_side_level"]
+    tier_difference = stats["my_side_tier"] - stats["op_side_tier"]
+    score = level_difference * 0.05 + tier_difference * 0.04
+    predicted_win_rate = 1 / (1 + math.exp(-score))
+    f"预测我方胜率：{round(predicted_win_rate * 100, 2)}%\n"
+
+    description = (
+        f"对局预言：{raw_result['battleID']}\n"
+        f"{raw_result['battleInfo']['roleInfo']['roleInfo']['roleName']}  "
+        f"{raw_result['battleInfo']['mapName']}  "
+        f"{raw_result['battleInfo']['roleInfo']['heroName']}\n\n"
+    )
+    return description + coplayer_text, picture_path

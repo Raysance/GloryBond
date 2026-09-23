@@ -75,6 +75,60 @@ class BattleWatchConversionTests(unittest.TestCase):
         ):
             ZFUNC.watchbattleinfo_to_coplayer_res(payload)
 
+    def test_spoiler_process_keeps_realtime_request_and_text_contract(self):
+        originals = {
+            "official": ZFUNC.wzry_get_official,
+            "coplayer": ZFUNC.coplayer_process,
+        }
+        calls = []
+        raw_result = {
+            "battleID": "battle-1",
+            "battleInfo": {
+                "camp1": [player(1, 11, "玩家一")],
+                "camp2": [player(2, 22, "玩家二")],
+                "roleInfo": {
+                    "roleId": 1,
+                    "heroName": "赵云",
+                    "roleInfo": {"roleName": "玩家一"},
+                },
+                "mapName": "排位赛",
+                "battleDetailUrl": "https://example/detail?acntCamp=1",
+            },
+        }
+        ZFUNC.wzry_get_official = lambda **kwargs: calls.append(kwargs) or raw_result
+        ZFUNC.coplayer_process = lambda *args, **kwargs: (
+            "底蕴分析",
+            "/tmp/power.png",
+            {
+                "my_side_level": 50,
+                "op_side_level": 40,
+                "my_side_tier": 30,
+                "op_side_tier": 20,
+            },
+        )
+        try:
+            text, picture_path = ZFUNC.spoiler_process("battle-1", 1, 11)
+        finally:
+            ZFUNC.wzry_get_official = originals["official"]
+            ZFUNC.coplayer_process = originals["coplayer"]
+
+        self.assertEqual(
+            calls,
+            [
+                {
+                    "reqtype": "watchbattle",
+                    "battle_id": "battle-1",
+                    "roleid": 1,
+                    "userid": 11,
+                }
+            ],
+        )
+        self.assertEqual(
+            text,
+            "对局预言：battle-1\n玩家一  排位赛  赵云\n\n底蕴分析",
+        )
+        self.assertEqual(picture_path, "/tmp/power.png")
+
 
 if __name__ == "__main__":
     unittest.main()
