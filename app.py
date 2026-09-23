@@ -59,16 +59,17 @@ globals().update(varia)
 app = FastAPI()
 APP_STARTED_AT = time.time()
 r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
-r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
-r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
-r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
-r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
+r_liked_set = r_com
+r_share_queue = r_com
+r_analyze_queue = r_com
+r_chat = r_com
 analytics_tasks = set()
 
-WEB_ARTIFACT_PREFIX = "web:artifact:"
-BATTLE_LIKED_IDS_KEY = "battle:liked_ids"
-BATTLE_SHARE_QUEUE_KEY = "queue:battle:share"
-BATTLE_ANALYZE_QUEUE_KEY = "queue:battle:analyze"
+WEB_ARTIFACT_PREFIX = "hok:web:artifact:"
+BATTLE_LIKED_IDS_KEY = "hok:battle:liked_ids"
+BATTLE_SHARE_QUEUE_KEY = "hok:queue:battle:share"
+BATTLE_ANALYZE_QUEUE_KEY = "hok:queue:battle:analyze"
+MEMORY_PREFIX = "hok:memory:"
 
 
 def web_artifact_storage_key(key: str) -> str:
@@ -76,12 +77,11 @@ def web_artifact_storage_key(key: str) -> str:
 
 
 def get_web_artifact(key: str):
-    """Read the namespaced route payload, with temporary legacy fallback."""
-    return r_com.get(web_artifact_storage_key(key)) or r_com.get(key)
+    return r_com.get(web_artifact_storage_key(key))
 
 
 def web_artifact_exists(key: str) -> bool:
-    return bool(r_com.exists(web_artifact_storage_key(key)) or r_com.exists(key))
+    return bool(r_com.exists(web_artifact_storage_key(key)))
 
 confs = {}
 with open('../NBot/config.yaml', 'r') as file:
@@ -280,21 +280,11 @@ def check_redis_health(processes: list[dict]) -> dict:
             "systemd": systemd,
             "processes": process_info,
             "dbs": {
-                "common": REDIS_DB,
-                "liked_set": REDIS_DB_LIKED_SET,
-                "share_queue": REDIS_DB_SHARE_QUEUE,
-                "analyze_queue": REDIS_DB_ANALYZE_QUEUE,
-                "chat_memory": REDIS_DB_CHAT_MEMORY,
+                "hok": REDIS_DB,
             },
             "queues": {
-                BATTLE_SHARE_QUEUE_KEY: (
-                    r_share_queue.llen(BATTLE_SHARE_QUEUE_KEY)
-                    + r_share_queue.llen("Shared_queue")
-                ),
-                BATTLE_ANALYZE_QUEUE_KEY: (
-                    r_analyze_queue.llen(BATTLE_ANALYZE_QUEUE_KEY)
-                    + r_analyze_queue.llen("Analyze_queue")
-                ),
+                BATTLE_SHARE_QUEUE_KEY: r_share_queue.llen(BATTLE_SHARE_QUEUE_KEY),
+                BATTLE_ANALYZE_QUEUE_KEY: r_analyze_queue.llen(BATTLE_ANALYZE_QUEUE_KEY),
             },
             **info,
         }
@@ -768,11 +758,9 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
     happen_time=int(time.time())
     is_liked = bool(
         r_liked_set.sismember(BATTLE_LIKED_IDS_KEY, gameSeq)
-        or r_liked_set.exists(gameSeq)
     )
     if is_liked:
         r_liked_set.srem(BATTLE_LIKED_IDS_KEY, gameSeq)
-        r_liked_set.delete(gameSeq)
         success_data={
             "success": True,
             "message": "取消收藏成功",
@@ -1001,7 +989,7 @@ async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: st
     if AdminKey != SECRET_KEY:
         return {"status": "error", "message": "认证失败"}
     
-    prefix = "zmem:"
+    prefix = MEMORY_PREFIX
     try:
         if mode == "forced":
             # 获取长效记忆 (forced_mem)
@@ -1142,7 +1130,7 @@ async def memory_operation(op: str = Body(...), qid: str = Body(...), mode: str 
     mapping = {"forced": "forced_mem", "active": "active_chat", "passive": "passive_chat", "summary": "summary_mem"}
     if mode not in mapping: return {"status": "error", "message": "未知模式"}
     
-    key = f"zmem:{mapping[mode]}:{qid}"
+    key = f"{MEMORY_PREFIX}{mapping[mode]}:{qid}"
     try:
         if op == "add":
             item = {"time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}

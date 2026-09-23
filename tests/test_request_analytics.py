@@ -68,7 +68,7 @@ class RequestAnalyticsTests(unittest.TestCase):
 
     def test_route_payload_adds_context_without_storing_route_key(self):
         redis_client = FakeRedis(values={
-            "temporary-secret": json.dumps({
+            "hok:web:artifact:temporary-secret": json.dumps({
                 "caller": {"PlayerName": "测试玩家"},
                 "DateFrom": "09-01",
                 "DateTo": "09-23",

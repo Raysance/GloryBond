@@ -30,7 +30,7 @@ from request_analytics import (  # noqa: E402
 )
 
 
-IMPORTED_EVENT_IDS_KEY = "web:request_analytics:imported_event_ids"
+IMPORTED_EVENT_IDS_KEY = "hok:web:analytics:imported_event_ids"
 NGINX_COMBINED_PATTERN = re.compile(
     r'^(?P<ip>\S+) - \S+ \[(?P<time>[^]]+)\] '
     r'"(?P<method>\S+) (?P<target>\S+) [^"]+" '
