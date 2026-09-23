@@ -5,12 +5,13 @@ from local_debugger import import_hok_module
 
 
 ZAPI = import_hok_module("zapi")
+AI_ADAPTER = import_hok_module("api_adapters.ai")
 
 
 class ResponsesApiTests(unittest.TestCase):
     def test_uses_responses_api_and_normalizes_function_calls(self):
-        original_openai = ZAPI.OpenAI
-        original_qqbot = ZAPI.confs.get("QQBot")
+        original_openai = AI_ADAPTER.OpenAI
+        original_qqbot = AI_ADAPTER.confs.get("QQBot")
         captured = {}
 
         response = SimpleNamespace(
@@ -40,8 +41,8 @@ class ResponsesApiTests(unittest.TestCase):
                 captured["client"] = kwargs
                 self.responses = FakeResponses()
 
-        ZAPI.OpenAI = FakeOpenAI
-        ZAPI.confs["QQBot"] = {
+        AI_ADAPTER.OpenAI = FakeOpenAI
+        AI_ADAPTER.confs["QQBot"] = {
             "deepseek_key": "test-key",
             "deepseek_chat_model": "test-model",
         }
@@ -55,11 +56,11 @@ class ResponsesApiTests(unittest.TestCase):
                 }],
             )
         finally:
-            ZAPI.OpenAI = original_openai
+            AI_ADAPTER.OpenAI = original_openai
             if original_qqbot is None:
-                ZAPI.confs.pop("QQBot", None)
+                AI_ADAPTER.confs.pop("QQBot", None)
             else:
-                ZAPI.confs["QQBot"] = original_qqbot
+                AI_ADAPTER.confs["QQBot"] = original_qqbot
 
         self.assertEqual(captured["input"], [{"role": "user", "content": "查alpha"}])
         self.assertEqual(captured["tool_choice"], "auto")
@@ -75,8 +76,8 @@ class ResponsesApiTests(unittest.TestCase):
         }])
 
     def test_network_mode_uses_ark_responses_endpoint_and_web_search(self):
-        original_openai = ZAPI.OpenAI
-        original_qqbot = ZAPI.confs.get("QQBot")
+        original_openai = AI_ADAPTER.OpenAI
+        original_qqbot = AI_ADAPTER.confs.get("QQBot")
         captured = {}
 
         class FakeResponses:
@@ -95,8 +96,8 @@ class ResponsesApiTests(unittest.TestCase):
                 captured["client"] = kwargs
                 self.responses = FakeResponses()
 
-        ZAPI.OpenAI = FakeOpenAI
-        ZAPI.confs["QQBot"] = {
+        AI_ADAPTER.OpenAI = FakeOpenAI
+        AI_ADAPTER.confs["QQBot"] = {
             "ark_key": "test-key",
             "ark_responses_model": "ark-responses-model",
         }
@@ -111,13 +112,13 @@ class ResponsesApiTests(unittest.TestCase):
                 network=True,
             )
         finally:
-            ZAPI.OpenAI = original_openai
+            AI_ADAPTER.OpenAI = original_openai
             if original_qqbot is None:
-                ZAPI.confs.pop("QQBot", None)
+                AI_ADAPTER.confs.pop("QQBot", None)
             else:
-                ZAPI.confs["QQBot"] = original_qqbot
+                AI_ADAPTER.confs["QQBot"] = original_qqbot
 
-        self.assertEqual(captured["client"]["base_url"], ZAPI.ark_model_url)
+        self.assertEqual(captured["client"]["base_url"], AI_ADAPTER.ark_model_url)
         self.assertEqual(captured["model"], "ark-responses-model")
         self.assertIn({"type": "web_search"}, captured["tools"])
         self.assertEqual(result["content"], "联网结果")

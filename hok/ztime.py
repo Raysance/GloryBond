@@ -14,6 +14,16 @@ def current_datetime_text():
     return time_r().strftime("%Y-%m-%d %H:%M:%S")
 def current_epoch_seconds():
     return int(time_r().timestamp())
+
+
+def current_timestamp():
+    """Return the current local Unix timestamp with sub-second precision."""
+    return time_r().timestamp()
+
+
+def sleep_seconds(seconds):
+    """Sleep for a caller-provided duration through the time boundary module."""
+    time.sleep(max(0, float(seconds)))
 def parse_chat_time_bound(value, is_end=False):
     """Parse a chat-history time bound in the deployment host timezone."""
     if value in (None, ""):

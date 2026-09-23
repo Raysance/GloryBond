@@ -4,13 +4,14 @@ from local_debugger import import_hok_module
 
 
 ZAPI = import_hok_module("zapi")
+AI_ADAPTER = import_hok_module("api_adapters.ai")
 
 
 class ArkApiTests(unittest.TestCase):
     def test_returns_empty_string_when_ark_request_fails(self):
-        original_openai = ZAPI.OpenAI
-        original_append_log = ZAPI.append_hok_exception_log
-        original_qqbot = ZAPI.confs.get("QQBot")
+        original_openai = AI_ADAPTER.OpenAI
+        original_append_log = AI_ADAPTER.append_hok_exception_log
+        original_qqbot = AI_ADAPTER.confs.get("QQBot")
         logged = []
 
         class FailingResponses:
@@ -22,20 +23,20 @@ class ArkApiTests(unittest.TestCase):
             def __init__(self, **kwargs):
                 self.responses = FailingResponses()
 
-        ZAPI.OpenAI = FailingOpenAI
-        ZAPI.confs["QQBot"] = {"ark_key": "test-key", "ark_responses_model": "test-model"}
-        ZAPI.append_hok_exception_log = lambda error, context=None: logged.append(
+        AI_ADAPTER.OpenAI = FailingOpenAI
+        AI_ADAPTER.confs["QQBot"] = {"ark_key": "test-key", "ark_responses_model": "test-model"}
+        AI_ADAPTER.append_hok_exception_log = lambda error, context=None: logged.append(
             (error, context)
         )
         try:
             result = ZAPI.ark_api("fetch news")
         finally:
-            ZAPI.OpenAI = original_openai
-            ZAPI.append_hok_exception_log = original_append_log
+            AI_ADAPTER.OpenAI = original_openai
+            AI_ADAPTER.append_hok_exception_log = original_append_log
             if original_qqbot is None:
-                ZAPI.confs.pop("QQBot", None)
+                AI_ADAPTER.confs.pop("QQBot", None)
             else:
-                ZAPI.confs["QQBot"] = original_qqbot
+                AI_ADAPTER.confs["QQBot"] = original_qqbot
 
         self.assertEqual(result, "")
         self.assertEqual(logged[0][1], {"function": "ark_api"})

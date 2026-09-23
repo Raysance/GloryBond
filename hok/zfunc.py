@@ -27,6 +27,49 @@ def _redis_set_json(key, value):
     dmc.redis_deamon.set(key, json.dumps(value, ensure_ascii=False))
 
 
+def _wait_official_low_priority_turn():
+    """Yield background official-API work to interactive web queues."""
+    from .ztime import current_timestamp, sleep_seconds
+
+    while True:
+        now = current_timestamp()
+        active_until = getattr(dmc, "OfficialForegroundActiveUntil", 0)
+        if now < active_until:
+            sleep_seconds(min(active_until - now, 3))
+            continue
+        try:
+            if dmc.redis_deamon.llen(REDIS_KEY_BATTLE_SHARE_QUEUE):
+                sleep_seconds(3)
+                continue
+            if dmc.redis_deamon.llen(REDIS_KEY_BATTLE_ANALYZE_QUEUE):
+                sleep_seconds(3)
+                continue
+        except Exception as error:
+            log_message(f"OFFICIAL_LOW_PRIORITY_QUEUE_CHECK_ERROR: {error}")
+        wait_seconds = (
+            getattr(dmc, "OfficialLowPriorityLastVisitAt", 0)
+            + 5
+            - current_timestamp()
+        )
+        if wait_seconds > 0:
+            sleep_seconds(wait_seconds)
+            continue
+        dmc.OfficialLowPriorityLastVisitAt = current_timestamp()
+        return
+
+
+def wzry_get_official(*args, priority="normal", **kwargs):
+    """Apply business priority rules, then call the stateless API adapter."""
+    from . import zapi
+    from .ztime import current_timestamp
+
+    if priority == "low":
+        _wait_official_low_priority_turn()
+    else:
+        dmc.OfficialForegroundActiveUntil = current_timestamp() + 5
+    return zapi.wzry_get_official(*args, **kwargs)
+
+
 def get_battle_invisible_disabled_qids():
     try:
         value = _redis_get_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, default=[])
@@ -481,7 +524,6 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
                         return detail["StarAfterGame"]
         return -1
 
-    from .zapi import wzry_get_official
     from .ztime import time_r
     from .ztime import time_sul
     from .ztime import stamp_to_time
@@ -845,7 +887,6 @@ class WebArtifacts:
         return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),"bili_video")
 
 def online_process():
-    from .zapi import wzry_get_official
     from .zapi import steam_api_user_status
 
     def process_user(realname):
@@ -1399,7 +1440,6 @@ def view_process(rcv_msg,time_gap=analyze_time_gap):
             snd_msg+="  无数据。\n"
     return snd_msg
 def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False,strict_filter=True):
-    from .zapi import wzry_get_official
     from .zfile import writerl
     from .zfunc import check_btl_official_with_matching
     from .tools import gen_battle_res
@@ -1477,8 +1517,6 @@ def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=F
         )
     return snd_message,picpath,res['head']['mapName']
 def heropower_process(realname):
-    from .zapi import wzry_get_official
-
     userid=userlist[realname]
     roleid=roleidlist[realname]
 
@@ -1628,8 +1666,6 @@ def _honor_rank_percentile_points(rank_list):
 
 def honor_power_query_process(realname, query_text):
     """Query one hero's honor threshold for an arbitrary configured district."""
-    from .zapi import wzry_get_official
-
     hero = _honor_hero_from_query(query_text)
     if not hero:
         return "未识别到英雄，请使用：#战力查询 英雄名 地区名"
@@ -1662,7 +1698,6 @@ def honor_power_query_process(realname, query_text):
 
 # 单一玩家、单一英雄
 def single_player_single_hero_process(username,heroid,heroname,this_season=True):
-    from .zapi import wzry_get_official
     from .ztime import time_r, time_delta,str_to_time
 
     userid=userlist[username]
@@ -2168,8 +2203,6 @@ def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     return former_msg,latter_msg,pic_path
 
 def allhero_process(realname):
-    from .zapi import wzry_get_official
-
     userid=userlist[realname]
     roleid=roleidlist[realname]
 
@@ -2209,7 +2242,6 @@ def gradeanalyze_process(realname):
     
     return pic_visit_path,analyze_msg
 def watchbattle_process(realname):
-    from .zapi import wzry_get_official
     from .tools import gen_battle_shot
 
     userid=userlist[realname]
@@ -2327,7 +2359,6 @@ def watchbattleinfo_to_coplayer_res(watchbattle_json, roleid=None, game_result=N
         "blueRoles": blue_roles,
     }
 def spoiler_process(battle_id,roleid,userid):
-    from .zapi import wzry_get_official
     import math
     raw_res=wzry_get_official(reqtype="watchbattle",battle_id=battle_id,roleid=roleid,userid=userid)
     res=watchbattleinfo_to_coplayer_res(raw_res)
@@ -2354,7 +2385,6 @@ def spoiler_process(battle_id,roleid,userid):
     ret_txt=describe_txt + coplayer_txt
     return ret_txt,pic_path
 def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal",save_power_history=False,with_ai_analysis=False):
-    from .zapi import wzry_get_official
     from .zfunc import check_btl_official_with_matching
     from .tools.gen_coplayer_analyses import CoPlayerProcess
 
@@ -4626,7 +4656,6 @@ def check_btl_official_with_matching_with_entertain(btlname):
     return False
 def export_btldetail(gameinfo,roleid):
     from .zfile import writerl
-    from .zapi import wzry_get_official
     from .zfile import battle_detail_exists
     unaccessible_battles=[]
     for btl in gameinfo:
