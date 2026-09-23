@@ -134,49 +134,11 @@ async def f_qid_blocked(event):
 
 @_exporthistory.handle()
 async def f_exporthistory(event):
-    from .zfunc import dump_specific_user
-    args = event.get_plaintext().replace("#exp", "").replace("exp", "").strip().split()
-    if len(args) < 2:
-        add_msg("参数错误，格式：#exp realname date", event=event)
-        return
-    realname = args[0]
-    target_date = args[1]
-    unaccessible_battles=[]
-    if realname.lower() == "all":
-        add_msg(f"开始导出所有用户数据: {target_date}", event=event)
-        try:
-            for rname in userlist:
-                if rname in roleidlist:
-                    userid = userlist[rname]
-                    roleid = roleidlist[rname]
-                    gameinfo=await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
-                if gameinfo["unaccessible_battles"]:
-                    unaccessible_battles.append(gameinfo["unaccessible_battles"])
-        except Exception as e:
-            add_msg(f"全部导出失败: {str(e)}", event=event)
-            return
-        if (unaccessible_battles):
-            add_msg(f"全部导出battle失败: {str(unaccessible_battles)}", event=event)
-        else:
-            add_msg("全部导出完成", event=event)
-        return
+    from .event_handlers.history_export import export_history_replies
 
-    if realname not in userlist or realname not in roleidlist:
-        add_msg(f"未找到玩家: {realname}", event=event)
-        return
-    userid = userlist[realname]
-    roleid = roleidlist[realname]
-    add_msg(f"开始导出特定用户数据: {realname} {target_date}", event=event)
-    try:
-        gameinfo=await asyncio.to_thread(dump_specific_user, userid, roleid, target_date)
-        if gameinfo["unaccessible_battles"]:
-            unaccessible_battles=gameinfo["unaccessible_battles"]
-        if (unaccessible_battles):
-            add_msg(f"导出battle失败: {str(unaccessible_battles)}", event=event)
-        else:
-            add_msg("导出完成", event=event)
-    except Exception as e:
-        add_msg(f"导出失败: {str(e)+traceback.format_exc()}", event=event)
+    replies = await export_history_replies(event.get_plaintext())
+    for reply in replies:
+        add_msg(reply, event=event)
 
 
 @_representative_battle.handle()
