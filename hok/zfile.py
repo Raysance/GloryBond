@@ -342,6 +342,11 @@ def hero_tier_image_path():
     return os.path.join(temp_path, "temp_files", "hero_tier.png")
 
 
+def battle_exhibit_image_path():
+    """Return the regenerated single-battle exhibit image path."""
+    return os.path.join(temp_path, "temp_files", "exhibit.png")
+
+
 def web_history_json_path(filename_hashed):
     """Return the public JSON path for one web history artifact."""
     return os.path.join(temp_path, "temp_files", f"{filename_hashed}.json")

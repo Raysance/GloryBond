@@ -891,129 +891,37 @@ from .business import player_report as _player_report_business
 
 def single_process(rcv_msg):
     return _player_report_business.single_process(rcv_msg)
-def view_process(rcv_msg,time_gap=analyze_time_gap):
-    from .zfunc import Analyses
+from .business import battle_detail as _battle_detail_business
 
-    snd_msg=" "
-    if ("b" in rcv_msg):
-        benefit_data=Analyses.get_benefit_data(time_gap=time_gap)[4]
-        snd_msg+="受益受害：(排位巅峰战队)\n"
-        for k,v in benefit_data.items():
-            snd_msg+=f"{namenick[k]}：\n    {str(round(v[0],2))} {str(round(v[1]*100,1))}% {str(round(v[2],2))}\n"
-        payload=Analyses.get_benefit_debug_payload(time_gap=time_gap)
-        snd_msg+=WebArtifacts.publish_history_json_route(payload,"benefit")+"\n"
-    if ("e" in rcv_msg):
-        extreme_data=Analyses.get_extreme_data(time_gap=time_gap)
-        snd_msg+=f"近{time_gap}天最高最低评分：\n"
-        snd_msg+="      ↑"+namenick[extreme_data[3]]+"的"+extreme_data[5]+"："+str(round(extreme_data[1],3))+"分\n"
-        snd_msg+="      ↓"+namenick[extreme_data[2]]+"的"+extreme_data[4]+"："+str(round(extreme_data[0],3))+"分\n"
-    if ("k" in rcv_msg):
-        expert_hero=Analyses.get_expert_hero(time_gap=time_gap)
-        for k,v in expert_hero.items():
-            snd_msg+=f"{namenick[k]}的最拿手英雄：{list(v[0].keys())[0]},拿手程度：{str(round(list(v[0].values())[0],3))}\n"
-        snd_msg+="\n"
-    if ("i" in rcv_msg):
-        intersection_data=Analyses.get_intersection_data(time_gap=time_gap)
-        for k,v in intersection_data.items():
-            double_player=[]
-            for player in k: double_player.append(player)
-            snd_msg+=f"{namenick[double_player[0]]}与{namenick[double_player[1]]}：{str(int(v))}\n"
-    if ("h" in rcv_msg):
-        hero_overview = Analyses.get_hero_benefit_data(time_gap=30)
-        hero_min, hero_max, min_val, max_val, hero_stats = hero_overview
-        snd_msg+=f"英雄受益受害（近30日）：\n"
-        if hero_stats:
-            snd_msg+=f"  受益：{hero_min} ({min_val})\n"
-            snd_msg+=f"  受害：{hero_max} ({max_val})\n"
-            snd_msg+=line_delim
-            snd_msg+="\n  受益榜（Top 6）：\n"
-            # hero_stats 已按 metric 升序排列（越小越受益）
-            for hn, vals in list(hero_stats.items())[:6]:
-                snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
-            snd_msg+=line_delim
-            snd_msg+="\n  受害榜（Top 6）：\n"
-            for hn, vals in list(hero_stats.items())[-6:][::-1]:
-                snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
-        else:
-            snd_msg+="  无数据。\n"
-    return snd_msg
-def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False,strict_filter=True):
-    from .zfile import writerl
-    from .zfunc import check_btl_official_with_matching
-    from .tools import gen_battle_res
-    import json
-    import os
 
-    res = fetch_battle(gameseq,roleid)
+def view_process(rcv_msg, time_gap=analyze_time_gap):
+    return _battle_detail_business.view_process(rcv_msg, time_gap=time_gap)
 
-    if not res:
-        res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
-    
-    if ('head' not in res): return None,None,None
-    if (strict_filter and not check_btl_official_with_matching(res['head']['mapName'])): return None,None,res['head']['mapName']
-    
-    my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
-    team_contribute_factor=calculate_battle_contribution_factor(res) or 0
-    team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
-    my_userid=res['head']['userId']
-    our_player_infos_suf=[]
-    our_player_infos_suf_all=[]
-    our_plyaer_info_userlist=userlist|extra_useridlist
-    out_player_info_namenicklist=namenick|extra_namenick
-    for player in my_team_detail:
-        user_id=player['basicInfo']['userId']
-        for our_player_name,our_player_id in our_plyaer_info_userlist.items():
-            if (int(user_id)==int(our_player_id)):
-                our_player_infos_suf_all.append([our_player_name,player['battleStats']['gradeGame']])
-                if (int(user_id)!=int(my_userid)):
-                    our_player_infos_suf.append([our_player_name,player['battleStats']['gradeGame']])
-                break
-                
-            
-    our_player_infos=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf]
-    our_player_infos_all=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf_all]
-    our_player_text=""
-    our_player_text_all=""
-    if (our_player_infos):
-        our_player_text="With: "
-        for info in our_player_infos:
-            our_player_text+=f"{info[0]}({info[1]}) "
-        our_player_text+="\n"
-    if (our_player_infos_all):
-        our_player_text_all=""
-        for info in our_player_infos_all:
-            our_player_text_all+=f"{info[0]}({info[1]}) "
-        our_player_text_all+="\n"
-    filename_hashed,json_output_path=WebArtifacts.history_artifact(round(time.time()*1000000))
-    linkurl=WebArtifacts.history_route_link(filename_hashed,"btldetail")
-    picpath=""
-    writerl(json_output_path,res)
-    if (gen_image):
-        picpath=os.path.join(temp_path,"temp_files","exhibit.png")
-        gen_battle_res.generate_battle_ui_image(json_output_path,picpath)
-    snd_message=""
-    if (individual_show):
-        snd_message+=(
-            f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
-            f"{our_player_text_all}"
-            f"{linkurl}"
-        )
-    elif (from_web):
-        snd_message+=(
-            f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
-            f"{res['head']['roleName']} {res['head']['heroName']} {team_contribute_text}\n"
-            f"{linkurl}"
-        )
-    else:
-        snd_message+=(
-            f"最后一局 {'🏆' if res['head']['gameResult']==True else '🏳️'} "
-            f"{team_contribute_text}"
-            f"\n{res['head']['mapName']} {res['head']['heroName']}: {res['head']['killCnt']}/{res['head']['deadCnt']}/{res['head']['assistCnt']} {res['head']['gradeGame']}\n"
-            f"{our_player_text}"
-            f"{linkurl}\n\n"
-            f"戳一戳 来评估两方实力"
-        )
-    return snd_message,picpath,res['head']['mapName']
+
+def btldetail_process(
+    gameSvrId,
+    relaySvrId,
+    gameseq,
+    pvptype,
+    roleid,
+    gen_image=False,
+    show_profile=False,
+    from_web=False,
+    individual_show=False,
+    strict_filter=True,
+):
+    return _battle_detail_business.btldetail_process(
+        gameSvrId,
+        relaySvrId,
+        gameseq,
+        pvptype,
+        roleid,
+        gen_image=gen_image,
+        show_profile=show_profile,
+        from_web=from_web,
+        individual_show=individual_show,
+        strict_filter=strict_filter,
+    )
 def heropower_process(realname):
     userid=userlist[realname]
     roleid=roleidlist[realname]
