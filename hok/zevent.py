@@ -363,84 +363,35 @@ async def f_emoji_gen(event):
 
 @_group_poke.handle()
 async def f_group_poke(bot, event):
-    from .zfunc import qid2nick
-    from .zfunc import ai_parser
-    from .zfunc import get_emoji_url
-    from .zfunc import battle_power_process
-    from .ztime import current_datetime_text, time_r
-    from .ztime import str_to_time,time_to_str
-    from .ztime import calc_gap
-    from .zfile import file_exist, watch_battle_shot_path
-    from .ztime import add_second
-    
-    if isinstance(event, PokeNotifyEvent):
-        if event.target_id == event.self_id: 
-            if (not dmc.repair):
-                if (dmc.RTMPStatus):
-                    res=dmc.RTMPListener.screenshot()
-                    pic_path=watch_battle_shot_path(dmc.RTMPPlayer)
-                    
-                    if (res and await asyncio.to_thread(file_exist, pic_path)): snd_msg = MessageSegment.image(pic_path)
-                    else: snd_msg=MessageSegment.text("最快10秒ob一次")
-                    add_msg(snd_msg, event=event)
-                    return
-                elif (dmc.LastBtlMsgStatus and calc_gap(time_r(),str_to_time(dmc.LastBtlMsgTime))<600):
-                    dmc.LastBtlMsgStatus=False
-                    dmc.LastBtlMsgCoolDownTime=time_to_str(add_second(time_r(),30))
-                    with_ai_analysis = False
-                    try:
-                        ret_msg = await asyncio.to_thread(
-                            battle_power_process,
-                            **dmc.LastBtlParams,
-                            roleid=dmc.LastBtlRoleId,
-                            spoiler_info={},
-                            with_ai_analysis=with_ai_analysis,
-                        )
-                    except Exception as e:
-                        add_msg(str(e), event=event)
-                        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-                        return
-                    txt_msg,pic_path,_,power_data=ret_msg
-                    snd_msg=MessageSegment.text(txt_msg)
-                    if pic_path:
-                        snd_msg+=MessageSegment.image(pic_path)
-                    if with_ai_analysis and power_data.get("aiAnalysis"):
-                        snd_msg+=MessageSegment.text("\n" + power_data["aiAnalysis"])
-                    add_msg(snd_msg, event=event)
-                    return
-                elif (time_r()<str_to_time(dmc.LastBtlMsgCoolDownTime)):# 若两条戳一戳时间较近，防止误触发戳一戳消息，直接屏蔽
-                    return
-                else:
-                    user_id = event.user_id
-                    userqid=event.get_user_id()
-                    try:
-                        groupqid=event.group_id
-                    except Exception as e:
-                        groupqid=None
+    from .event_handlers.poke import group_poke_reply
 
-                    send_type=(random.random()>-1)
-                    if random.random() < (getattr(dmc, "EmojiImageProb", None) or 0):
-                        from .tools.gen_emoji_image import generate_user_emoji_image
-                        try:
-                            meta = await asyncio.to_thread(generate_user_emoji_image, user_qid=userqid)
-                            add_msg(MessageSegment.image(meta["image_path"]), event=event)
-                        except Exception as e:
-                            add_msg(f"emoji_gen_error: {str(e)}", event=event)
-                            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-                        return
-                    if send_type:
-                        snd_msg = await asyncio.to_thread(ai_parser, [qid2nick(userqid), current_datetime_text()], "poke")
-                    else:
-                        pic_index=random.randint(1,emoji_amount+1)
-                        emoji_url=get_emoji_url(pic_index)
-                        snd_msg = MessageSegment.image(emoji_url)
-                    add_msg(snd_msg, event=event)
-                    return
-                    # time.sleep(0.3)
-                    # await bot.group_poke(group_id=groupqid, user_id=userqid)
-            else:
-                await f_blocked(event)
-                return
+    if not isinstance(event, PokeNotifyEvent):
+        return
+    result = await group_poke_reply(event)
+    if result["kind"] == "none":
+        return
+    if result["kind"] == "blocked":
+        await f_blocked(event)
+        return
+    if result["kind"] == "error":
+        add_msg(result["text"], event=event)
+        add_msg(
+            result["traceback"],
+            msg_type="private",
+            to_id=confs["QQBot"]["super_qid"],
+        )
+        return
+    if result["kind"] == "image":
+        snd_msg = MessageSegment.image(result["image_path"])
+    elif result["kind"] == "battle":
+        snd_msg = MessageSegment.text(result["text"])
+        if result["image_path"]:
+            snd_msg += MessageSegment.image(result["image_path"])
+        if result["with_ai_analysis"] and result["analysis"]:
+            snd_msg += MessageSegment.text("\n" + result["analysis"])
+    else:
+        snd_msg = MessageSegment.text(result["text"])
+    add_msg(snd_msg, event=event)
                 
 @_empty_cache.handle()
 async def f_empty_cache(event): # 清空全局记录和用户(自己的)记录

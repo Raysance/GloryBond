@@ -51,8 +51,50 @@ class WebAnalyzeAiTests(unittest.TestCase):
         self.assert_entry_disables_lineup_commentary(source_path, "run_web_analyze_btls_processor")
 
     def test_poke_keeps_lineup_commentary_disabled_by_parameter(self):
-        source_path = Path(__file__).resolve().parents[1] / "hok" / "zevent.py"
-        self.assert_entry_disables_lineup_commentary(source_path, "f_group_poke")
+        source_path = (
+            Path(__file__).resolve().parents[1]
+            / "hok"
+            / "event_handlers"
+            / "poke.py"
+        )
+        source = source_path.read_text(encoding="utf-8-sig")
+        tree = ast.parse(source)
+        handler = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.AsyncFunctionDef)
+            and node.name == "group_poke_reply"
+        )
+        power_call = next(
+            node
+            for node in ast.walk(handler)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "to_thread"
+            and node.args
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == "battle_power_process"
+        )
+        ai_keyword = next(
+            keyword
+            for keyword in power_call.keywords
+            if keyword.arg == "with_ai_analysis"
+        )
+        self.assertIsInstance(ai_keyword.value, ast.Constant)
+        self.assertIs(ai_keyword.value.value, False)
+
+        event_source = (
+            Path(__file__).resolve().parents[1] / "hok" / "zevent.py"
+        ).read_text(encoding="utf-8-sig")
+        image_offset = event_source.index(
+            'MessageSegment.image(result["image_path"])',
+            event_source.index("async def f_group_poke"),
+        )
+        commentary_offset = event_source.index(
+            'result["with_ai_analysis"] and result["analysis"]',
+            image_offset,
+        )
+        self.assertLess(image_offset, commentary_offset)
 
 
 if __name__ == "__main__":
