@@ -24,7 +24,7 @@
 ## 数据路径约定
 
 - 临时组合查询结果继续以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
-- 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；既有 `data/history/battles/*.json` 只作为只读故障回退，不得由 Web 修改、移动或删除。
+- 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；仅在数据库未命中时读取 QQBot 数据库写入失败所产生的应急 JSON。
 - 物理文件根路径由 `BOT_PATH` 环境变量拼接：`os.path.join(os.environ["BOT_PATH"], "file_transfer")`。
 - 除 PostgreSQL 单局战绩的 `/battle-data/{game_seq}` 适配外，不要为同一份 JSON 数据额外新增 API 代理接口，除非用户明确要求。
 - 不要为历史目录、调试目录或示例数据做冗余 fallback。
