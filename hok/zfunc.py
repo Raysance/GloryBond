@@ -843,48 +843,27 @@ Analyses = _battle_history_business.Analyses
 def fetch_battle(gameseq, roleid=0):
     return _battle_history_business.fetch_battle(gameseq, roleid=roleid)
 
-def generate_greeting():
-    from .ztime import time_r
-    current_time = time_r()
-    current_hour = current_time.hour
-    if 5 <= current_hour < 12:
-        greeting = "早上好"
-    elif 12 <= current_hour < 14:
-        greeting = "中午好"
-    elif 14 <= current_hour < 18:
-        greeting = "下午好"
-    elif 18 <= current_hour < 23:
-        greeting = "晚上好"
-    else:  # 23:00 - 5:00
-        greeting = "这么晚还不睡吗"
-    return greeting
-def qid2nick(userqid):
-    matching_nickname = [key for key, val in qid.items() if str(val) == userqid]
-    if (matching_nickname and matching_nickname[0] in namenick):
-        return namenick[matching_nickname[0]]
-    else:
-        return ""
-def qid2realname(userqid):
-    matching_name = [key for key, val in qid.items() if str(val) == userqid]
-    if (matching_name):
-        return matching_name[0]
-    else:
-        return None
-def get_emoji(txt):
-    from .zapi import ai_api
-    from .zfile import readerl
+from .business import user_helpers as _user_helpers_business
 
-    emojiref=readerl("emojiref.json")
-    # print(emojiref)
-    emojinew={}
-    for k,v in emojiref.items():
-        emojinew[k]=v["content"]
-    pmpt=emoji_pmpt[0]+emoji_pmpt[1]+str(emojinew)+emoji_pmpt[2]+txt+emoji_pmpt[3]
-    res=int(ai_api(pmpt,temperature=2))
-    return res
+
+def generate_greeting():
+    return _user_helpers_business.generate_greeting()
+
+
+def qid2nick(userqid):
+    return _user_helpers_business.qid2nick(userqid)
+
+
+def qid2realname(userqid):
+    return _user_helpers_business.qid2realname(userqid)
+
+
+def get_emoji(txt):
+    return _user_helpers_business.get_emoji(txt)
+
+
 def get_emoji_url(index):
-    emoji_url=f"http://{confs['WebService']['server_domain']}/doraemon_emojis/{index}.jpg"
-    return emoji_url
+    return _user_helpers_business.get_emoji_url(index)
 
 
 _BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "hok:bili:subscriptions"
@@ -1089,46 +1068,19 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
     from .tools.gen_emoji_image import generate_user_emoji_image as _impl
     return _impl(user_qid=user_qid, size=size)
 def extract_url_params(url):
-    from urllib.parse import urlparse, parse_qs
-    # 解析 URL
-    parsed_url = urlparse(url)
-    # 提取查询参数并转换为字典
-    params = parse_qs(parsed_url.query)
-    # 将值从列表转换为单个值（如果参数只有一个值）
-    return {key: value[0] if len(value) == 1 else value for key, value in params.items()}
-def get_peak_alter_list(details,processed,reverse=1):
-    peak_alter_list=[]
-    detail_dup=[]
-    if (not processed):
-        for detail in details:
-            if (detail["MapType"]!=-1): continue
-            detail_dup.append({"PeakBefore":detail["PeakGradeBeforeGame"],"PeakAfter":detail["PeakGradeAfterGame"],"used":False})
-    else:
-        for detail in details:
-            detail_dup.append({"PeakBefore":detail[0],"PeakAfter":detail[1],"used":False})
-    if (reverse==-1): detail_dup=detail_dup[::-1]
-    for item_a in detail_dup:
-        if (item_a["used"]): continue
-        item_a["used"]=True
-        PeakBefore=item_a["PeakBefore"]
-        PeakAfter=item_a["PeakAfter"]
-        for item_b in detail_dup:
-            if (item_b["used"]): continue
-            if (item_b["PeakBefore"]==PeakAfter): 
-                PeakAfter=item_b["PeakAfter"]
-                item_b["used"]=True
-        peak_alter_list.append([PeakBefore,PeakAfter])
-    return peak_alter_list
-def extract_name(from_text,precise=False):
-    for is_origin in [True,False]:
-        for realname,nicknames in nameref.items():
-            for nickname in nicknames:
-                if txt_contain(nickname,from_text,precise,is_origin):
-                    return realname
-    for realname,_ in extra_useridlist.items():
-        if txt_contain(realname,from_text,p=True,ori=True):
-            return realname
-    return None
+    return _user_helpers_business.extract_url_params(url)
+
+
+def get_peak_alter_list(details, processed, reverse=1):
+    return _user_helpers_business.get_peak_alter_list(
+        details,
+        processed,
+        reverse=reverse,
+    )
+
+
+def extract_name(from_text, precise=False):
+    return _user_helpers_business.extract_name(from_text, precise=precise)
 from .business import battle_metrics as _battle_metrics_business
 
 

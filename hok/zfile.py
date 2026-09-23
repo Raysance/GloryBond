@@ -84,6 +84,10 @@ def read_honor_districts():
     return readerl(os.path.join("data", "honor", "districts.json"))
 
 
+def read_emoji_reference():
+    return readerl("emojiref.json")
+
+
 def list_history_dates_descending(start_date=None):
     """Return database history dates, with the JSON archive as fallback."""
     try:
