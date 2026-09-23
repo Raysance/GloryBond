@@ -65,6 +65,20 @@ def read_history_archive_date(target_date):
     return readerl(os.path.join("data", "history", f"{target_date}.json"))
 
 
+def daily_history_path(target_date):
+    return os.path.join("data", "history", f"{target_date}.json")
+
+
+def personal_history_path(target_date, userid):
+    return os.path.join(
+        "data",
+        "history",
+        "personal",
+        str(target_date),
+        f"{userid}.json",
+    )
+
+
 def read_honor_districts():
     """Read the honor-rank district tree through the project's IO boundary."""
     return readerl(os.path.join("data", "honor", "districts.json"))
