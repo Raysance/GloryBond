@@ -24,6 +24,21 @@ def current_timestamp():
 def sleep_seconds(seconds):
     """Sleep for a caller-provided duration through the time boundary module."""
     time.sleep(max(0, float(seconds)))
+
+
+def datetime_from_parts(year, month, day, hour=0, minute=0, second=0):
+    """Build a naive deployment-local datetime from numeric parts."""
+    return datetime.datetime(
+        int(year), int(month), int(day), int(hour), int(minute), int(second)
+    )
+
+
+def is_within_daily_time_window(hour, minute, window_seconds=600):
+    """Return whether local time is within a wrapping daily time window."""
+    now = time_r()
+    target = now.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+    delta = abs((now - target).total_seconds())
+    return min(delta, 86400 - delta) <= int(window_seconds)
 def parse_chat_time_bound(value, is_end=False):
     """Parse a chat-history time bound in the deployment host timezone."""
     if value in (None, ""):

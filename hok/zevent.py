@@ -8,7 +8,6 @@ from . import zscheduler
 
 import nonebot
 import asyncio
-import time
 from nonebot import get_plugin_config,require
 from nonebot_plugin_apscheduler import scheduler
 from nonebot.rule import to_me,Rule
@@ -23,181 +22,37 @@ driver = nonebot.get_driver()
 
 _all_messages = on_message(priority=0, block=False)
 
-def is_registered_qid(user_qid):
-    return str(user_qid) in {str(item) for item in qid.values()}
+from .event_ingress import capture_group_message
+from .event_rules import (
+    check_btl_request,
+    check_repair,
+    check_sleep,
+    get_validated_name as _get_validated_name,
+    judge_bili_video_latest,
+    judge_bili_video_mine,
+    judge_bili_video_subscribe,
+    judge_bili_video_unsubscribe,
+    judge_herostatistics_query,
+    judge_honor_power_query,
+    judge_not_duration_rank,
+    judge_qid_blocked,
+    judge_representative_battle_query,
+    judge_super,
+    judge_to_me,
+    judge_unsuper,
+)
 
-def is_battle_visible_qid_enabled(user_qid):
-    from .zfunc import get_battle_invisible_disabled_qids
 
-    disabled_qids = get_battle_invisible_disabled_qids()
-    return str(user_qid) not in {str(item) for item in disabled_qids}
+def get_validated_name(event):
+    matching_name = _get_validated_name(event)
+    if not matching_name:
+        add_msg("Name Not Found", event=event)
+    return matching_name
 
-def is_bot_request_message(event):
-    raw_msg = event.get_plaintext().strip()
-    return raw_msg.startswith("#") or raw_msg.startswith("＃")
-
-async def judge_qid_blocked(event)->bool:
-    if not is_bot_request_message(event):
-        return False
-    return (not is_registered_qid(event.get_user_id())) or (not is_battle_visible_qid_enabled(event.get_user_id()))
 
 @_all_messages.handle()
 async def handle_all_messages(event: MessageEvent):
-    from .zmemory import instance as zm
-    from .zfunc import record_group_chat_message
-    user_id = event.get_user_id()
-    msg_text = event.get_plaintext().strip()
-    group_id = getattr(event, "group_id", None)
-    if group_id and msg_text:
-        reply_to_message_id = None
-        for segment in getattr(event, "original_message", ()) or ():
-            if getattr(segment, "type", None) == "reply":
-                reply_to_message_id = getattr(segment, "data", {}).get("id")
-                break
-        try:
-            await asyncio.to_thread(
-                record_group_chat_message,
-                group_id,
-                user_id,
-                msg_text,
-                message_id=getattr(event, "message_id", None),
-                reply_to_message_id=reply_to_message_id,
-            )
-        except Exception as error:
-            log_message(
-                f"GROUP_CHAT_HISTORY_WRITE_ERROR: group_id={group_id} user_id={user_id} "
-                f"message_id={getattr(event, 'message_id', None)} error={error!r}",
-                level=logging.ERROR,
-            )
-    if (not is_registered_qid(user_id)) or (not is_battle_visible_qid_enabled(user_id)):
-        return
-    is_honor_power_query = "战力" in msg_text and "查询" in msg_text
-    if msg_text and not msg_text.startswith("#") and not is_honor_power_query:
-        for k in sorted(common_expr.keys(), key=len, reverse=True):
-            msg_text = re.sub(re.escape(k), common_expr[k], msg_text)
-        await asyncio.to_thread(zm.log_passive_chat, user_id, msg_text)
-
-async def judge_to_me(event)->bool:
-    return event.get_plaintext().startswith("#") or event.get_plaintext().startswith("＃")
-
-def _bili_video_plain_command(event):
-    return event.get_plaintext().strip().lstrip("#＃").strip()
-
-async def judge_bili_video_subscribe(event)->bool:
-    raw = _bili_video_plain_command(event)
-    if raw in {"订阅", "订阅最新视频", "订阅UP最新视频", "订阅up最新视频"}:
-        return False
-    return raw.startswith("订阅B站") or raw.startswith("订阅b站") or raw.startswith("订阅")
-
-async def judge_bili_video_unsubscribe(event)->bool:
-    raw = _bili_video_plain_command(event)
-    return (
-        raw in {"取消B站订阅", "取消b站订阅", "取消订阅"}
-        or raw.startswith("取消B站订阅")
-        or raw.startswith("取消b站订阅")
-        or raw.startswith("取消订阅")
-    )
-
-async def judge_bili_video_latest(event)->bool:
-    raw = _bili_video_plain_command(event)
-    return raw in {
-        "最新视频",
-        "查询最新视频",
-        "订阅最新视频",
-        "查询订阅最新视频",
-        "我的最新视频",
-        "我的订阅最新视频",
-        "订阅UP最新视频",
-        "订阅up最新视频",
-    }
-
-async def judge_bili_video_mine(event)->bool:
-    raw = _bili_video_plain_command(event)
-    return raw in {
-        "我的订阅",
-        "我的UP订阅",
-        "我的up订阅",
-        "我的B站订阅",
-        "我的b站订阅",
-        "订阅状态",
-        "查询订阅",
-    }
-
-async def judge_not_duration_rank(event)->bool:
-    raw = event.get_plaintext()
-    return ("时长排行" not in raw) and ("时长排名" not in raw)
-
-
-async def judge_representative_battle_query(event)->bool:
-    return is_registered_qid(event.get_user_id()) and is_battle_visible_qid_enabled(event.get_user_id())
-
-
-async def judge_herostatistics_query(event)->bool:
-    from .zfunc import qid2nick
-    from .zfunc import extract_name,extract_heroname
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid)).replace("本赛季","")
-    if not (rcv_msg.startswith("#") or rcv_msg.startswith("＃")):
-        return False
-    raw = rcv_msg.lstrip("#＃").strip()
-
-    if "的" not in raw:
-        return False
-    left, right = raw.split("的", 1)
-    left = left.strip()
-    right = right.strip()
-    if not left or not right:
-        return False
-
-    left_ok = False
-    if left == "群u":
-        left_ok = True
-    elif extract_name(left,precise=True):
-        left_ok = True
-    right_ok = False
-    if right == "英雄":
-        right_ok = True
-    elif extract_heroname(right,precise=True):
-        right_ok = True
-    return left_ok and right_ok
-
-
-async def judge_honor_power_query(event)->bool:
-    raw = event.get_plaintext()
-    return (
-        "战力" in raw
-        and "查询" in raw
-        and is_registered_qid(event.get_user_id())
-        and is_battle_visible_qid_enabled(event.get_user_id())
-    )
-
-def get_validated_name(event):
-    from .zfunc import qid2nick, extract_name
-    userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
-    matching_name = extract_name(rcv_msg)
-    if not matching_name:
-        add_msg("Name Not Found", event=event)
-        return None
-    return matching_name
-
-async def judge_super(event)->bool:
-    return str(confs["QQBot"]["super_qid"])==str(event.get_user_id())
-async def judge_unsuper(event)->bool:
-    return str(confs["QQBot"]["super_qid"])!=str(event.get_user_id())
-async def check_repair(event)->bool:
-    return dmc.repair
-async def check_btl_request(event)->bool:
-    return last_request_btllist!=[]
-
-async def check_sleep(event)->bool:
-    import datetime
-    now = datetime.datetime.now()
-    target = now.replace(hour=bound_hour, minute=bound_minute, second=0, microsecond=0)
-    delta = abs((now - target).total_seconds())
-    if delta > 43200:
-        delta = 86400 - delta
-    return delta <= 600
+    await capture_group_message(event)
 
 # EVENT
 _group_poke = on_notice()
