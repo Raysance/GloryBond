@@ -4,6 +4,7 @@ from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
 
 import redis
+import asyncio
 import os
 import json
 import sys
@@ -19,6 +20,14 @@ from dotenv import load_dotenv
 
 
 from utils import *
+from request_analytics import (
+    analytics_payload,
+    build_request_event,
+    cache_ip_geography,
+    enrich_request_event,
+    should_track_request,
+    store_request_event,
+)
 
 env_path = "/QQBot/.env"
 load_dotenv(dotenv_path=env_path)
@@ -54,12 +63,37 @@ r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SE
 r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
 r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
 r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
+analytics_tasks = set()
 
 confs = {}
 with open('../NBot/config.yaml', 'r') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
 SECRET_KEY = confs["WebService"]["secret_key"]
 VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])]
+
+
+@app.middleware("http")
+async def collect_request_analytics(request: Request, call_next):
+    user_agent = str(request.headers.get("user-agent") or "")
+    track_request = should_track_request(request.url.path, request.method, user_agent)
+    started = time.perf_counter()
+    response = await call_next(request)
+    if track_request:
+        try:
+            event = build_request_event(
+                request,
+                response_status=response.status_code,
+                duration_ms=(time.perf_counter() - started) * 1000,
+            )
+            enrich_request_event(r_com, event, request.query_params.get("key"))
+            store_request_event(r_com, event)
+            if event.get("ip"):
+                task = asyncio.create_task(asyncio.to_thread(cache_ip_geography, r_com, event["ip"]))
+                analytics_tasks.add(task)
+                task.add_done_callback(analytics_tasks.discard)
+        except Exception as exc:
+            logging.warning("REQUEST_ANALYTICS_STORE_FAILED path=%s error=%r", request.url.path, exc)
+    return response
 
 def key_to_filename(key: str, reqtype: str):
     try:
@@ -863,6 +897,34 @@ async def admin_dashboard_page(request: Request, AdminKey: str = Cookie(None)):
             "AdminKey": AdminKey
         }
     )
+
+@app.get("/admin/funcs/request-analytics", response_class=HTMLResponse)
+async def admin_request_analytics_page(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login")
+    return templates.TemplateResponse(
+        "AdminPages/RequestAnalytics.html",
+        {
+            "request": request,
+            "AdminKey": AdminKey,
+        }
+    )
+
+@app.get("/admin/funcs/request-analytics/data")
+async def admin_request_analytics_data(
+    limit: int = Query(200, ge=1, le=500),
+    AdminKey: str = Cookie(None),
+):
+    if AdminKey != SECRET_KEY:
+        return JSONResponse({"status": "error", "message": "认证失败"}, status_code=401)
+    try:
+        return JSONResponse(analytics_payload(r_com, SECRET_KEY, limit=limit))
+    except Exception as exc:
+        logging.exception("REQUEST_ANALYTICS_READ_FAILED error=%r", exc)
+        return JSONResponse(
+            {"status": "error", "message": "访问统计读取失败"},
+            status_code=500,
+        )
 
 @app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)
 async def jump_admin_page(request: Request, AdminKey: str = Cookie(None)):

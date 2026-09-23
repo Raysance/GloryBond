@@ -4,15 +4,17 @@
 
 - `app.py`：FastAPI 主应用入口，集中定义页面路由、管理后台路由、Redis 连接、模板渲染和队列写入逻辑。
 - `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
+- `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
 - `templates/`：Jinja2 HTML 模板根目录。
 - `templates/CommonPages/`：普通用户侧页面模板，包括全部战绩、单人战绩、周期战绩、战斗详情、查询页、B 站订阅视频详情页等。
 - `templates/CommonPages/BenefitVisualizer/`：受益受害贝叶斯收缩可视化单页面资源目录。
-- `templates/AdminPages/`：管理后台页面，包括登录、仪表盘、直接跳转、用户信息编辑、聊天记忆查看。
+- `templates/AdminPages/`：管理后台页面，包括登录、仪表盘、访问地域与请求分析、直接跳转、用户信息编辑、聊天记忆查看。
 - `templates/ErrorPages/`：错误页面模板，包括非法访问和链接过期。
 - `templates/footer_github.html`：可复用页脚模板。
 - `default_json_templates/`：默认 JSON 模板文件，主要用于本地或历史兜底数据参考。
 - `tools/`：项目辅助脚本。
+- `tools/import_request_analytics.py`：从 Nginx combined access log 幂等回填最近公开业务请求到 Redis 访问分析库；沿用在线采集白名单、凭据清理与地域缓存规则。
 - `.github/workflows/`：部署相关 GitHub Actions。
 
 ## 部署运行方式
@@ -37,6 +39,7 @@
 - B 站订阅视频跳转页使用 `/bili-video?key=...`，后端直接从 Redis 读取临时视频 payload 后按 User-Agent 302 分流；电脑端跳转到 B 站官网视频页，移动端跳转到应用宝中转页；不要渲染中间内容页，不要新增额外 JSON 代理接口。应用宝中转页的 `android_schema` 传入 B 站移动端当前唤端实现对应的 `bilibili://video/{aid}?page=0`，缺少 `aid` 时降级到移动端 HTTPS 视频页。
 - 页面数据路径尽量在后端计算后传入模板，不要让前端拼接业务路径或 Redis key。
 - 管理后台路由保持在 `/admin/...` 命名空间下，并继续使用 `AdminKey` Cookie 和 `SECRET_KEY` 校验。
+- 访问分析数据使用 Redis `web:request_analytics:*` 命名空间；查询参数中的 key、AdminKey、token 等凭据禁止写入统计，后台只返回脱敏 IP。地域查询必须异步执行并按 IP 缓存，不得阻塞普通页面响应。
 - 错误场景优先复用 `templates/ErrorPages/illegal.html` 或 `templates/ErrorPages/expired.html`。
 - 不要新增无必要的全局路由、兼容旧路由、调试接口或临时 fallback。
 
