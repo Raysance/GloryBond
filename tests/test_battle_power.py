@@ -150,6 +150,83 @@ class BattlePowerTests(unittest.TestCase):
         self.assertEqual(len(FakeCoPlayerProcess.instances[0].players), 10)
         self.assertEqual(FakeCoPlayerProcess.instances[0].generated[1], "对局预言")
 
+    def test_process_reuses_saved_history_without_recomputing(self):
+        history = ZFUNC.BattlePowerHistory
+        originals = {
+            "load": history.load,
+            "saved_response": history.saved_response,
+            "coplayer": ZFUNC.coplayer_process,
+        }
+        saved = {"GameSeq": "123", "players": []}
+        history.load = staticmethod(lambda gameseq: saved)
+        history.saved_response = staticmethod(
+            lambda payload, gen_image, with_ai_analysis=False: (
+                payload["GameSeq"],
+                gen_image,
+                with_ai_analysis,
+            )
+        )
+        ZFUNC.coplayer_process = lambda *args, **kwargs: self.fail(
+            "saved history should bypass recomputation"
+        )
+        try:
+            result = ZFUNC.battle_power_process(
+                1,
+                2,
+                "123",
+                3,
+                4,
+                gen_image=False,
+                with_ai_analysis=True,
+            )
+        finally:
+            history.load = originals["load"]
+            history.saved_response = originals["saved_response"]
+            ZFUNC.coplayer_process = originals["coplayer"]
+
+        self.assertEqual(result, ("123", False, True))
+
+    def test_pending_candidate_selects_latest_valid_unprocessed_battle(self):
+        original_fetch = ZFUNC.fetch_history
+        original_skip = ZFUNC.BattlePowerHistory.should_skip_candidate
+        now = BATTLE_POWER.ztime.time_r()
+        older = int(BATTLE_POWER.ztime.time_delta(now, -2).timestamp())
+        newer = int(BATTLE_POWER.ztime.time_delta(now, -1).timestamp())
+        ZFUNC.fetch_history = lambda **kwargs: (
+            {
+                "alice": [
+                    {
+                        "GameSeq": "old",
+                        "GameTime_Timestamp": older,
+                        "Params": {"gameSvrId": 1},
+                    },
+                    {
+                        "GameSeq": "new",
+                        "GameTime_Timestamp": newer,
+                        "Params": {"gameSvrId": 2},
+                    },
+                ]
+            },
+            2,
+        )
+        ZFUNC.BattlePowerHistory.should_skip_candidate = staticmethod(
+            lambda gameseq, excluded: gameseq in excluded
+        )
+        original_roleids = BATTLE_POWER.roleidlist
+        BATTLE_POWER.roleidlist = {"alice": 1001}
+        try:
+            candidate = ZFUNC.find_pending_battle_power_candidate(
+                days=7,
+                excluded_gameseqs={"old"},
+            )
+        finally:
+            ZFUNC.fetch_history = original_fetch
+            ZFUNC.BattlePowerHistory.should_skip_candidate = original_skip
+            BATTLE_POWER.roleidlist = original_roleids
+
+        self.assertEqual(candidate["GameSeq"], "new")
+        self.assertEqual(candidate["roleid"], 1001)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,10 @@ def current_epoch_seconds():
     return int(time_r().timestamp())
 
 
+def current_epoch_microseconds():
+    return round(time_r().timestamp() * 1000000)
+
+
 def current_timestamp():
     """Return the current local Unix timestamp with sub-second precision."""
     return time_r().timestamp()

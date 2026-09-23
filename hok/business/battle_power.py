@@ -647,3 +647,276 @@ class BattlePowerHistory:
         if BattlePowerHistory.failed_exists(gameseq):
             raise Exception(f"battle_power_process_wait_skipped_failed: GameSeq={gameseq}")
         raise Exception(f"battle_power_process_wait_missing_result: GameSeq={gameseq}")
+def mark_battle_power_failed(gameseq, reason, candidate=None):
+    return BattlePowerHistory.mark_failed(gameseq, reason, candidate)
+
+def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True, with_ai_analysis=False):
+
+    spoiler_info = spoiler_info or {}
+    progress = None
+    is_owner = False
+    if (not spoiler_info):
+        saved_power_data = BattlePowerHistory.load(gameseq)
+        if saved_power_data:
+            return BattlePowerHistory.saved_response(saved_power_data, gen_image, with_ai_analysis)
+        if BattlePowerHistory.failed_exists(gameseq):
+            raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
+        if save_power_history:
+            progress, is_owner = BattlePowerHistory.begin_in_progress(gameseq)
+            if not is_owner:
+                return BattlePowerHistory.wait_in_progress(gameseq, progress, gen_image, with_ai_analysis)
+    try:
+        ret = _runtime().coplayer_process(
+            gameSvrId,
+            relaySvrId,
+            gameseq,
+            pvptype,
+            roleid,
+            spoiler_info=spoiler_info,
+            from_web=from_web,
+            return_power_data=True,
+            official_priority=official_priority,
+            save_power_history=save_power_history,
+            with_ai_analysis=with_ai_analysis,
+        )
+        snd_msg,pic_path,stats,power_data = ret
+        if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
+            power_data["evaluatedAt"] = ztime.current_datetime_text()
+            BattlePowerHistory.save(power_data)
+        return snd_msg,pic_path,stats,power_data
+    except Exception as e:
+        if progress and is_owner:
+            progress["error"] = repr(e)
+        raise
+    finally:
+        if progress and is_owner:
+            BattlePowerHistory.finish_in_progress(gameseq, progress)
+
+def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
+
+    params = BattlePowerHistory.normalize_params(game_params)
+    gameseq = params.get("gameseq")
+    saved_power_data = BattlePowerHistory.load(gameseq)
+    if saved_power_data:
+        return saved_power_data
+    if BattlePowerHistory.failed_exists(gameseq):
+        raise Exception(f"evaluate_battle_power_history_skipped_failed: GameSeq={gameseq}")
+    _, _, _, power_data = _runtime().battle_power_process(
+        params.get("gameSvrId"),
+        params.get("relaySvrId"),
+        params.get("gameseq"),
+        params.get("pvptype"),
+        roleid,
+        spoiler_info={},
+        official_priority=official_priority,
+        save_power_history=True,
+    )
+    if not power_data.get("evaluatedAt"):
+        power_data["evaluatedAt"] = ztime.current_datetime_text()
+        BattlePowerHistory.save(power_data)
+    return power_data
+
+def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None, start_date_str=None):
+
+    end_date = ztime.time_r()
+    if start_date_str:
+        start_date = ztime.str_to_time(start_date_str)
+    else:
+        start_date = ztime.time_delta(end_date, -days)
+    history_data, _ = _runtime().fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
+    candidates = []
+    seen = set()
+    excluded_gameseqs = {str(item) for item in (excluded_gameseqs or set())}
+    for realname, details in history_data.items():
+        roleid = roleidlist.get(realname)
+        if not roleid:
+            continue
+        for detail in details:
+            gameseq = str(detail.get("GameSeq") or "")
+            if not gameseq or gameseq in seen:
+                continue
+            seen.add(gameseq)
+            if BattlePowerHistory.should_skip_candidate(gameseq, excluded_gameseqs):
+                continue
+            game_time = detail.get("GameTime_Timestamp")
+            game_time_obj = BattlePowerHistory.parse_game_time(detail, gameseq)
+            if not game_time_obj:
+                continue
+            if game_time_obj < start_date or game_time_obj > end_date:
+                continue
+            params = detail.get("Params") or {}
+            if not params:
+                continue
+            candidates.append({
+                "realname": realname,
+                "roleid": roleid,
+                "GameSeq": gameseq,
+                "GameTime": game_time,
+                "Params": params,
+            })
+    candidates.sort(key=lambda item: item.get("GameTime") or 0, reverse=True)
+    return candidates[0] if candidates else None
+
+def recent_power_process(realname, days=7):
+
+    roleid = roleidlist.get(realname)
+    if not roleid:
+        return "未找到该玩家的 roleid"
+    end_date = ztime.time_r()
+    start_date = ztime.time_delta(end_date, -days)
+    history_data, _ = _runtime().fetch_history(userid=userlist.get(realname), start_date=start_date, end_date=end_date, filter_official=True)
+    details = history_data.get(realname, [])
+    valid_details = [detail for detail in details if _runtime().check_btl_official(detail.get("MapName", ""))]
+    rows = []
+    missing = 0
+    for detail in valid_details:
+        gameseq = detail.get("GameSeq")
+        if not gameseq or not BattlePowerHistory.exists(gameseq):
+            missing += 1
+            continue
+        power_data = BattlePowerHistory.load(gameseq)
+        if not isinstance(power_data, dict):
+            missing += 1
+            continue
+        player_record = None
+        for player in power_data.get("players", []):
+            if str(player.get("roleId")) == str(roleid):
+                player_record = player
+                break
+        if not player_record:
+            missing += 1
+            continue
+        own_key = "mySide" if player_record.get("side") == "my" else "opSide"
+        rival_key = "opSide" if own_key == "mySide" else "mySide"
+        own_side = power_data.get(own_key, {})
+        rival_side = power_data.get(rival_key, {})
+        own_level = float(own_side.get("level") or 0)
+        rival_level = float(rival_side.get("level") or 0)
+        single_level = float(player_record.get("singleLevel") or 0)
+        battle_player_levels = [
+            float(player.get("singleLevel") or 0)
+            for player in power_data.get("players", [])
+            if float(player.get("singleLevel") or 0) > 0
+        ]
+        battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
+        rows.append({
+            "GameSeq": gameseq,
+            "HeroName": detail.get("HeroName"),
+            "Result": detail.get("Result"),
+            "GameGrade": detail.get("GameGrade"),
+            "MapName": detail.get("MapName"),
+            "ownLevel": own_level,
+            "rivalLevel": rival_level,
+            "battlePlayerAvgLevel": battle_player_avg_level,
+            "singleLevelPercent": single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0,
+            "levelDiff": own_level - rival_level,
+            "ownTier": float(own_side.get("tier") or 0),
+            "rivalTier": float(rival_side.get("tier") or 0),
+            "ownAuthCnt": int(own_side.get("authCnt") or 0),
+            "rivalAuthCnt": int(rival_side.get("authCnt") or 0),
+            "singleLevel": single_level,
+        })
+    if not rows:
+        return f"最近{days}天没有可用的底蕴历史数据（官方对局{len(valid_details)}局，待后台评估{missing}局）"
+
+    count = len(rows)
+    avg_own = sum(row["ownLevel"] for row in rows) / count
+    avg_rival = sum(row["rivalLevel"] for row in rows) / count
+    avg_diff = sum(row["levelDiff"] for row in rows) / count
+    avg_own_tier = sum(row["ownTier"] for row in rows) / count
+    avg_rival_tier = sum(row["rivalTier"] for row in rows) / count
+    avg_single = sum(row["singleLevel"] for row in rows) / count
+    avg_single_percent = sum(row["singleLevelPercent"] for row in rows) / count
+    win_count = sum(1 for row in rows if row["Result"] == "胜利")
+    display_name = namenick.get(realname, realname)
+    lines = [
+        f"【{display_name}】最近{days}天对局底蕴统计",
+    ]
+    if missing:
+        lines.append(f"已评估/官方对局：{count}/{len(valid_details)}（待评估{missing}）")
+    lines.extend([
+        f"胜率：{round(win_count / count * 100, 1)}%（{win_count}胜{count - win_count}负）",
+        f"我方底蕴：{round(avg_own, 2)}",
+        f"对方底蕴：{round(avg_rival, 2)}",
+        f"底蕴差：{round(avg_diff, 2)}",
+        f"个人底蕴/队友对手底蕴：{round(avg_single_percent, 1)}%",
+        f"个人单人底蕴：{round(avg_single, 2)}",
+        f"我方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
+    ])
+    return "\n".join(lines)
+
+def power_rank_process(days=7):
+    from ..tools import gen_power_rank_table
+
+    end_date = ztime.time_r()
+    start_date = ztime.time_delta(end_date, -days)
+    history_data, _ = _runtime().fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
+
+    rows = []
+    columns = ["总局数", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
+    metric_keys = ["平均底蕴", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
+    for realname, details in history_data.items():
+        roleid = roleidlist.get(realname)
+        if not roleid:
+            continue
+        accum = {key: 0.0 for key in metric_keys}
+        count = 0
+        for detail in details:
+            gameseq = detail.get("GameSeq")
+            if not gameseq or not BattlePowerHistory.exists(gameseq):
+                continue
+            power_data = BattlePowerHistory.load(gameseq)
+            if not isinstance(power_data, dict):
+                continue
+            player_record = None
+            for player in power_data.get("players", []):
+                if str(player.get("roleId")) == str(roleid):
+                    player_record = player
+                    break
+            if not player_record:
+                continue
+            own_key = "mySide" if player_record.get("side") == "my" else "opSide"
+            rival_key = "opSide" if own_key == "mySide" else "mySide"
+            own_side = power_data.get(own_key, {})
+            rival_side = power_data.get(rival_key, {})
+            own_level = float(own_side.get("level") or 0)
+            rival_level = float(rival_side.get("level") or 0)
+            own_tier = float(own_side.get("tier") or 0)
+            rival_tier = float(rival_side.get("tier") or 0)
+            single_level = float(player_record.get("singleLevel") or 0)
+            battle_player_levels = [
+                float(player.get("singleLevel") or 0)
+                for player in power_data.get("players", [])
+                if float(player.get("singleLevel") or 0) > 0
+            ]
+            battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
+            accum["平均底蕴"] += (own_level + rival_level) / 2
+            accum["我方底蕴"] += own_level
+            accum["对方底蕴"] += rival_level
+            accum["个人底蕴/队友对手底蕴"] += single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0
+            accum["个人单人底蕴"] += single_level
+            accum["我方英雄梯度"] += own_tier
+            accum["对方英雄梯度"] += rival_tier
+            count += 1
+        if not count:
+            continue
+        games = {key: accum[key] / count for key in accum}
+        games["总局数"] = count
+        rows.append({
+            "realname": realname,
+            "player": namenick.get(realname, realname),
+            "total": games["平均底蕴"],
+            "games": games,
+            "rank_value": games["平均底蕴"],
+            "subs": [],
+        })
+
+    if not rows:
+        return f"最近{days}天没有可用的底蕴排行数据", ""
+    rows.sort(key=lambda item: float(item.get("rank_value") or 0), reverse=True)
+
+    ts = str(ztime.current_epoch_microseconds())
+    filename_hashed = _runtime().WebArtifacts.make_hash(ts)
+    pic_path = zfile.battle_power_rank_image_path(filename_hashed)
+    gen_power_rank_table.gen(rows, columns, pic_path, title=f"最近{days}天底蕴排行（排位、巅峰、战队赛）")
+    return "", pic_path
