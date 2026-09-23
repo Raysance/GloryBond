@@ -8,15 +8,11 @@ from . import zscheduler
 
 import nonebot
 import asyncio
-from nonebot import get_plugin_config,require
-from nonebot_plugin_apscheduler import scheduler
-from nonebot.rule import to_me,Rule
-from nonebot.adapters import Message
-from nonebot.params import CommandArg
+from nonebot import require
+from nonebot.rule import Rule
 from nonebot.adapters.onebot.v11 import Bot, Event, Message,MessageEvent,MessageSegment
-from nonebot.adapters import MessageTemplate
 from nonebot.adapters.onebot.v11.event import PokeNotifyEvent
-from nonebot.plugin import on_message,on_notice,on_request,on_keyword,on_command,on_regex,on_fullmatch
+from nonebot.plugin import on_message,on_notice,on_keyword,on_fullmatch
 require("nonebot_plugin_apscheduler")
 driver = nonebot.get_driver()
 
@@ -24,7 +20,6 @@ _all_messages = on_message(priority=0, block=False)
 
 from .event_ingress import capture_group_message
 from .event_rules import (
-    check_btl_request,
     check_repair,
     check_sleep,
     get_validated_name as _get_validated_name,

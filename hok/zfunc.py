@@ -3,11 +3,6 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 
-import redis
-from wcwidth import wcswidth
-import math
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
 _GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
