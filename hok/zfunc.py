@@ -1142,35 +1142,11 @@ def check_btl_official_with_matching_with_entertain(btlname):
 def export_btldetail(gameinfo, roleid):
     return _player_data_business.export_battle_details(gameinfo, roleid)
 
+from .business import daily_notification as _daily_notification_business
+
+
 def notify_msg_impl():
-    from .zutil import log_message
-    from .zstatic import confs
-    import datetime
-    import traceback
-
-    log_message("NOTIFY"+str(datetime.date.today()))
-    snd_msg="今日王者战报(每日23:30推送)：\n"
-    try:
-        from .zfunc import rnk_process
-        snd_msg += rnk_process(rcv_msg="", caller=None, show_zero=False, show_analyze=True)[0]
-    except Exception:
-        return [traceback.format_exc()] # 返回错误信息列表
-    
-    messages = [snd_msg]
-
-    # 定时发送保留正式文字、图片和图片下方的 AI 文案。
-    try:
-        rep_btl_res = get_daily_representative_battle()
-        if rep_btl_res:
-            match_text, battle_image, best_battle = rep_btl_res
-            messages.append((match_text, battle_image, best_battle.get("AiCommentary")))
-    except Exception:
-        log_message(
-            "GET_REPRESENTATIVE_BATTLE_ERROR: "
-            f"target_date=auto error={traceback.format_exc()}"
-        )
-
-    return messages
+    return _daily_notification_business.notify_msg_impl()
 
 _KPL_PUSH_LOCK_KEY = "hok:lock:kpl:push"
 _KPL_PUSH_PENDING_KEY = "hok:kpl:push_pending"
