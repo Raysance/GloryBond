@@ -244,3 +244,32 @@ def dump_specific_user(userid, roleid, target_date):
         
     _runtime().log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
     return gameinfo[0]
+
+
+def export_battle_details(gameinfo, roleid):
+    runtime = _runtime()
+    inaccessible_battles = []
+    for battle in gameinfo:
+        gameseq = battle["GameSeq"]
+        if zfile.battle_detail_exists(gameseq):
+            continue
+        if not runtime.check_btl_official_with_matching_with_entertain(
+            battle["MapName"]
+        ):
+            continue
+        try:
+            response = runtime.wzry_get_official(
+                reqtype="btldetail",
+                roleid=roleid,
+                **battle["Params"],
+            )
+            zfile.writerl(zfile.battle_detail_path(gameseq), response)
+        except Exception as exc:
+            inaccessible_battles.append(
+                {
+                    "roleid": roleid,
+                    "GameSeq": gameseq,
+                    "Error": str(exc),
+                }
+            )
+    return inaccessible_battles

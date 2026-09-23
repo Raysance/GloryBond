@@ -1139,20 +1139,8 @@ def check_btl_official_with_matching_with_entertain(btlname):
     return _battle_metrics_business.check_btl_official_with_matching_with_entertain(
         btlname
     )
-def export_btldetail(gameinfo,roleid):
-    from .zfile import writerl
-    from .zfile import battle_detail_exists
-    unaccessible_battles=[]
-    for btl in gameinfo:
-        savepath=os.path.join("data","history","battles",str(btl["GameSeq"])+".json")
-        if (battle_detail_exists(btl["GameSeq"]) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
-        try:
-            res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
-            writerl(savepath,res)
-        except Exception as e:
-            unaccessible_battles.append({"roleid":roleid,"GameSeq":btl["GameSeq"],"Error":str(e)})
-
-    return unaccessible_battles
+def export_btldetail(gameinfo, roleid):
+    return _player_data_business.export_battle_details(gameinfo, roleid)
 
 def notify_msg_impl():
     from .zutil import log_message

@@ -116,6 +116,53 @@ class PlayerDataTests(unittest.TestCase):
             PLAYER_DATA.zfile.daily_history_path("2026-09-23"),
         )
 
+    def test_battle_detail_export_filters_and_reports_api_failures(self):
+        originals = {
+            "exists": PLAYER_DATA.zfile.battle_detail_exists,
+            "write": PLAYER_DATA.zfile.writerl,
+            "official": ZFUNC.check_btl_official_with_matching_with_entertain,
+            "api": ZFUNC.wzry_get_official,
+        }
+        PLAYER_DATA.zfile.battle_detail_exists = lambda gameseq: gameseq == "cached"
+        PLAYER_DATA.zfile.writerl = lambda path, payload: self.fail(
+            f"failed API response must not be written: {path} {payload}"
+        )
+        ZFUNC.check_btl_official_with_matching_with_entertain = (
+            lambda map_name: map_name != "非正式"
+        )
+        ZFUNC.wzry_get_official = lambda **kwargs: (_ for _ in ()).throw(
+            RuntimeError("detail unavailable")
+        )
+        battles = [
+            {"GameSeq": "cached", "MapName": "排位赛", "Params": {}},
+            {"GameSeq": "casual", "MapName": "非正式", "Params": {}},
+            {
+                "GameSeq": "missing",
+                "MapName": "巅峰赛",
+                "Params": {"gameSvrId": 1},
+            },
+        ]
+        try:
+            failures = ZFUNC.export_btldetail(battles, roleid=42)
+        finally:
+            PLAYER_DATA.zfile.battle_detail_exists = originals["exists"]
+            PLAYER_DATA.zfile.writerl = originals["write"]
+            ZFUNC.check_btl_official_with_matching_with_entertain = originals[
+                "official"
+            ]
+            ZFUNC.wzry_get_official = originals["api"]
+
+        self.assertEqual(
+            failures,
+            [
+                {
+                    "roleid": 42,
+                    "GameSeq": "missing",
+                    "Error": "detail unavailable",
+                }
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

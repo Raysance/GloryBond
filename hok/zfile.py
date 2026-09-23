@@ -79,6 +79,10 @@ def personal_history_path(target_date, userid):
     )
 
 
+def battle_detail_path(gameseq):
+    return os.path.join("data", "history", "battles", f"{gameseq}.json")
+
+
 def read_honor_districts():
     """Read the honor-rank district tree through the project's IO boundary."""
     return readerl(os.path.join("data", "honor", "districts.json"))
