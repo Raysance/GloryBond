@@ -47,6 +47,24 @@ def read_history_date(target_date):
     return readerl(os.path.join("data", "history", f"{target_date}.json"))
 
 
+def list_history_archive_dates_descending():
+    """List only daily JSON history archives, without consulting PostgreSQL."""
+    history_dir = os.path.join("data", "history")
+    if not os.path.isdir(history_dir):
+        return []
+    dates = []
+    for filename in os.listdir(history_dir):
+        match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})\.json", filename)
+        if match and os.path.isfile(os.path.join(history_dir, filename)):
+            dates.append(match.group(1))
+    return sorted(dates, reverse=True)
+
+
+def read_history_archive_date(target_date):
+    """Read one emergency daily JSON archive without a database lookup."""
+    return readerl(os.path.join("data", "history", f"{target_date}.json"))
+
+
 def read_honor_districts():
     """Read the honor-rank district tree through the project's IO boundary."""
     return readerl(os.path.join("data", "honor", "districts.json"))

@@ -1175,52 +1175,21 @@ def recent_power_process(realname, days=7):
 def power_rank_process(days=7):
     return _battle_power_business.power_rank_process(days=days)
 
-def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True): # 所有历史数据
-    from .zfile import readerl
-    from .zfile import writerl
-    from .ztime import str_to_time,time_r
+from .business import history_data as _history_data_business
 
-    if (not start_date or start_date<str_to_time(record_begin_date)): start_date=str_to_time(record_begin_date)
-    if (not end_date): end_date=time_r()
-    try:
-        from .zdb import fetch_history as fetch_history_from_db
 
-        return fetch_history_from_db(
-            userid=userid,
-            start_date=start_date,
-            end_date=end_date,
-            filter_official=filter_official,
-        )
-    except Exception as exc:
-        log_message(
-            f"POSTGRES_FETCH_HISTORY_FALLBACK: userid={userid} start={start_date} "
-            f"end={end_date} official={filter_official} error={repr(exc)}",
-            logging.WARNING,
-        )
-    gamedetails={}
-    filenames=sorted(os.listdir(os.path.join("data","history")),reverse=True)
-    duration=0
-    for filename in filenames:
-        if not os.path.isfile(os.path.join("data","history",filename)): continue
-        history_date=os.path.splitext(os.path.basename(filename))[0]
-        if not bool(re.fullmatch(r'^\d{4}-\d{2}-\d{2}$', history_date)): continue
-        date_parsed=str_to_time(history_date)
-        if (date_parsed>end_date or date_parsed<start_date): continue
-        duration+=1
-        full_path=os.path.join("data","history",filename)
-        gameinfo=readerl(full_path)
-        for player in gameinfo:
-            playername=player["key"]
-            playerdetails=player["details"][::-1]
-            if (filter_official):
-                playerdetails=[detail for detail in playerdetails if check_btl_official(detail["MapName"])]
-            if (playername not in gamedetails): 
-                gamedetails[playername]=playerdetails
-            else:
-                for playerdetail in playerdetails:
-                    gamedetails[playername].append(playerdetail)
-    if (userid): gamedetails={k:v for k,v in gamedetails.items() if userid==userlist[k]}
-    return gamedetails,duration
+def fetch_history(
+    userid=None,
+    start_date=None,
+    end_date=None,
+    filter_official=True,
+):
+    return _history_data_business.fetch_history(
+        userid=userid,
+        start_date=start_date,
+        end_date=end_date,
+        filter_official=filter_official,
+    )
 
 def recentgames_process(realname):
     from .ztime import time_r
