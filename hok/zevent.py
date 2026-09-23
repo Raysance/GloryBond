@@ -748,14 +748,10 @@ async def f_btldetail(bot,event):
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_heropower.handle()
 async def f_heropower(bot,event):
-    from .zfunc import heropower_process
-    
-    matching_name = get_validated_name(event)
-    if not matching_name: return
-
+    from .event_handlers.hero_visuals import hero_power_reply
     try:
-        snd_msg = await asyncio.to_thread(heropower_process, matching_name)
-        add_msg(snd_msg, event=event)
+        result = await hero_power_reply(event)
+        add_msg(result["text"], event=event)
     except Exception as e:
         add_msg(f"HeroPower Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
@@ -790,35 +786,20 @@ async def f_herostatistics(bot,event):
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_todayhero.handle()
 async def f_todayhero(bot,event):
-    from .zfunc import qid2realname
-    from .zfunc import todayhero_process
+    from .event_handlers.hero_visuals import today_hero_reply
 
-    userqid=event.get_user_id()
-    realname=qid2realname(userqid)
-    rcv_msg=event.get_plaintext()
-    if ("的" in rcv_msg): snd_msg="只能查询自己的今日英雄"
-    else:
-        ai_comment=False if ("$" in rcv_msg) else True
-        ignore_limit=True if ("%" in rcv_msg) else False
-        appoint_realname=True if ("~" in rcv_msg) else False
-        if ("rrrr" in rcv_msg):
-            ignore_limit=True
-            appoint_realname=True
-            add_msg("func unavailable", event=event)
-            return
-        if (appoint_realname):
-            matching_name = get_validated_name(event)
-            if not matching_name: return
-            realname = matching_name
-        try:
-            hero_msg, play_reason, pic_path = await asyncio.to_thread(todayhero_process, realname, ignore_limit, ai_comment)
-        except Exception as e:
-            add_msg(str(e), event=event)
-            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-            return
-        snd_msg=MessageSegment.text(hero_msg)+MessageSegment.image(pic_path)+MessageSegment.text(play_reason)
-
-    add_msg(snd_msg, event=event)
+    try:
+        result = await today_hero_reply(event)
+        if result["kind"] == "image":
+            message = MessageSegment.text(result["text"])
+            message += MessageSegment.image(result["image_path"])
+            message += MessageSegment.text(result["suffix"])
+            add_msg(message, event=event)
+        else:
+            add_msg(result["text"], event=event)
+    except Exception as e:
+        add_msg(str(e), event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
     
 # @_allhero.handle()
 # async def f_allhero(bot,event):
@@ -833,33 +814,25 @@ async def f_todayhero(bot,event):
 #     await _allhero.send(snd_msg)
 @_gradeanalyze.handle()
 async def f_gradeanalyze(bot,event):
-    from .zfunc import gradeanalyze_process
-
-    matching_name = get_validated_name(event)
-    if not matching_name: return
-
+    from .event_handlers.hero_visuals import grade_analysis_reply
     try:
-        img_url, analyze_msg = await asyncio.to_thread(gradeanalyze_process, matching_name)
-        # print(img_url)
-        # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
-        add_msg(MessageSegment.image(img_url), event=event)
+        result = await grade_analysis_reply(event)
+        if result["kind"] == "image":
+            add_msg(MessageSegment.image(result["image_path"]), event=event)
+        else:
+            add_msg(result["text"], event=event)
     except Exception as e:
         add_msg(f"GradeAnalyze Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_watchbattle.handle()
 async def f_watchbattle(bot,event):
-    from .zfunc import watchbattle_process
-    from .zfile import file_exist
-
-    matching_name = get_validated_name(event)
-    if not matching_name: return
-
+    from .event_handlers.hero_visuals import watch_battle_reply
     try:
-        img_url, analyze_msg = await asyncio.to_thread(watchbattle_process, matching_name)
-        # print(img_url)
-        # await _gradeanalyze.send(MessageSegment.image(img_url)+MessageSegment.text(analyze_msg))
-        if (await asyncio.to_thread(file_exist, img_url)):
-            add_msg(MessageSegment.image(img_url), event=event)
+        result = await watch_battle_reply(event)
+        if result["kind"] == "image":
+            add_msg(MessageSegment.image(result["image_path"]), event=event)
+        elif result["kind"] == "text":
+            add_msg(result["text"], event=event)
     except Exception as e:
         add_msg(f"WatchBattle Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
