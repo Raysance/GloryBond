@@ -124,6 +124,21 @@ def epoch_to_text(timestamp, format_str="%Y-%m-%d %H:%M:%S"):
     return datetime.datetime.fromtimestamp(int(timestamp)).strftime(format_str)
 
 
+def iso_text_without_timezone(value):
+    """Format an ISO timestamp as deployment-local-looking text without timezone."""
+    if not value:
+        return "-"
+    text = str(value).strip()
+    try:
+        parsed = datetime.datetime.fromisoformat(text)
+        return parsed.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        matched = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", text)
+        if matched:
+            return matched.group(1).replace("T", " ")
+        return text
+
+
 def _chinese_day_count(text):
     digits = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
     if text == "十":

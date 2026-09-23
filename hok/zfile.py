@@ -355,6 +355,15 @@ def write_web_history_payload(filename_hashed, payload):
     return json_path
 
 
+def save_kpl_push_image(image_url, cid, date_text):
+    """Download one generated KPL push image into its dated asset directory."""
+    day_dir = os.path.join("resources", "wzry_images", "kpl", str(date_text))
+    ensure_dir(day_dir)
+    local_path = os.path.join(day_dir, f"{cid}.png")
+    download_url_to_file(image_url, local_path)
+    return local_path
+
+
 def hero_tier_avatar_cache_path(hero_item):
     """Key one long-lived hero asset by hero id and source URL fingerprint."""
     hero_id = re.sub(r"[^0-9A-Za-z_-]", "", str(hero_item.get("heroId") or "unknown")) or "unknown"

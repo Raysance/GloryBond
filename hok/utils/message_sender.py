@@ -171,6 +171,13 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
     return _enqueue_payload(payload)
 
 
+def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=None):
+    message = MessageSegment.text(str(text)) + MessageSegment.image(
+        f"file:///{image_path}"
+    )
+    return add_msg(message, event=event, msg_type=msg_type, to_id=to_id)
+
+
 def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):
     payload = {
         "kind": "group_ban",
