@@ -943,16 +943,11 @@ async def f_heropower(bot,event):
 
 @_honor_power_query.handle()
 async def f_honor_power_query(bot, event):
-    from .zfunc import honor_power_query_process
-    from .zfunc import qid2realname
+    from .event_handlers.hero import honor_power_reply
 
-    realname = qid2realname(event.get_user_id())
+    realname = None
     try:
-        snd_msg = await asyncio.to_thread(
-            honor_power_query_process,
-            realname,
-            event.get_plaintext(),
-        )
+        realname, snd_msg = await honor_power_reply(event)
         add_msg(snd_msg, event=event)
     except Exception as e:
         add_msg(
@@ -965,42 +960,10 @@ async def f_honor_power_query(bot, event):
 
 @_herostatistics.handle()
 async def f_herostatistics(bot,event):
-    from .zfunc import (
-        single_player_single_hero_process,
-        single_player_mult_hero_process,
-        mult_player_mult_hero_process,
-        mult_player_single_hero_process,
-        extract_name,
-        extract_heroname,
-        qid2nick,
-    )
+    from .event_handlers.hero import hero_statistics_reply
 
-    userqid = event.get_user_id()
-    rcv_msg_raw = event.get_plaintext().replace("我", qid2nick(userqid))
-    this_season = "本赛季" in rcv_msg_raw
-    rcv_msg = rcv_msg_raw.replace("本赛季","")
     try:
-        player_plural=False
-        hero_plural=False
-        rcv_msg = rcv_msg.lstrip("#＃").strip()
-        rcv_left, rcv_right = rcv_msg.split("的", 1)
-        if ("群u" in rcv_left): player_plural=True
-        else: matching_name = extract_name(rcv_left,precise=True)
-        if ("英雄" in rcv_right): hero_plural=True
-        else: heroid, heroname = extract_heroname(rcv_right,precise=True)
-
-        try:
-            if (not player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_single_hero_process, matching_name, heroid, heroname)
-            elif (not player_plural and hero_plural):
-                snd_msg = await asyncio.to_thread(single_player_mult_hero_process, matching_name, this_season=this_season)
-            elif (player_plural and not hero_plural):
-                snd_msg = await asyncio.to_thread(mult_player_single_hero_process, heroid, heroname, this_season=this_season)
-            else:
-                snd_msg = await asyncio.to_thread(mult_player_mult_hero_process, this_season=this_season)
-        except Exception as e:
-            snd_msg = str(e)
-
+        snd_msg = await hero_statistics_reply(event)
         add_msg(snd_msg, event=event)
     except Exception as e:
         add_msg(str(e), event=event)

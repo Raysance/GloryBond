@@ -1536,536 +1536,78 @@ def heropower_process(realname):
     return ret_text
 
 
+from .business import hero_statistics as _hero_statistics_business
+from .business import honor_power as _honor_power_business
+
+
 def _honor_hero_from_query(query_text):
-    hero_names = {}
-    for hero_id, hero_name in HeroList.items():
-        hero_names[hero_name] = hero_id
-    for hero_id, hero_name in HeroName_replacements.items():
-        hero_names[hero_name] = hero_id
-
-    normalized_query = str(query_text).lower().replace(" ", "")
-    for candidate_name in sorted(hero_names, key=len, reverse=True):
-        if candidate_name in normalized_query:
-            hero_id = hero_names[candidate_name]
-            return hero_id, safe_hero_name(hero_id)
-
-    query_pinyin = _to_pinyin(normalized_query)
-    for candidate_name in sorted(hero_names, key=len, reverse=True):
-        if _to_pinyin(candidate_name) in query_pinyin:
-            hero_id = hero_names[candidate_name]
-            return hero_id, safe_hero_name(hero_id)
-    return None
+    return _honor_power_business._honor_hero_from_query(query_text)
 
 
 def _honor_region_name_without_suffix(region_name):
-    suffixes = (
-        "特别行政区", "维吾尔自治区", "壮族自治区", "回族自治区", "自治区",
-        "自治州", "自治县", "地区", "新区", "省", "市", "区", "县", "盟", "旗",
-    )
-    for suffix in suffixes:
-        if region_name.endswith(suffix) and len(region_name) > len(suffix):
-            return region_name[:-len(suffix)]
-    return region_name
+    return _honor_power_business._honor_region_name_without_suffix(region_name)
 
 
 def _honor_district_entries(district_payload):
-    roots = (district_payload.get("data") or {}).get("list") or []
-    entries = [{
-        "adcode": 156,
-        "display_name": "全国",
-        "aliases": {"全国", "国服"},
-        "depth": 0,
-    }]
-
-    def visit(node, full_path, short_path):
-        full_name = str(node.get("fullName") or "").strip()
-        short_name = str(node.get("shortName") or full_name).strip()
-        next_full_path = full_path + ([full_name] if full_name else [])
-        next_short_path = short_path + ([short_name] if short_name else [])
-        aliases = {full_name, short_name}
-        path_variants = [next_full_path, next_short_path]
-        for path in path_variants:
-            for start_index in range(len(path)):
-                suffix_path = path[start_index:]
-                aliases.add("".join(suffix_path))
-                aliases.add("".join(_honor_region_name_without_suffix(part) for part in suffix_path))
-        aliases.add(_honor_region_name_without_suffix(full_name))
-        aliases.add(_honor_region_name_without_suffix(short_name))
-        entries.append({
-            "adcode": int(node["adcode"]),
-            "display_name": "".join(next_full_path),
-            "aliases": {alias.replace(" ", "") for alias in aliases if len(alias.replace(" ", "")) >= 2},
-            "depth": len(next_full_path),
-        })
-        for child in node.get("list") or []:
-            visit(child, next_full_path, next_short_path)
-
-    for root in roots:
-        visit(root, [], [])
-    return entries
+    return _honor_power_business._honor_district_entries(district_payload)
 
 
 def resolve_honor_district(region_query, district_payload=None):
-    from .zfile import read_honor_districts
-
-    normalized_query = str(region_query or "").replace(" ", "").strip()
-    if not normalized_query:
-        return None, "缺少地区，请使用：#战力查询 英雄名 地区名"
-    if district_payload is None:
-        district_payload = read_honor_districts()
-
-    matches = {}
-    for entry in _honor_district_entries(district_payload):
-        matched_aliases = [alias for alias in entry["aliases"] if alias in normalized_query]
-        if not matched_aliases:
-            continue
-        best_alias = max(matched_aliases, key=len)
-        candidate = dict(entry)
-        candidate["match_score"] = (entry["depth"], len(best_alias))
-        matches[entry["adcode"]] = candidate
-    matched_entries = list(matches.values())
-    if not matched_entries:
-        return None, f"未找到地区：{region_query}"
-    best_score = max(entry["match_score"] for entry in matched_entries)
-    matched_entries = [entry for entry in matched_entries if entry["match_score"] == best_score]
-    if len(matched_entries) > 1:
-        choices = "、".join(entry["display_name"] for entry in matched_entries[:5])
-        return None, f"地区名称不唯一，请使用完整地区名：{choices}"
-    return matched_entries[0], None
+    return _honor_power_business.resolve_honor_district(
+        region_query, district_payload=district_payload
+    )
 
 
 def _honor_rank_percentile_points(rank_list):
-    valid_ranks = []
-    for fallback_rank_no, player_rank in enumerate(rank_list, 1):
-        try:
-            rank_value = int(player_rank.get("rankValue") or 0)
-            rank_no = int(player_rank.get("rankNo") or fallback_rank_no)
-        except (TypeError, ValueError):
-            continue
-        if rank_value > 0:
-            valid_ranks.append({"rank_no": rank_no, "rank_value": rank_value})
-
-    if not valid_ranks:
-        return []
-
-    points = []
-    rank_count = len(valid_ranks)
-    for percentage in (0, 25, 50, 100):
-        if percentage == 0:
-            index = 0
-        else:
-            index = math.ceil(rank_count * percentage / 100) - 1
-        selected = valid_ranks[index]
-        points.append({
-            "percentage": percentage,
-            "rank_no": selected["rank_no"],
-            "rank_value": selected["rank_value"],
-        })
-    return points
+    return _honor_power_business._honor_rank_percentile_points(rank_list)
 
 
 def honor_power_query_process(realname, query_text):
-    """Query one hero's honor threshold for an arbitrary configured district."""
-    hero = _honor_hero_from_query(query_text)
-    if not hero:
-        return "未识别到英雄，请使用：#战力查询 英雄名 地区名"
-    hero_id, hero_name = hero
-    district, district_error = resolve_honor_district(query_text)
-    if district_error:
-        return district_error
+    return _honor_power_business.honor_power_query_process(realname, query_text)
 
-    roleid = roleidlist[realname]
-    rank_info = wzry_get_official(
-        reqtype="honorranklist",
-        roleid=roleid,
-        heroid=hero_id,
-        honor_adcode=district["adcode"],
+
+def single_player_single_hero_process(
+    username, heroid, heroname, this_season=True
+):
+    return _hero_statistics_business.single_player_single_hero_process(
+        username, heroid, heroname, this_season=this_season
     )
 
-    rank_points = _honor_rank_percentile_points(rank_info.get("list") or [])
-    lines = [f"【{hero_name}战力查询】", line_delim, district["display_name"]]
-    if rank_points:
-        lines.append(f"榜单人数 {len(rank_info.get('list') or [])}")
-        for point in rank_points:
-            lines.append(
-                f"榜单 {point['percentage']}%  "
-                f"第 {point['rank_no']} 名  战力 {point['rank_value']}"
-            )
-    else:
-        lines.append("暂无荣耀排行数据")
-    return "\n".join(lines)
+
+def single_player_mult_hero_process(
+    username, days=30, top_n=3, min_games=2, this_season=False
+):
+    return _hero_statistics_business.single_player_mult_hero_process(
+        username,
+        days=days,
+        top_n=top_n,
+        min_games=min_games,
+        this_season=this_season,
+    )
 
 
-# 单一玩家、单一英雄
-def single_player_single_hero_process(username,heroid,heroname,this_season=True):
-    from .ztime import time_r, time_delta,str_to_time
+def mult_player_mult_hero_process(
+    days=30, top_n=5, min_games=5, this_season=False
+):
+    return _hero_statistics_business.mult_player_mult_hero_process(
+        days=days,
+        top_n=top_n,
+        min_games=min_games,
+        this_season=this_season,
+    )
 
-    userid=userlist[username]
-    roleid=roleidlist[username]
 
-    res = wzry_get_official(reqtype="herostatistics", userid=userid, roleid=roleid, heroid=heroid)
-
-    # 提取核心数据
-    hero_info = res.get("heroInfo", {})
-    tier_dict = getattr(dmc, "herotier", {})
-    herotier = tier_dict.get(heroname, "未知")
-    winNum = int(hero_info.get("winNum") or 0)
-    failNum = int(hero_info.get("failNum") or 0)
-    total_cnt = winNum + failNum
-    win_rate = (winNum / total_cnt) if total_cnt else 0
-
-    power_data = res.get("powerData") or []
-    heropower = power_data[-1]["value"] if power_data else 0
-    month_heropower_incre = (power_data[-1]["value"] - power_data[0]["value"]) if len(power_data) > 1 else 0
-
-    month_mvp = int(hero_info.get("mvpCount") or 0)
-    month_medal = int(hero_info.get("goldCount") or 0) + int(hero_info.get("silverCount") or 0) + int(hero_info.get("bestCount") or 0)
-
-    # 获取本地历史数据（用于详细统计）
-    end_date = time_r()
-    if(this_season): 
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else: 
-        start_date = time_delta(end_date, -30)
-        TimeLim="近30日"
-    history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-    games = history.get(username, []) if history else []
-    hero_games = [g for g in games if g.get('HeroName') == heroname]
-
-    # 组装简洁输出
-    lines = []
-    lines.append(f"【统计信息】 {namenick[username]}的{heroname} (梯度{herotier})")
-    lines.append(line_delim)
-    lines.append(f"战力  {heropower}  ({month_heropower_incre:+d})")
-    lines.append(f"总战绩  {winNum}胜{failNum}负  胜率{round(win_rate*100,1)}%")
-    
-    if hero_games:
-        total_games_h = len(hero_games)
-        wins_h = sum(1 for g in hero_games if g.get('Result') == '胜利')
-        win_rate_h = (wins_h / total_games_h) if total_games_h else 0
-        avg_grade_h = sum(float(g.get('GameGrade', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        mvp_h = sum(1 for g in hero_games if 'MVP' in (g.get('Others') or ''))
-        avg_kill_h = sum(int(g.get('KillCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        avg_dead_h = sum(int(g.get('DeadCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        avg_assist_h = sum(int(g.get('AssistCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        
-        lines.append(line_delim)
-        lines.append(f"{TimeLim}表现")
-        lines.append(f"{total_games_h}场  胜率{round(win_rate_h*100,1)}%  均分{round(avg_grade_h,1)}")
-        lines.append(f"MVP×{mvp_h}  牌子×{month_medal}  KDA {round(avg_kill_h,1)}/{round(avg_dead_h,1)}/{round(avg_assist_h,1)}")
-    else:
-        lines.append(line_delim)
-        lines.append(f"{TimeLim}无对局记录")
-
-    # 添加成就牌（如果有特殊成就才显示）
-    medal_list = res.get("medalList") or []
-    if medal_list and len(medal_list) > 0:
-        lines.append(line_delim)
-        lines.append("成就")
-        for medal_info in medal_list[:3]:  # 最多显示3个
-            info = medal_info.get("UserMedalInfo") if isinstance(medal_info, dict) else str(medal_info)
-            if info:
-                lines.append(f"  · {info}")
-
-    return "\n".join(lines)
-# 单一玩家、所有英雄
-def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, this_season=False):
-    """统计玩家在最近若干天内的英雄表现，返回 JSON 风格字符串和可读摘要。
-    - rcv_msg: 包含用户名的消息，使用 extract_name 解析
-    - days: 向前统计天数
-    - top_n: 每个榜单返回的条目数
-    - min_games: 计算胜率/评分榜时的最小出场次数阈值
-    返回字符串（先 JSON，再人类可读摘要）。
-    """
-    from .ztime import time_r, time_delta, str_to_time
-    import json
-
-    userid = userlist[username]
-
-    end_date = time_r()
-    if(this_season):
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else:
-        start_date = time_delta(end_date, -days)
-        TimeLim=f"近{days}日"
-    history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-    games = history.get(username, []) if history else []
-    total_games = len(games)
-    if total_games == 0:
-        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
-
-    # 聚合每个英雄的统计
-    hero_stats = {}
-    tier_dict = getattr(dmc, "herotier", {})
-    total_tier_val = 0
-    tier_counted_games = 0
-    for g in games:
-        hn = g.get('HeroName', '未知')
-        if hn in tier_dict:
-            try:
-                total_tier_val += float(tier_dict[hn])
-                tier_counted_games += 1
-            except:
-                pass
-        s = hero_stats.setdefault(hn, {'count': 0, 'wins': 0, 'grades': [], 'kills': 0, 'deads': 0, 'assists': 0, 'mvp': 0})
-        s['count'] += 1
-        if g.get('Result') == '胜利':
-            s['wins'] += 1
-        try:
-            s['grades'].append(float(g.get('GameGrade') or 0))
-        except:
-            pass
-        s['kills'] += int(g.get('KillCnt') or 0)
-        s['deads'] += int(g.get('DeadCnt') or 0)
-        s['assists'] += int(g.get('AssistCnt') or 0)
-        if 'MVP' in (g.get('Others') or ''):
-            s['mvp'] += 1
-
-    # 计算指标
-    metrics = {}
-    for hn, s in hero_stats.items():
-        cnt = s['count']
-        wins = s['wins']
-        win_rate = (wins / cnt) if cnt else 0
-        avg_grade = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-        avg_k = s['kills'] / cnt if cnt else 0
-        avg_d = s['deads'] / cnt if cnt else 0
-        avg_a = s['assists'] / cnt if cnt else 0
-        play_rate = cnt / total_games
-        metrics[hn] = {
-            'hero': hn,
-            'count': cnt,
-            'play_rate': play_rate,
-            'win_rate': win_rate,
-            'avg_grade': avg_grade,
-            'kda': [round(avg_k, 2), round(avg_d, 2), round(avg_a, 2)],
-            'mvp': s['mvp']
-        }
-
-    # 排名列表
-    top_by_play = sorted(metrics.values(), key=lambda x: x['play_rate'], reverse=True)[:top_n]
-    eligible = [m for m in metrics.values() if m['count'] >= max(1, min_games)]
-    top_by_win = sorted(eligible, key=lambda x: x['win_rate'], reverse=True)[:top_n]
-    top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
-
-    # 可读摘要
-    lines = []
-    avg_tier = round(total_tier_val / tier_counted_games, 2) if tier_counted_games > 0 else "N/A"
-    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（{TimeLim}，共 {total_games} 场，均梯: {avg_tier}）")
-    lines.append(line_delim)
-    lines.append("出场率 TOP:")
-    for it in top_by_play:
-        th = it['hero']
-        tier_info = f" (梯 {tier_dict[th]})" if th in tier_dict else ""
-        lines.append(f"  【{th}】{tier_info}: 出场 {it['count']} 场 ({round(it['play_rate']*100,1)}%)\n  胜率 {round(it['win_rate']*100,1)}%  均分 {round(it['avg_grade'],1)}\n  KDA {it['kda'][0]}/{it['kda'][1]}/{it['kda'][2]}")
-    lines.append(line_delim)
-    lines.append("胜率 TOP (至少 %d 场)：" % max(1, min_games
-                ))
-    if top_by_win:
-        for it in top_by_win:
-            th = it['hero']
-            tier_info = f" (梯 {tier_dict[th]})" if th in tier_dict else ""
-            lines.append(f"  【{th}】{tier_info}: 胜率 {round(it['win_rate']*100,1)}% ({it['count']} 场)\n  均分 {round(it['avg_grade'],1)}")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-    lines.append(line_delim)
-    lines.append("评分 TOP：")
-    if top_by_grade:
-        for it in top_by_grade:
-            th = it['hero']
-            tier_info = f" (梯 {tier_dict[th]})" if th in tier_dict else ""
-            lines.append(f"  【{th}】{tier_info}: 均分 {round(it['avg_grade'],1)} ({it['count']} 场)\n  胜率 {round(it['win_rate']*100,1)}%")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-
-    return "\n".join(lines)
-# 所有玩家、所有英雄
-def mult_player_mult_hero_process(days=30, top_n=5, min_games=5, this_season=False):
-    """统计所有玩家在最近若干天内的英雄总体表现，返回人类可读摘要字符串。
-    - days: 向前统计天数
-    - top_n: 每个榜单返回的条目数
-    - min_games: 计算胜率/评分榜时的最小出场次数阈值（按英雄总出场次数）
-    """
-    from .ztime import time_r, time_delta, str_to_time
-
-    end_date = time_r()
-    if(this_season):
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else:
-        start_date = time_delta(end_date, -days)
-        TimeLim=f"近{days}日"
-
-    hero_stats = {}
-    total_games_all = 0
-
-    for realname, uid in userlist.items():
-        try:
-            history, duration = fetch_history(userid=uid, start_date=start_date, end_date=end_date)
-        except Exception:
-            continue
-        games = history.get(realname, []) if history else []
-        total_games_all += len(games)
-        for g in games:
-            hn = g.get('HeroName', '未知')
-            s = hero_stats.setdefault(hn, {'count': 0, 'wins': 0, 'grades': []})
-            s['count'] += 1
-            if g.get('Result') == '胜利':
-                s['wins'] += 1
-            try:
-                s['grades'].append(float(g.get('GameGrade') or 0))
-            except:
-                pass
-
-    if total_games_all == 0:
-        return f"{TimeLim}内所有用户没有对局数据。"
-
-    metrics = {}
-    for hn, s in hero_stats.items():
-        cnt = s['count']
-        wins = s['wins']
-        win_rate = (wins / cnt) if cnt else 0
-        avg_grade = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-        play_rate = cnt / total_games_all
-        metrics[hn] = {'hero': hn, 'count': cnt, 'play_rate': play_rate, 'win_rate': win_rate, 'avg_grade': avg_grade}
-
-    top_by_play = sorted(metrics.values(), key=lambda x: x['play_rate'], reverse=True)[:top_n]
-    eligible = [m for m in metrics.values() if m['count'] >= max(1, min_games)]
-    top_by_win = sorted(eligible, key=lambda x: x['win_rate'], reverse=True)[:top_n]
-    top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
-
-    lines = []
-    lines.append(f"【统计信息】 群u的英雄汇总\n（{TimeLim}，共 {total_games_all} 场）")
-    lines.append(line_delim)
-    lines.append("出场率 TOP:")
-    for it in top_by_play:
-        lines.append(f"  {it['hero']}: 出场 {it['count']} 场 ({round(it['play_rate']*100,1)}%)  胜率 {round(it['win_rate']*100,1)}%  均分 {round(it['avg_grade'],1)}")
-    lines.append(line_delim)
-    lines.append(f"胜率 TOP（至少 {max(1,min_games)} 场）：")
-    if top_by_win:
-        for it in top_by_win:
-            lines.append(f"  {it['hero']}: 胜率 {round(it['win_rate']*100,1)}% ({it['count']} 场)  均分 {round(it['avg_grade'],1)}")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-    lines.append(line_delim)
-    lines.append("评分 TOP：")
-    if top_by_grade:
-        for it in top_by_grade:
-            lines.append(f"  {it['hero']}: 均分 {round(it['avg_grade'],1)} ({it['count']} 场)  胜率 {round(it['win_rate']*100,1)}%")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-
-    return "\n".join(lines)
-# 所有玩家、单一英雄
-def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top_n=5, this_season=False):
-    """针对指定英雄聚合全服数据，返回人类可读摘要。
-    - hero_name: 英雄名称（精确匹配 `HeroName` 字段）
-    - days: 向前统计天数
-    - min_games: 列入胜率/评分榜的最小出场次数阈值（按单个玩家）
-    - top_n: 每个榜单返回条目数
-    返回字符串，包含：总体场次、参战玩家数、总体胜率、均分、KDA、地图分布、玩家榜单等
-    """
-    from .ztime import time_r, time_delta, str_to_time
-    import collections
-
-    end_date = time_r()
-    if(this_season):
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else:
-        start_date = time_delta(end_date, -days)
-        TimeLim=f"近{days}日"
-
-    per_player = {}  # player -> stats
-    map_counter = collections.Counter()
-    total_games = 0
-
-    for realname, uid in userlist.items():
-        try:
-            history, duration = fetch_history(userid=uid, start_date=start_date, end_date=end_date)
-        except Exception:
-            continue
-        games = history.get(realname, []) if history else []
-        hero_games = [g for g in games if g.get('HeroName') == hero_name]
-        if not hero_games:
-            continue
-        stats = {'count': 0, 'wins': 0, 'grades': [], 'kills': 0, 'deads': 0, 'assists': 0, 'mvp': 0, 'maps': collections.Counter()}
-        for g in hero_games:
-            stats['count'] += 1
-            total_games += 1
-            if g.get('Result') == '胜利':
-                stats['wins'] += 1
-            try:
-                stats['grades'].append(float(g.get('GameGrade') or 0))
-            except:
-                pass
-            stats['kills'] += int(g.get('KillCnt') or 0)
-            stats['deads'] += int(g.get('DeadCnt') or 0)
-            stats['assists'] += int(g.get('AssistCnt') or 0)
-            if 'MVP' in (g.get('Others') or ''):
-                stats['mvp'] += 1
-            mapname = g.get('MapName') or '未知'
-            stats['maps'][mapname] += 1
-            map_counter[mapname] += 1
-        per_player[realname] = stats
-
-    if total_games == 0:
-        return f"在{TimeLim}内未发现任何玩家使用 {hero_name} 的对局。"
-
-    # 汇总总体指标
-    total_wins = sum(s['wins'] for s in per_player.values())
-    all_grades = [g for s in per_player.values() for g in s['grades']]
-    overall_winrate = total_wins / total_games if total_games else 0
-    overall_avg_grade = (sum(all_grades) / len(all_grades)) if all_grades else 0
-    overall_k = sum(s['kills'] for s in per_player.values()) / total_games
-    overall_d = sum(s['deads'] for s in per_player.values()) / total_games
-    overall_a = sum(s['assists'] for s in per_player.values()) / total_games
-
-    # 玩家榜单
-    players_by_count = sorted(per_player.items(), key=lambda x: x[1]['count'], reverse=True)[:top_n]
-    eligible = [(p, s) for p, s in per_player.items() if s['count'] >= max(1, min_games)]
-    players_by_win = sorted(eligible, key=lambda x: (x[1]['wins'] / x[1]['count']) if x[1]['count'] else 0, reverse=True)[:top_n]
-    players_by_grade = sorted(eligible, key=lambda x: (sum(x[1]['grades']) / len(x[1]['grades'])) if x[1]['grades'] else 0, reverse=True)[:top_n]
-
-    # 地图分布前几
-    top_maps = map_counter.most_common(8)
-
-    # 组装输出
-    lines = []
-    lines.append(f"【统计信息】 群u的{hero_name}\n（{TimeLim}）")
-    lines.append(line_delim)
-    lines.append(f"总场次：{total_games}    参战玩家数：{len(per_player)}")
-    lines.append(f"总胜率：{round(overall_winrate*100,1)}%    均分：{round(overall_avg_grade,2)}\n K/D/A：{round(overall_k,2)}/{round(overall_d,2)}/{round(overall_a,2)}")
-    lines.append(line_delim)
-    lines.append("地图分布（Top）：")
-    for m, c in top_maps:
-        lines.append(f"  【{m}】: {c} 场 ({round(c/total_games*100,1)}%)")
-    lines.append(line_delim)
-    lines.append(f"出场最多的玩家（Top {top_n}）：")
-    for p, s in players_by_count:
-        winr = (s['wins'] / s['count']) if s['count'] else 0
-        avgg = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-        lines.append(f"  【{namenick.get(p,p)}】: {s['count']} 场  胜率 {round(winr*100,1)}%  均分 {round(avgg,2)}  KDA {round(s['kills']/s['count'],2)}/{round(s['deads']/s['count'],2)}/{round(s['assists']/s['count'],2)}")
-    lines.append(line_delim)
-    lines.append(f"胜率最高（至少 {max(1,min_games)} 场）Top {top_n}: ")
-    if players_by_win:
-        for p, s in players_by_win:
-            winr = (s['wins'] / s['count']) if s['count'] else 0
-            lines.append(f"  【{namenick.get(p,p)}】: 胜率 {round(winr*100,1)}% ({s['count']} 场)  均分 {round((sum(s['grades'])/len(s['grades'])) if s['grades'] else 0,2)}")
-    else:
-        lines.append("  无满足最小出场次数的玩家")
-    lines.append(line_delim)
-    lines.append(f"评分最高（至少 {max(1,min_games)} 场）Top {top_n}: ")
-    if players_by_grade:
-        for p, s in players_by_grade:
-            avgg = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-            lines.append(f"  【{namenick.get(p,p)}】: 均分 {round(avgg,2)} ({s['count']} 场)  胜率 {round((s['wins']/s['count'])*100,1)}%")
-    else:
-        lines.append("  无满足最小出场次数的玩家")
-
-    return "\n".join(lines)
+def mult_player_single_hero_process(
+    hero_id, hero_name, days=30, min_games=3, top_n=5, this_season=False
+):
+    return _hero_statistics_business.mult_player_single_hero_process(
+        hero_id,
+        hero_name,
+        days=days,
+        min_games=min_games,
+        top_n=top_n,
+        this_season=this_season,
+    )
 
 def todayhero_process(realname,ignore_limit=False,ai_comment=True):
     from .zfunc import single_player_single_hero_process
@@ -4519,141 +4061,64 @@ def extract_name(from_text,precise=False):
         if txt_contain(realname,from_text,p=True,ori=True):
             return realname
     return None
+from .business import battle_metrics as _battle_metrics_business
+
+
 def merge_crossday_gamedata(gamedata):
-    if (not gamedata): return {}
-    res=gamedata[-1]
-    res["gaming_info"]={}
-    res["btl_aver"]=0
-    if ("roleid" not in res): res["roleid"]=str(roleidlist[res["key"]])
-    for daydata in gamedata[-2::-1]:
-        res["today_num"]+=daydata["today_num"]
-        res["up_tourna"]+=daydata["up_tourna"]
-        res["up_peak"]+=daydata["up_peak"]
-        for mapname,mapcnt in daydata["map_cnt"].items():
-            if (mapname not in res["map_cnt"]):
-                res["map_cnt"][mapname]=[0,0]
-            res["map_cnt"][mapname][0]+=mapcnt[0]
-            res["map_cnt"][mapname][1]+=mapcnt[1]
-        for peakdiff in daydata.get("peak_up",[]):
-            res["peak_up"].append(peakdiff)
-        res["star_up"]+=daydata["star_up"]
-        for detail in daydata["details"]:
-            res["details"].append(detail)
-    if ("peak_up" in res):
-        combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
-        res["peak_up"]=combined_up_peak
-        combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True,reverse=-1)
-        res["peak_up"]=combined_up_peak
-    else:
-        res["peak_up"]=[]
-    if ("visible" not in res): res["visible"]=True
-    res["btl_aver"] = calculate_official_battle_average(res["details"])
-    res["btl_contribute_aver"] = calculate_official_battle_contribution_average(res["details"], res["roleid"])
+    return _battle_metrics_business.merge_crossday_gamedata(gamedata)
 
-    return res
+
 def calculate_official_battle_average(details):
-    official_btls_grades = [
-        float(btl["GameGrade"])
-        for btl in details
-        if check_btl_official(btl["MapName"])
-    ]
-    average = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
-    return round(average, 3)
+    return _battle_metrics_business.calculate_official_battle_average(details)
+
+
 def _battle_all_roles(battle_detail):
-    return battle_detail.get("redRoles", []) + battle_detail.get("blueRoles", [])
+    return _battle_metrics_business._battle_all_roles(battle_detail)
+
+
 def _find_battle_role(battle_detail, roleid=None, userid=None):
-    for role in _battle_all_roles(battle_detail):
-        basic_info = role.get("basicInfo", {})
-        if roleid is not None and str(basic_info.get("roleId")) == str(roleid):
-            return role
-        if userid is not None and str(basic_info.get("userId")) == str(userid):
-            return role
-    return None
-def _battle_role_has_assist_equip(role):
-    for equipment in role.get("battleRecords", {}).get("finalEquips", []):
-        equip_name = equipment.get("equipName", "")
-        if any(keyword in equip_name for keyword in {"学识宝石", "近卫", "极影"}):
-            return True
-    return False
-def calculate_battle_contribution_factor(battle_detail, roleid=None, userid=None, role=None):
-    head = battle_detail.get("head", {})
-    target_role = role or _find_battle_role(
-        battle_detail,
-        roleid=roleid if roleid is not None else head.get("roleId"),
-        userid=userid if userid is not None else head.get("userId"),
+    return _battle_metrics_business._find_battle_role(
+        battle_detail, roleid=roleid, userid=userid
     )
-    if not target_role:
-        return None
-    target_camp = target_role.get("basicInfo", {}).get("acntCamp")
-    team_roles = [
-        item for item in _battle_all_roles(battle_detail)
-        if item.get("basicInfo", {}).get("acntCamp") == target_camp
-    ]
-    if not team_roles:
-        return None
-    stats = target_role.get("battleStats", {})
-    my_grade = float(stats.get("gradeGame", 0))
-    my_money = float(stats.get("money", 0))
-    team_total_grade = sum(float(item.get("battleStats", {}).get("gradeGame", 0)) for item in team_roles)
-    team_total_money = sum(float(item.get("battleStats", {}).get("money", 0)) for item in team_roles)
-    if team_total_grade <= 0 or team_total_money <= 0 or my_money <= 0:
-        return None
-    factor = (5 * my_grade / team_total_grade) * pow((5 * my_money / team_total_money), -0.5)
-    if _battle_role_has_assist_equip(target_role):
-        factor *= 0.9
-    return factor
+
+
+def _battle_role_has_assist_equip(role):
+    return _battle_metrics_business._battle_role_has_assist_equip(role)
+
+
+def calculate_battle_contribution_factor(
+    battle_detail, roleid=None, userid=None, role=None
+):
+    return _battle_metrics_business.calculate_battle_contribution_factor(
+        battle_detail,
+        roleid=roleid,
+        userid=userid,
+        role=role,
+    )
+
+
 def calculate_official_battle_contribution_average(details, roleid):
-    official_btls_contributes = []
-    for btl in details:
-        if not check_btl_official(btl.get("MapName", "")):
-            continue
-        gameseq = btl.get("GameSeq")
-        if not gameseq:
-            continue
-        battle_detail = fetch_battle(gameseq, roleid)
-        if not battle_detail:
-            continue
-        contribution = calculate_battle_contribution_factor(battle_detail, roleid=roleid)
-        if contribution is not None:
-            official_btls_contributes.append(contribution)
-    average = sum(official_btls_contributes) / len(official_btls_contributes) if official_btls_contributes else 0
-    return round(average, 3)
+    return _battle_metrics_business.calculate_official_battle_contribution_average(
+        details, roleid
+    )
+
+
 def check_btl_official(btlname):
-    import re
+    return _battle_metrics_business.check_btl_official(btlname)
 
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位|巅峰|战队', btlname):
-        return True
-    return False
+
 def check_btl_official_only_rank(btlname):
-    import re
+    return _battle_metrics_business.check_btl_official_only_rank(btlname)
 
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位', btlname):
-        return True
-    return False
+
 def check_btl_official_with_matching(btlname):
-    import re
+    return _battle_metrics_business.check_btl_official_with_matching(btlname)
 
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位|巅峰|战队|匹配|王者峡谷', btlname):
-        return True
-    return False
+
 def check_btl_official_with_matching_with_entertain(btlname):
-    import re
-
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位|巅峰|战队|匹配|王者峡谷|梦境|火焰山|无限乱斗', btlname):
-        return True
-    return False
+    return _battle_metrics_business.check_btl_official_with_matching_with_entertain(
+        btlname
+    )
 def export_btldetail(gameinfo,roleid):
     from .zfile import writerl
     from .zfile import battle_detail_exists
