@@ -17,7 +17,11 @@ __MACOSX/
 /data/history/doubt/
 /data/history/power/
 /data/history/power_failed/
+/data/history/*.json
+!/data/history/BEGIN_TEMPLATE.json
+/data/herotier/*.json
 /data/herorank/
+/data/news/*.txt
 /resources/wzry_images/skins/
 /resources/wzry_images/generated/
 /resources/wzry_images/kpl/
