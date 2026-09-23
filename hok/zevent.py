@@ -1068,52 +1068,26 @@ async def f_history_query(event: Event):
 
 @_chat.handle()
 async def f_chat(bot,event):
+    from .event_handlers.chat import prepare_chat_request
     from .zchat import chat_process
-    from .zfunc import qid2nick
-    
-    user_id = event.get_user_id()
-    
-    try:
-        group_id = event.group_id
-    except Exception:
-        group_id = None
-        
-    if group_id:
-        add_group_poke_task(user_id, group_qid=group_id, source="chat")
 
-    nick = qid2nick(user_id)
-    rcv_msg = event.get_plaintext().strip().lstrip("#＃").strip()
-    
-    for k in sorted(common_expr.keys(), key=len, reverse=True):
-        rcv_msg = re.sub(re.escape(k), common_expr[k], rcv_msg)
-    
-    snd_msg = ""
-    
-    network = "&" in rcv_msg
-    rcv_msg = rcv_msg.replace("&", "").strip()
-    use_mem_current = dmc.use_mem
-    if "nomem" in rcv_msg:
-        use_mem_current = False
-        rcv_msg = rcv_msg.replace("nomem", "").strip()
-        
-    try:
-        snd_msg = await asyncio.to_thread(
-            chat_process,
-            user_text=rcv_msg,
-            user_id=user_id,
-            nickname=nick,
-            group_id=group_id,
-            message_id=getattr(event, "message_id", None),
-            use_memory=use_mem_current,
-            network=network,
+    request = prepare_chat_request(event, common_expr, dmc.use_mem)
+    if request["group_id"]:
+        add_group_poke_task(
+            request["user_id"],
+            group_qid=request["group_id"],
+            source="chat",
         )
+    try:
+        snd_msg = await asyncio.to_thread(chat_process, **request)
     except Exception as e:
         add_msg(
-            f"AI对话失败：location=zevent.f_chat params={{'user_id': {user_id!r}, 'group_id': {group_id!r}}} error={e!r}",
+            "AI对话失败：location=zevent.f_chat "
+            f"params={{'user_id': {request['user_id']!r}, "
+            f"'group_id': {request['group_id']!r}}} error={e!r}",
             event=event,
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
 
     add_msg(snd_msg, event=event)
-    return
