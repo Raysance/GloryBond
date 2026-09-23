@@ -391,6 +391,11 @@ def battle_power_rank_image_path(filename_hash):
     return os.path.join(directory, f"power_rank_{filename_hash}.png")
 
 
+def gametime_rank_image_path(filename_hash):
+    directory = ensure_dir(os.path.join("resources", "wzry_images", "tmp"))
+    return os.path.join(directory, f"gametime_rank_{filename_hash}.png")
+
+
 def grade_chart_output_paths():
     directory = os.path.join(temp_path, "wzry_grade_chart")
     return os.path.join(directory, "grade_chart.png"), directory
