@@ -43,6 +43,24 @@ def is_within_daily_time_window(hour, minute, window_seconds=600):
     target = now.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
     delta = abs((now - target).total_seconds())
     return min(delta, 86400 - delta) <= int(window_seconds)
+
+
+def minutes_until_daily_window_end(hour, minute, window_minutes=10):
+    """Return rounded-up minutes until the nearest daily window ends."""
+    now = time_r()
+    target = now.replace(
+        hour=int(hour),
+        minute=int(minute),
+        second=0,
+        microsecond=0,
+    )
+    difference = now - target
+    if difference.total_seconds() > 43200:
+        target += timedelta(days=1)
+    elif difference.total_seconds() < -43200:
+        target -= timedelta(days=1)
+    end_time = target + timedelta(minutes=int(window_minutes))
+    return int((end_time - now).total_seconds() / 60) + 1
 def parse_chat_time_bound(value, is_end=False):
     """Parse a chat-history time bound in the deployment host timezone."""
     if value in (None, ""):

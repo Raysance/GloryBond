@@ -263,17 +263,8 @@ async def f_blocked(event):
 @_sleep_blocked.handle()
 async def f_sleep_blocked(event):
     from .zfunc import qid2nick
-    import datetime
-    now = datetime.datetime.now()
-    target = now.replace(hour=bound_hour, minute=bound_minute, second=0, microsecond=0)
-    diff = now - target
-    if diff.total_seconds() > 43200:
-        target += datetime.timedelta(days=1)
-    elif diff.total_seconds() < -43200:
-        target -= datetime.timedelta(days=1)
-    
-    end_time = target + datetime.timedelta(minutes=10)
-    remaining_minutes = int((end_time - now).total_seconds() / 60) + 1
+    from .ztime import minutes_until_daily_window_end
+    remaining_minutes = minutes_until_daily_window_end(bound_hour, bound_minute)
     add_msg(Message(f"🤖暂时离线，{qid2nick(event.get_user_id())}请稍等，{remaining_minutes} 分钟后恢复"), event=event)
     await _sleep_blocked.finish()
 @_execute.handle()
@@ -296,13 +287,11 @@ async def f_execute(event):
 
 @_update_local.handle()
 async def f_update_local(event):
+    from .zfile import read_dynamic_variables
+
     try:
-        # global confs
-        with open('variables_dynamic.json', 'r', encoding='utf-8') as file:
-            varia = json.load(file)
+        varia = read_dynamic_variables()
         vars(dmc).update(varia)
-        # with open('config.yaml', 'r') as file:
-        #     confs = yaml.load(file, Loader=yaml.FullLoader)
         await asyncio.to_thread(load_yesterday, 1)
         add_msg(Message("变量配置已更新"), event=event)
     except Exception as e:
@@ -437,10 +426,10 @@ async def f_group_poke(bot, event):
     from .zfunc import ai_parser
     from .zfunc import get_emoji_url
     from .zfunc import battle_power_process
-    from .ztime import time_r
+    from .ztime import current_datetime_text, time_r
     from .ztime import str_to_time,time_to_str
     from .ztime import calc_gap
-    from .zfile import file_exist
+    from .zfile import file_exist, watch_battle_shot_path
     from .ztime import add_second
     
     if isinstance(event, PokeNotifyEvent):
@@ -448,7 +437,7 @@ async def f_group_poke(bot, event):
             if (not dmc.repair):
                 if (dmc.RTMPStatus):
                     res=dmc.RTMPListener.screenshot()
-                    pic_path=os.path.join(temp_path,"wzry_btl_shot",str(dmc.RTMPPlayer)+".png")
+                    pic_path=watch_battle_shot_path(dmc.RTMPPlayer)
                     
                     if (res and await asyncio.to_thread(file_exist, pic_path)): snd_msg = MessageSegment.image(pic_path)
                     else: snd_msg=MessageSegment.text("最快10秒ob一次")
@@ -499,7 +488,7 @@ async def f_group_poke(bot, event):
                             add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
                         return
                     if send_type:
-                        snd_msg = await asyncio.to_thread(ai_parser, [qid2nick(userqid), str(datetime.datetime.now())], "poke")
+                        snd_msg = await asyncio.to_thread(ai_parser, [qid2nick(userqid), current_datetime_text()], "poke")
                     else:
                         pic_index=random.randint(1,emoji_amount+1)
                         emoji_url=get_emoji_url(pic_index)
@@ -514,13 +503,13 @@ async def f_group_poke(bot, event):
                 
 @_empty_cache.handle()
 async def f_empty_cache(event): # 清空全局记录和用户(自己的)记录
+    from .zfile import delete_legacy_chat_cache
+
     log_message("CMD: EMPTY_CACHE")
     dmc.ai_memory.clear()
     userqid=event.get_user_id()
-    file_path=os.path.join("chats",userqid+".json")
     try:
-        if await asyncio.to_thread(os.path.exists, file_path):
-            await asyncio.to_thread(os.remove, file_path)
+        await asyncio.to_thread(delete_legacy_chat_cache, userqid)
     except Exception as e:
         pass
     add_msg(Message("成功清空缓存"), event=event)
@@ -659,13 +648,14 @@ async def f_all_only(event):
 @_atall.handle()
 async def f_atall(bot,event):
     from .zfunc import ai_parser
+    from .ztime import current_datetime_text
 
     # at_msg=""
     # for name,id in qid.items():
     #     at_msg+=MessageSegment.at(str(id))
     # await _atall.send(at_msg)
     try:
-        urge_msg = await asyncio.to_thread(ai_parser, [str(datetime.datetime.now()), str(namenick), dmc.today_news], "urge_game")
+        urge_msg = await asyncio.to_thread(ai_parser, [current_datetime_text(), str(namenick), dmc.today_news], "urge_game")
         add_msg(urge_msg, event=event)
     except Exception as e:
         add_msg(f"Urge Error: {str(e)}", event=event)

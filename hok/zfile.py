@@ -92,6 +92,18 @@ def read_emoji_reference():
     return readerl("emojiref.json")
 
 
+def read_dynamic_variables():
+    return readerl("variables_dynamic.json")
+
+
+def delete_legacy_chat_cache(user_qid):
+    path = os.path.join("chats", f"{user_qid}.json")
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    return True
+
+
 def list_history_dates_descending(start_date=None):
     """Return database history dates, with the JSON archive as fallback."""
     try:
