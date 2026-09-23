@@ -673,133 +673,65 @@ async def f_atall(bot,event):
     return
 @_showonline.handle()
 async def f_showonline(bot,event):
-    from .zfunc import online_process
+    from .event_handlers.player_reports import online_reply
     try:
-        online_result = await asyncio.to_thread(online_process)
-        if isinstance(online_result, tuple):
-            snd_msg, error_report = online_result
-        else:
-            snd_msg, error_report = online_result, ""
-        add_msg(snd_msg, event=event)
-        if error_report:
-            add_msg(error_report, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        result = await online_reply()
+        add_msg(result["text"], event=event)
+        if result["error_report"]:
+            add_msg(result["error_report"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
     except Exception as e:
         add_msg(f"Online Check Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_rnk.handle()
 async def f_rnk(bot,event):
-    from .zfunc import qid2nick
-    from .zfunc import generate_greeting
-    from .zfunc import rnk_process
-    from .ztime import time_r
-    from .ztime import calc_gap
-    
-    dmc.rank_query_late=datetime.datetime.now()
-    rcv_msg=event.get_plaintext()
-    debug="#" in rcv_msg
+    from .event_handlers.player_reports import ranking_reply
+
     log_message("VISIT: RANK_FUNCTION")
-    # if (calc_gap(time_r(),dmc.LastAllRequestTime)<180): return # 防止重复冗余请求
-    # dmc.LastAllRequestTime=time_r()
-    userqid=event.get_user_id()
+    group_id = getattr(event, "group_id", None)
+    if group_id:
+        add_group_poke_task(event.get_user_id(), group_qid=group_id, source="rank_query")
     try:
-        groupqid=event.group_id
-    except Exception as e:
-        groupqid=None
-    snd_msg=qid2nick(userqid)+" "+generate_greeting()+"\n"
-    if (groupqid):
-        add_group_poke_task(userqid, group_qid=groupqid, source="rank_query")
-    try:
-        rnk_info = await asyncio.to_thread(rnk_process, rcv_msg=rcv_msg, caller=qid2nick(userqid), show_zero=False, show_analyze=True, debug=debug)
-        if not rnk_info:
-            add_msg("王者荣耀数据源错误，暂无可用排行数据", event=event)
-            return
-        snd_msg+=rnk_info[0]
+        result = await ranking_reply(event)
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
-    add_msg(snd_msg, event=event)
-    if len(rnk_info) > 2 and rnk_info[2]:
-        add_msg(rnk_info[2], msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    # if (groupqid):
-    #     for poked in rnk_info[1]:
-    #         if (poked!="" and poked in idname):
-    #             await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
-    return
+    add_msg(result["text"], event=event)
+    if result["error_report"]:
+        add_msg(result["error_report"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_single.handle()
 async def f_single(bot,event):
-    log_message("VISIT: SINGLEPLAYER_FUNCTION")
-    from .zfunc import qid2nick
-    from .zfunc import single_process
-    from .zfunc import get_emoji
-    from .zfunc import get_emoji_url
-    from .zfunc import btldetail_process # 附带解析最后一局
-    from .zfunc import check_btl_official_with_matching
+    from .event_handlers.player_reports import (
+        single_last_battle_reply,
+        single_summary_reply,
+    )
 
-    whether_emoji=(random.random()>1)
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext().replace("我",qid2nick(userqid))
+    log_message("VISIT: SINGLEPLAYER_FUNCTION")
+    group_id = getattr(event, "group_id", None)
+    if group_id:
+        add_group_poke_task(event.get_user_id(), group_qid=group_id, source="single_query")
     try:
-        groupqid=event.group_id
-    except Exception as e:
-        groupqid=None
-    if (groupqid):
-        add_group_poke_task(userqid, group_qid=groupqid, source="single_query")
-    try:
-        sgl_info = await asyncio.to_thread(single_process, rcv_msg)
+        summary = await single_summary_reply(event)
     except Exception as e:
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        # await _single.send(traceback.format_exc())
         return
-    if (not sgl_info): return
-        
-    add_msg(sgl_info[0], event=event)
-    
-    if (whether_emoji):
-        emoji_random=random.random()
-        if (emoji_random<0.2): pic_index=random.randint(1,emoji_amount+1)
-        else: pic_index=get_emoji(sgl_info[0])
-    if (sgl_info[2] and whether_emoji):
-        emoji_url=get_emoji_url(pic_index)
-        emoji_data =  MessageSegment.image(emoji_url)
-        add_msg(emoji_data, event=event)
-
-    if (sgl_info[3]): # 有合法的局
-        last_btl_roleid=sgl_info[4]
-        try:
-            btl_info, picpath, mapname = await asyncio.to_thread(btldetail_process, **sgl_info[3], roleid=last_btl_roleid, gen_image=True)
-        except Exception as e:
-            add_msg(str(e), event=event)
-            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-            # await _single.send(traceback.format_exc())
-            return
-        if (btl_info):
-
-            snd_msg=MessageSegment.text(btl_info)+MessageSegment.image(picpath)
-            add_msg(snd_msg, event=event)
-
-    # if (groupqid):
-    #     for poked in sgl_info[1]:
-    #         await bot.group_poke(group_id=groupqid, user_id=qid[idname[poked]])
-        
-    return
+    if not summary:
+        return
+    add_msg(summary["text"], event=event)
+    try:
+        battle = await single_last_battle_reply(summary)
+    except Exception as e:
+        add_msg(str(e), event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        return
+    if battle:
+        add_msg(MessageSegment.text(battle["text"])+MessageSegment.image(battle["image_path"]), event=event)
 @_btlview.handle()
 async def f_btlview(bot,event):
-    def get_last_number_after_dash(text):
-        last_dash = text.rfind('-')
-        if last_dash != -1:
-            after = text[last_dash + 1:]
-            # 提取连续数字
-            digits = ''.join(filter(str.isdigit, after))
-            return int(digits) if digits else None
-        return analyze_time_gap
-
-    from .zfunc import view_process
-    rcv_msg=event.get_plaintext()
-    time_gap=get_last_number_after_dash(rcv_msg)
+    from .event_handlers.player_reports import battle_view_reply
     try:
-        snd_msg = await asyncio.to_thread(view_process, rcv_msg=rcv_msg, time_gap=time_gap)
+        snd_msg = await battle_view_reply(event)
         add_msg(snd_msg, event=event)
     except Exception as e:
         add_msg(f"View Error: {str(e)}", event=event)
@@ -807,11 +739,10 @@ async def f_btlview(bot,event):
     return
 @_btldetail.handle()
 async def f_btldetail(bot,event):
-    from .zfunc import btldetail_process
+    from .event_handlers.player_reports import last_battle_detail_reply
     try:
-        last_btl_params=dmc.last_request_btllist[0]['Params']
-        linkurl, picpath, mapname = await asyncio.to_thread(btldetail_process, **last_btl_params)
-        add_msg(linkurl, event=event)
+        result = await last_battle_detail_reply()
+        add_msg(result["text"], event=event)
     except Exception as e:
         add_msg(f"BtlDetail Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
