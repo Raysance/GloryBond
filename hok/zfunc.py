@@ -4333,3 +4333,36 @@ def txt_contain(x, y, precise, is_origin):
 
 def history_query_handler(rcv_msg):
     return _history_query_business.history_query_handler(rcv_msg)
+
+
+def format_history_query_prefix(query_desc, stats):
+    return _history_query_business.format_history_query_prefix(query_desc, stats)
+
+
+def history_query_single_match(detail, realname):
+    return btldetail_process(
+        **detail["Params"],
+        roleid=roleidlist[realname],
+        gen_image=True,
+        individual_show=True,
+    )
+
+
+def history_query_multiple_matches_link(query_target, matches):
+    from .zfile import write_web_history_payload
+    from .ztime import current_datetime_text, current_timestamp
+
+    now_time = current_datetime_text()
+    packed_data = _history_query_business.pack_history_query_matches(
+        matches,
+        roleidlist,
+        fetch_battle,
+    )
+    filename_hashed = WebArtifacts.make_hash(round(current_timestamp() * 1000000))
+    write_web_history_payload(filename_hashed, packed_data)
+    return WebArtifacts.history_route_link(
+        filename_hashed,
+        "query_select",
+        query_target,
+        now_time,
+    )

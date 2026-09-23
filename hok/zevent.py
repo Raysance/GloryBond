@@ -1166,88 +1166,22 @@ async def f_recentgames(event):
 
 @_history_query.handle()
 async def f_history_query(event: Event):
-    from .zfunc import history_query_handler, qid2nick, extract_name, btldetail_process, fetch_battle, WebArtifacts
-    import traceback
-    import json
-    import time
-    from .zfile import writerl
-    import hashlib
-
-    userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid))
-    
+    from .event_handlers.history_query import (
+        HistoryQueryDetailError,
+        history_query_reply,
+    )
 
     try:
-        res = await asyncio.to_thread(history_query_handler, rcv_msg)
-        if isinstance(res, str):
-            add_msg(res, event=event)
-            return
-            
-        query_target, matches, query_desc, stats = res
-        prefix = f"🔍查询条件：{query_desc}\n\n"
-
-        if isinstance(matches, str):
-            add_msg(prefix + matches, event=event)
-            return
-        
-        if stats:
-            total = stats.get('total', 0)
-            prefix += f"📊 统计概览 ({total}场)：\n"
-            prefix += f"胜率: {stats.get('win_rate', 0):.1f}% ({stats.get('wins', 0)}胜{total - stats.get('wins', 0)}负)\n"
-            prefix += f"平均评分: {stats.get('avg_grade', 0):.1f}\n"
-            prefix += f"场均KDA: {stats.get('total_k',0)/total:.1f}/{stats.get('total_d',0)/total:.1f}/{stats.get('total_a',0)/total:.1f} ({stats.get('avg_kda', 0):.2f})\n\n"
-
-        if len(matches) == 1:
-            detail, realname = matches[0]
-            roleid = roleidlist[realname]
-            try:
-                # 调用btldetail_process解析该局详情，逻辑参考其他单局解析处
-                btl_info, picpath, mapename = await asyncio.to_thread(btldetail_process, **detail['Params'], roleid=roleid, gen_image=True, individual_show=True)
-                
-                snd_msg = MessageSegment.text(prefix + btl_info) + MessageSegment.image(picpath)
-                add_msg(snd_msg, event=event)
-            except Exception as e:
-                add_msg(prefix + f"解析局内详情异常: {str(e)}", event=event)
-                add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        elif len(matches) > 1:
-            packed_data = []
-            now_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            for detail, realname in matches:
-                gameseq = detail['GameSeq']
-                roleid = roleidlist[realname]
-                battle_res = await asyncio.to_thread(fetch_battle, gameseq)
-                
-                nickname = ""
-                if battle_res:
-                    for role in battle_res.get('redRoles', []) + battle_res.get('blueRoles', []):
-                        if int(role['basicInfo']['roleId']) == int(roleid):
-                            nickname = role['basicInfo']['roleName']
-                            break
-                            
-                info = {
-                    "realname": realname,
-                    "Nickname": nickname,
-                    "roleId": roleid,
-                    "GameTime": detail.get("GameTime_Timestamp"),
-                    "Duration": detail.get("Duration_Second"),
-                    "HeroName": detail.get("HeroName"),
-                    "MapName": detail.get("MapName"),
-                    "KillCnt": detail.get('KillCnt'),
-                    "DeadCnt": detail.get('DeadCnt'),
-                    "AssistCnt": detail.get('AssistCnt'),
-                    "Result": detail.get("Result"),
-                    "GameGrade": detail.get("GameGrade"),
-                    "GameSeq":gameseq,
-                    "Others": detail.get("Others")
-                }
-                packed_data.append(info)
-                
-            filename_hashed,filepath = WebArtifacts.history_artifact(round(time.time()*1000000))
-            await asyncio.to_thread(writerl, filepath, packed_data)
-            website_link = await asyncio.to_thread(WebArtifacts.history_route_link, filename_hashed, "query_select", query_target, now_time)
-            add_msg(prefix + f"找到 {len(matches)} 局符合条件的战绩，点击链接查看详情：(视角随机)\n" + website_link, event=event)
+        result = await history_query_reply(event)
+        if result["kind"] == "battle":
+            message = MessageSegment.text(result["text"])
+            message += MessageSegment.image(result["image_path"])
+            add_msg(message, event=event)
         else:
-            add_msg(prefix + "未找到符合条件的战绩。", event=event)
+            add_msg(result["text"], event=event)
+    except HistoryQueryDetailError as error:
+        add_msg(error.prefix + f"解析局内详情异常: {error}", event=event)
+        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
     except Exception as e:
         add_msg(f"查询错误: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])

@@ -727,3 +727,60 @@ def history_query_handler(rcv_msg):
         }
 
     return [query_target, matches, query_desc, stats]
+
+
+def format_history_query_prefix(query_desc, stats):
+    prefix = f"🔍查询条件：{query_desc}\n\n"
+    if not stats:
+        return prefix
+
+    total = stats.get("total", 0)
+    prefix += f"📊 统计概览 ({total}场)：\n"
+    prefix += (
+        f"胜率: {stats.get('win_rate', 0):.1f}% "
+        f"({stats.get('wins', 0)}胜{total - stats.get('wins', 0)}负)\n"
+    )
+    prefix += f"平均评分: {stats.get('avg_grade', 0):.1f}\n"
+    prefix += (
+        f"场均KDA: {stats.get('total_k', 0) / total:.1f}/"
+        f"{stats.get('total_d', 0) / total:.1f}/"
+        f"{stats.get('total_a', 0) / total:.1f} "
+        f"({stats.get('avg_kda', 0):.2f})\n\n"
+    )
+    return prefix
+
+
+def pack_history_query_matches(matches, role_ids, battle_loader):
+    packed_data = []
+    for detail, realname in matches:
+        gameseq = detail["GameSeq"]
+        roleid = role_ids[realname]
+        battle_res = battle_loader(gameseq)
+
+        nickname = ""
+        if battle_res:
+            roles = battle_res.get("redRoles", []) + battle_res.get("blueRoles", [])
+            for role in roles:
+                if int(role["basicInfo"]["roleId"]) == int(roleid):
+                    nickname = role["basicInfo"]["roleName"]
+                    break
+
+        packed_data.append(
+            {
+                "realname": realname,
+                "Nickname": nickname,
+                "roleId": roleid,
+                "GameTime": detail.get("GameTime_Timestamp"),
+                "Duration": detail.get("Duration_Second"),
+                "HeroName": detail.get("HeroName"),
+                "MapName": detail.get("MapName"),
+                "KillCnt": detail.get("KillCnt"),
+                "DeadCnt": detail.get("DeadCnt"),
+                "AssistCnt": detail.get("AssistCnt"),
+                "Result": detail.get("Result"),
+                "GameGrade": detail.get("GameGrade"),
+                "GameSeq": gameseq,
+                "Others": detail.get("Others"),
+            }
+        )
+    return packed_data
