@@ -5,6 +5,7 @@ from local_debugger import import_hok_module
 
 
 ZFUNC = import_hok_module("zfunc")
+ZAPI = import_hok_module("zapi")
 
 
 class FakeRedis:
@@ -54,6 +55,80 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         }
 
         self.assertEqual(ZFUNC._bili_video_get_subscriptions(), {})
+
+    def test_unsubscribe_one_of_multiple_subscriptions_persists_the_rest(self):
+        ZFUNC._bili_video_save_subscriptions(
+            {
+                "10001": [
+                    {"up_mid": "1", "up_name": "一号", "query": "一号"},
+                    {"up_mid": "2", "up_name": "二号", "query": "二号"},
+                ]
+            }
+        )
+
+        result = ZFUNC.bili_video_unsubscribe_user("10001", "1")
+
+        self.assertEqual(result, "已取消订阅：一号(1)")
+        remaining = ZFUNC._bili_video_get_subscriptions()["10001"]
+        self.assertEqual([item["up_mid"] for item in remaining], ["2"])
+
+    def test_push_workflow_uses_zfunc_state_and_marks_video_seen(self):
+        originals = {
+            "card": ZAPI.bilibili_get_user_card,
+            "videos": ZAPI.bilibili_search_videos_by_mid,
+            "send": ZFUNC._bili_video_send_group_message,
+            "enabled": getattr(ZFUNC.dmc, "BiliVideoPushEnabled", None),
+            "web_service": ZFUNC.confs.get("WebService"),
+        }
+        sent = []
+        ZFUNC.dmc.BiliVideoPushEnabled = True
+        ZFUNC.confs["WebService"] = {"server_domain": "example.com"}
+        ZFUNC._bili_video_save_subscriptions(
+            {
+                "10001": [
+                    {
+                        "up_mid": "123",
+                        "up_name": "测试UP",
+                        "query": "测试UP",
+                        "subscribed_at": "",
+                    }
+                ]
+            }
+        )
+        self.fake_redis.sadd("hok:bili:seen:123", "BVold")
+        ZAPI.bilibili_get_user_card = lambda mid: {"name": "测试UP"}
+        ZAPI.bilibili_search_videos_by_mid = lambda *args, **kwargs: [
+            {
+                "aid": "99",
+                "bvid": "BVnew",
+                "title": "新视频",
+                "pubdate": 2,
+                "pic": "",
+                "up_mid": "123",
+            }
+        ]
+        ZFUNC._bili_video_send_group_message = sent.append
+        try:
+            result = ZFUNC.bili_video_check_and_push(debug=True)
+        finally:
+            ZAPI.bilibili_get_user_card = originals["card"]
+            ZAPI.bilibili_search_videos_by_mid = originals["videos"]
+            ZFUNC._bili_video_send_group_message = originals["send"]
+            if originals["enabled"] is None:
+                delattr(ZFUNC.dmc, "BiliVideoPushEnabled")
+            else:
+                ZFUNC.dmc.BiliVideoPushEnabled = originals["enabled"]
+            if originals["web_service"] is None:
+                ZFUNC.confs.pop("WebService", None)
+            else:
+                ZFUNC.confs["WebService"] = originals["web_service"]
+
+        self.assertEqual(result["checked"], 1)
+        self.assertEqual(result["pushed"], 1)
+        self.assertEqual(len(sent), 1)
+        self.assertIn("新视频", sent[0])
+        self.assertTrue(self.fake_redis.sismember("hok:bili:seen:123", "BVnew"))
+        self.assertNotIn("hok:lock:bili:video_push", self.fake_redis.values)
 
 class RuntimeStateRedisTests(unittest.TestCase):
     def setUp(self):
