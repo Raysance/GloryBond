@@ -126,6 +126,40 @@ def sync_battle_visibility_state(realname, visible):
     return changed_qids
 
 
+def _today_hero_cached(realname, current_date, *, ignore_limit=False):
+    if ignore_limit:
+        return None
+    raw = dmc.TodayHeroPool.get(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}")
+    if not raw:
+        return None
+    payload = json.loads(raw)
+    if payload.get("date") != current_date:
+        return None
+    return payload
+
+
+def _today_hero_store(realname, payload):
+    current_date = payload["date"]
+    dmc.TodayHeroPool.set(
+        f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}",
+        json.dumps(payload),
+    )
+    history_key = f"{REDIS_KEY_HERO_HISTORY_PREFIX}{realname}"
+    history_entry = {
+        "date": current_date,
+        "heroname": payload.get("heroname"),
+        "skinname": payload.get("skinname"),
+        "selectinfo": payload.get("selectinfo"),
+    }
+    history_items = dmc.TodayHeroPool.lrange(history_key, 0, -1)
+    for index, raw in enumerate(history_items):
+        if json.loads(raw).get("date") == current_date:
+            dmc.TodayHeroPool.lset(history_key, index, json.dumps(history_entry))
+            return payload
+    dmc.TodayHeroPool.rpush(history_key, json.dumps(history_entry))
+    return payload
+
+
 def _group_chat_history_key(group_id):
     return f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}{str(group_id)}"
 
@@ -1015,141 +1049,15 @@ def mult_player_single_hero_process(
         this_season=this_season,
     )
 
-def todayhero_process(realname,ignore_limit=False,ai_comment=True):
-    from .zfunc import single_player_single_hero_process
-    def get_hero_name(realname,hero_name_candidates):
-        from .ztime import time_r,time_delta
-        from .zfunc import fetch_history
-        # 45% 随机
-        # 35% 最近
-        # 20% 榜单
-        hero_selected_way=random.random()
-        hero_name=""
-        selected_info={"way":"","details":[]}
-        initial_time_to=time_r()
-        trace_back_time_to=initial_time_to
-        trace_back_time_from=time_delta(trace_back_time_to,-5)
-        game_details,_=fetch_history(userid=userlist[realname],start_date=trace_back_time_from,end_date=trace_back_time_to)
-        game_details=game_details[realname]
-        if (realname in force_choice):
-            hero_name=force_choice[realname]
-            selected_info["way"]="RANDOM"
-            selected_info["details"]:[]
-            return hero_name,selected_info
-        if (hero_selected_way<0.45):
-            hero_name = random.choice(hero_name_candidates)
-            selected_info["way"]="RANDOM"
-            selected_info["details"]=[]
-        elif (hero_selected_way<0.8 and game_details):
-            recent_hero_name_candidates=set()
-            for game_detail in game_details:
-                if (game_detail["HeroName"] in hero_name_candidates):
-                    recent_hero_name_candidates.add(game_detail["HeroName"])
-            hero_name = random.choice(list(recent_hero_name_candidates))
-            selected_info["way"]="RECENT"
-            for game_detail in game_details:
-                if (game_detail["HeroName"]==hero_name):
-                    selected_info["details"].append({"MapName":game_detail["MapName"],"GameGrade":game_detail["GameGrade"]})
-        elif (hero_selected_way<1):
-            # print(dmc.herorank)
-            rankId_candidate=list(dmc.herorank.keys())
-            rankId=random.choice(rankId_candidate)
-            rankTitle=dmc.herorank[rankId]["title"]
-            hero_name=""
-            while(hero_name not in hero_name_candidates):
-                rankIndex=random.randint(0,10)
-                hero_name=dmc.herorank[rankId]["list"][rankIndex]["heroInfo"]["heroName"]
-            hero_rankinfo=dmc.herorank[rankId]["list"][rankIndex]
-            selected_info["way"]="HERORANK"
-            selected_info["details"].append({})
-            valid_data_type={"banRate":"顶端排位被ban率","showRate":"顶端排位出场率","winRate":"顶端排位胜率","killNum":"顶端排位场均击杀数","output":"顶端排位场均输出","mvp":"顶端排位MVP率","goldPlay":"顶端排位金牌率"}
-            for k,v in hero_rankinfo.items():
-                if (k in valid_data_type and v!=0):
-                    selected_info["details"][0][valid_data_type[k]]=v
-        return hero_name,selected_info
-    def get_rand_hero_skin(realname):
-        skin_folder_path=os.path.join("resources","wzry_images","skins")
-        hero_names = [d for d in os.listdir(skin_folder_path) 
-              if os.path.isdir(os.path.join(skin_folder_path, d))]
-        hero_name,selected_info=get_hero_name(realname,hero_names)
-        # hero_name = random.choice(hero_names)
-        hero_path = os.path.join(skin_folder_path, hero_name)
-        
-        skin_files = [f for f in os.listdir(hero_path) 
-                if os.path.isfile(os.path.join(hero_path, f))]
-        
-        skin_file = random.choice(skin_files)
-        skin_name=os.path.splitext(skin_file)[0]
-        pic_path = os.path.join(project_root,hero_path,skin_file)
-        return hero_name, skin_name,pic_path,selected_info
-    def get_hero_skin(realname,ignore_limit):
-        import redis
-        from .ztime import time_r
-        current_date = time_r().strftime("%Y-%m-%d")
-        if (ignore_limit): hero_info_str=None
-        else:
-            hero_info_str = dmc.TodayHeroPool.get(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}")
-        if (hero_info_str):
-            hero_info = json.loads(hero_info_str)
-            stored_date = hero_info.get("date")
-            if stored_date == current_date:
-                return hero_info.get("heroname"),hero_info.get("skinname"),hero_info.get("picpath"),hero_info.get("selectinfo")
-            else:
-                pass
-        hero_name, skin_name,pic_path,selected_info=get_rand_hero_skin(realname)
-        new_data = {
-            "date": current_date,
-            "heroname": hero_name,
-            "skinname": skin_name,
-            "picpath":pic_path,
-            "selectinfo":selected_info
-        }
-        dmc.TodayHeroPool.set(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}", json.dumps(new_data))
+from .business import today_hero as _today_hero_business
 
-        history_key = f"{REDIS_KEY_HERO_HISTORY_PREFIX}{realname}"
-        history_entry = {
-            "date": current_date,
-            "heroname": hero_name,
-            "skinname": skin_name,
-            "selectinfo": selected_info
-        }
-        
-        history_list = dmc.TodayHeroPool.lrange(history_key, 0, -1)
-        date_found = False
-        for i, entry_str in enumerate(history_list):
-            entry = json.loads(entry_str)
-            if entry.get("date") == current_date:
-                dmc.TodayHeroPool.lset(history_key, i, json.dumps(history_entry))
-                date_found = True
-                break
-        if not date_found:
-            dmc.TodayHeroPool.rpush(history_key, json.dumps(history_entry))
-        
-        return hero_name, skin_name,pic_path,selected_info
-    def get_hero_skills(heroid):
-        from .zfile import readerl
-        all_skills=[]
-        
-        skill_raw=readerl(os.path.join("resources","wzry_images",'hero_skills',heroid+".json"))
-        for skill in skill_raw["skillList1"]:
-            all_skills.append(skill["desc"])
-        return all_skills
 
-    hero_name,skin_name,pic_path,selected_info=get_hero_skin(realname,ignore_limit=ignore_limit)
-    heroid=[heroid_ for heroid_,heroname_ in HeroList.items() if heroname_==hero_name][0]
-
-    hero_skills=get_hero_skills(heroid)
-    hero_statistics=single_player_single_hero_process(realname,heroid,hero_name)
-
-    if (ai_comment): 
-        play_reason = ai_parser(msg_type="skill_advantage", user_query=[hero_name, namenick[realname], str(hero_skills), str(selected_info), hero_statistics], use_mem=False)
-    else: 
-        play_reason = str(selected_info)
-
-    former_msg=f"{namenick[realname]}的今日英雄：{hero_name}"
-    latter_msg=play_reason
-    return former_msg,latter_msg,pic_path
-
+def todayhero_process(realname, ignore_limit=False, ai_comment=True):
+    return _today_hero_business.todayhero_process(
+        realname,
+        ignore_limit=ignore_limit,
+        ai_comment=ai_comment,
+    )
 def allhero_process(realname):
     userid=userlist[realname]
     roleid=roleidlist[realname]

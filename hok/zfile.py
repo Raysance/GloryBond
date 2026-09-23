@@ -347,6 +347,47 @@ def battle_exhibit_image_path():
     return os.path.join(temp_path, "temp_files", "exhibit.png")
 
 
+def list_hero_skin_names():
+    skin_root = os.path.join("resources", "wzry_images", "skins")
+    return sorted(
+        name
+        for name in os.listdir(skin_root)
+        if os.path.isdir(os.path.join(skin_root, name))
+    )
+
+
+def list_hero_skin_files(hero_name):
+    hero_root = os.path.join("resources", "wzry_images", "skins", str(hero_name))
+    return sorted(
+        name
+        for name in os.listdir(hero_root)
+        if os.path.isfile(os.path.join(hero_root, name))
+    )
+
+
+def hero_skin_asset_path(hero_name, skin_file):
+    return os.path.join(
+        project_root,
+        "resources",
+        "wzry_images",
+        "skins",
+        str(hero_name),
+        str(skin_file),
+    )
+
+
+def read_hero_skill_descriptions(hero_id):
+    payload = readerl(
+        os.path.join(
+            "resources",
+            "wzry_images",
+            "hero_skills",
+            f"{hero_id}.json",
+        )
+    )
+    return [skill["desc"] for skill in payload["skillList1"]]
+
+
 def web_history_json_path(filename_hashed):
     """Return the public JSON path for one web history artifact."""
     return os.path.join(temp_path, "temp_files", f"{filename_hashed}.json")
