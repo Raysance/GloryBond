@@ -1047,49 +1047,15 @@ def todayhero_process(realname, ignore_limit=False, ai_comment=True):
     )
 def allhero_process(realname):
     return _hero_profiles_business.allhero_process(realname)
+from .business import player_visuals as _player_visuals_business
+
+
 def gradeanalyze_process(realname):
-    from .tools import gen_grade_chart
-    from .ztime import str_to_time, time_r
+    return _player_visuals_business.gradeanalyze_process(realname)
 
-    userid=userlist[realname]
-    pic_visit_path=os.path.join(temp_path,"wzry_grade_chart","grade_chart.png")
-    pic_save_path=os.path.join(temp_path,"wzry_grade_chart")
-    history_data, _ = fetch_history(
-        userid=userid,
-        start_date=str_to_time(record_begin_date),
-        end_date=time_r(),
-        filter_official=True,
-    )
-    analyze_msg=gen_grade_chart.gen_from_history(
-        userid,
-        namenick.get(realname, realname),
-        history_data.get(realname, []),
-        pic_save_path,
-    )
-    
-    return pic_visit_path,analyze_msg
+
 def watchbattle_process(realname):
-    from .tools import gen_battle_shot
-
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
-
-    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
-    if (not btlist_data["isGaming"]): return None,None
-    res=btlist_data["gaming"]
-    if (not res["canBeWatch"]): return None,None
-
-    battleId=res["battleId"]
-    mapName=res["mapName"]
-    duration=res["duration"]
-
-    save_path=os.path.join(temp_path,"wzry_btl_shot",str(roleid)+".png")
-    if(dmc.RTMPListener): dmc.RTMPListener.stop()
-    dmc.RTMPListener = gen_battle_shot.RTMPListener(dmc.streamurl,save_path=save_path,roleid=roleid)
-    dmc.RTMPListener.start()  # 开始后台监听
-
-    dmc.RTMPListener.screenshot()   # 截图一次
-    return save_path,None
+    return _player_visuals_business.watchbattle_process(realname)
 def watchbattleinfo_to_coplayer_res(watchbattle_json, roleid=None, game_result=None):
     """将 watchbattleinfo 响应转换为 coplayer_process 所需的最小 res 结构（严格模式）。"""
 

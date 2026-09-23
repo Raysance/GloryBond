@@ -347,6 +347,15 @@ def battle_exhibit_image_path():
     return os.path.join(temp_path, "temp_files", "exhibit.png")
 
 
+def grade_chart_output_paths():
+    directory = os.path.join(temp_path, "wzry_grade_chart")
+    return os.path.join(directory, "grade_chart.png"), directory
+
+
+def watch_battle_shot_path(roleid):
+    return os.path.join(temp_path, "wzry_btl_shot", f"{roleid}.png")
+
+
 def list_hero_skin_names():
     skin_root = os.path.join("resources", "wzry_images", "skins")
     return sorted(
