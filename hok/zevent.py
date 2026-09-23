@@ -997,28 +997,19 @@ async def f_spoiler(bot, event):
 
 @_recentpower.handle()
 async def f_recentpower(bot,event):
-    from .zfunc import recent_power_process, power_rank_process, qid2nick
-
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(event.get_user_id()))
-    if ("排行" in rcv_msg or "排名" in rcv_msg):
-        try:
-            txt_msg, pic_path = await asyncio.to_thread(power_rank_process, 7)
-            if pic_path:
-                add_msg(MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
-            else:
-                add_msg(txt_msg, event=event)
-        except Exception as e:
-            add_msg(f"底蕴排行失败: {str(e)}", event=event)
-            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        return
-
+    from .event_handlers.activity import battle_power_reply
+    from .zfile import existing_absolute_path
+    is_rank = "排行" in event.get_plaintext() or "排名" in event.get_plaintext()
     try:
-        matching_name = get_validated_name(event)
-        if not matching_name: return
-        snd_msg = await asyncio.to_thread(recent_power_process, matching_name, 7)
-        add_msg(snd_msg, event=event)
+        result = await battle_power_reply(event)
+        image_path = existing_absolute_path(result.get("image_path"))
+        if result["kind"] == "image" and image_path:
+            add_msg(MessageSegment.image(f"file:///{image_path}"), event=event)
+        else:
+            add_msg(result["text"], event=event)
     except Exception as e:
-        add_msg(f"底蕴统计失败: {str(e)}", event=event)
+        label = "底蕴排行失败" if is_rank else "底蕴统计失败"
+        add_msg(f"{label}: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 @_diycode.handle()
@@ -1038,34 +1029,20 @@ async def f_diycode(bot: Bot, event: Event):
 
 @_recentgames.handle()
 async def f_recentgames(event):
-    from .zfunc import recentgames_process, gametime_rank_process, qid2nick, extract_name
-    from .utils.message_sender import add_msg
-    from nonebot.adapters.onebot.v11 import MessageSegment
-    userqid = event.get_user_id()
-    rcv_msg = event.get_plaintext().replace("我", qid2nick(userqid)).replace("的", "").replace("时长", "")
-    if ("排行" in rcv_msg or "排名" in rcv_msg):
-        try:
-            txt_msg, pic_path = await asyncio.to_thread(gametime_rank_process)
-            if pic_path:
-                add_msg(MessageSegment.image(f"file:///{os.path.abspath(pic_path)}"), event=event)
-            else:
-                add_msg(txt_msg, event=event)
-        except Exception as e:
-            add_msg(f"时长排行失败: {str(e)}", event=event)
-            add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        return
-    realname = extract_name(from_text=rcv_msg,precise=False)
-    if not realname:
-        add_msg("未识别到玩家名字", event=event)
-        await _recentgames.finish()
-        
+    from .event_handlers.activity import game_time_reply
+    from .zfile import existing_absolute_path
+    is_rank = "排行" in event.get_plaintext() or "排名" in event.get_plaintext()
     try:
-        res_msg = await asyncio.to_thread(recentgames_process, realname=realname)
-        add_msg(Message(res_msg), event=event)
+        result = await game_time_reply(event)
+        image_path = existing_absolute_path(result.get("image_path"))
+        if result["kind"] == "image" and image_path:
+            add_msg(MessageSegment.image(f"file:///{image_path}"), event=event)
+        else:
+            add_msg(result["text"], event=event)
     except Exception as e:
-        add_msg(f"获取时长失败: {str(e)}", event=event)
+        label = "时长排行失败" if is_rank else "获取时长失败"
+        add_msg(f"{label}: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    await _recentgames.finish()
 
 @_history_query.handle()
 async def f_history_query(event: Event):
