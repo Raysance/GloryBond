@@ -257,38 +257,19 @@ def fetch_group_chat_reply_thread(group_id, message_id, *, max_depth=4):
         max_depth=max_depth,
     )
 
-def _to_pinyin(s):
-    from pypinyin import lazy_pinyin
-    
-    return "".join(lazy_pinyin(str(s))).lower()
+from .business import hero_tier as _hero_tier_business
+
+
+def _to_pinyin(value):
+    return _hero_tier_business.to_pinyin(value)
+
 
 def safe_hero_name(hero_id, default=None):
-    if hero_id is None:
-        return default or "未知英雄"
-    hero_id = str(hero_id)
-    return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
+    return _hero_tier_business.safe_hero_name(hero_id, default=default)
 
 
 def hero_tier_query_process():
-    from .zapi import tianyuanzhiyi_hero_avatars_api, tianyuanzhiyi_tier_api
-    from .zfile import (
-        hero_tier_image_path,
-        load_hero_tier_avatar_cache,
-        save_hero_tier_avatar_cache,
-    )
-    from .tools.gen_hero_tier import generate_hero_tier_image
-
-    tier_data = tianyuanzhiyi_tier_api()
-    if not isinstance(tier_data, dict) or not tier_data.get("tiers"):
-        raise Exception(f"hero_tier_query_error: empty response {tier_data!r}")
-    avatar_bytes, missing_items = load_hero_tier_avatar_cache(tier_data["tiers"])
-    if missing_items:
-        downloaded = tianyuanzhiyi_hero_avatars_api(missing_items)
-        save_hero_tier_avatar_cache(missing_items, downloaded)
-        avatar_bytes.update(downloaded)
-    output_path = hero_tier_image_path()
-    generate_hero_tier_image(tier_data, output_path, avatar_bytes=avatar_bytes)
-    return output_path
+    return _hero_tier_business.hero_tier_query_process()
 
 
 from .business import battle_matchup as _battle_matchup_business

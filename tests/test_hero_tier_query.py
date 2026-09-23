@@ -120,5 +120,14 @@ class HeroTierQueryTests(unittest.TestCase):
                 ZFUNC.hero_tier_query_process()
 
 
+class HeroNameHelperTests(unittest.TestCase):
+    def test_safe_name_keeps_known_unknown_and_default_contract(self):
+        known_id, known_name = next(iter(ZFUNC.HeroList.items()))
+
+        self.assertEqual(ZFUNC.safe_hero_name(known_id), known_name)
+        self.assertEqual(ZFUNC.safe_hero_name("missing"), "未知英雄(missing)")
+        self.assertEqual(ZFUNC.safe_hero_name(None, default="默认英雄"), "默认英雄")
+
+
 if __name__ == "__main__":
     unittest.main()
