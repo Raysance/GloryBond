@@ -179,7 +179,15 @@ def btldetail_process(
     writerl(json_output_path, result)
     image_path = ""
     if gen_image:
-        image_path = battle_exhibit_image_path()
+        # Keep compatibility with older test/integration overrides that
+        # expose the historical zero-argument path helper.
+        try:
+            image_path = battle_exhibit_image_path(gameseq)
+        except TypeError as error:
+            try:
+                image_path = battle_exhibit_image_path()
+            except TypeError:
+                raise error
         gen_battle_res.generate_battle_ui_image(json_output_path, image_path)
 
     if individual_show:

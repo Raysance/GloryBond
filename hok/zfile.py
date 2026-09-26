@@ -394,9 +394,14 @@ def hero_tier_image_path():
     return os.path.join(temp_path, "temp_files", "hero_tier.png")
 
 
-def battle_exhibit_image_path():
-    """Return the regenerated single-battle exhibit image path."""
-    return os.path.join(temp_path, "temp_files", "exhibit.png")
+def battle_exhibit_image_path(gameseq=None):
+    """Return the single-battle exhibit image path.
+
+    A game sequence is used when available so concurrent battle requests do
+    not overwrite the image that an earlier request is about to send.
+    """
+    filename = "exhibit.png" if gameseq is None else f"exhibit_{gameseq}.png"
+    return os.path.join(temp_path, "temp_files", filename)
 
 
 def battle_power_image_path():
