@@ -117,7 +117,7 @@
     heading.append(copy); parent.append(heading, el('pre', `code ${language}`, text));
   }
   function inputDetails(parent, item) {
-    if (Array.isArray(item.input?.queries)) {
+    if (item.title === 'query_game_database' && Array.isArray(item.input?.queries)) {
       item.input.queries.forEach((query,index) => {
         code(parent, `SQL ${index+1}${query.label ? ' · '+query.label : ''}`, query.sql, 'sql');
         if (query.params) code(parent, '参数', query.params);
