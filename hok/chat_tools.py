@@ -3,6 +3,14 @@
 from . import zdynamic as dmc
 
 
+class ChatToolUnavailableError(ValueError):
+    """A request lacks the context needed for a model-requested tool."""
+
+    def __init__(self, code, detail):
+        super().__init__(detail)
+        self.code = code
+
+
 def _schema(name, description, properties, required=()):
     return {"type": "function", "name": name, "description": description, "strict": False,
             "parameters": {"type": "object", "properties": properties,
@@ -114,6 +122,9 @@ class HOKChatTools:
         from . import zfunc
         schema = next((item for item in self.schemas() if item["name"] == name), None)
         if schema is None:
+            if name in {"search_chat_history", "fetch_chat_context", "fetch_chat_reply_thread"} and not self.group_id:
+                raise ChatToolUnavailableError(
+                    "group_context_required", "当前会话没有绑定群号；请在目标群内发送同一查询。这不是检索服务故障。")
             raise ValueError(f"unknown_or_disabled_chat_tool: {name}")
         _validate(arguments, schema["parameters"])
         if name == "get_game_database_schema":

@@ -37,6 +37,63 @@ class ChatLoopTests(unittest.TestCase):
         ZMEMORY.instance.load_user_forced_memory = self.original_load_forced
         ZMEMORY.instance.save_active_chat = self.original_save
 
+    def test_private_chat_explains_scope_and_rejects_invented_history_tool(self):
+        requests = []
+
+        def model(messages, tools=None, **kwargs):
+            requests.append(list(messages))
+            self.assertNotIn("search_chat_history", {tool["name"] for tool in tools})
+            if len(requests) == 1:
+                system_text = "\n".join(item["content"] for item in messages if item.get("role") == "system")
+                self.assertIn("请在目标群内发送同一查询", system_text)
+                self.assertNotIn("必须先调用search_chat_history", system_text)
+                self.assertNotIn("先recall_memory", system_text)
+                return {"tool_calls": [{"call_id": "history", "name": "search_chat_history",
+                                        "arguments": '{"queries":["PRIVATE_QUERY"]}'}]}
+            output = json.loads(messages[-1]["output"])
+            self.assertFalse(output["ok"])
+            self.assertEqual(output["code"], "group_context_required")
+            self.assertIn("请在目标群内", output["detail"])
+            return {"content": "请在目标群内发送同一查询。"}
+
+        with patch.object(ZFUNC, "search_group_chat_history") as search:
+            result = ZCHAT.chat_process(user_text="查最近的对话", user_id="100", nickname="A",
+                                        use_memory=False, model_caller=model, return_artifacts=True)
+        search.assert_not_called()
+        self.assertFalse(result["trace"]["context"]["group_history_enabled"])
+        observation = result["trace"]["rounds"][0]["tools"][0]["observation"]
+        self.assertEqual(observation["code"], "group_context_required")
+        self.assertEqual(observation["error"], "ChatToolUnavailableError")
+        self.assertNotIn("PRIVATE_QUERY", json.dumps(result["trace"]))
+        self.assertNotIn("detail", observation)
+
+    def test_group_request_keeps_history_search_bound_to_event_group(self):
+        handler = import_hok_module("event_handlers.chat")
+        from types import SimpleNamespace
+        event = SimpleNamespace(group_id=200, message_id=300, get_user_id=lambda: "100",
+                                get_plaintext=lambda: "#查看最近含有内卷的对话")
+        request = handler.prepare_chat_request(event, {}, default_use_memory=False)
+        calls = []
+
+        def model(messages, tools=None, **kwargs):
+            calls.append(messages)
+            self.assertIn("search_chat_history", {tool["name"] for tool in tools})
+            if len(calls) == 1:
+                self.assertTrue(any("必须先调用search_chat_history" in item.get("content", "") for item in messages))
+                return {"tool_calls": [{"call_id": "search", "name": "search_chat_history",
+                                        "arguments": '{"queries":["内卷","竞争 压力"],"limit":5}'}]}
+            self.assertEqual(json.loads(messages[-1]["output"])["data"][0]["message_id"], "42")
+            return {"content": "已找到相关对话。"}
+
+        with patch.object(ZFUNC, "search_group_chat_history", return_value=[{"message_id": "42", "text": "PRIVATE_HISTORY"}]) as search:
+            result = ZCHAT.chat_process(**request, model_caller=model, return_artifacts=True)
+        search.assert_called_once_with("200", [request["user_text"], "内卷", "竞争 压力"],
+                                       user_ids=[], time_start=None, time_end=None, limit=5,
+                                       exclude_message_id=300)
+        self.assertTrue(result["trace"]["context"]["group_history_enabled"])
+        self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
+        self.assertNotIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
+
     def test_tool_result_is_appended_before_second_model_turn(self):
         calls = []
 
@@ -143,6 +200,14 @@ class ChatLoopTests(unittest.TestCase):
 
 
 class HOKChatToolsTests(unittest.TestCase):
+    def test_group_scope_cannot_be_set_by_model_arguments(self):
+        for group_id in (None, "200"):
+            with self.subTest(group_id=group_id), patch.object(ZFUNC, "search_group_chat_history") as search:
+                with self.assertRaises(ValueError):
+                    ZCHAT.HOKChatTools(group_id=group_id).execute(
+                        "search_chat_history", {"queries": ["内卷"], "group_id": "other-group"})
+                search.assert_not_called()
+
     def test_large_batch_preserves_each_outcome_and_dataset(self):
         observations = [{"ok": True, "dataset_id": f"dataset_{n}", "rows": [{"value": "x" * 1000}] * 50,
                          "row_count": 50, "columns": ["value"]} for n in range(4)]

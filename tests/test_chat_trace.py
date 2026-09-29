@@ -82,6 +82,11 @@ class TraceTests(unittest.TestCase):
             value = TRACE.tool_record({"name": name}, {"content": "MEMORYSECRET"},
                                       {"ok": True, "data": "GROUPSECRET"}, start_ms=0, duration_ms=1, executed=True)
             self.assertNotIn("SECRET", json.dumps(value))
+            failure = TRACE.tool_record({"name": name}, {"queries": ["QUERYSECRET"]},
+                                        {"ok": False, "error": "ConnectionError", "detail": "GROUPSECRET"},
+                                        start_ms=0, duration_ms=1, executed=True)
+            self.assertEqual(failure["observation"]["error"], "ConnectionError")
+            self.assertNotIn("SECRET", json.dumps(failure))
         data = TRACE.public_value({"reasoning_content": "THOUGHT", "value": "sk-testsecret111 /srv/config/file PRIVATEKEY"}, secrets=("PRIVATEKEY",))
         self.assertNotIn("THOUGHT", json.dumps(data))
         self.assertNotIn("sk-testsecret", json.dumps(data))
