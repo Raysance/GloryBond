@@ -46,8 +46,7 @@ def tool_record(call, arguments, result, *, start_ms, duration_ms, executed):
     failed = not result.get("ok", False) or (isinstance(data, dict) and data.get("ok") is False)
     partial = any(item.get("ok") is False for item in observations if isinstance(item, dict))
     if name in PRIVATE_TOOLS:
-        arguments = {"redacted": "记忆与群聊检索参数不在分享页公开"}
-        # Only retain bounded diagnostic labels, never exception messages or data.
+        # Show call arguments; only retrieved contents and error details stay private.
         diagnostic = {}
         error = result.get("error", "")
         if failed and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}(?:Error|Exception)", str(error)):

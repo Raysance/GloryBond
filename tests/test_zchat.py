@@ -64,7 +64,7 @@ class ChatLoopTests(unittest.TestCase):
         observation = result["trace"]["rounds"][0]["tools"][0]["observation"]
         self.assertEqual(observation["code"], "group_context_required")
         self.assertEqual(observation["error"], "ChatToolUnavailableError")
-        self.assertNotIn("PRIVATE_QUERY", json.dumps(result["trace"]))
+        self.assertEqual(result["trace"]["rounds"][0]["tools"][0]["arguments"], {"queries": ["PRIVATE_QUERY"]})
         self.assertNotIn("detail", observation)
 
     def test_group_request_keeps_history_search_bound_to_event_group(self):

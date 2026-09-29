@@ -77,21 +77,27 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(trace["rounds"][1]["status"], "error")
         self.assertNotIn("sk-testsecret", json.dumps(trace))
 
-    def test_private_tool_contents_and_credentials_are_hidden(self):
+    def test_private_tool_arguments_are_visible_but_results_and_credentials_are_hidden(self):
         for name in TRACE.PRIVATE_TOOLS:
-            value = TRACE.tool_record({"name": name}, {"content": "MEMORYSECRET"},
+            arguments = {"content": "偏好辅助英雄", "queries": ["内卷", "压力"], "group_id": "200",
+                         "message_id": "42", "memory_id": "fact-1"}
+            value = TRACE.tool_record({"name": name}, arguments,
                                       {"ok": True, "data": "GROUPSECRET"}, start_ms=0, duration_ms=1, executed=True)
-            self.assertNotIn("SECRET", json.dumps(value))
-            failure = TRACE.tool_record({"name": name}, {"queries": ["QUERYSECRET"]},
+            self.assertEqual(value["arguments"], arguments)
+            self.assertNotIn("GROUPSECRET", json.dumps(value))
+            failure = TRACE.tool_record({"name": name}, arguments,
                                         {"ok": False, "error": "ConnectionError", "detail": "GROUPSECRET"},
                                         start_ms=0, duration_ms=1, executed=True)
             self.assertEqual(failure["observation"]["error"], "ConnectionError")
-            self.assertNotIn("SECRET", json.dumps(failure))
-        data = TRACE.public_value({"reasoning_content": "THOUGHT", "value": "sk-testsecret111 /srv/config/file PRIVATEKEY"}, secrets=("PRIVATEKEY",))
+            self.assertEqual(failure["arguments"], arguments)
+            self.assertNotIn("GROUPSECRET", json.dumps(failure))
+        data = TRACE.public_value({"reasoning_content": "THOUGHT", "arguments": {
+            "content": "sk-testsecret111 /srv/config/file PRIVATEKEY", "api_key": "PRIVATEKEY"}}, secrets=("PRIVATEKEY",))
         self.assertNotIn("THOUGHT", json.dumps(data))
         self.assertNotIn("sk-testsecret", json.dumps(data))
         self.assertNotIn("/srv", json.dumps(data))
         self.assertNotIn("PRIVATEKEY", json.dumps(data))
+        self.assertNotIn("api_key", data["arguments"])
 
     def test_expiring_publish_and_failed_storage(self):
         trace = {"kind": "chat_trace", "version": 1, "rounds": [], "question": "你好"}
