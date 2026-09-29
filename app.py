@@ -626,6 +626,13 @@ async def show_benefit_visualizer(request: Request, key: str):
         }
     )
 
+@app.get("/chat-trace", response_class=HTMLResponse)
+async def show_chat_trace(request: Request, key: str = ""):
+    from chat_trace import chat_trace_response
+
+    return await chat_trace_response(request, key, load_artifact=get_web_artifact, templates=templates)
+
+
 @app.get("/bili-video")
 async def show_bili_video(request: Request, key: str):
     if os.path.basename(key) != key or key in ("", ".", ".."):

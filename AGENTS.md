@@ -3,6 +3,7 @@
 ## 项目总结构
 
 - `app.py`：FastAPI 主应用入口，集中定义页面路由、管理后台路由、Redis 连接、模板渲染和队列写入逻辑。
+- `chat_trace.py`：公开聊天运行记录的 token/载荷校验及 Jinja 渲染；`app.py` 的 `/chat-trace` 路由仅委托该模块，Redis 读取仍由入口注入。
 - `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
@@ -43,6 +44,16 @@
 - NBot 与 Web 共享的网页临时载荷保存为 `hok:web:artifact:<token>`，URL 仍只暴露 token；收藏集合为 `hok:battle:liked_ids`；网页分享与底蕴分析队列分别为 `hok:queue:battle:share`、`hok:queue:battle:analyze`。Web 是两条业务队列的生产者，NBot 是消费者，修改名称或载荷结构时必须同步修改两个项目及 NBot 的 DB0 收敛迁移脚本。
 - 错误场景优先复用 `templates/ErrorPages/illegal.html` 或 `templates/ErrorPages/expired.html`。
 - 不要新增无必要的全局路由、兼容旧路由、调试接口或临时 fallback。
+
+## Chat 运行记录页
+
+- `/chat-trace?key=<48位hex>` 从 `hok:web:artifact:<token>` 读取 NBot 发布的 `kind=chat_trace, version=1` 载荷；非法 token 在读取 Redis 前拒绝，缺失/过期/错误类型返回 410，Redis 暂不可用返回 503。
+- `templates/CommonPages/ChatTrace/` 遵循 DeepSeek Harness 轨迹查看器的 UI 逻辑：对话/轨迹切换，输入/模型/工具三条时间带，左侧按轮次排列步骤，点击后在右侧概述/参数/结果/Schema/计时标签页查看详情；支持搜索、轮次折叠、耗时/调用摘要开关、脱敏 JSON 导出和图表原图预览；CSS/JS 使用 Jinja include，禁止增加全局静态路由或重复 JSON 代理接口。
+- 页面只显示可核验的执行记录，不显示模型私有推理、系统提示、原始上下文、引用消息/长期记忆/群聊正文或密钥。长结果为有限预览，必须保留截断标记。
+- 分享页使用不可猜测的随机链接和 Redis TTL，响应 `no-store`、`no-referrer`、`noindex`；无第三方脚本。载荷嵌入必须使用 `tojson`，前端对不可信文本使用 `textContent`，禁止拼接 `innerHTML`。图片只允许 `/file_transfer/chat_plot_<uuid>.png`。
+- 访问分析纳入 `/chat-trace`，沿用 key 脱敏，不记录问题、答案和工具正文。
+- Aliyun `/srv/modules/hok/nginx/site.conf` 的 FastAPI 路由白名单必须包含 `chat-trace`；修改前备份，`nginx -t` 通过后 reload。先发布 Web 路由与反向代理，再发布 NBot 链接生产端。
+- 本地两个仓库独立检出且上级 README 缺失时，本功能用户说明维护在 `docs/chat.md`，不向 Desktop 根目录新建仓库外 README。
 
 ## Git 提交规范
 
