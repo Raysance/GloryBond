@@ -8,6 +8,22 @@ from collections import Counter
 from typing import List, Dict, Optional
 from . import zdynamic as dmc
 
+
+def parse_active_dialogue(records):
+    """Keep valid legacy/current direct pairs and reject incomplete stored records."""
+    result = []
+    for raw in records:
+        try:
+            item = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+        except (ValueError, UnicodeError):
+            continue
+        if not isinstance(item, dict) or not all(isinstance(item.get(key), str) and item[key].strip()
+                                                 for key in ("Q", "A")):
+            continue
+        result.append({"time": str(item.get("time") or ""), "Q": item["Q"], "A": item["A"]})
+    return result
+
+
 class ZMemory:
     class EmojiMemory:
         def __init__(self, parent):
@@ -53,22 +69,18 @@ class ZMemory:
     # --- 1. 主动聊天记忆 (Active Chat) ---
     def save_active_chat(self, qid: str, question: str, answer: str):
         """保存用户与机器人对话记录 (f_chat中计入)"""
-        key = self._get_key("active_chat", qid)
-        item = {
-            "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Q": question,
-            "A": answer
-        }
-        self.redis.rpush(key, json.dumps(item, ensure_ascii=False))
-        self.redis.ltrim(key, -10, -1) # 保留最近10条
+        from .zfunc import chat_active_dialogue_save
+        chat_active_dialogue_save(qid, question, answer)
+
+    def load_active_chat_records(self, qid: str, num: int = 5) -> List[Dict]:
+        """Return structured direct turns; no passive, summary or forced memories."""
+        from .zfunc import chat_active_dialogue_load
+        return chat_active_dialogue_load(qid, num)
 
     def load_active_chat(self, qid: str, num: int = 5) -> str:
         """加载当前用户的前 num 条主动聊天记忆"""
-        key = self._get_key("active_chat", qid)
-        records = self.redis.lrange(key, -num, -1)
         res = ""
-        for i, raw_item in enumerate(records, 1):
-            item = json.loads(raw_item)
+        for i, item in enumerate(self.load_active_chat_records(qid, num), 1):
             res += f"对话{i} ({item['time']}):\n问: {item['Q']}\n答: {item['A']}\n\n"
         return res
 

@@ -44,6 +44,12 @@ class MemoryRedis:
         values = self.lists.get(key, [])
         return values[start:] if end == -1 else values[start:end + 1]
 
+    def rpush(self, key, value):
+        self.lists.setdefault(key, []).append(value)
+
+    def ltrim(self, key, start, end):
+        self.lists[key] = self.lrange(key, start, end)
+
     def delete(self, key):
         existed = key in self.hashes or key in self.lists
         self.hashes.pop(key, None)
@@ -79,7 +85,13 @@ class MemoryPipeline:
         pass
 
     def hset(self, key, field, value):
-        self.pending.append((key, field, value))
+        self.pending.append(("hset", (key, field, value)))
+
+    def rpush(self, key, value):
+        self.pending.append(("rpush", (key, value)))
+
+    def ltrim(self, key, start, end):
+        self.pending.append(("ltrim", (key, start, end)))
 
     def execute(self):
         if self.redis.conflicts:
@@ -87,8 +99,8 @@ class MemoryPipeline:
             if self.redis.on_conflict:
                 self.redis.on_conflict()
             raise WatchError("another writer changed the watched user namespace")
-        for args in self.pending:
-            self.redis.hset(*args)
+        for operation, args in self.pending:
+            getattr(self.redis, operation)(*args)
         return [1] * len(self.pending)
 
 
@@ -104,6 +116,69 @@ class ChatMemoryStoreTests(unittest.TestCase):
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
+
+    def test_consecutive_requests_restore_native_roles_and_save_plain_answers(self):
+        chat = import_hok_module("zchat")
+        memory = import_hok_module("zmemory")
+        requests = []
+        def model(messages, **kwargs):
+            requests.append(messages)
+            return {"content": "**第一组**很有看头，要我查共同胜率吗？" if len(requests) == 1 else "接着查第一组的共同胜率。"}
+        for question in ["哪组最有看头？", "好的"]:
+            result = chat.chat_process(user_text=question, user_id="100", nickname="A", model_caller=model,
+                                       use_memory=True, return_artifacts=True)
+        self.assertEqual(requests[1][-3:], [
+            {"role": "user", "content": "哪组最有看头？"},
+            {"role": "assistant", "content": "第一组很有看头，要我查共同胜率吗？"},
+            {"role": "user", "content": "好的"}])
+        self.assertEqual(result["trace"]["context"]["recent_dialogue_turns"], 1)
+        self.assertEqual(result["trace"]["context"]["recent_dialogue_messages"], 2)
+        self.assertEqual(memory.instance.load_active_chat_records("100")[-1]["A"], result["text"])
+        self.assertEqual(memory.instance.load_active_chat_records("200"), [])
+
+    def test_nomem_does_not_read_or_save_direct_dialogue(self):
+        chat = import_hok_module("zchat")
+        ZFUNC.chat_active_dialogue_save("100", "上轮问题", "历史回答")
+        before = list(self.redis.lists["hok:memory:active_chat:100"])
+        def model(messages, **kwargs):
+            self.assertFalse(any(message.get("role") == "assistant" for message in messages))
+            return {"content": "新的回答"}
+        with patch.object(ZFUNC, "chat_active_dialogue_load") as load:
+            chat.chat_process(user_text="当前问题", user_id="100", nickname="A", model_caller=model, use_memory=False)
+        load.assert_not_called()
+        self.assertEqual(self.redis.lists["hok:memory:active_chat:100"], before)
+
+    def test_direct_memory_limits_legacy_shape_and_malformed_records(self):
+        for index in range(12):
+            ZFUNC.chat_active_dialogue_save("100", f"问题{index}", f"回答{index}")
+        self.assertEqual(len(self.redis.lists["hok:memory:active_chat:100"]), 10)
+        self.assertEqual([row["Q"] for row in ZFUNC.chat_active_dialogue_load("100", 5)],
+                         [f"问题{index}" for index in range(7, 12)])
+        self.assertEqual(ZFUNC.chat_active_dialogue_load("100", 0), [])
+        self.redis.lists["hok:memory:active_chat:100"] += ["bad", "[]", '{}', '{"Q":"半条"}',
+            json.dumps({"time": "legacy", "Q": "旧问题", "A": "旧答案"})]
+        self.assertEqual(ZFUNC.chat_active_dialogue_load("100", 5), [{"time": "legacy", "Q": "旧问题", "A": "旧答案"}])
+
+    def test_quote_stays_current_and_passive_memory_is_not_loaded(self):
+        chat = import_hok_module("zchat")
+        memory = import_hok_module("zmemory")
+        ZFUNC.chat_active_dialogue_save("100", "自己的问题", "自己的回答")
+        ZFUNC.chat_active_dialogue_save("200", "其他用户的问题", "OTHER_USER")
+        self.redis.lists['hok:memory:passive_chat:100'] = [json.dumps({'text': 'PASSIVE'})]
+        messages = []
+        def model(items, **kwargs):
+            messages.extend(items)
+            return {"content": "回答引用"}
+        chat.chat_process(user_text="看引用", user_id="100", nickname="A", model_caller=model,
+                          quoted_message={"available": True, "text": "QUOTED_TEXT"})
+        self.assertEqual([item["role"] for item in messages[-4:]], ["user", "assistant", "user", "user"])
+        payload = json.dumps(messages)
+        self.assertNotIn('OTHER_USER', payload)
+        self.assertNotIn('PASSIVE', payload)
+        self.assertIn('QUOTED_TEXT', payload)
+        saved = memory.instance.load_active_chat_records("100")[-1]
+        self.assertEqual(saved['Q'], '看引用')
+        self.assertNotIn('QUOTED_TEXT', json.dumps(saved))
 
     def test_list_update_delete_and_clear_are_scoped_to_the_current_user(self):
         alpha = ZFUNC.chat_memory_save("100", "I play support")["memory"]

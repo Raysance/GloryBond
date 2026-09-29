@@ -56,6 +56,33 @@ def chat_player_hero_power(player, hero=None):
     return {"player": realname, "source": "official_live_hero_power", "heroes": heroes}
 
 
+def chat_active_dialogue_load(user_id, limit=5):
+    """Read only this user's saved direct question/answer pairs, oldest first."""
+    from .zmemory import parse_active_dialogue
+    identity = str(user_id or "").strip()
+    if not identity:
+        raise ValueError("active dialogue requires the current user")
+    if int(limit) <= 0:
+        return []
+    records = dmc.redis_deamon.lrange(REDIS_KEY_ACTIVE_CHAT_PREFIX + identity, -int(limit), -1)
+    return parse_active_dialogue(records)
+
+
+def chat_active_dialogue_save(user_id, question, answer):
+    """Atomically append a direct exchange and keep the configured retention window."""
+    from .ztime import current_datetime_text
+    identity = str(user_id or "").strip()
+    if not identity:
+        raise ValueError("active dialogue requires the current user")
+    record = {"time": current_datetime_text(), "Q": str(question), "A": str(answer)}
+    key = REDIS_KEY_ACTIVE_CHAT_PREFIX + identity
+    retained = max(1, int(getattr(dmc, "ChatActiveDialogueRetention", 10)))
+    with dmc.redis_deamon.pipeline() as pipeline:
+        pipeline.rpush(key, json.dumps(record, ensure_ascii=False))
+        pipeline.ltrim(key, -retained, -1)
+        pipeline.execute()
+
+
 def chat_memory_list(user_id, query="", limit=20):
     from .zmemory import parse_fact_memories, search_fact_memories
     identity = str(user_id or "").strip()

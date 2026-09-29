@@ -88,7 +88,7 @@ class TraceTests(unittest.TestCase):
         def model(messages, **kwargs):
             calls.append(kwargs)
             return {"content": "", "reasoning_content": "NOT_AN_ANSWER"}
-        with patch.object(MEMORY.instance, "load_active_chat", return_value=""), \
+        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
                 patch.object(MEMORY.instance, "save_active_chat") as save:
             result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", model_caller=model,
                                        tool_registry=Registry(), return_artifacts=True)
@@ -131,12 +131,12 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(stored["rounds"], trace["rounds"])
 
     def test_pre_model_failure_and_memory_save_warning_keep_stage(self):
-        with patch.object(MEMORY.instance, "load_active_chat", side_effect=RuntimeError("redis load failed")):
+        with patch.object(MEMORY.instance, "load_active_chat_records", side_effect=RuntimeError("redis load failed")):
             with self.assertRaises(CHAT.ChatRunError) as raised:
                 CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True)
         self.assertEqual(raised.exception.trace["failure"]["stage"], "memory_load")
         self.assertEqual(raised.exception.trace["rounds"], [])
-        with patch.object(MEMORY.instance, "load_active_chat", return_value=""), \
+        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
                 patch.object(MEMORY.instance, "save_active_chat", side_effect=RuntimeError("redis save failed")):
             result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True,
                                        model_caller=lambda *args, **kwargs: {"content": "正常答案"})
@@ -227,7 +227,7 @@ class QuoteTests(unittest.TestCase):
         def model(messages, **kwargs):
             seen.extend(messages)
             return {"content": "结论"}
-        with patch.object(MEMORY.instance, "load_active_chat", return_value=""), \
+        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
                 patch.object(MEMORY.instance, "save_active_chat") as save:
             result = CHAT.chat_process(user_text="分析引用", user_id="1", nickname="A", quoted_message=quote,
                                        model_caller=model, tool_registry=Registry(), return_artifacts=True)

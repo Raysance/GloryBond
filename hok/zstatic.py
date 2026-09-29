@@ -18,6 +18,7 @@ REDIS_KEY_BATTLE_EVALUATOR_RECORDS = "hok:evaluator:battle:records"
 REDIS_KEY_DIY_CODES = "hok:diy:codes"
 REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
 REDIS_KEY_CHAT_FACTS_PREFIX = "hok:memory:facts:"
+REDIS_KEY_ACTIVE_CHAT_PREFIX = "hok:memory:active_chat:"
 
 
 def _runtime_path(env_name, default_path):

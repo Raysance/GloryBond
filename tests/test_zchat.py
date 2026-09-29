@@ -24,16 +24,16 @@ class FakeTools:
 
 class ChatLoopTests(unittest.TestCase):
     def setUp(self):
-        self.original_load = ZMEMORY.instance.load_active_chat
+        self.original_load = ZMEMORY.instance.load_active_chat_records
         self.original_load_forced = ZMEMORY.instance.load_user_forced_memory
         self.original_save = ZMEMORY.instance.save_active_chat
-        ZMEMORY.instance.load_active_chat = lambda qid, num=5: ""
+        ZMEMORY.instance.load_active_chat_records = lambda qid, num=5: []
         ZMEMORY.instance.load_user_forced_memory = lambda qid, num=5: ""
         self.saved = []
         ZMEMORY.instance.save_active_chat = lambda qid, question, answer: self.saved.append((qid, question, answer))
 
     def tearDown(self):
-        ZMEMORY.instance.load_active_chat = self.original_load
+        ZMEMORY.instance.load_active_chat_records = self.original_load
         ZMEMORY.instance.load_user_forced_memory = self.original_load_forced
         ZMEMORY.instance.save_active_chat = self.original_save
 
@@ -175,7 +175,7 @@ class ChatLoopTests(unittest.TestCase):
             model_caller=fake_model,
         )
 
-        self.assertEqual(result, "结论\n• 使用 赵云\n详情")
+        self.assertEqual(result, "结论\n\n• 使用 赵云\n详情")
 
     def test_long_term_memory_requires_explicit_tool_recall(self):
         seen = []
