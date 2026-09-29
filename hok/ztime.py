@@ -25,6 +25,11 @@ def current_timestamp():
     return time_r().timestamp()
 
 
+def monotonic_seconds():
+    """Measure elapsed work without depending on changes to the system clock."""
+    return time.monotonic()
+
+
 def sleep_seconds(seconds):
     """Sleep for a caller-provided duration through the time boundary module."""
     time.sleep(max(0, float(seconds)))

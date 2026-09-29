@@ -479,6 +479,56 @@ def ai_parser(user_query, msg_type, network=False, use_mem=None):
         use_mem=use_mem,
     )
 
+def chat_prepare_reply(result):
+    """Combine plots and publish the trace without losing a successful answer."""
+    from .zfile import combine_chat_plot_images
+    from .ztime import monotonic_seconds
+
+    result = dict(result)
+    result["trace"] = dict(result["trace"])
+    begin = monotonic_seconds()
+    originals = result.get("artifacts", [])
+    delivery = {"source_images": len(originals), "merged": False}
+    if len(originals) > 1:
+        try:
+            result["artifacts"] = combine_chat_plot_images(originals)
+            delivery["merged"] = True
+        except Exception as error:
+            delivery["error"] = type(error).__name__
+            result["text"] += f"\n图表合并失败（{type(error).__name__}），以下保留原图。"
+    delivery["duration_ms"] = round((monotonic_seconds() - begin) * 1000, 2)
+    result["trace"]["delivery"] = delivery
+    result["trace"]["duration_ms"] = result["trace"].get("duration_ms", 0) + delivery["duration_ms"]
+    try:
+        result["trace_url"] = chat_publish_trace(result["trace"], originals)
+    except Exception as error:
+        result["trace_error"] = type(error).__name__
+    return result
+
+
+def chat_publish_trace(trace, artifacts=()):
+    """Publish the sanitized execution record with a random, expiring bearer link."""
+    import secrets
+    from .business.chat_trace import public_value
+    from .zfile import chat_plot_public_path
+
+    token = secrets.token_hex(24)
+    payload = public_value(trace, secrets=(chat_api_config.get("api_key"), chat_readonly_dsn))
+    payload["artifacts"] = [
+        {"artifact_id": str(item.get("artifact_id", "")), "url": url}
+        for item in artifacts if (url := chat_plot_public_path(item.get("path", "")))
+    ]
+    payload["expires_in_seconds"] = max(60, int(getattr(dmc, "ChatTraceExpireSeconds", 604800)))
+    serialized = json.dumps(payload, ensure_ascii=False)
+    if len(serialized.encode("utf-8")) > 2 * 1024 * 1024:
+        raise ValueError("chat_trace_payload_too_large")
+    saved = dmc.redis_deamon.set(f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{token}", serialized,
+                                 ex=payload["expires_in_seconds"])
+    if not saved:
+        raise RuntimeError("chat_trace_publish_failed")
+    return WebArtifacts.route_url("chat_trace", token)
+
+
 class WebArtifacts:
     @staticmethod
     def make_hash(seed=None):

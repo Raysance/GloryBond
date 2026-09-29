@@ -178,6 +178,18 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
     return add_msg(message, event=event, msg_type=msg_type, to_id=to_id)
 
 
+def add_chat_result_msg(result, *, event=None):
+    """Queue one QQ message; only trusted artifacts can create image segments."""
+    message = Message(MessageSegment.text(str(result["text"])))
+    for artifact in result.get("artifacts", []):
+        message += MessageSegment.image(artifact["path"])
+    if result.get("trace_url"):
+        message += MessageSegment.text("\n\n运行记录：" + result["trace_url"])
+    elif result.get("trace_error"):
+        message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
+    return add_msg(message, event=event)
+
+
 def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):
     payload = {
         "kind": "group_ban",

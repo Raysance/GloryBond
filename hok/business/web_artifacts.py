@@ -12,6 +12,7 @@ ROUTES = {
     "query_select": "query",
     "benefit": "benefit",
     "bili_video": "bili-video",
+    "chat_trace": "chat-trace",
 }
 
 

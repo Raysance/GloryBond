@@ -694,6 +694,57 @@ def _chat_plot_worker_command(worker_path, job_dir, config):
     return command, environment, font_path
 
 
+def combine_chat_plot_images(artifacts):
+    """Compose harness charts into one proportional, bounded two-column image."""
+    import uuid
+    from PIL import Image
+
+    if len(artifacts) < 2:
+        return list(artifacts)
+    if len(artifacts) > int(getattr(dmc, "ChatPlotMaxArtifacts", 4)):
+        raise ValueError("chat_plot_collage: too many images")
+    width = max(800, min(3200, int(chat_plot_config.get("collage_width", 2400))))
+    gap = 24
+    columns = min(len(artifacts), max(1, min(2, int(chat_plot_config.get("collage_columns", 2)))))
+    cell_width = (width - gap * (columns + 1)) // columns
+    images = []
+    for item in artifacts:
+        if not chat_plot_public_path(item["path"]):
+            raise ValueError("chat_plot_collage: invalid harness image path")
+        with Image.open(item["path"]) as source:
+            if source.format != "PNG" or max(source.size) > 4096:
+                raise ValueError("chat_plot_collage: invalid PNG dimensions")
+            picture = source.convert("RGB")
+        picture.thumbnail((cell_width, 1800), Image.Resampling.LANCZOS)
+        images.append(picture)
+    row_heights = [max(image.height for image in images[n:n + columns])
+                   for n in range(0, len(images), columns)]
+    canvas = Image.new("RGB", (width, sum(row_heights) + gap * (len(row_heights) + 1)), "#f6f8fc")
+    top = gap
+    for row, height in enumerate(row_heights):
+        for col, picture in enumerate(images[row * columns:(row + 1) * columns]):
+            left = gap + col * (cell_width + gap) + (cell_width - picture.width) // 2
+            canvas.paste(picture, (left, top + (height - picture.height) // 2))
+        top += height + gap
+    output_path = os.path.join(temp_path, f"chat_plot_{uuid.uuid4().hex}.png")
+    canvas.save(output_path, format="PNG", optimize=True)
+    return [{"artifact_id": "plot_collage", "path": output_path, "width": canvas.width,
+             "height": canvas.height, "source_count": len(artifacts)}]
+
+
+def chat_plot_public_path(path):
+    """Expose only harness PNGs inside the configured public artifact root."""
+    import re
+
+    resolved = os.path.realpath(path)
+    if os.path.dirname(resolved) != os.path.realpath(temp_path):
+        return ""
+    name = os.path.basename(resolved)
+    if not re.fullmatch(r"chat_plot_[0-9a-f]{32}\.png", name):
+        return ""
+    return f"/file_transfer/{name}"
+
+
 def render_chat_plot_worker(payload, config=None):
     """Execute the chart capability interpreter and publish a verified PNG."""
     import subprocess
