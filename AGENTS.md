@@ -36,7 +36,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 - `event_handlers/chat.py` 解析本次显式引用的消息；优先使用 `event.reply`，缺失时由 `zevent.f_chat()` 通过 OneBot `get_msg` 补读，只读取本次引用，不递归拉取历史引用。图片/视频仅注入未识别内容的占位符，不伪造视觉识别。
 - `zchat.py` 返回最终回答、图片产物和结构化运行记录；记录每次模型请求、每个工具调用与对应 observation、失败/跳过状态和耗时。失败通过 `ChatRunError` 保留已经完成的轨迹。私有 `reasoning_content` 仅在适配器内部续传，不进入分享记录。
-- `business/chat_trace.py` 负责纯数据脱敏、限长预览和统计；分享页展示所有工具的实际调用参数，包括记忆内容、检索词、群号和消息 ID，参数仍需脱敏 API 密钥、连接凭据及本地路径。禁止导出系统提示、原始模型上下文、引用正文、记忆读取结果或群聊检索正文；私有工具失败只保留异常类型及受控错误码，不公开异常正文，群聊检索和管理员私聊跨群权限是否启用以布尔状态记录，群列表工具的返回结果同样隐藏。页面只展示可核验的执行过程，不声称公开完整思维链。
+- `business/chat_trace.py` 负责纯数据脱敏、限长预览和统计；分享页展示所有工具的实际调用参数与 observation，包括记忆读写、群聊检索原文、展开上下文、引用关系、群列表及错误详情，不得按工具类型替换为隐藏占位符。参数和结果统一脱敏 API 密钥、连接凭据及本地路径；保留现有预览大小限制与截断标记。禁止导出模型私有推理、系统提示或未通过工具返回的原始模型上下文。群聊检索和管理员私聊跨群权限以布尔状态记录。页面展示可核验的执行过程，不声称公开完整思维链。
 - `zfunc.chat_prepare_reply()` 编排图表合并与记录发布；`zfile.combine_chat_plot_images()` 用 Pillow 将多张 harness PNG 等比合为一张，默认两列，`ChatPlot.collage_width` / `collage_columns` 可调整宽度/列数。合图失败保留原图，记录发布失败保留答案并提示链接不可用。
 - `zfunc.chat_publish_trace()` 将脱敏记录写入 DB0 `hok:web:artifact:<48位随机hex>`，由 Web `/chat-trace?key=...` 展示。`ChatTraceExpireSeconds` 默认 604800 秒，网页原图路径只允许当前产物目录的 `chat_plot_<uuid>.png`；图片仍遵守已有清理周期。
 - `utils/message_sender.add_chat_result_msg()` 将纯文本、图表和末尾运行记录链接组成一个 QQ 消息，只入队一次。默认上限为 10 轮工具循环，加至多一次收束回答请求、16 次实际工具调用和 4 张源图；多个源图默认先合并再发送。

@@ -3,10 +3,6 @@
 import re
 
 
-PRIVATE_TOOLS = {
-    "recall_memory", "remember_memory", "forget_memory", "search_chat_history",
-    "fetch_chat_context", "fetch_chat_reply_thread", "list_chat_groups",
-}
 PRIVATE_FIELDS = {
     "reasoning", "reasoning_content", "chain_of_thought", "system_prompt",
     "api_key", "authorization", "password", "secret", "token", "dsn", "path",
@@ -45,15 +41,6 @@ def tool_record(call, arguments, result, *, start_ms, duration_ms, executed):
     observations = data.get("observations", []) if isinstance(data, dict) else []
     failed = not result.get("ok", False) or (isinstance(data, dict) and data.get("ok") is False)
     partial = any(item.get("ok") is False for item in observations if isinstance(item, dict))
-    if name in PRIVATE_TOOLS:
-        # Show call arguments; only retrieved contents and error details stay private.
-        diagnostic = {}
-        error = result.get("error", "")
-        if failed and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}(?:Error|Exception)", str(error)):
-            diagnostic["error"] = error
-        if result.get("code") in {"group_context_required", "chat_group_not_found"}:
-            diagnostic["code"] = result["code"]
-        result = {"ok": not failed, **diagnostic, "redacted": "记忆与群聊正文不在分享页公开"}
     return {"call_id": str(call.get("call_id") or call.get("id") or ""), "name": name,
             "arguments": arguments, "observation": result, "start_ms": start_ms,
             "duration_ms": duration_ms, "executed": executed,

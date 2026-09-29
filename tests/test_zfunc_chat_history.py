@@ -160,7 +160,7 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
                     tools.execute("search_chat_history", {"queries": ["内卷"], "group_id": "200", "user_id": "999"})
                 load.assert_not_called()
 
-    def test_admin_private_loop_discovers_searches_and_expands_without_public_history(self):
+    def test_admin_private_loop_discovers_searches_and_shares_tool_results(self):
         ZFUNC.record_group_chat_message("200", "100", "PRIVATE_HISTORY 内卷", message_id="42")
         stages = []
 
@@ -190,8 +190,8 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
         self.assertEqual(len(stages), 4)
         self.assertTrue(result["trace"]["context"]["cross_group_history_enabled"])
-        self.assertNotIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
-        self.assertNotIn("message_count", json.dumps(result["trace"]))
+        self.assertIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
+        self.assertIn("message_count", json.dumps(result["trace"]))
 
 
 if __name__ == "__main__":

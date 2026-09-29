@@ -65,7 +65,7 @@ class ChatLoopTests(unittest.TestCase):
         self.assertEqual(observation["code"], "group_context_required")
         self.assertEqual(observation["error"], "ChatToolUnavailableError")
         self.assertEqual(result["trace"]["rounds"][0]["tools"][0]["arguments"], {"queries": ["PRIVATE_QUERY"]})
-        self.assertNotIn("detail", observation)
+        self.assertIn("请在目标群内", observation["detail"])
 
     def test_group_request_keeps_history_search_bound_to_event_group(self):
         handler = import_hok_module("event_handlers.chat")
@@ -92,7 +92,7 @@ class ChatLoopTests(unittest.TestCase):
                                        exclude_message_id=300)
         self.assertTrue(result["trace"]["context"]["group_history_enabled"])
         self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
-        self.assertNotIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
+        self.assertIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
 
     def test_tool_result_is_appended_before_second_model_turn(self):
         calls = []

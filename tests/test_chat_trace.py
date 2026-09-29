@@ -77,22 +77,24 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(trace["rounds"][1]["status"], "error")
         self.assertNotIn("sk-testsecret", json.dumps(trace))
 
-    def test_private_tool_arguments_are_visible_but_results_and_credentials_are_hidden(self):
-        for name in TRACE.PRIVATE_TOOLS:
+    def test_memory_and_history_arguments_and_results_are_visible_but_credentials_are_hidden(self):
+        for name in ("recall_memory", "remember_memory", "forget_memory", "search_chat_history",
+                     "fetch_chat_context", "fetch_chat_reply_thread", "list_chat_groups"):
             arguments = {"content": "偏好辅助英雄", "queries": ["内卷", "压力"], "group_id": "200",
                          "message_id": "42", "memory_id": "fact-1"}
             value = TRACE.tool_record({"name": name}, arguments,
-                                      {"ok": True, "data": "GROUPSECRET"}, start_ms=0, duration_ms=1, executed=True)
+                                      {"ok": True, "data": [{"text": "群聊工具返回原文"}]}, start_ms=0, duration_ms=1, executed=True)
             self.assertEqual(value["arguments"], arguments)
-            self.assertNotIn("GROUPSECRET", json.dumps(value))
+            self.assertEqual(value["observation"], {"ok": True, "data": [{"text": "群聊工具返回原文"}]})
             failure = TRACE.tool_record({"name": name}, arguments,
-                                        {"ok": False, "error": "ConnectionError", "detail": "GROUPSECRET"},
+                                        {"ok": False, "error": "ConnectionError", "detail": "检索服务连接失败"},
                                         start_ms=0, duration_ms=1, executed=True)
             self.assertEqual(failure["observation"]["error"], "ConnectionError")
             self.assertEqual(failure["arguments"], arguments)
-            self.assertNotIn("GROUPSECRET", json.dumps(failure))
+            self.assertEqual(failure["observation"]["detail"], "检索服务连接失败")
         data = TRACE.public_value({"reasoning_content": "THOUGHT", "arguments": {
-            "content": "sk-testsecret111 /srv/config/file PRIVATEKEY", "api_key": "PRIVATEKEY"}}, secrets=("PRIVATEKEY",))
+            "content": "sk-testsecret111 /srv/config/file PRIVATEKEY", "api_key": "PRIVATEKEY"},
+            "observation": {"data": [{"text": "sk-testsecret111 PRIVATEKEY", "password": "PRIVATEKEY"}]}}, secrets=("PRIVATEKEY",))
         self.assertNotIn("THOUGHT", json.dumps(data))
         self.assertNotIn("sk-testsecret", json.dumps(data))
         self.assertNotIn("/srv", json.dumps(data))
