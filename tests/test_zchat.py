@@ -177,6 +177,55 @@ class ChatLoopTests(unittest.TestCase):
 
         self.assertEqual(result, "结论\n\n• 使用 赵云\n详情")
 
+    def test_display_policy_and_final_identity_filter_preserve_raw_payloads(self):
+        raw_answer = "**alpha（错误名字）**（qid: 123456789，roleid: 99887766）8场5胜，胜率62.5%。"
+        raw_payload = {"choices": [{"message": {"content": raw_answer}}]}
+        requests = []
+
+        def model(messages, **kwargs):
+            requests.extend(messages)
+            return {"content": raw_answer, "request_payload": {"messages": messages}, "response_payload": raw_payload}
+
+        with patch.object(ZCHAT, "namenick", {"alpha": "甲"}), patch.object(ZCHAT, "qid", {"alpha": "123456789"}), \
+                patch.object(ZCHAT, "userlist", {}), patch.object(ZCHAT, "roleidlist", {"alpha": "99887766"}), \
+                patch.object(ZCHAT, "nameref", {"alpha": ["错误名字"]}):
+            result = ZCHAT.chat_process(user_text="谁表现好", user_id="123456789", nickname="甲", use_memory=True,
+                                        tool_registry=FakeTools(), model_caller=model, return_artifacts=True)
+        self.assertEqual(result["text"], "甲8场5胜，胜率62.5%。")
+        self.assertEqual(result["trace"]["answer"], result["text"])
+        self.assertEqual(self.saved[-1][-1], result["text"])
+        self.assertEqual(result["trace"]["rounds"][0]["response_payload"], raw_payload)
+        systems = "\n".join(item["content"] for item in requests if item["role"] == "system")
+        self.assertIn('"namenick": "甲"', systems)
+        self.assertIn("不输出任何身份或记录ID", systems)
+        self.assertIn("回答默认简短", systems)
+        self.assertIn("123456789", json.dumps(result["trace"]["rounds"][0]["request_payload"]))
+
+    def test_empty_model_fallback_uses_nickname_without_speaker_id(self):
+        class HistoryTools(FakeTools):
+            def schemas(self):
+                return [{"type": "function", "name": "fetch_recent_chat_messages", "parameters": {"type": "object"}}]
+
+            def execute(self, name, arguments):
+                return {"messages": [{"user_id": "123456789", "text": "lry今天5胜3负"},
+                                     {"user_id": "99887766", "text": "我也在"}]}
+
+        calls = []
+        def model(messages, **kwargs):
+            calls.append(messages)
+            if len(calls) == 1:
+                return {"tool_calls": [{"call_id": "recent", "name": "fetch_recent_chat_messages", "arguments": "{}"}]}
+            return {"content": ""}
+
+        with patch.object(ZCHAT, "qid", {"example_user_10": "123456789"}), patch.object(ZCHAT, "namenick", {"example_user_10": "示例玩家65"}):
+            result = ZCHAT.chat_process(user_text="最近在聊什么", user_id="100", nickname="A", use_memory=False,
+                                        tool_registry=HistoryTools(), model_caller=model, return_artifacts=True)
+        self.assertIn("示例玩家65：示例玩家65今天5胜3负", result["text"])
+        self.assertIn("群成员：我也在", result["text"])
+        self.assertNotIn("123456789", result["text"])
+        self.assertNotIn("99887766", result["text"])
+        self.assertNotIn("example_user_10", result["text"])
+
     def test_long_term_memory_requires_explicit_tool_recall(self):
         seen = []
         ZMEMORY.instance.load_user_forced_memory = lambda qid, num=5: "偏好辅助英雄"

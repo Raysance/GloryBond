@@ -35,7 +35,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 ### 1.0 Chat 回复、引用与运行记录
 
 - `event_handlers/chat.py` 解析本次显式引用的消息；优先使用 `event.reply`，缺失时由 `zevent.f_chat()` 通过 OneBot `get_msg` 补读，只读取本次引用，不递归拉取历史引用。图片/视频仅注入未识别内容的占位符，不伪造视觉识别。
-- `zchat.py` 返回最终回答、图片产物和结构化运行记录；简短确认结合上轮提议继续，必要参数缺失时只澄清缺项，不把肯定回应默认视为告别。最终回答统一调用 `tools/chat_text.normalize_qq_text()` 转为 QQ 纯文本，记忆保存和页面 answer 使用同一份文本；原始 API payload 继续完整保留。记录上下文加载的轮数、消息数和最新时间。记录每次模型请求、每个工具调用与对应 observation、失败/跳过状态和耗时。失败通过 `ChatRunError` 保留已经完成的轨迹。每轮保存实际发送与收到的完整 JSON `request_payload` / `response_payload`（包括业务模型返回字段及后续续传字段），不采集 HTTP headers；保留 finish_reason、usage、正文长度、错误阶段、异常原因链和栈位置。空正文最多追加一次禁用工具的补试（`ChatEmptyResponseRetries` 默认 1，限制 0–1），仍失败时返回已获取资料的兜底回复且不写入对话记忆；记忆保存失败保留正常答案并记录警告。
+- `zchat.py` 返回最终回答、图片产物和结构化运行记录；简短确认结合上轮提议继续，必要参数缺失时只澄清缺项，不把肯定回应默认视为告别。最终回答统一调用 `tools/chat_text.normalize_qq_text()` 转为 QQ 纯文本，再由 `format_chat_reply()` 按 `namenick` 替换内部玩家键、纠正附带别名并清理身份/记录 ID；兜底摘录的发言者也只显示昵称或群成员。模型身份表必须提供明确的 `namenick`，别名仅用于解析，最终正文和图表标签使用配置昵称；配置昵称本身为缩写时不得擅自扩写。默认简短回答，只保留结论和必要数据，用户明确要求完整名单或详细分析时再展开。记忆保存和页面 answer 使用同一份最终文本；原始 API payload 继续完整保留，不经过回复格式化。记录上下文加载的轮数、消息数和最新时间。记录每次模型请求、每个工具调用与对应 observation、失败/跳过状态和耗时。失败通过 `ChatRunError` 保留已经完成的轨迹。每轮保存实际发送与收到的完整 JSON `request_payload` / `response_payload`（包括业务模型返回字段及后续续传字段），不采集 HTTP headers；保留 finish_reason、usage、正文长度、错误阶段、异常原因链和栈位置。空正文最多追加一次禁用工具的补试（`ChatEmptyResponseRetries` 默认 1，限制 0–1），仍失败时返回已获取资料的兜底回复且不写入对话记忆；记忆保存失败保留正常答案并记录警告。
 - `business/chat_trace.py` 负责纯数据脱敏、异常链和统计；分享页完整展示模型请求/响应 payload 及所有工具的实际参数与 observation，包括系统消息、直接对话、用户本次引用、工具定义、记忆、群聊原文及 API 返回字段。payload 不限字符、数组、字段数量或嵌套预览层级；只脱敏凭据并排除 HTTP headers，不按工具类别隐藏。发布不再使用旧 2 MiB 限制。工具发给模型的 observation 仍受上下文预算约束，分享记录保留工具原始结果与实际发送的 payload，两者各自如实展示。
 - `zfunc.chat_prepare_reply()` 编排图表合并与记录发布；`zfile.combine_chat_plot_images()` 用 Pillow 将多张 harness PNG 等比合为一张，默认两列，`ChatPlot.collage_width` / `collage_columns` 可调整宽度/列数。合图失败保留原图，记录发布失败保留答案并提示链接不可用。
 - `zfunc.chat_publish_trace()` 将脱敏记录写入 DB0 `hok:web:artifact:<48位随机hex>`，由 Web `/chat-trace?key=...` 展示。`ChatTraceExpireSeconds` 默认 604800 秒，网页原图路径只允许当前产物目录的 `chat_plot_<uuid>.png`；图片仍遵守已有清理周期。
@@ -61,7 +61,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `hok/tools/chat_sql.py`：模型 SQL 的纯 AST 解析、命名参数替换、只读语法与函数白名单校验；不得连接数据库。
 - `hok/tools/chat_plot.py`：五种图表模板、JSON 数据和受限 Python 校验，经 `zfile.py` 调用绘图 worker。
 - `hok/plot_runtime/worker.py`：独立绘图运行时，逐节点解释 Python AST，不执行任意代码；只允许 numpy/pandas/matplotlib/seaborn 的明确操作。该边界例外允许 stdin/stdout、进程资源限制和沙箱内临时字体缓存；不得导入应用配置或处理正式文件路径。Linux 必须使用 bubblewrap 隔离文件系统与网络，缺失时拒绝执行。
-- `hok/tools/chat_text.py`：使用 `markdown-it-py` 将模型 Markdown 解析为 QQ 纯文本，去除标题、强调、引用、代码围栏和链接语法，表格转为字段值行，保留代码和数学中的字面符号。
+- `hok/tools/chat_text.py`：使用 `markdown-it-py` 将模型 Markdown 解析为 QQ 纯文本，去除标题、强调、引用、代码围栏和链接语法，表格转为字段值行，保留代码和数学中的字面符号；`format_chat_reply()` 接收配置昵称及身份映射，只处理最终纯文本中的内部玩家键与身份字段，普通词语、统计数值和公开链接保持原样。
 - `hok/tools/endecoder.py`：王者营地接口加解密与请求参数生成工具。
 - `hok/tools/emoji_renderer.py`：emoji 文本拆分与图片文字渲染辅助。
 - `hok/tools/gen_battle_res.py`：单局战绩详情长图生成器。

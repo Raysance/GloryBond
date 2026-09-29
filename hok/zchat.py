@@ -5,10 +5,10 @@ import json
 from . import zdynamic as dmc
 from .chat_roles import build_role_prompt
 from .zapi import ai_response_create
-from .zstatic import chat_pmpt, chat_role, nameref, pmpt_style_templates, qid, roleidlist, userlist, this_season_start_date
+from .zstatic import chat_pmpt, chat_role, namenick, nameref, pmpt_style_templates, qid, roleidlist, userlist, this_season_start_date
 from .ztime import current_datetime_text, get_timebased_rand, monotonic_seconds
 from .business.chat_trace import error_record, failed_request_payloads, public_value, tool_record, trace_summary
-from .tools.chat_text import normalize_qq_text
+from .tools.chat_text import format_chat_reply, normalize_qq_text
 
 
 from .chat_tools import ChatToolUnavailableError, HOKChatTools
@@ -119,20 +119,30 @@ def build_chat_messages(*, user_text, user_id, nickname, active_dialogue=(), quo
                      + json.dumps(zfunc.chat_database_schema(), ensure_ascii=False)})
     messages.append({"role": "system", "content": f"本赛季起始日期：{this_season_start_date}。用户未指定时间的赛季统计默认从此日期起；实际覆盖以数据库为准。"})
     known_users = []
-    for player_name, user_qid in qid.items():
+    for player_name in dict.fromkeys([*namenick, *qid, *userlist, *roleidlist]):
         aliases = nameref.get(player_name, []) if isinstance(nameref, dict) else []
-        known_users.append({"player": player_name, "qq_id": str(user_qid), "aliases": aliases,
+        known_users.append({"player": player_name, "namenick": namenick.get(player_name) or "该玩家",
+                            "qq_id": str(qid.get(player_name, "")), "aliases": aliases,
                             "game_user_id": str(userlist.get(player_name, "")),
                             "game_role_id": str(roleidlist.get(player_name, ""))})
     messages.append({
         "role": "system",
-        "content": "已知玩家与身份：qq_id用于群聊；game_user_id/game_role_id对应游戏SQL的user_id/role_id，不能混用。"
+        "content": "已知玩家与身份：namenick是最终回复和图表标签唯一使用的玩家显示名，必须逐项查表，禁止猜名字；"
+                   "player是内部查询键，aliases仅供识别输入，不作为显示名。"
+                   "qq_id用于群聊；game_user_id/game_role_id对应游戏SQL的user_id/role_id，不能混用。"
                    + json.dumps(known_users, ensure_ascii=False),
     })
     if role_prompt:
         messages.append({"role": "system", "content": role_prompt})
     if style_template or chat_pmpt:
         messages.append({"role": "system", "content": f"表达要求：{style_template}{chat_pmpt}"})
+    messages.append({"role": "system", "content":
+                     "最终回复必须遵守：使用纯文本，玩家只用上表namenick，禁止输出内部raw name、首字母缩写或括号补充内部名。"
+                     "namenick配置本身为缩写时原样使用配置值，不自行扩写或编造姓名；缺少昵称时称该玩家。"
+                     "不输出任何身份或记录ID，包括qid、QQ号、roleid、userid、群号、消息ID、英雄ID、对局ID、记忆ID、dataset_id；"
+                     "这些标识仅用于工具参数，解释查询范围时使用昵称、群名和日期。历史回答中的错误名字不能沿用。"
+                     "回答默认简短：先给结论，仅保留直接支持结论的关键数据。除非用户明确要求完整名单或详细分析，"
+                     "不逐人铺开、不重复名单、不复述问题，不追加无关建议或习惯性追问。"})
     messages.append({"role": "system", "content": f"当前提问者：{nickname}（QID: {user_id}）。"})
     if active_dialogue:
         messages.append({
@@ -254,13 +264,21 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                     records = data.get("messages", []) if isinstance(data, dict) else data
                     for record in records if isinstance(records, list) else []:
                         if isinstance(record, dict) and record.get("text"):
-                            excerpt = f"{record.get('time', record.get('timestamp', ''))} QQ {record.get('user_id', '')}：{record['text']}"
+                            speaker = next((namenick.get(player) or "群成员" for player, identity in qid.items()
+                                            if str(identity) == str(record.get("user_id", ""))), "群成员")
+                            excerpt = f"{record.get('time', record.get('timestamp', ''))} {speaker}：{record['text']}"
                             if excerpt not in excerpts:
                                 excerpts.append(excerpt)
             final_text = "模型未能生成最终正文；已保留查询结果和错误运行记录。"
             if excerpts:
                 final_text += "\n已读取的发言摘录：\n" + "\n".join(excerpts[:5])
             final_text = normalize_qq_text(final_text)
+        player_names = {player: namenick.get(player) or "该玩家"
+                        for player in dict.fromkeys([*namenick, *qid, *userlist, *roleidlist])}
+        identity_names = {str(identity): player_names[player] for mapping in (qid, userlist, roleidlist)
+                          for player, identity in mapping.items() if identity}
+        final_text = format_chat_reply(final_text, player_names=player_names, identity_names=identity_names,
+                                       aliases=[alias for values in nameref.values() for alias in values])
         if use_memory and not fallback:
             stage = "memory_save"
             try:

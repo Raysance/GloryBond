@@ -1,4 +1,4 @@
-"""Render model Markdown as QQ plain text without changing literal code/math."""
+"""Render model text for QQ, with configured player names and no identity fields."""
 
 from markdown_it import MarkdownIt
 import re
@@ -78,3 +78,50 @@ def normalize_qq_text(text):
         if line or (result and result[-1]):
             result.append(line)
     return "\n".join(result).strip()
+
+
+def format_chat_reply(text, *, player_names, identity_names, aliases=()):
+    """Resolve identities in already plain text; never apply this to provider payloads."""
+    names = {str(raw).casefold(): str(nick or "该玩家") for raw, nick in player_names.items() if raw}
+    identities = {str(identity): str(nick or "该成员") for identity, nick in identity_names.items() if identity}
+
+    def tokens(values):
+        return "(?:" + "|".join(re.escape(value) for value in sorted(set(values), key=len, reverse=True)) + ")"
+
+    # ASCII boundaries allow Chinese-adjacent player mentions, but not words like "show".
+    boundary_start, boundary_end = r"(?<![A-Za-z0-9_])", r"(?![A-Za-z0-9_])"
+    name_pattern = tokens(names) if names else r"(?!)"
+    alias_pattern = tokens([*names, *names.values(), *map(str, aliases)])
+    labels = (r"(?:game[_-]?)?(?:qq|role|user|player|group|message|hero|battle|memory|dataset|steam)[_-]?id"
+              r"|qid|id|QQ(?:号|号码)?|群号|营地(?:ID|号)|角色ID|用户ID|消息ID|玩家ID|英雄ID|对局ID")
+    id_field = re.compile(boundary_start + r"[\"']?(?:" + labels + r")[\"']?" + boundary_end
+                          + r"\s*(?:[:：=]|为|是)?\s*[\"']?(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]+[\"']?", re.I)
+
+    def visible_text(value):
+        value = id_field.sub("", value)
+        # Correct contradictory aliases such as raw_name(wrong_nickname) using configuration.
+        value = re.sub(boundary_start + alias_pattern + r"\s*[（(]\s*(" + name_pattern + r")\s*[)）]",
+                       lambda match: names[match[1].casefold()], value, flags=re.I)
+        value = re.sub(boundary_start + "(" + name_pattern + r")\s*[（(]\s*" + alias_pattern + r"\s*[)）]",
+                       lambda match: names[match[1].casefold()], value, flags=re.I)
+        value = re.sub(boundary_start + name_pattern + boundary_end,
+                       lambda match: names[match[0].casefold()], value, flags=re.I)
+        if identities:
+            value = re.sub(boundary_start + tokens(identities) + boundary_end,
+                           lambda match: identities[match[0]], value)
+        value = re.sub(r"[（(][\s,，;；、]*[)）]", "", value)
+        value = re.sub(r"([（(])[\s,，;；、]+", r"\1", value)
+        value = re.sub(r"[\s,，;；、]+([)）])", r"\1", value)
+        value = re.sub(r"([,，;；、])[ \t]*[,，;；、]+", r"\1", value)
+        return value
+
+    # Keep ordinary URLs intact; discard identity-bearing URLs instead of corrupting them.
+    parts = re.split(r"(https?://[^\s<>\"'，。；）]+)", str(text or ""))
+    for index, part in enumerate(parts):
+        if index % 2:
+            if id_field.search(part) or any(identity in part for identity in identities):
+                parts[index] = ""
+        else:
+            parts[index] = visible_text(part)
+    result = "\n".join(line.strip(" \t,，;；、") for line in "".join(parts).splitlines()).strip()
+    return result or "身份信息不在最终回复中展示。"
