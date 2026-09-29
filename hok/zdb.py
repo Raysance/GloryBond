@@ -693,3 +693,165 @@ def table_counts():
                 cursor.execute(f"SELECT count(*) AS count FROM hok.{table_name}")
                 counts[table_name] = int(cursor.fetchone()["count"])
     return counts
+
+
+def _chat_sql_limits():
+    """Read configurable chat bounds without changing ordinary database calls."""
+    from .zstatic import chat_sql_config
+
+    defaults = {
+        "max_rows": 200,
+        "max_columns": 40,
+        "max_bytes": 60000,
+        "max_sql_chars": 20000,
+        "statement_timeout_ms": 5000,
+        "connect_timeout_seconds": 5,
+    }
+    limits = {}
+    for name, default in defaults.items():
+        value = chat_sql_config.get(name, default)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"ChatSQL.{name} 必须为正整数")
+        limits[name] = value
+    return limits
+
+
+def _chat_readonly_connect(limits):
+    """Create the separate reader connection, never fall back to the writer."""
+    from .zstatic import chat_readonly_dsn
+
+    if not str(chat_readonly_dsn or "").strip():
+        raise RuntimeError("ChatSQL只读数据库尚未配置")
+    import psycopg
+    from psycopg.rows import tuple_row
+
+    return psycopg.connect(
+        chat_readonly_dsn,
+        row_factory=tuple_row,
+        connect_timeout=limits["connect_timeout_seconds"],
+        options="-c default_transaction_read_only=on -c search_path=pg_catalog,hok -c timezone=Asia/Shanghai",
+    )
+
+
+def _chat_json_value(value):
+    """Preserve usable numbers, dates and nested JSON without invalid JSON."""
+    from decimal import Decimal
+    import math
+
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if isinstance(value, int):
+        # Game/role identifiers can exceed JavaScript's exact-integer range.
+        return value if abs(value) <= 9007199254740991 else str(value)
+    if isinstance(value, (float, Decimal)):
+        number = float(value)
+        return number if math.isfinite(number) else str(value)
+    if isinstance(value, dict):
+        return {str(key): _chat_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_chat_json_value(item) for item in value]
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def chat_schema_catalog():
+    """Return the verified gameplay catalogue, rules and executable limits."""
+    from .chat_sql_schema import schema_catalog
+    from .zstatic import chat_readonly_dsn
+
+    result = schema_catalog()
+    result.update({"ok": True, "limits": _chat_sql_limits(), "configured": bool(chat_readonly_dsn)})
+    return result
+
+
+def chat_query_readonly(sql, params=None, limit=None):
+    """Run one model-generated analytical SELECT as a least-privileged reader.
+
+    Always return a structured observation, including for rejected SQL, timeout,
+    unavailable connection or partial results. Existing _connect() is never used.
+    """
+    from .chat_sql_schema import CHAT_SQL_ROLE
+    from .tools.chat_sql import ChatSQLValidationError, validate_readonly_sql
+
+    try:
+        limits = _chat_sql_limits()
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
+            raise ChatSQLValidationError("limit 必须为正整数")
+        row_limit = min(limit or limits["max_rows"], limits["max_rows"])
+        normalized = validate_readonly_sql(sql, params=params, max_sql_chars=limits["max_sql_chars"])
+    except (ChatSQLValidationError, ValueError) as exc:
+        return {"ok": False, "location": "chat_query_readonly.validate", "error": str(exc)}
+
+    try:
+        with _chat_readonly_connect(limits) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION READ ONLY")
+                cursor.execute("SELECT set_config('statement_timeout', %s, true)", (str(limits["statement_timeout_ms"]),))
+                cursor.execute("SELECT set_config('lock_timeout', %s, true)", (str(limits["statement_timeout_ms"]),))
+                cursor.execute("SELECT set_config('idle_in_transaction_session_timeout', %s, true)", (str(limits["statement_timeout_ms"]),))
+                cursor.execute("SELECT set_config('search_path', 'pg_catalog,hok', true)")
+                cursor.execute("SELECT set_config('TimeZone', 'Asia/Shanghai', true)")
+                # A misconfigured writer/superuser DSN must fail closed. The
+                # deployment SQL creates this isolated role with no memberships.
+                cursor.execute("""
+                    SELECT r.rolname, r.rolsuper, r.rolcreaterole, r.rolcreatedb,
+                           r.rolreplication, r.rolbypassrls,
+                           EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m WHERE m.member = r.oid)
+                    FROM pg_catalog.pg_roles r WHERE r.rolname = CURRENT_USER
+                """)
+                identity = cursor.fetchone()
+                if not identity or identity[0] != CHAT_SQL_ROLE or any(identity[1:]):
+                    raise PermissionError("ChatSQL必须使用独立无特权的hok_chat_reader账号")
+
+            # A server cursor avoids buffering every row. The outer LIMIT also
+            # bounds result materialization even when the model omits LIMIT.
+            with connection.cursor(name="hok_chat_observation") as cursor:
+                cursor.execute(f"SELECT * FROM ({normalized}) AS chat_result LIMIT {row_limit + 1}")
+                first_row = cursor.fetchone()
+                columns = [column.name for column in cursor.description or ()]
+                if len(columns) > limits["max_columns"]:
+                    raise ChatSQLValidationError(f"结果超过 {limits['max_columns']} 列；请减少所选字段")
+                if len(set(columns)) != len(columns):
+                    raise ChatSQLValidationError("结果列名重复；请为连接表字段添加唯一别名")
+                rows = []
+                size = len(json.dumps(columns, ensure_ascii=False).encode("utf-8"))
+                truncated = False
+                reason = None
+                row = first_row
+                while row is not None:
+                    if len(rows) >= row_limit:
+                        truncated, reason = True, "row_limit"
+                        break
+                    item = {name: _chat_json_value(value) for name, value in zip(columns, row)}
+                    encoded_size = len(json.dumps(item, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+                    if size + encoded_size > limits["max_bytes"]:
+                        truncated, reason = True, "byte_limit"
+                        break
+                    rows.append(item)
+                    size += encoded_size
+                    row = cursor.fetchone()
+                return {
+                    "ok": True,
+                    "columns": columns,
+                    "rows": rows,
+                    "row_count": len(rows),
+                    "truncated": truncated,
+                    "truncation_reason": reason,
+                    "row_limit": row_limit,
+                    "notice": "结果已截断，请聚合或缩小日期/字段范围；不要据此推断完整总数。" if truncated else None,
+                }
+    except (ChatSQLValidationError, PermissionError) as exc:
+        return {"ok": False, "location": "chat_query_readonly.execute", "error": str(exc)}
+    except Exception as exc:
+        # Libpq connection errors can expose connection details. Only SQL server
+        # diagnostics (which describe the submitted query) are observations.
+        sqlstate = getattr(exc, "sqlstate", None)
+        diagnostic = getattr(getattr(exc, "diag", None), "message_primary", None)
+        if sqlstate == "57014":
+            message = "只读SQL执行超时，请缩小日期范围或简化连接/聚合"
+        elif sqlstate and diagnostic:
+            message = str(diagnostic)[:800]
+        else:
+            message = f"ChatSQL只读数据库连接或执行未就绪（{type(exc).__name__}）"
+        return {"ok": False, "location": "chat_query_readonly.execute", "error": message, "sqlstate": sqlstate}

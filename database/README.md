@@ -2,6 +2,8 @@
 
 `schema.sql` defines the structured query store for the HOK history data. The original JSON archives were used as a read-only migration source and may be removed after a complete payload verification and database backup.
 
+The chat agent uses a separate least-privileged reader created by `chat_readonly.sql`. See [chat tools and runtime setup](CHAT_AGENT.md) for model-generated SQL, plotting, memory and web search.
+
 Run the idempotent importer from the NBot project root:
 
 ```bash

@@ -3,8 +3,13 @@ name = "GloryBond"
 version = "0.1.0"
 description = "QQ Agent for Honor of Kings: Track Stats & Interactive Engagement."
 readme = "README.md"
-requires-python = ">=3.9, <4.0"
+requires-python = ">=3.10, <4.0"
 dependencies = [
+    "matplotlib>=3.9,<4",
+    "numpy>=2,<3",
+    "pandas>=2.2,<3",
+    "seaborn>=0.13,<1",
+    "sqlglot>=30.20,<31",
     "httpx[socks]>=0.28.1,<1",
     "requests[socks]>=2.31,<3",
     "cryptography>=45,<46",

@@ -12,8 +12,6 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
     for source in sorted(common_expressions, key=len, reverse=True):
         text = re.sub(re.escape(source), common_expressions[source], text)
 
-    network = "&" in text
-    text = text.replace("&", "").strip()
     use_memory = default_use_memory
     if "nomem" in text:
         use_memory = False
@@ -26,5 +24,4 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "group_id": group_id,
         "message_id": getattr(event, "message_id", None),
         "use_memory": use_memory,
-        "network": network,
     }

@@ -100,7 +100,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
                 use_memory=False,
                 tool_registry=FakeTools(),
             )
-            save.assert_called_once_with("100", "查一下 alpha 和 beta", result)
+            save.assert_not_called()
         return result, calls
 
     def test_chat_payload_proxy_and_normalized_tool_calls(self):

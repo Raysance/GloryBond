@@ -643,3 +643,93 @@ def pil_image_from_bytes(content):
     image = Image.open(io.BytesIO(content))
     image.load()
     return image
+
+
+def _chat_plot_worker_command(worker_path, job_dir, config):
+    """Build an isolated worker command; Linux additionally requires bubblewrap."""
+    import sys
+
+    environment = {
+        "PATH": os.defpath,
+        "HOME": job_dir,
+        "TMPDIR": job_dir,
+        "MPLCONFIGDIR": job_dir,
+        "MPLBACKEND": "Agg",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+    }
+    if not sys.platform.startswith("linux"):
+        return [sys.executable, "-I", worker_path], environment, config.get("font_path", "")
+    bwrap = shutil.which("bwrap")
+    if not bwrap:
+        raise RuntimeError("chat_plot: Linux 绘图隔离需要 bubblewrap，请先安装 bwrap")
+    command = [bwrap, "--unshare-all", "--die-with-parent", "--new-session"]
+    # These mounts contain the interpreter, dependencies and fonts only. Never
+    # expose the application checkout, its config, SSH credentials or runtime DB.
+    candidates = ["/usr", "/bin", "/lib", "/lib64", "/etc/fonts", "/etc/ld.so.cache", os.path.join(sys.base_prefix, "bin"), os.path.join(sys.base_prefix, "lib")]
+    if sys.prefix != sys.base_prefix:
+        candidates.append(sys.prefix)
+    mounted = []
+    for source in candidates:
+        source = os.path.abspath(source)
+        if not os.path.exists(source) or source in mounted:
+            continue
+        if any(source.startswith(parent + os.sep) for parent in mounted):
+            continue
+        command.extend(["--ro-bind", source, source])
+        mounted.append(source)
+    command.extend(["--ro-bind", worker_path, "/chat_plot_worker.py", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--chdir", "/tmp"])
+    font_path = config.get("font_path", "")
+    if font_path:
+        if not os.path.isfile(font_path):
+            raise ValueError("chat_plot: 配置的中文字体文件不存在")
+        command.extend(["--ro-bind", os.path.abspath(font_path), "/chat_font.ttf"])
+        font_path = "/chat_font.ttf"
+    environment.update(HOME="/tmp", TMPDIR="/tmp", MPLCONFIGDIR="/tmp")
+    command.extend([sys.executable, "-I", "/chat_plot_worker.py"])
+    return command, environment, font_path
+
+
+def render_chat_plot_worker(payload, config=None):
+    """Execute the chart capability interpreter and publish a verified PNG."""
+    import subprocess
+    import tempfile
+    import uuid
+    from PIL import Image
+
+    config = config or {}
+    timeout = min(50, max(3, int(config.get("timeout_seconds", 20))))
+    worker_path = os.path.join(os.path.dirname(__file__), "plot_runtime", "worker.py")
+    ensure_dir(temp_path)
+    with tempfile.TemporaryDirectory(prefix="hok-chat-plot-") as job_dir:
+        command, environment, font_path = _chat_plot_worker_command(worker_path, job_dir, config)
+        request = dict(payload, font_path=font_path, memory_mb=config.get("memory_mb", 1024), cpu_seconds=max(2, timeout - 2))
+        raw_request = json.dumps(request, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        if len(raw_request) > 1024 * 1024:
+            raise ValueError("chat_plot: worker 请求超过 1 MiB")
+        try:
+            result = subprocess.run(
+                command, input=raw_request, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=environment, cwd=job_dir, timeout=timeout, check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"chat_plot: 绘图超过 {timeout} 秒，进程已终止") from exc
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace")[-1200:]
+        raise RuntimeError(f"chat_plot: worker exit={result.returncode}; {detail}")
+    content = result.stdout
+    if not content.startswith(b"\x89PNG\r\n\x1a\n") or len(content) > 8 * 1024 * 1024:
+        raise ValueError("chat_plot: worker 未返回有效的限长 PNG")
+    with Image.open(io.BytesIO(content)) as preview:
+        width, height = preview.size
+        if preview.format != "PNG" or not (200 <= width <= 2200 and 200 <= height <= 2200):
+            raise ValueError("chat_plot: PNG 尺寸或格式不合法")
+        preview.verify()
+    output_path = os.path.join(temp_path, f"chat_plot_{uuid.uuid4().hex}.png")
+    with open(output_path, "xb") as output:
+        output.write(content)
+    return {"path": output_path, "width": width, "height": height, "bytes": len(content)}

@@ -7,6 +7,121 @@ _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
 _GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
+def chat_database_schema():
+    from . import zdb
+    return zdb.chat_schema_catalog()
+
+
+def chat_query_database(sql, params=None, limit=None):
+    from . import zdb
+    return zdb.chat_query_readonly(sql, params=params, limit=limit)
+
+
+def chat_plot_templates():
+    from .tools.chat_plot import chat_plot_templates as templates
+    return templates()
+
+
+def chat_render_plot(data, *, code=None, template="bar", title="", options=None):
+    from .tools.chat_plot import render_chat_plot
+    return render_chat_plot(data, code=code, template=template, title=title, options=options)
+
+
+def chat_web_search(query, max_results=5):
+    from .zapi import ark_web_search
+    return ark_web_search(query, max_results=max_results)
+
+
+def chat_player_hero_power(player, hero=None):
+    """Return current official hero powers independently of historical SQL statistics."""
+    realname = extract_name(str(player), precise=True) or extract_name(str(player))
+    if not realname:
+        raise ValueError("unknown_player")
+    hero_info = None
+    if hero:
+        hero_info = extract_heroname(str(hero), precise=True) or extract_heroname(str(hero))
+        if not hero_info:
+            raise ValueError("unknown_hero")
+    result = wzry_get_official(reqtype="heropower", userid=userlist[realname], roleid=roleidlist[realname])
+    heroes = []
+    for entry in result.get("heroList") or []:
+        basic = entry.get("basicInfo") or {}
+        if hero_info and basic.get("title") != hero_info[1]:
+            continue
+        honor = entry.get("honorTitle") or {}
+        heroes.append({
+            "hero": basic.get("title"), "power": basic.get("heroFightPower"),
+            "honor_rank": honor.get("rank"), "honor_title": honor.get("desc"),
+        })
+    return {"player": realname, "source": "official_live_hero_power", "heroes": heroes}
+
+
+def chat_memory_list(user_id, query="", limit=20):
+    from .zmemory import parse_fact_memories, search_fact_memories
+    identity = str(user_id or "").strip()
+    if not identity:
+        raise ValueError("memory requires the current user")
+    raw = dmc.redis_deamon.hvals(REDIS_KEY_CHAT_FACTS_PREFIX + identity)
+    legacy = dmc.redis_deamon.lrange("hok:memory:forced_mem:" + identity, 0, -1)
+    records = parse_fact_memories(raw, legacy_records=legacy,
+                                  max_chars=int(getattr(dmc, "ChatMemoryMaxChars", 2000)))
+    return {"memories": search_fact_memories(records, query=query, limit=limit), "total": len(records)}
+
+
+def chat_memory_save(user_id, content, memory_id=""):
+    from .zmemory import prepare_fact_memory
+    from .ztime import current_datetime_text
+    from redis.exceptions import WatchError
+    import uuid
+
+    identity = str(user_id or "").strip()
+    if not identity:
+        raise ValueError("memory requires the current user")
+    key = REDIS_KEY_CHAT_FACTS_PREFIX + identity
+    existing_id = str(memory_id or "").strip()
+    memory_id = existing_id or uuid.uuid4().hex
+    if existing_id.startswith("legacy-"):
+        raise ValueError("legacy memory is read-only; save a new fact or clear all memories")
+    for _ in range(3):
+        with dmc.redis_deamon.pipeline() as pipeline:
+            try:
+                pipeline.watch(key)
+                raw = pipeline.hget(key, memory_id)
+                if existing_id and not raw:
+                    raise ValueError("memory_id not found for current user")
+                if not raw and pipeline.hlen(key) >= int(getattr(dmc, "ChatMemoryMaxItems", 100)):
+                    raise ValueError("memory limit reached; update or delete an existing memory")
+                existing = json.loads(raw) if raw else None
+                record = prepare_fact_memory(
+                    content, memory_id=memory_id, timestamp=current_datetime_text(), existing=existing,
+                    max_chars=int(getattr(dmc, "ChatMemoryMaxChars", 2000)),
+                )
+                pipeline.multi()
+                pipeline.hset(key, memory_id, json.dumps(record, ensure_ascii=False))
+                pipeline.execute()
+                return {"saved": True, "memory": record}
+            except WatchError:
+                continue
+    raise RuntimeError("memory changed concurrently; please retry")
+
+
+def chat_memory_delete(user_id, memory_id):
+    identity, memory_id = str(user_id or "").strip(), str(memory_id or "").strip()
+    if not identity or not memory_id:
+        raise ValueError("memory deletion requires current user and memory_id")
+    if memory_id.startswith("legacy-"):
+        raise ValueError("legacy memory is read-only; use the clear memories command")
+    deleted = bool(dmc.redis_deamon.hdel(REDIS_KEY_CHAT_FACTS_PREFIX + identity, memory_id))
+    return {"deleted": deleted, "memory_id": memory_id}
+
+
+def chat_memory_clear(user_id):
+    identity = str(user_id or "").strip()
+    if not identity:
+        raise ValueError("memory requires the current user")
+    return dmc.redis_deamon.delete(REDIS_KEY_CHAT_FACTS_PREFIX + identity)
+
+
 def _redis_get_json(key, default=None):
     raw = dmc.redis_deamon.get(key)
     if not raw:

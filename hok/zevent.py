@@ -74,7 +74,6 @@ _empty_cache = on_keyword({"empty_cache"},rule=judge_to_me,priority=3, block=Tru
 _show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
-_forever_mem=on_keyword({"记住"},rule=judge_to_me,priority=3, block=True)
 _peak_rank=on_fullmatch(
     ("#巅峰排名", "＃巅峰排名", "#巅峰排行", "＃巅峰排行"),
     rule=judge_to_me,
@@ -414,21 +413,9 @@ async def f_forget_me(event): # 清空用户记录和用户(自己的)记忆
     log_message("CMD: EMPTY_ME")
     userqid=event.get_user_id()
     await asyncio.to_thread(zm.clear_user_data, userqid)
+    await asyncio.to_thread(chat_memory_clear, userqid)
     add_msg(Message("成功清除记忆"), event=event)
     await _forget_me.finish()
-
-@_forever_mem.handle()
-async def f_forever_mem(event):
-    from .zmemory import instance as zm
-    from .zfunc import qid2nick
-    log_message("CMD: FOREVER")
-    userqid=event.get_user_id()
-    rcv_msg=event.get_plaintext()
-    await asyncio.to_thread(zm.save_forced_memory, userqid, rcv_msg)
-    snd_msg=rcv_msg.replace("记住", "").replace("我",qid2nick(userqid)).replace("不会","一定不会").replace("哦","").replace(","," ")
-    add_msg(Message("好的，我记住了哦："+snd_msg), event=event)
-    await _forever_mem.finish()
-
 
 @_peak_rank.handle()
 async def f_peak_rank(event):
@@ -824,7 +811,7 @@ async def f_chat(bot,event):
             source="chat",
         )
     try:
-        snd_msg = await asyncio.to_thread(chat_process, **request)
+        result = await asyncio.to_thread(chat_process, **request, return_artifacts=True)
     except Exception as e:
         add_msg(
             "AI对话失败：location=zevent.f_chat "
@@ -835,4 +822,6 @@ async def f_chat(bot,event):
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
 
-    add_msg(snd_msg, event=event)
+    add_msg(result["text"], event=event)
+    for artifact in result["artifacts"]:
+        add_msg(MessageSegment.image(artifact["path"]), event=event)

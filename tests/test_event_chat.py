@@ -40,12 +40,12 @@ class ChatEventTests(unittest.TestCase):
             default_use_memory=True,
         )
 
-        self.assertEqual(request["user_text"], "长词 短词")
+        self.assertEqual(request["user_text"], "长词 短词 &")
         self.assertEqual(request["nickname"], "Alice")
         self.assertEqual(request["group_id"], 123)
         self.assertEqual(request["message_id"], 456)
         self.assertFalse(request["use_memory"])
-        self.assertTrue(request["network"])
+        self.assertNotIn("network", request)
 
     def test_private_request_keeps_default_memory(self):
         request = CHAT_HANDLER.prepare_chat_request(
@@ -57,7 +57,7 @@ class ChatEventTests(unittest.TestCase):
         self.assertEqual(request["user_text"], "hello")
         self.assertIsNone(request["group_id"])
         self.assertTrue(request["use_memory"])
-        self.assertFalse(request["network"])
+        self.assertNotIn("network", request)
 
 
 if __name__ == "__main__":

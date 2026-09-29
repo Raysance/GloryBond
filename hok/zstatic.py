@@ -17,6 +17,7 @@ REDIS_KEY_HERO_HISTORY_PREFIX = "hok:hero:history:"
 REDIS_KEY_BATTLE_EVALUATOR_RECORDS = "hok:evaluator:battle:records"
 REDIS_KEY_DIY_CODES = "hok:diy:codes"
 REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
+REDIS_KEY_CHAT_FACTS_PREFIX = "hok:memory:facts:"
 
 
 def _runtime_path(env_name, default_path):
@@ -95,6 +96,13 @@ clash_proxy_url = str(
     or confs.get("Proxy", {}).get("clash_url")
     or ""
 ).strip()
+chat_readonly_dsn = str(
+    os.environ.get("HOK_CHAT_READONLY_DSN")
+    or confs.get("ChatSQL", {}).get("dsn")
+    or ""
+).strip()
+chat_sql_config = confs.get("ChatSQL", {})
+chat_plot_config = confs.get("ChatPlot", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")

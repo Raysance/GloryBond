@@ -3,6 +3,7 @@ import json
 import datetime
 import math
 import re
+import hashlib
 from collections import Counter
 from typing import List, Dict, Optional
 from . import zdynamic as dmc
@@ -262,6 +263,98 @@ class ZMemory:
             self.redis.delete(self._get_key(cat, qid))
 
 instance = ZMemory()
+
+
+def _validate_fact_content(content, max_chars):
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("chat_memory: content must be non-empty text")
+    content = content.strip()
+    if len(content) > max_chars:
+        raise ValueError(f"chat_memory: content exceeds {max_chars} characters")
+    if "\x00" in content:
+        raise ValueError("chat_memory: content contains an invalid control character")
+    if re.search(r"\bsk-[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._-]{12,}", content, re.IGNORECASE):
+        raise ValueError("chat_memory: credentials cannot be stored as personal memory")
+    return content
+
+
+def prepare_fact_memory(content, *, memory_id, timestamp, existing=None, max_chars=2000):
+    """Build a fact record; callers own user authorization, IDs, time and storage."""
+    content = _validate_fact_content(content, max_chars)
+    if not isinstance(memory_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", memory_id):
+        raise ValueError("chat_memory: invalid memory_id")
+    if memory_id.startswith("legacy-") or (existing and existing.get("read_only")):
+        raise ValueError("chat_memory: legacy memories are read-only")
+    if existing and existing.get("memory_id") != memory_id:
+        raise ValueError("chat_memory: memory_id does not match the existing record")
+    return {
+        "memory_id": memory_id,
+        "content": content,
+        "created_at": (existing or {}).get("created_at") or timestamp,
+        "updated_at": timestamp,
+        "source": "direct_user",
+        "read_only": False,
+    }
+
+
+def parse_fact_memories(raw_records, *, legacy_records=(), max_chars=2000):
+    """Decode only one user's supplied hash values and optional old forced list."""
+    records = {}
+    values = raw_records.values() if isinstance(raw_records, dict) else raw_records
+    for raw in values or []:
+        try:
+            record = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+            if not isinstance(record, dict):
+                continue
+            normalized = prepare_fact_memory(
+                record.get("content"),
+                memory_id=record.get("memory_id"),
+                timestamp=str(record.get("updated_at") or record.get("created_at") or ""),
+                existing=record,
+                max_chars=max_chars,
+            )
+        except (TypeError, ValueError):
+            continue
+        records[normalized["memory_id"]] = normalized
+    for raw in legacy_records or []:
+        try:
+            record = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+            if not isinstance(record, dict):
+                continue
+            content = _validate_fact_content(record.get("mem"), max_chars)
+            timestamp = str(record.get("time") or "")
+            identity = json.dumps([timestamp, content], ensure_ascii=False).encode("utf-8")
+            memory_id = "legacy-" + hashlib.sha256(identity).hexdigest()[:20]
+            records[memory_id] = {
+                "memory_id": memory_id,
+                "content": content,
+                "created_at": timestamp,
+                "updated_at": timestamp,
+                "source": "legacy_forced",
+                "read_only": True,
+            }
+        except (TypeError, ValueError):
+            continue
+    return list(records.values())
+
+
+def search_fact_memories(records, query="", *, limit=20):
+    """List recent facts or rank explicit retrieval with the existing BM25 helper."""
+    if not isinstance(query, str):
+        raise ValueError("chat_memory: query must be text")
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        raise ValueError("chat_memory: limit must be a positive integer")
+    candidates = sorted(
+        records or [],
+        key=lambda item: (str(item.get("updated_at") or ""), str(item.get("memory_id") or "")),
+        reverse=True,
+    )
+    if not query.strip():
+        return [dict(item) for item in candidates[:limit]]
+    documents = [tokenize_history_text(item["content"]) for item in candidates]
+    scores = _bm25_scores(tokenize_history_text(query), documents)
+    indexes = sorted(range(len(candidates)), key=lambda index: (-scores[index], index))
+    return [dict(candidates[index]) for index in indexes if scores[index] > 0][:limit]
 
 
 _HISTORY_TOKEN_RE = re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]+")
