@@ -320,8 +320,22 @@ def load_group_chat_history(group_id, limit=None):
         except Exception:
             continue
         if isinstance(record, dict):
-            records.append(record)
+            records.append({**record, "group_id": str(group_id)})
     return records
+
+
+def list_chat_history_groups():
+    """List archived group IDs and counts without loading message contents."""
+    groups = {}
+    for key in dmc.redis_deamon.scan_iter(match=f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}*"):
+        key = key.decode("utf-8") if isinstance(key, bytes) else key
+        group_id = key[len(_GROUP_CHAT_HISTORY_REDIS_PREFIX):]
+        if not group_id.isascii() or not group_id.isdecimal() or int(group_id) <= 0:
+            continue
+        count = dmc.redis_deamon.llen(key)
+        if count:
+            groups[group_id] = {"group_id": group_id, "message_count": count}
+    return [groups[group_id] for group_id in sorted(groups, key=int)]
 
 
 def search_group_chat_history(group_id, queries, *, user_ids=None, time_start=None, time_end=None,

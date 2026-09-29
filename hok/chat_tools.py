@@ -1,6 +1,7 @@
 """Model-facing tools with request-bound identity, datasets and image artifacts."""
 
 from . import zdynamic as dmc
+from .zstatic import confs
 
 
 class ChatToolUnavailableError(ValueError):
@@ -54,8 +55,10 @@ def _validate(value, schema, path="arguments"):
 class HOKChatTools:
     def __init__(self, *, group_id=None, current_message_id=None, original_query="", user_id=None,
                  use_memory=True):
-        self.group_id = str(group_id) if group_id is not None else None
+        self.group_id = str(group_id) if group_id not in (None, "", 0, "0") else None
         self.user_id = str(user_id) if user_id is not None else None
+        self.cross_group_history = bool(self.user_id and not self.group_id
+                                       and self.user_id == str(confs["QQBot"]["super_qid"]))
         self.current_message_id = current_message_id
         self.original_query = str(original_query or "").strip()
         self.use_memory = bool(use_memory)
@@ -102,19 +105,28 @@ class HOKChatTools:
                 _schema("forget_memory", "按当前用户意愿删除其一条记忆，先 recall_memory 获取 ID。只允许当前用户自己的记忆。", {
                     "memory_id": text}, ["memory_id"]),
             ])
-        if self.group_id:
+        if self.cross_group_history:
+            tools.append(_schema("list_chat_groups", "列出已保存历史记录的群号及消息数，仅管理员私聊可用。检索前据此确定群号，不代表机器人当前加入的完整群列表。", {}))
+        if self.group_id or self.cross_group_history:
+            scope = "指定群" if self.cross_group_history else "当前群"
+            group_param = {"group_id": {"type": ["string", "integer"],
+                          "description": "目标群号，来自用户指定或 list_chat_groups / 检索结果；不能使用消息 ID 代替。"}} if self.cross_group_history else {}
+            group_required = ["group_id"] if self.cross_group_history else []
             tools.extend([
-                _schema("search_chat_history", "检索当前群历史消息。根据原问题生成 2 到 6 组互补查询；命中后可展开上下文。", {
+                _schema("search_chat_history", f"检索{scope}历史消息。根据原问题生成 2 到 6 组互补查询；命中后可展开上下文。", {
+                    **group_param,
                     "queries": {"type": "array", "items": text, "minItems": 1, "maxItems": 6},
                     "user_ids": {"type": "array", "items": text}, "time_start": text, "time_end": text,
-                    "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, ["queries"]),
-                _schema("fetch_chat_context", "根据 message_id 展开当前群前后原始消息。", {
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, ["queries", *group_required]),
+                _schema("fetch_chat_context", f"根据 message_id 展开{scope}前后原始消息。", {
+                    **group_param,
                     "message_id": {"type": ["string", "integer"]},
                     "before": {"type": "integer", "minimum": 0, "maximum": 20},
-                    "after": {"type": "integer", "minimum": 0, "maximum": 20}}, ["message_id"]),
-                _schema("fetch_chat_reply_thread", "根据 message_id 展开当前群引用及回复关系。", {
+                    "after": {"type": "integer", "minimum": 0, "maximum": 20}}, ["message_id", *group_required]),
+                _schema("fetch_chat_reply_thread", f"根据 message_id 展开{scope}引用及回复关系。", {
+                    **group_param,
                     "message_id": {"type": ["string", "integer"]},
-                    "max_depth": {"type": "integer", "minimum": 1, "maximum": 8}}, ["message_id"]),
+                    "max_depth": {"type": "integer", "minimum": 1, "maximum": 8}}, ["message_id", *group_required]),
             ])
         return tools
 
@@ -173,15 +185,25 @@ class HOKChatTools:
             return zfunc.chat_memory_save(self.user_id, arguments["content"], memory_id=arguments.get("memory_id", ""))
         if name == "forget_memory":
             return zfunc.chat_memory_delete(self.user_id, arguments["memory_id"])
+        if name == "list_chat_groups":
+            return zfunc.list_chat_history_groups()
+        if name in {"search_chat_history", "fetch_chat_context", "fetch_chat_reply_thread"}:
+            group_id = self.group_id
+            if self.cross_group_history:
+                group_id = str(arguments["group_id"])
+                available = {group["group_id"] for group in zfunc.list_chat_history_groups()}
+                if group_id not in available:
+                    raise ChatToolUnavailableError(
+                        "chat_group_not_found", "目标群没有已保存的历史记录；请用 list_chat_groups 核对群号。")
         if name == "search_chat_history":
             return zfunc.search_group_chat_history(
-                self.group_id, [self.original_query, *arguments["queries"]],
+                group_id, [self.original_query, *arguments["queries"]],
                 user_ids=arguments.get("user_ids", []), time_start=arguments.get("time_start"), time_end=arguments.get("time_end"),
                 limit=arguments.get("limit", int(getattr(dmc, "ChatHistorySearchLimit", 8))),
-                exclude_message_id=self.current_message_id,
+                exclude_message_id=self.current_message_id if self.group_id else None,
             )
         if name == "fetch_chat_context":
-            return zfunc.fetch_group_chat_context(self.group_id, arguments["message_id"],
+            return zfunc.fetch_group_chat_context(group_id, arguments["message_id"],
                                                  before=arguments.get("before", 5), after=arguments.get("after", 8))
         if name == "fetch_chat_reply_thread":
-            return zfunc.fetch_group_chat_reply_thread(self.group_id, arguments["message_id"], max_depth=arguments.get("max_depth", 4))
+            return zfunc.fetch_group_chat_reply_thread(group_id, arguments["message_id"], max_depth=arguments.get("max_depth", 4))

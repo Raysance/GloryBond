@@ -5,7 +5,7 @@ import re
 
 PRIVATE_TOOLS = {
     "recall_memory", "remember_memory", "forget_memory", "search_chat_history",
-    "fetch_chat_context", "fetch_chat_reply_thread",
+    "fetch_chat_context", "fetch_chat_reply_thread", "list_chat_groups",
 }
 PRIVATE_FIELDS = {
     "reasoning", "reasoning_content", "chain_of_thought", "system_prompt",
@@ -52,8 +52,8 @@ def tool_record(call, arguments, result, *, start_ms, duration_ms, executed):
         error = result.get("error", "")
         if failed and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}(?:Error|Exception)", str(error)):
             diagnostic["error"] = error
-        if result.get("code") == "group_context_required":
-            diagnostic["code"] = "group_context_required"
+        if result.get("code") in {"group_context_required", "chat_group_not_found"}:
+            diagnostic["code"] = result["code"]
         result = {"ok": not failed, **diagnostic, "redacted": "记忆与群聊正文不在分享页公开"}
     return {"call_id": str(call.get("call_id") or call.get("id") or ""), "name": name,
             "arguments": arguments, "observation": result, "start_ms": start_ms,

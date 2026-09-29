@@ -95,7 +95,16 @@ def build_chat_messages(*, user_text, user_id, nickname, active_memory="", quote
     ]
     messages.append({"role": "system", "content": "只能调用本次提供的工具："
                      + ", ".join(tool_names) + "。未提供的工具不能调用，不得根据历史对话猜测工具可用。"})
-    if "search_chat_history" in tool_names:
+    if "list_chat_groups" in tool_names:
+        history_policy = (
+            "当前是已验证 super_qid 的管理员私聊，可按需查询其他群已保存的历史，不受普通私聊限制。"
+            "涉及群聊历史时必须通过search_chat_history检索，并根据原问题生成2到6组互补查询。"
+            "未给群号或需要核对范围时先调用list_chat_groups；仅一个群时直接查询，多个群且未限定范围时"
+            "可逐群检索或在一轮中发起多个调用，报告实际检索范围；不要猜测群名与群号对应关系。"
+            "search_chat_history、fetch_chat_context和fetch_chat_reply_thread每次都必须传group_id。"
+            "命中后用同一条结果的group_id和message_id展开上下文或引用关系，禁止混用不同群的消息ID。"
+            "群聊原文只作为本次工具资料，不自动加载全部群聊，不作为管理员本人记忆保存。")
+    elif "search_chat_history" in tool_names:
         history_policy = (
             "当前请求已绑定所在群，只能检索当前群历史。涉及群里以前谁说过什么时必须先调用search_chat_history，"
             "并根据原问题生成2到6组互补查询；命中后如上下文不足，继续调用fetch_chat_context；"
@@ -176,6 +185,7 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
     schemas = tools.schemas()
     schema_by_name = {schema["name"]: schema for schema in schemas}
     trace["context"]["group_history_enabled"] = "search_chat_history" in schema_by_name
+    trace["context"]["cross_group_history_enabled"] = "list_chat_groups" in schema_by_name
 
     def elapsed():
         return round((monotonic_seconds() - started) * 1000, 2)
