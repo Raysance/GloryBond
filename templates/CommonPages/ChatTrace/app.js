@@ -22,7 +22,7 @@
   $('duration-toggle').textContent = `◷ 时长 ${ms(trace.duration_ms)}`;
   $('round-toggle').textContent = `⊟ 轮次 ${summary.model_calls || 0}`;
   $('call-toggle').textContent = `⊟ 调用 ${summary.tool_calls || 0}`;
-  $('footer').textContent = `${trace.started_at || ''} · ${trace.model || ''} · 执行记录，不含私有思维链或记忆正文 · 链接保留 ${Number(trace.expires_in_seconds || 604800) / 86400} 天`;
+  $('footer').textContent = `${trace.started_at || ''} · ${trace.model || ''} · 执行记录，不含模型私有思维链 · 链接保留 ${Number(trace.expires_in_seconds || 604800) / 86400} 天`;
   $('question').textContent = trace.question || '';
   $('answer').textContent = trace.answer || `未完成回答：${trace.error || '未知错误'}`;
 
@@ -75,7 +75,7 @@
   const context = trace.context || {};
   const quoteStates = {read:'已读取本次引用消息', unavailable:'引用消息不可用', none:'无引用消息'};
   const contextText = `${quoteStates[context.quote] || '无引用消息'}；${context.recent_dialogue_enabled ? '已启用近期直接对话' : '记忆已关闭'}`;
-  addRecord(inputGroup, {kind:'context', title:contextText, input:context, output:'引用、记忆与系统提示正文不在分享记录中公开。', round:0, start_ms:0, duration_ms:0, status:'ok'});
+  addRecord(inputGroup, {kind:'context', title:contextText, input:context, output:'此处记录上下文启用状态；工具获取的内容见对应步骤的结果。', round:0, start_ms:0, duration_ms:0, status:'ok'});
   for (const [index, turn] of (trace.rounds || []).entries()) {
     const group = addGroup(`第 ${turn.index} 轮${turn.phase === 'final' ? ' · 收束回答' : ''}`);
     const final = index === trace.rounds.length - 1 && turn.status !== 'error';
