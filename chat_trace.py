@@ -16,8 +16,8 @@ def valid_trace_key(key):
 
 
 def parse_chat_trace(raw):
-    if not raw or len(raw) > 2 * 1024 * 1024:
-        raise ValueError("missing or oversized chat trace")
+    if not raw:
+        raise ValueError("missing chat trace")
     payload = json.loads(raw)
     if not isinstance(payload, dict) or payload.get("kind") != "chat_trace" or payload.get("version") != 1:
         raise ValueError("invalid chat trace version")

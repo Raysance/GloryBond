@@ -56,6 +56,16 @@ class TracePageTests(unittest.TestCase):
                                      {"url": "/file_transfer/chat_plot_" + "a" * 32 + ".png"}]
         self.assertEqual(len(parse_chat_trace(json.dumps(self.payload))["artifacts"]), 1)
 
+    def test_large_model_payload_is_complete_and_html_safe(self):
+        body = "正文" * 1100000 + "TAIL</script>"
+        self.payload["rounds"] = [{"tools": [], "request_payload": {"messages": [{"content": body}]},
+                                  "response_payload": {"choices": [{"message": {"content": "RESPONSE_END"}}]}}]
+        response = self.client.get("/chat-trace", params={"key": self.key})
+        self.assertEqual(response.status_code, 200)
+        start = response.text.index('id="trace-data"')
+        embedded = response.text[start:].split('>', 1)[1].split('</script>', 1)[0]
+        self.assertEqual(json.loads(embedded)["rounds"], self.payload["rounds"])
+
 
 if __name__ == "__main__":
     unittest.main()

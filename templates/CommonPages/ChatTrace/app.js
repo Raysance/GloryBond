@@ -22,7 +22,7 @@
   $('duration-toggle').textContent = `◷ 时长 ${ms(trace.duration_ms)}`;
   $('round-toggle').textContent = `⊟ 轮次 ${summary.model_calls || 0}`;
   $('call-toggle').textContent = `⊟ 调用 ${summary.tool_calls || 0}`;
-  $('footer').textContent = `${trace.started_at || ''} · ${trace.model || ''} · 执行记录，不含模型私有思维链 · 链接保留 ${Number(trace.expires_in_seconds || 604800) / 86400} 天`;
+  $('footer').textContent = `${trace.started_at || ''} · ${trace.model || ''} · 完整请求 / 响应 payload，凭据脱敏，不含 headers · 链接保留 ${Number(trace.expires_in_seconds || 604800) / 86400} 天`;
   $('question').textContent = trace.question || '';
   $('answer').textContent = trace.answer || `未完成回答：${trace.error || '未知错误'}`;
 
@@ -75,16 +75,23 @@
   const context = trace.context || {};
   const quoteStates = {read:'已读取本次引用消息', unavailable:'引用消息不可用', none:'无引用消息'};
   const contextText = `${quoteStates[context.quote] || '无引用消息'}；${context.recent_dialogue_enabled ? '已启用近期直接对话' : '记忆已关闭'}`;
-  addRecord(inputGroup, {kind:'context', title:contextText, input:context, output:'此处记录上下文启用状态；工具获取的内容见对应步骤的结果。', round:0, start_ms:0, duration_ms:0, status:'ok'});
+  addRecord(inputGroup, {kind:'context', title:contextText, input:context, output:'完整模型上下文见每轮助手步骤的参数；工具返回内容见工具步骤的结果。', round:0, start_ms:0, duration_ms:0, status:'ok'});
   for (const [index, turn] of (trace.rounds || []).entries()) {
-    const group = addGroup(`第 ${turn.index} 轮${turn.phase === 'final' ? ' · 收束回答' : ''}`);
+    const group = addGroup(`第 ${turn.index} 轮${turn.phase === 'recovery' ? ' · 空回复补试' : turn.phase === 'final' ? ' · 收束回答' : ''}`);
     const final = index === trace.rounds.length - 1 && turn.status !== 'error';
-    const output = turn.status === 'error' ? {error:turn.error} : turn.tools.length ? {requested_tools:turn.tools.map(call => call.name)} : trace.answer;
-    addRecord(group, {kind:'model', title:turn.status === 'error' ? `模型请求失败：${turn.error}` : turn.tools.length ? `请求 ${turn.tools.length} 个工具` : brief(trace.answer),
-      input:{model:trace.model, phase:turn.phase, context:'模型原始上下文未公开'}, output,
+    const output = Object.hasOwn(turn, 'response_payload') ? turn.response_payload : turn.status === 'error' ? {error:turn.error} : turn.tools.length ? {requested_tools:turn.tools.map(call => call.name)} : trace.answer;
+    addRecord(group, {kind:'model', title:turn.status === 'error' ? `模型步骤失败：${turn.error}` : turn.tools.length ? `请求 ${turn.tools.length} 个工具` : brief(trace.answer),
+      input:turn.request_payload ?? {model:trace.model, phase:turn.phase, notice:'此历史记录未采集请求 payload'}, output,
+      metadata:turn.response_meta, diagnostics:turn.diagnostics,
       round:turn.index, start_ms:turn.start_ms, duration_ms:turn.duration_ms, status:turn.status, final:final && !turn.tools.length});
     for (const [step, call] of turn.tools.entries()) addRecord(group, {...call, kind:'tool', title:call.name,
       input:call.arguments, output:call.observation, round:turn.index, step:step + 1, schema:trace.schemas?.[call.name]});
+  }
+  if (trace.failure || trace.warnings?.length || trace.recovery?.outcome === 'fallback') {
+    const group = addGroup('运行诊断');
+    addRecord(group, {kind:'context', title:trace.failure ? `失败阶段：${trace.failure.stage}` : '降级与警告',
+      input:null, output:{failure:trace.failure, warnings:trace.warnings, recovery:trace.recovery},
+      round:0, start_ms:trace.duration_ms, duration_ms:0, status:trace.failure ? 'error' : 'partial'});
   }
   const empty = el('p', 'empty', '没有匹配的记录'); empty.hidden = true; $('events').append(empty);
 
@@ -126,7 +133,7 @@
     } else if (item.input?.code) {
       code(parent, 'Python', item.input.code, 'python');
       const params = {...item.input}; delete params.code; code(parent, '参数', params);
-    } else code(parent, '参数', item.input);
+    } else code(parent, item.kind === 'model' ? '完整请求 payload' : '参数', item.input);
   }
   function resultDetails(parent, item) {
     const observations = item.output?.data?.observations;
@@ -144,7 +151,9 @@
       raw.open=value.ok === false || !value.rows?.length; parent.append(raw);
     });
     else if (typeof item.output === 'string') parent.append(el('div','prose',item.output));
-    else code(parent,'结果',item.output);
+    else code(parent,item.kind === 'model' ? '完整响应 payload' : '结果',item.output);
+    if (item.metadata) code(parent,'结束原因与用量',item.metadata);
+    if (item.diagnostics) code(parent,'错误阶段与异常链',item.diagnostics);
     if (item.final) {const gallery=el('div','charts'); charts(gallery); parent.append(gallery);}
   }
   function timing(parent,item) {
