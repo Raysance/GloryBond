@@ -9,6 +9,7 @@ from local_debugger import import_hok_module
 ZFUNC = import_hok_module("zfunc")
 CHAT = import_hok_module("zchat")
 TOOLS = import_hok_module("chat_tools")
+IDENTITY = import_hok_module("business.user_helpers")
 
 
 class FakeRedisList:
@@ -110,8 +111,9 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         self.assertEqual([record["group_id"] for record in records], ["200", "200"])
 
     def test_cross_group_access_requires_super_id_in_private_event(self):
-        history = {"search_chat_history", "fetch_chat_context", "fetch_chat_reply_thread"}
+        history = {"search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context", "fetch_chat_reply_thread"}
         calls = {"list_chat_groups": {}, "search_chat_history": {"queries": ["内卷"]},
+                 "fetch_recent_chat_messages": {},
                  "fetch_chat_context": {"message_id": "1"}, "fetch_chat_reply_thread": {"message_id": "1"}}
         with patch.dict(ZFUNC.confs["QQBot"], {"super_qid": 999}):
             for user_id, group_id in [(999, None), ("999", 0), (999, "200"), (100, None), (100, "200"), (None, None)]:
@@ -141,11 +143,54 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
                 with self.subTest(group_id=group_id):
                     hits = tools.execute("search_chat_history", {"group_id": group_id, "queries": ["内卷"]})
                     self.assertEqual(hits[0]["message_id"], "42")
+                    recent = tools.execute("fetch_recent_chat_messages", {"group_id": group_id})
+                    self.assertEqual({message["message_id"] for message in recent["messages"]}, {"42", "43"})
                     context = tools.execute("fetch_chat_context", {"group_id": int(group_id), "message_id": "42"})
                     thread = tools.execute("fetch_chat_reply_thread", {"group_id": group_id, "message_id": "43"})
                     for records in (context, thread):
                         self.assertEqual([record["message_id"] for record in records], ["42", "43"])
                         self.assertTrue(all(record["group_id"] == group_id and marker in record["text"] for record in records))
+
+    def test_recent_player_messages_resolve_alias_and_order_without_keywords(self):
+        with patch.object(IDENTITY, "qid", {"player": "100"}), \
+                patch.object(IDENTITY, "nameref", {"player": ["示例玩家41"]}), \
+                patch.object(IDENTITY, "namenick", {"player": "昵称"}):
+            ZFUNC.record_group_chat_message("200", "100", "今晚吃面", message_id="1")
+            ZFUNC.record_group_chat_message("200", "101", "另一个用户", message_id="2")
+            ZFUNC.record_group_chat_message("200", "100", "散步回来了", message_id="3")
+            ZFUNC.record_group_chat_message("200", "100", "正在提问", message_id="4")
+            tools = TOOLS.HOKChatTools(user_id="100", group_id="200", current_message_id="4")
+            result = tools.execute("fetch_recent_chat_messages", {"players": ["示例玩家41"], "limit": 1})
+        self.assertEqual(result["qq_ids"], ["100"])
+        self.assertEqual(result["messages"][0]["message_id"], "3")
+        self.assertEqual(result["total_matches"], 2)
+        self.assertTrue(result["truncated"])
+
+    def test_game_id_filter_rejected_with_correct_qq_hint(self):
+        with patch.object(IDENTITY, "qid", {"player": "100"}), \
+                patch.object(IDENTITY, "userlist", {"player": "900"}), \
+                patch.object(IDENTITY, "roleidlist", {"player": "901"}):
+            tools = TOOLS.HOKChatTools(group_id="200")
+            for name, args in [("fetch_recent_chat_messages", {"qq_ids": ["900"]}),
+                               ("search_chat_history", {"user_ids": ["901"], "queries": ["好"]})]:
+                with self.subTest(name=name), patch.object(ZFUNC, "load_group_chat_history") as load:
+                    with self.assertRaisesRegex(ValueError, "chat_game_id_not_qq.*100"):
+                        tools.execute(name, args)
+                    load.assert_not_called()
+
+    def test_recent_time_window_and_exact_alias_validation(self):
+        records = [{"user_id": "100", "timestamp": stamp, "text": str(stamp), "message_id": str(stamp)}
+                   for stamp in [30, 10, 20]]
+        with patch.object(ZFUNC, "load_group_chat_history", return_value=records), \
+                patch("hok.ztime.parse_chat_time_bound", side_effect=[15, 25]):
+            result = ZFUNC.recent_group_chat_messages("200", time_start="start", time_end="end")
+        self.assertEqual([message["timestamp"] for message in result["messages"]], [20])
+        with patch.object(IDENTITY, "qid", {"a": "100", "b": "101"}), \
+                patch.object(IDENTITY, "nameref", {"a": ["重名"], "b": ["重名"]}), \
+                patch.object(IDENTITY, "namenick", {}):
+            for label in ["重名", "不存在"]:
+                with self.assertRaisesRegex(ValueError, "chat_player_identity"):
+                    ZFUNC.resolve_chat_history_users([label])
 
     def test_admin_must_supply_an_archived_group_and_cannot_override_identity(self):
         with patch.dict(ZFUNC.confs["QQBot"], {"super_qid": 999}):

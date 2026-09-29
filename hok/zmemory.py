@@ -410,6 +410,19 @@ def _bm25_scores(query_tokens: List[str], documents: List[List[str]]) -> List[fl
     return scores
 
 
+def recent_history_records(records, *, user_ids=None, limit=20, exclude_message_id=None):
+    """Read recent speech without imposing a keyword match on the speaker."""
+    allowed = {str(value) for value in user_ids or []}
+    candidates = [(index, record) for index, record in enumerate(records)
+                  if (not allowed or str(record.get("user_id")) in allowed)
+                  and (exclude_message_id is None or str(record.get("message_id")) != str(exclude_message_id))
+                  and str(record.get("text", "")).strip()]
+    candidates.sort(key=lambda item: (int(item[1].get("timestamp") or 0), item[0]), reverse=True)
+    messages = [dict(record) for _, record in candidates[:max(1, int(limit))]]
+    return {"messages": messages, "total_matches": len(candidates), "returned": len(messages),
+            "truncated": len(candidates) > len(messages), "order": "newest_first"}
+
+
 def search_history_records(records, queries, *, user_ids=None, limit=8, exclude_message_id=None):
     """Search group records with multi-query BM25 and reciprocal-rank fusion."""
     normalized_queries = []

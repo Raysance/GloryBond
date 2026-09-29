@@ -1,4 +1,4 @@
-"""Bounded, public execution records. Never serialize model context or reasoning."""
+"""Body-only execution records, credential scrubbing and error diagnostics."""
 
 import re
 
@@ -9,19 +9,15 @@ PRIVATE_FIELDS = {
 }
 
 
-def public_value(value, *, secrets=(), depth=0):
-    """Scrub known credentials/paths and bound previews before sharing a record."""
-    if depth > 18:
-        return "[预览层级已截断]"
+def public_value(value, *, secrets=(), payload=False):
+    """Preserve complete provider payloads; never capture HTTP headers or credentials."""
     if isinstance(value, dict):
-        return {str(key): public_value(child, secrets=secrets, depth=depth + 1)
-                for key, child in list(value.items())[:80]
-                if str(key).lower() not in PRIVATE_FIELDS}
+        private = {"api_key", "authorization", "password", "secret", "headers", "api-key", "x-api-key"} if payload else PRIVATE_FIELDS | {"headers"}
+        return {str(key): public_value(child, secrets=secrets,
+                                      payload=payload or key in {"request_payload", "response_payload"})
+                for key, child in value.items() if str(key).lower() not in private}
     if isinstance(value, (list, tuple)):
-        result = [public_value(child, secrets=secrets, depth=depth + 1) for child in value[:200]]
-        if len(value) > 200:
-            result.append({"preview_truncated": True, "total_items": len(value)})
-        return result
+        return [public_value(child, secrets=secrets, payload=payload) for child in value]
     if isinstance(value, str):
         for secret in secrets:
             if secret:
@@ -29,9 +25,41 @@ def public_value(value, *, secrets=(), depth=0):
         value = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}", "[凭据已隐藏]", value)
         value = re.sub(r"(?i)(?:postgres(?:ql)?|socks5h?)://\S+", "[连接信息已隐藏]", value)
         value = re.sub(r"(?i)(Bearer\s+)\S+", r"\1[凭据已隐藏]", value)
-        value = re.sub(r"(?<!\w)/(?:srv|tmp|Users|home|etc|opt|var|QQBot)/[^\s\"'<>]+", "[本地路径已隐藏]", value)
-        return value[:20000] + ("\n[预览已截断]" if len(value) > 20000 else "")
-    return value if value is None or isinstance(value, (bool, int, float)) else public_value(str(value), secrets=secrets)
+        if not payload:
+            value = re.sub(r"(?<!\w)/(?:srv|tmp|Users|home|etc|opt|var|QQBot)/[^\s\"'<>]+", "[本地路径已隐藏]", value)
+        return value
+    return value if value is None or isinstance(value, (bool, int, float)) else public_value(str(value), secrets=secrets, payload=payload)
+
+
+def error_record(error, stage):
+    """Keep cause chains and stack locations without frame locals or HTTP objects."""
+    chain, seen = [], set()
+    current = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        frames, frame = [], current.__traceback__
+        while frame is not None:
+            frames.append({"module": frame.tb_frame.f_globals.get("__name__", ""),
+                           "function": frame.tb_frame.f_code.co_name, "line": frame.tb_lineno})
+            frame = frame.tb_next
+        item = {"type": type(current).__name__, "detail": str(current), "frames": frames}
+        for key in ("status_code", "request_id"):
+            if getattr(current, key, None) is not None:
+                item[key] = getattr(current, key)
+        chain.append(item)
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+    return {"stage": stage, "causes": chain}
+
+
+def failed_request_payloads(error):
+    """Find adapter body snapshots through an existing compatibility wrapper."""
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if hasattr(error, "request_payload"):
+            return {"request_payload": error.request_payload, "response_payload": error.response_payload}
+        error = error.__cause__ or (None if error.__suppress_context__ else error.__context__)
+    return {}
 
 
 def tool_record(call, arguments, result, *, start_ms, duration_ms, executed):

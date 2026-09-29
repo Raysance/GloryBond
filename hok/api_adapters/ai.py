@@ -1,5 +1,7 @@
 """OpenAI-compatible text and image API adapters."""
 
+import json
+
 from openai import DefaultHttpxClient, OpenAI
 from ratelimit import limits, sleep_and_retry
 
@@ -9,6 +11,24 @@ from ..zstatic import ark_model_url, chat_api_config, confs
 from ..ztime import sleep_seconds
 from ..zutil import log_message
 from .proxy import clash_request
+
+
+class AIRequestError(RuntimeError):
+    """Keep body-only diagnostics even when the SDK raises before normalization."""
+
+    def __init__(self, error, request_payload, response_payload=None):
+        super().__init__(f"{type(error).__name__}: {error}")
+        self.request_payload = request_payload
+        self.response_payload = response_payload if response_payload is not None else getattr(error, "body", None)
+        raw_response = getattr(error, "response", None)
+        if response_payload is None and raw_response is not None:
+            try:
+                self.response_payload = raw_response.json()
+            except ValueError:
+                self.response_payload = raw_response.text
+        self.status_code = getattr(error, "status_code", None)
+        self.request_id = getattr(error, "request_id", None)
+
 
 def _chat_completion_create(input_items, tools=None, tool_choice="auto", temperature=None, timeout=30):
     """Call SJTU through its dedicated VPN proxy and retain tool continuation state."""
@@ -46,12 +66,32 @@ def _chat_completion_create(input_items, tools=None, tool_choice="auto", tempera
     elif tool_choice == "none":
         request["tool_choice"] = "none"
 
-    with OpenAI(
-        api_key=chat_api_config["api_key"],
-        base_url=chat_api_config["base_url"],
-        http_client=DefaultHttpxClient(proxy=chat_api_config["proxy_url"], trust_env=False),
-    ) as client:
-        response = client.chat.completions.create(**request)
+    request_payload = {key: value for key, value in request.items() if key != "timeout"}
+    response_payload = None
+    try:
+        with OpenAI(
+            api_key=chat_api_config["api_key"],
+            base_url=chat_api_config["base_url"],
+            http_client=DefaultHttpxClient(proxy=chat_api_config["proxy_url"], trust_env=False),
+        ) as client:
+            raw = client.chat.completions.with_raw_response.create(**request)
+            request_payload = json.loads(raw.http_request.content)
+            response_payload = raw.text
+            response_payload = json.loads(raw.content)
+            response = raw.parse()
+        return _chat_completion_result(response, request_payload, response_payload, raw.status_code)
+    except Exception as error:
+        raise AIRequestError(error, request_payload, response_payload) from error
+
+def _chat_completion_result(response, request_payload, response_payload, status_code):
+    """Normalize content while retaining the unmodified provider bodies."""
+    diagnostics = {"request_payload": request_payload, "response_payload": response_payload,
+                   "response_meta": {"response_id": response.id, "model": response.model,
+                                     "status_code": status_code,
+                                     "usage": response_payload.get("usage"),
+                                     "finish_reason": response.choices[0].finish_reason if response.choices else "missing_choice"}}
+    if not response.choices:
+        return {"content": "", "tool_calls": [], "output_items": [], "model": response.model, **diagnostics}
 
     message = response.choices[0].message
     assistant_message = {"role": "assistant", "content": message.content}
@@ -79,6 +119,7 @@ def _chat_completion_create(input_items, tools=None, tool_choice="auto", tempera
         "output_items": [assistant_message],
         "response_id": response.id,
         "model": response.model,
+        **diagnostics,
     }
 
 

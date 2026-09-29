@@ -8,7 +8,7 @@ from .chat_roles import build_role_prompt
 from .zapi import ai_response_create
 from .zstatic import chat_pmpt, chat_role, nameref, pmpt_style_templates, qid, roleidlist, userlist, this_season_start_date
 from .ztime import current_datetime_text, get_timebased_rand, monotonic_seconds
-from .business.chat_trace import public_value, tool_record, trace_summary
+from .business.chat_trace import error_record, failed_request_payloads, public_value, tool_record, trace_summary
 
 
 from .chat_tools import ChatToolUnavailableError, HOKChatTools
@@ -98,15 +98,15 @@ def build_chat_messages(*, user_text, user_id, nickname, active_memory="", quote
     if "list_chat_groups" in tool_names:
         history_policy = (
             "当前是已验证 super_qid 的管理员私聊，可按需查询其他群已保存的历史，不受普通私聊限制。"
-            "涉及群聊历史时必须通过search_chat_history检索，并根据原问题生成2到6组互补查询。"
+            "涉及具体话题或关键词时必须先调用search_chat_history，并根据原问题生成2到6组互补查询。"
             "未给群号或需要核对范围时先调用list_chat_groups；仅一个群时直接查询，多个群且未限定范围时"
             "可逐群检索或在一轮中发起多个调用，报告实际检索范围；不要猜测群名与群号对应关系。"
-            "search_chat_history、fetch_chat_context和fetch_chat_reply_thread每次都必须传group_id。"
+            "search_chat_history、fetch_recent_chat_messages、fetch_chat_context和fetch_chat_reply_thread每次都必须传group_id。"
             "命中后用同一条结果的group_id和message_id展开上下文或引用关系，禁止混用不同群的消息ID。"
             "群聊原文只作为本次工具资料，不自动加载全部群聊，不作为管理员本人记忆保存。")
     elif "search_chat_history" in tool_names:
         history_policy = (
-            "当前请求已绑定所在群，只能检索当前群历史。涉及群里以前谁说过什么时必须先调用search_chat_history，"
+            "当前请求已绑定所在群，只能检索当前群历史。涉及具体话题或关键词时必须先调用search_chat_history，"
             "并根据原问题生成2到6组互补查询；命中后如上下文不足，继续调用fetch_chat_context；"
             "涉及谁回复了谁时调用fetch_chat_reply_thread。")
     else:
@@ -115,6 +115,11 @@ def build_chat_messages(*, user_text, user_id, nickname, active_memory="", quote
             "直接说明请在目标群内发送同一查询；仅在私聊里提供群号不会启用检索。"
             "这是会话范围限制，不能说成工具故障、服务未接入或需要修复，也不能猜测或替用户选择群。")
     messages.append({"role": "system", "content": history_policy})
+    if "fetch_recent_chat_messages" in tool_names:
+        messages.append({"role": "system", "content":
+                         "问某人最近在说什么，优先调用fetch_recent_chat_messages按时间读取，不需要猜测关键词或查游戏SQL。"
+                         "使用players传玩家别名，程序会解析为QQ号；qq_ids及兼容user_ids只接受QQ号，禁止填营地ID或游戏role_id。"
+                         "零命中时先核对身份和时间范围，不要在相同错误身份下反复换关键词。获取近期发言后即可总结，注明实际覆盖。"})
     if "remember_memory" in tool_names:
         memory_policy = (
             "记忆由工具语义驱动，无需记住等关键词。当前用户直接表达稳定偏好、长期事实或要求记忆时，"
@@ -128,12 +133,13 @@ def build_chat_messages(*, user_text, user_id, nickname, active_memory="", quote
     known_users = []
     for player_name, user_qid in qid.items():
         aliases = nameref.get(player_name, []) if isinstance(nameref, dict) else []
-        known_users.append({"player": player_name, "qid": str(user_qid), "aliases": aliases,
-                            "user_id": str(userlist.get(player_name, "")),
-                            "role_id": str(roleidlist.get(player_name, ""))})
+        known_users.append({"player": player_name, "qq_id": str(user_qid), "aliases": aliases,
+                            "game_user_id": str(userlist.get(player_name, "")),
+                            "game_role_id": str(roleidlist.get(player_name, ""))})
     messages.append({
         "role": "system",
-        "content": "已知玩家、QQ号和别名，仅用于解析查询参数：" + json.dumps(known_users, ensure_ascii=False),
+        "content": "已知玩家与身份：qq_id用于群聊；game_user_id/game_role_id对应游戏SQL的user_id/role_id，不能混用。"
+                   + json.dumps(known_users, ensure_ascii=False),
     })
     if role_prompt:
         messages.append({"role": "system", "content": role_prompt})
@@ -166,26 +172,24 @@ class ChatRunError(RuntimeError):
 
 def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None, use_memory=True,
                  tool_registry=None, model_caller=None, return_artifacts=False, quoted_message=None):
-    """Run the bounded loop, recording observable execution rather than reasoning."""
+    """Run a bounded loop, preserving actual provider bodies and failure stages."""
     from .zmemory import instance as memory
     from .zstatic import chat_api_config
 
     started = monotonic_seconds()
     remaining = max(1, int(getattr(dmc, "ChatToolBudget", 16)))
     max_rounds = max(1, int(getattr(dmc, "ChatMaxRounds", 10)))
+    empty_retries = min(1, max(0, int(getattr(dmc, "ChatEmptyResponseRetries", 1))))
+    stage = "initialize"
     trace = {"kind": "chat_trace", "version": 1, "question": str(user_text),
              "started_at": current_datetime_text(), "model": chat_api_config.get("model", ""),
-             "limits": {"max_rounds": max_rounds, "tool_budget": remaining}, "rounds": [], "schemas": {},
+             "limits": {"max_rounds": max_rounds, "tool_budget": remaining,
+                        "empty_response_retries": empty_retries}, "rounds": [], "schemas": {},
              "context": {"recent_dialogue_enabled": bool(use_memory),
                          "quote": "read" if quoted_message and quoted_message.get("available") else
                                   "unavailable" if quoted_message else "none"}}
-    tools = tool_registry or HOKChatTools(group_id=group_id, current_message_id=message_id,
-                                         original_query=user_text, user_id=user_id, use_memory=use_memory)
+    tools = tool_registry
     caller = model_caller or ai_response_create
-    schemas = tools.schemas()
-    schema_by_name = {schema["name"]: schema for schema in schemas}
-    trace["context"]["group_history_enabled"] = "search_chat_history" in schema_by_name
-    trace["context"]["cross_group_history_enabled"] = "list_chat_groups" in schema_by_name
 
     def elapsed():
         return round((monotonic_seconds() - started) * 1000, 2)
@@ -195,8 +199,10 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                      summary=trace_summary(trace["rounds"]))
         return public_value(trace, secrets=(chat_api_config.get("api_key"),))
 
-    def ask(input_items, *, final=False):
-        turn = {"index": len(trace["rounds"]) + 1, "phase": "final" if final else "loop",
+    def ask(input_items, *, final=False, recovery=False):
+        nonlocal stage
+        stage = "model_request"
+        turn = {"index": len(trace["rounds"]) + 1, "phase": "recovery" if recovery else "final" if final else "loop",
                 "start_ms": elapsed(), "status": "running", "tools": []}
         trace["rounds"].append(turn)
         try:
@@ -204,29 +210,85 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                               tool_choice="none" if final else "auto", network=False)
             turn["status"] = "ok"
             turn["requested_calls"] = len(response.get("tool_calls") or [])
+            for key in ("request_payload", "response_payload", "response_meta"):
+                if key in response:
+                    # Snapshot before the next round mutates the continuation list.
+                    turn[key] = json.loads(json.dumps(response[key], ensure_ascii=False, default=str))
+            turn.setdefault("response_meta", {})["content_chars"] = len(response.get("content") or "")
             if response.get("model"):
                 trace["model"] = response["model"]
-            # output_items / reasoning_content are deliberately never put in the trace.
             return response, turn
         except Exception as error:
-            turn.update(status="error", error=type(error).__name__)
+            turn.update(status="error", error=type(error).__name__, diagnostics=error_record(error, stage),
+                        **failed_request_payloads(error))
             raise
         finally:
             turn["duration_ms"] = round(elapsed() - turn["start_ms"], 2)
 
     def finish(content, error_name):
+        nonlocal stage
+        stage = "finalize"
         final_text = normalize_qq_text(content)
+        recovered = False
         if not final_text:
-            raise ValueError(error_name)
-        if use_memory:
-            memory.save_active_chat(str(user_id), str(user_text), final_text)
+            trace["rounds"][-1].update(status="error", error=error_name,
+                                       diagnostics=error_record(ValueError(error_name), stage))
+            trace["recovery"] = {"reason": error_name, "attempts": 0}
+            if empty_retries:
+                trace["recovery"]["attempts"] = 1
+                input_items.append({"role": "system", "content":
+                                    "上次模型返回了空回答。不要调用工具，请只根据已有observation给出简短的最终回答；"
+                                    "如没有足够证据，明确说明已查询的范围和缺失的信息，必须输出正文。"})
+                try:
+                    response, turn = ask(input_items, final=True, recovery=True)
+                    final_text = normalize_qq_text(response.get("content"))
+                    if not final_text:
+                        turn.update(status="error", error="chat_empty_response_after_recovery",
+                                    diagnostics=error_record(ValueError("chat_empty_response_after_recovery"), "finalize"))
+                except Exception:
+                    # ask() has retained the failed request body and exception chain.
+                    pass
+                recovered = bool(final_text)
+            trace["recovery"]["outcome"] = "recovered" if recovered else "fallback"
+        fallback = not final_text
+        if fallback:
+            excerpts = []
+            for turn in trace["rounds"]:
+                for call in turn["tools"]:
+                    if call["name"] not in {"search_chat_history", "fetch_recent_chat_messages"}:
+                        continue
+                    data = call["observation"].get("data", [])
+                    records = data.get("messages", []) if isinstance(data, dict) else data
+                    for record in records if isinstance(records, list) else []:
+                        if isinstance(record, dict) and record.get("text"):
+                            excerpt = f"{record.get('time', record.get('timestamp', ''))} QQ {record.get('user_id', '')}：{record['text']}"
+                            if excerpt not in excerpts:
+                                excerpts.append(excerpt)
+            final_text = "模型未能生成最终正文；已保留查询结果和错误运行记录。"
+            if excerpts:
+                final_text += "\n已读取的发言摘录：\n" + "\n".join(excerpts[:5])
+        if use_memory and not fallback:
+            stage = "memory_save"
+            try:
+                memory.save_active_chat(str(user_id), str(user_text), final_text)
+            except Exception as error:
+                trace.setdefault("warnings", []).append(error_record(error, stage))
+        stage = "complete"
         if return_artifacts:
             return {"text": final_text, "artifacts": list(getattr(tools, "artifacts", [])),
-                    "trace": public_trace("ok", final_text)}
+                    "trace": public_trace("partial" if fallback or trace.get("warnings") else "ok", final_text)}
         return final_text
 
     try:
+        tools = tools or HOKChatTools(group_id=group_id, current_message_id=message_id,
+                                     original_query=user_text, user_id=user_id, use_memory=use_memory)
+        schemas = tools.schemas()
+        schema_by_name = {schema["name"]: schema for schema in schemas}
+        trace["context"]["group_history_enabled"] = "search_chat_history" in schema_by_name
+        trace["context"]["cross_group_history_enabled"] = "list_chat_groups" in schema_by_name
+        stage = "memory_load"
         active_memory = memory.load_active_chat(str(user_id), 5) if use_memory else ""
+        stage = "build_context"
         input_items = build_chat_messages(user_text=str(user_text), user_id=str(user_id),
                                          nickname=str(nickname), active_memory=active_memory,
                                          quoted_message=quoted_message, tool_names=tuple(schema_by_name))
@@ -248,17 +310,19 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                     result = {"ok": False, "error": "tool_budget_exhausted"}
                 else:
                     try:
+                        stage = "tool_execute"
                         arguments = json.loads(arguments)
                         if not isinstance(arguments, dict):
                             raise ValueError("tool arguments must be an object")
                         result = {"ok": True, "data": tools.execute(name, arguments)}
                     except Exception as error:
-                        result = {"ok": False, "error": type(error).__name__, "detail": str(error)}
+                        result = {"ok": False, "error": type(error).__name__, "detail": str(error),
+                                  "diagnostics": error_record(error, stage)}
                         if isinstance(error, ChatToolUnavailableError):
                             result["code"] = error.code
                     remaining -= 1
                 serialized = _serialize_tool_result(result)
-                turn["tools"].append(tool_record(call, arguments, json.loads(serialized),
+                turn["tools"].append(tool_record(call, arguments, result,
                                                 start_ms=begin, duration_ms=round(elapsed() - begin, 2),
                                                 executed=executed))
                 input_items.append({"type": "function_call_output", "call_id": call_id, "output": serialized})
@@ -272,6 +336,7 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         response, _ = ask(input_items, final=True)
         return finish(response.get("content"), "chat_empty_response_after_round_limit")
     except Exception as error:
+        trace["failure"] = error_record(error, stage)
         if not return_artifacts:
             raise
         raise ChatRunError(error, public_trace("error", error=type(error).__name__),

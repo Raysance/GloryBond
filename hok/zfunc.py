@@ -338,11 +338,13 @@ def list_chat_history_groups():
     return [groups[group_id] for group_id in sorted(groups, key=int)]
 
 
-def search_group_chat_history(group_id, queries, *, user_ids=None, time_start=None, time_end=None,
-                              limit=8, exclude_message_id=None):
-    from .zmemory import search_history_records
-    from .ztime import parse_chat_time_bound
+def resolve_chat_history_users(players=(), qq_ids=()):
+    from .business.user_helpers import resolve_chat_qq_ids
+    return resolve_chat_qq_ids(players, qq_ids)
 
+
+def _load_chat_history_window(group_id, time_start=None, time_end=None):
+    from .ztime import parse_chat_time_bound
     records = load_group_chat_history(group_id)
     start_timestamp = parse_chat_time_bound(time_start, is_end=False)
     end_timestamp = parse_chat_time_bound(time_end, is_end=True)
@@ -350,6 +352,21 @@ def search_group_chat_history(group_id, queries, *, user_ids=None, time_start=No
         records = [record for record in records if int(record.get("timestamp") or 0) >= start_timestamp]
     if end_timestamp is not None:
         records = [record for record in records if int(record.get("timestamp") or 0) <= end_timestamp]
+    return records
+
+
+def recent_group_chat_messages(group_id, *, user_ids=None, time_start=None, time_end=None,
+                               limit=20, exclude_message_id=None):
+    from .zmemory import recent_history_records
+    result = recent_history_records(_load_chat_history_window(group_id, time_start, time_end),
+                                    user_ids=user_ids, limit=limit, exclude_message_id=exclude_message_id)
+    return {"group_id": str(group_id), "qq_ids": list(user_ids or []), **result}
+
+
+def search_group_chat_history(group_id, queries, *, user_ids=None, time_start=None, time_end=None,
+                              limit=8, exclude_message_id=None):
+    from .zmemory import search_history_records
+    records = _load_chat_history_window(group_id, time_start, time_end)
     return search_history_records(
         records,
         queries,
@@ -534,8 +551,6 @@ def chat_publish_trace(trace, artifacts=()):
     ]
     payload["expires_in_seconds"] = max(60, int(getattr(dmc, "ChatTraceExpireSeconds", 604800)))
     serialized = json.dumps(payload, ensure_ascii=False)
-    if len(serialized.encode("utf-8")) > 2 * 1024 * 1024:
-        raise ValueError("chat_trace_payload_too_large")
     saved = dmc.redis_deamon.set(f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{token}", serialized,
                                  ex=payload["expires_in_seconds"])
     if not saved:

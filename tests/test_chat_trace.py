@@ -64,6 +64,86 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         self.assertEqual(trace["stop_reason"], "round_limit")
 
+    def test_empty_final_retries_once_without_reexecuting_tools(self):
+        requests = []
+        def model(messages, **kwargs):
+            requests.append(kwargs)
+            if len(requests) == 1:
+                return {"tool_calls": [{"call_id": "1", "name": "lookup", "arguments": "{}"}]}
+            if len(requests) == 2:
+                return {"content": "", "response_meta": {"finish_reason": "length", "usage": {"total_tokens": 99}}}
+            return {"content": "恢复后的回答"}
+        with patch.object(CHAT.dmc, "ChatMaxRounds", 1):
+            result = self.run_chat(model)
+        trace = result["trace"]
+        self.assertEqual(result["text"], "恢复后的回答")
+        self.assertEqual(trace["recovery"]["outcome"], "recovered")
+        self.assertEqual(trace["summary"]["tool_calls"], 1)
+        self.assertEqual([request["tool_choice"] for request in requests], ["auto", "none", "none"])
+        self.assertEqual(trace["rounds"][1]["status"], "error")
+        self.assertEqual(trace["rounds"][1]["response_meta"]["finish_reason"], "length")
+
+    def test_repeated_empty_answer_returns_partial_and_is_not_saved(self):
+        calls = []
+        def model(messages, **kwargs):
+            calls.append(kwargs)
+            return {"content": "", "reasoning_content": "NOT_AN_ANSWER"}
+        with patch.object(MEMORY.instance, "load_active_chat", return_value=""), \
+                patch.object(MEMORY.instance, "save_active_chat") as save:
+            result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", model_caller=model,
+                                       tool_registry=Registry(), return_artifacts=True)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result["trace"]["status"], "partial")
+        self.assertEqual(result["trace"]["recovery"]["outcome"], "fallback")
+        self.assertNotIn("NOT_AN_ANSWER", result["text"])
+        save.assert_not_called()
+
+    def test_recovery_transport_error_keeps_causes_and_payload(self):
+        adapter = import_hok_module("api_adapters.ai")
+        calls = []
+        def model(messages, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                return {"content": ""}
+            try:
+                raise ValueError("upstream unavailable sk-testsecret111")
+            except ValueError as error:
+                raise adapter.AIRequestError(error, {"messages": [{"content": "RETRY_INPUT"}]},
+                                             {"error": "UPSTREAM_BODY"}) from error
+        result = self.run_chat(model)
+        turn = result["trace"]["rounds"][-1]
+        self.assertEqual(turn["response_payload"], {"error": "UPSTREAM_BODY"})
+        self.assertEqual(turn["diagnostics"]["stage"], "model_request")
+        self.assertEqual(len(turn["diagnostics"]["causes"]), 2)
+        self.assertNotIn("sk-testsecret111", json.dumps(result))
+
+    def test_payload_survives_publication_without_preview_limits(self):
+        payload = {"messages": [{"role": "system", "content": "x" * 25000 + "TAIL"}] * 201,
+                   "extra": {str(index): index for index in range(90)}}
+        response = {"choices": [{"message": {"content": "OUTPUT", "reasoning_content": "PROVIDER_FIELD"}}]}
+        trace = {"kind": "chat_trace", "version": 1, "rounds": [{"tools": [],
+                 "request_payload": payload, "response_payload": response}]}
+        sanitized = TRACE.public_value(trace)
+        self.assertEqual(sanitized, trace)
+        with patch.object(FUNC.dmc.redis_deamon, "set", return_value=True) as save:
+            FUNC.chat_publish_trace(sanitized)
+        stored = json.loads(save.call_args.args[1])
+        self.assertEqual(stored["rounds"], trace["rounds"])
+
+    def test_pre_model_failure_and_memory_save_warning_keep_stage(self):
+        with patch.object(MEMORY.instance, "load_active_chat", side_effect=RuntimeError("redis load failed")):
+            with self.assertRaises(CHAT.ChatRunError) as raised:
+                CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True)
+        self.assertEqual(raised.exception.trace["failure"]["stage"], "memory_load")
+        self.assertEqual(raised.exception.trace["rounds"], [])
+        with patch.object(MEMORY.instance, "load_active_chat", return_value=""), \
+                patch.object(MEMORY.instance, "save_active_chat", side_effect=RuntimeError("redis save failed")):
+            result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True,
+                                       model_caller=lambda *args, **kwargs: {"content": "正常答案"})
+        self.assertEqual(result["text"], "正常答案")
+        self.assertEqual(result["trace"]["status"], "partial")
+        self.assertEqual(result["trace"]["warnings"][0]["stage"], "memory_save")
+
     def test_model_error_keeps_previous_observation(self):
         def model(messages, **kwargs):
             if any(item.get("type") == "function_call_output" for item in messages):
@@ -75,6 +155,8 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(trace["status"], "error")
         self.assertEqual(trace["rounds"][0]["tools"][0]["observation"]["error"], "JSONDecodeError")
         self.assertEqual(trace["rounds"][1]["status"], "error")
+        self.assertEqual(trace["failure"]["stage"], "model_request")
+        self.assertIn("private server", trace["failure"]["causes"][0]["detail"])
         self.assertNotIn("sk-testsecret", json.dumps(trace))
 
     def test_memory_and_history_arguments_and_results_are_visible_but_credentials_are_hidden(self):

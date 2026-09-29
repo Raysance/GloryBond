@@ -10,6 +10,8 @@ from ..zstatic import (
     namenick,
     nameref,
     qid,
+    userlist,
+    roleidlist,
 )
 from .history_query import txt_contain
 
@@ -35,6 +37,30 @@ def qid2realname(user_qid):
 def qid2nick(user_qid):
     realname = qid2realname(user_qid)
     return namenick.get(realname, "") if realname else ""
+
+
+def resolve_chat_qq_ids(players=(), qq_ids=()):
+    """Resolve exact player aliases; never interpret a game ID as a QQ filter."""
+    resolved = []
+    for player in players:
+        label = str(player).strip().casefold()
+        matches = [name for name in qid if label in
+                   {str(value).casefold() for value in [name, namenick.get(name, ""), *nameref.get(name, [])] if value}]
+        if len(matches) != 1:
+            raise ValueError(f"chat_player_identity: {player!r} 必须匹配唯一玩家别名；可改传明确的 qq_ids")
+        resolved.append(str(qid[matches[0]]))
+    known_qq = {str(value) for value in qid.values()}
+    for value in qq_ids:
+        identity = str(value).strip()
+        if not identity.isascii() or not identity.isdecimal() or int(identity) <= 0:
+            raise ValueError("chat_qq_id: qq_ids 必须填写 QQ 号")
+        game_matches = [name for name in qid if identity in
+                        {str(userlist.get(name, "")), str(roleidlist.get(name, ""))}]
+        if identity not in known_qq and game_matches:
+            suggestions = [{"player": name, "qq_id": str(qid[name])} for name in game_matches]
+            raise ValueError(f"chat_game_id_not_qq: {identity} 是营地/游戏 ID；请传 players 或 QQ 号：{suggestions}")
+        resolved.append(identity)
+    return list(dict.fromkeys(resolved))
 
 
 def get_emoji(text):

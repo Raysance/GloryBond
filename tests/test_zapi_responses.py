@@ -136,6 +136,10 @@ class ChatCompletionsApiTests(unittest.TestCase):
         self.assertTrue(self.http_clients[0].is_closed)
         self.assertEqual(result["response_id"], "chatcmpl-1")
         self.assertEqual(result["model"], "deepseek-reasoner")
+        self.assertEqual(result["request_payload"], request["body"])
+        self.assertEqual(result["response_payload"]["choices"][0]["message"], assistant)
+        self.assertEqual(result["response_meta"]["finish_reason"], "stop")
+        self.assertNotIn("headers", result)
         self.assertEqual(result["content"], "")
         self.assertEqual(result["output_items"], [assistant])
         self.assertEqual(result["tool_calls"], [{
@@ -144,6 +148,45 @@ class ChatCompletionsApiTests(unittest.TestCase):
             "name": "lookup",
             "arguments": call["function"]["arguments"],
         }])
+
+    def test_http_error_keeps_both_payloads_through_wrapper(self):
+        body = {"error": {"message": "context length exceeded", "code": "context_length"}}
+        with patch.object(self, "handle_request", return_value=httpx.Response(400, json=body)):
+            with self.assertRaises(Exception) as raised:
+                ZAPI.ai_response_create([{"role": "user", "content": "FULL_INPUT"}])
+        trace_helpers = import_hok_module("business.chat_trace")
+        payloads = trace_helpers.failed_request_payloads(raised.exception)
+        self.assertEqual(payloads["request_payload"]["messages"][0]["content"], "FULL_INPUT")
+        self.assertEqual(payloads["response_payload"], body)
+        diagnostics = trace_helpers.error_record(raised.exception, "model_request")
+        self.assertTrue(any(item.get("status_code") == 400 for item in diagnostics["causes"]))
+        self.assertNotIn("Authorization", json.dumps(payloads))
+
+    def test_trace_contains_complete_wire_bodies_and_no_headers(self):
+        assistant = {"role": "assistant", "content": "完整答案", "reasoning_content": "PROVIDER_FIELD"}
+        self.responses.append(assistant)
+        result = ZCHAT.chat_process(user_text="输入" * 20000 + "INPUT_END", user_id="1", nickname="A",
+                                    use_memory=False, return_artifacts=True)
+        turn = result["trace"]["rounds"][0]
+        self.assertEqual(turn["request_payload"], self.requests[0]["body"])
+        self.assertEqual(turn["response_payload"]["choices"][0]["message"], assistant)
+        self.assertTrue(turn["request_payload"]["messages"][-1]["content"].endswith("INPUT_END"))
+        self.assertNotIn("test-sjtu-key", json.dumps(result["trace"]))
+
+    def test_missing_choices_and_invalid_json_still_keep_response_body(self):
+        body = {"id": "empty", "model": "deepseek-chat", "choices": [],
+                "usage": {"total_tokens": 100, "completion_tokens": 1}}
+        with patch.object(self, "handle_request", return_value=httpx.Response(200, json=body)):
+            result = ZAPI.ai_response_create([{"role": "user", "content": "输入"}])
+        self.assertEqual(result["response_payload"], body)
+        self.assertEqual(result["response_meta"]["finish_reason"], "missing_choice")
+        self.assertEqual(result["response_meta"]["usage"], body["usage"])
+        self.assertEqual(result["content"], "")
+        with patch.object(self, "handle_request", return_value=httpx.Response(200, text="INVALID_BODY")):
+            with self.assertRaises(Exception) as raised:
+                ZAPI.ai_response_create([{"role": "user", "content": "输入"}])
+        trace_helpers = import_hok_module("business.chat_trace")
+        self.assertEqual(trace_helpers.failed_request_payloads(raised.exception)["response_payload"], "INVALID_BODY")
 
     def test_two_tool_rounds_preserve_reasoning_and_tool_results_on_wire(self):
         first = {
