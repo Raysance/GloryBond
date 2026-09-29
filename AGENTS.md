@@ -25,8 +25,8 @@
 - `hok/ztime.py`：时间工具与日期处理统一入口；任何时间计算、格式化、时间窗口判断都应调用这里的接口；代表局查询中的自然语言日期及区间统一由 `parse_representative_battle_date()`、`parse_representative_battle_date_range()` 解析，群聊历史检索时间边界统一由 `parse_chat_time_bound()` 解析。
 - `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
-- `hok/zapi.py`：外部 API 的稳定兼容门面，只负责从 `hok/api_adapters/` 导出业务层可调用的公开接口；不得在门面中新增协议细节或业务编排。AI chat 的单轮 OpenAI-compatible Responses API 适配仍通过该门面对外提供，并归一化 `output` 中的 `function_call`；多轮编排留在 `zchat.py`。
-- `hok/api_adapters/`：按外部服务拆分请求封装、签名、响应解析、超时与协议级重试；当前包含王者官方 API、AI/图片、天元之弈、Steam 与 B 站适配器。普通聊天使用 DeepSeek Responses endpoint，`&` 联网聊天使用火山方舟标准 Responses endpoint 与内置 `web_search`，不得回退到应用 Bot 的 Chat Completions endpoint；荣耀战力指定地区 `ranklist` 只在王者适配器组装和发送；B 站 UP 视频的 WBI 签名、用户/视频搜索、用户卡片请求和响应归一化只在 B 站适配器实现。适配器不得读取 Redis 或承担业务队列优先级调度，相关逻辑留在 `zfunc.py`。
+- `hok/zapi.py`：外部 API 的稳定兼容门面，只负责从 `hok/api_adapters/` 导出业务层可调用的公开接口；不得在门面中新增协议细节或业务编排。AI chat 的单轮协议适配通过该门面对外提供，普通聊天的 Chat Completions 与联网聊天的 Responses 均归一化为 `content`、`tool_calls`、`output_items`；多轮编排留在 `zchat.py`。
+- `hok/api_adapters/`：按外部服务拆分请求封装、签名、响应解析、超时与协议级重试；当前包含王者官方 API、AI/图片、天元之弈、Steam 与 B 站适配器。普通聊天及 `ai_api()` / `ai_function()` 使用 SJTU Chat Completions endpoint，默认模型为 `deepseek-chat`，可配置 `deepseek-reasoner`、`qwen` 或 `qwen3.8-27b`；SJTU 客户端必须显式绑定 `ChatAPI.proxy_url` / `HOK_CHAT_PROXY_URL` 指定的 `sjtu-vpn` SOCKS5 代理并禁用环境代理继承，缺少代理配置时不得直连。Steam 与 APIMart 请求必须通过 `api_adapters/proxy.py` 显式绑定 `Proxy.clash_url` / `HOK_CLASH_PROXY_URL` 指定的 Clash 代理，并禁用环境代理继承；缺少配置时不得直连。适配器负责工具 schema 与 tool result 的协议转换，并完整保留 assistant 的 `tool_calls`、`reasoning_content` 供后续轮次回传；`&` 联网聊天仍使用火山方舟标准 Responses endpoint 与内置 `web_search`，不得回退到应用 Bot 的 Chat Completions endpoint；荣耀战力指定地区 `ranklist` 只在王者适配器组装和发送；B 站 UP 视频的 WBI 签名、用户/视频搜索、用户卡片请求和响应归一化只在 B 站适配器实现。适配器不得读取 Redis 或承担业务队列优先级调度，相关逻辑留在 `zfunc.py`。
 - `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
 - `hok/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
@@ -90,7 +90,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 ### 2.1 配置文件（``）
 
-- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、AI Responses 模型、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。
+- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、AI 模型、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。`ChatAPI` 配置 SJTU 普通聊天的 `base_url`、`model`、`proxy_url` 与可选 `api_key`；`Proxy.clash_url` 配置 Steam 与 APIMart 专用 Clash 出口；新密钥优先通过私有环境变量 `HOK_CHAT_API_KEY` 注入，禁止新增到 Git 跟踪文件。
 - `config.yaml` 的 `PostgreSQL.dsn`：PostgreSQL 本地连接串；部署环境可由 `HOK_DATABASE_DSN` 覆盖。`PostgreSQL.archive_json` 为 `false` 时历史数据数据库单写，写库失败才应急落 JSON。
 - `variables_static.json`：用户 QQ 号、王者荣耀 roleid/userid、用户昵称、SteamID、常见俚语缩写、赛季起止时间、英雄 ID 映射、部分功能 prompt 等稳定数据。
 - `variables_dynamic.json`：动态变量初始值，例如是否记忆、机器人是否开放、英雄梯度、今日新闻、上一次查询战绩时间、今日导出失败用户名单、B 站 UP 视频轮询开关等；运行时需要跨部署持久化的业务状态必须放 Redis，不得依赖 Git 工作区文件保存订阅、用户状态或去重状态。
@@ -105,6 +105,13 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 - `REDIS_CONF`：Redis 配置文件路径。
 - `BOT_PATH`：Bot 部署目录。
+- `HOK_ENV_FILE`：可选 dotenv 路径；systemd 部署优先用 `EnvironmentFile` 直接注入，不要求存在 dotenv。未指定时，本地调试另加载 `BOT_PATH/.env.local`（Git 忽略），用于保存私有 API 密钥。
+- `HOK_CHAT_BASE_URL`、`HOK_CHAT_API_KEY`、`HOK_CHAT_MODEL`、`HOK_CHAT_PROXY_URL`：覆盖 `config.yaml` 的 `ChatAPI` 对应字段，由 `zstatic.py` 统一导入为 `chat_api_config`；当前专用代理为 `socks5h://10.203.0.2:1080`。
+- `HOK_CLASH_PROXY_URL`：覆盖 `config.yaml` 的 `Proxy.clash_url`，由 `zstatic.py` 导入为 `clash_proxy_url`；Steam 与 APIMart 当前默认使用 `http://127.0.0.1:7890`，也支持 `socks5h://127.0.0.1:7891`。
+- `HOK_CONFIG_FILE`、`HOK_STATIC_VARIABLES_FILE`、`HOK_DYNAMIC_VARIABLES_FILE`：外置配置文件路径。
+- `HOK_DATA_DIR`：应急 JSON、地区树和每日数据的持久目录；默认 `BOT_PATH/data`。
+- `HOK_FILE_TRANSFER_DIR`：NBot 与 Web 共享的公开产物目录；默认 `BOT_PATH/file_transfer`。
+- `HOK_LOG_DIR`：NBot 文件日志目录；默认 `BOT_PATH/log`。
 
 项目根目录统一使用全局变量 `BOT_PATH` 的绝对路径，通过 `hok/zstatic.py` 的 `project_root` 暴露给其他模块；Web 静态产物目录统一使用 `BOT_PATH/file_transfer/`，通过 `temp_path` 暴露，不再从 `NGINX_HTML` 读取。
 

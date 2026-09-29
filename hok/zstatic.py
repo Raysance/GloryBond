@@ -19,20 +19,82 @@ REDIS_KEY_DIY_CODES = "hok:diy:codes"
 REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
 
 
-env_path = "/QQBot/.env"
-load_dotenv(dotenv_path=env_path)
+def _runtime_path(env_name, default_path):
+    """Return one normalized runtime path from the environment or its default."""
+    return os.path.abspath(os.path.expanduser(os.environ.get(env_name) or default_path))
+
+
+def _load_runtime_environment():
+    """Load an optional dotenv file without coupling startup to /QQBot."""
+    explicit_path = os.environ.get("HOK_ENV_FILE")
+    if explicit_path:
+        candidates = [explicit_path]
+    else:
+        candidates = [
+            "/QQBot/.env",
+            os.path.join(os.path.dirname(os.getcwd()), ".env"),
+            os.path.join(os.getcwd(), ".env"),
+        ]
+    loaded_paths = []
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            load_dotenv(dotenv_path=candidate, override=False)
+            loaded_paths.append(os.path.abspath(candidate))
+    if not explicit_path:
+        private_path = os.path.join(os.environ.get("BOT_PATH") or os.getcwd(), ".env.local")
+        if os.path.isfile(private_path):
+            load_dotenv(dotenv_path=private_path, override=False)
+            loaded_paths.append(os.path.abspath(private_path))
+    return os.pathsep.join(loaded_paths)
+
+
+env_path = _load_runtime_environment()
+project_root = _runtime_path("BOT_PATH", os.getcwd())
+data_root = _runtime_path("HOK_DATA_DIR", os.path.join(project_root, "data"))
+temp_path = _runtime_path(
+    "HOK_FILE_TRANSFER_DIR",
+    os.path.join(project_root, "file_transfer"),
+)
+log_root = _runtime_path("HOK_LOG_DIR", os.path.join(project_root, "log"))
+config_path = _runtime_path(
+    "HOK_CONFIG_FILE",
+    os.path.join(project_root, "config.yaml"),
+)
+variables_static_path = _runtime_path(
+    "HOK_STATIC_VARIABLES_FILE",
+    os.path.join(project_root, "variables_static.json"),
+)
+variables_dynamic_path = _runtime_path(
+    "HOK_DYNAMIC_VARIABLES_FILE",
+    os.path.join(project_root, "variables_dynamic.json"),
+)
 
 # 引入Redis配置
-redis_path=str(os.environ.get('REDIS_CONF'))
+redis_path = _runtime_path(
+    "REDIS_CONF",
+    os.path.join(project_root, "redis.json"),
+)
 with open(redis_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 globals().update(varia)
-project_root=str(os.environ.get('BOT_PATH'))
-temp_path=os.path.join(project_root,"file_transfer")
 # 引入程序配置
 confs={}
-with open('config.yaml', 'r') as file:
+with open(config_path, 'r', encoding='utf-8') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
+chat_api_config = {
+    key: str(os.environ.get(env_name) or confs.get("ChatAPI", {}).get(key) or "").strip()
+    for key, env_name in {
+        "base_url": "HOK_CHAT_BASE_URL",
+        "api_key": "HOK_CHAT_API_KEY",
+        "model": "HOK_CHAT_MODEL",
+        "proxy_url": "HOK_CHAT_PROXY_URL",
+    }.items()
+}
+clash_proxy_url = str(
+    os.environ.get("HOK_CLASH_PROXY_URL")
+    or confs.get("Proxy", {}).get("clash_url")
+    or ""
+).strip()
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")
@@ -41,7 +103,7 @@ postgres_dsn = str(
 postgres_archive_json = bool(confs.get("PostgreSQL", {}).get("archive_json", False))
 
 # 引入程序静态变量
-with open('variables_static.json', 'r', encoding='utf-8') as file:
+with open(variables_static_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 for heroid,heroname in varia["HeroList"].items():
     varia["HeroNames"].append(heroname)

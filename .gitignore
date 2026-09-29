@@ -1,4 +1,5 @@
 # ENV
+/.env.local
 /.venv/
 /local_debugger/.venv/
 

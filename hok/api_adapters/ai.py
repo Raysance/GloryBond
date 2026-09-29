@@ -1,49 +1,101 @@
 """OpenAI-compatible text and image API adapters."""
 
-import requests
-from openai import OpenAI
+from openai import DefaultHttpxClient, OpenAI
 from ratelimit import limits, sleep_and_retry
 
 from .. import zdynamic as dmc
 from ..zfile import append_hok_exception_log
-from ..zstatic import ark_model_url, confs, deepseek_url
+from ..zstatic import ark_model_url, chat_api_config, confs
 from ..ztime import sleep_seconds
 from ..zutil import log_message
+from .proxy import clash_request
 
-def ai_api(user_query,temperature): # deepseek官方模型-不联网
+def _chat_completion_create(input_items, tools=None, tool_choice="auto", temperature=None, timeout=30):
+    """Call SJTU through its dedicated VPN proxy and retain tool continuation state."""
+    missing = [key for key in ("base_url", "api_key", "model", "proxy_url") if not chat_api_config.get(key)]
+    if missing:
+        raise ValueError(f"ChatAPI configuration missing: {', '.join(missing)}")
+
+    messages = []
+    if isinstance(input_items, str):
+        input_items = [{"role": "user", "content": input_items}]
+    for item in input_items:
+        if item.get("type") == "function_call_output":
+            messages.append({
+                "role": "tool",
+                "tool_call_id": item["call_id"],
+                "content": item["output"],
+            })
+        else:
+            messages.append(dict(item))
+
+    request = {
+        "model": chat_api_config["model"],
+        "messages": messages,
+        "stream": False,
+        "timeout": timeout,
+    }
+    if temperature is not None:
+        request["temperature"] = temperature
+    if tools:
+        request["tools"] = [
+            {"type": "function", "function": {key: value for key, value in tool.items() if key != "type"}}
+            for tool in tools
+        ]
+        request["tool_choice"] = tool_choice
+    elif tool_choice == "none":
+        request["tool_choice"] = "none"
+
+    with OpenAI(
+        api_key=chat_api_config["api_key"],
+        base_url=chat_api_config["base_url"],
+        http_client=DefaultHttpxClient(proxy=chat_api_config["proxy_url"], trust_env=False),
+    ) as client:
+        response = client.chat.completions.create(**request)
+
+    message = response.choices[0].message
+    assistant_message = {"role": "assistant", "content": message.content}
+    reasoning_content = getattr(message, "reasoning_content", None)
+    if reasoning_content is not None:
+        assistant_message["reasoning_content"] = reasoning_content
+    normalized_calls = []
+    if message.tool_calls:
+        assistant_message["tool_calls"] = []
+        for call in message.tool_calls:
+            assistant_message["tool_calls"].append({
+                "id": call.id,
+                "type": "function",
+                "function": {"name": call.function.name, "arguments": call.function.arguments},
+            })
+            normalized_calls.append({
+                "id": call.id,
+                "call_id": call.id,
+                "name": call.function.name,
+                "arguments": call.function.arguments,
+            })
+    return {
+        "content": message.content or "",
+        "tool_calls": normalized_calls,
+        "output_items": [assistant_message],
+        "response_id": response.id,
+        "model": response.model,
+    }
+
+
+def ai_api(user_query,temperature): # SJTU 普通聊天
     log_message("VISIT: ai_api_common")
     try:
-        client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
-
-        response = client.responses.create(
-            model=confs["QQBot"].get("deepseek_chat_model") or "deepseek-flash",
-            input=user_query,
-            stream=False,
-            temperature=temperature,
-            store=False,
-            include=["reasoning.encrypted_content"],
-            timeout=20   # 20秒超时
-        )
-        # writera("deepseek_output.txt",user_query)
+        return _chat_completion_create(user_query, temperature=temperature, timeout=20)["content"]
     except Exception as e:
-        raise Exception("deepseek_api_error: "+str(e))
-    return _response_output_text(response)
+        raise Exception("sjtu_api_error: "+str(e)) from e
+
+
 def ai_function(user_query):
     log_message("VISIT: ai_api_function_call")
     try:
-        client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
-
-        response = client.responses.create(
-            model=confs["QQBot"].get("deepseek_chat_model") or "deepseek-flash",
-            input=user_query,
-            stream=False,
-            temperature=1,
-            store=False,
-            include=["reasoning.encrypted_content"],
-        )
+        return _chat_completion_create(user_query, temperature=1)["content"]
     except Exception as e:
-        raise Exception("deepseek_api_error: "+str(e))
-    return _response_output_text(response)
+        raise Exception("sjtu_api_error: "+str(e)) from e
 
 
 def _response_item_value(item, key, default=None):
@@ -69,15 +121,13 @@ def _response_output_text(response):
 
 
 def ai_response_create(input_items, tools=None, tool_choice="auto", network=False):
-    """Run one OpenAI-compatible Responses API turn and normalize function calls."""
+    """Normalize one SJTU Chat Completions or Ark Responses turn for the chat loop."""
     log_message("VISIT: ai_response_create")
     try:
-        if network:
-            client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_model_url)
-            model = confs["QQBot"]["ark_responses_model"]
-        else:
-            client = OpenAI(api_key=confs["QQBot"]["deepseek_key"], base_url=deepseek_url)
-            model = confs["QQBot"].get("deepseek_chat_model") or "deepseek-v4-flash"
+        if not network:
+            return _chat_completion_create(input_items, tools=tools, tool_choice=tool_choice)
+        client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_model_url)
+        model = confs["QQBot"]["ark_responses_model"]
         request = {
             "model": model,
             "input": input_items,
@@ -188,7 +238,7 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     try:
-        response = requests.post(base_url, json=payload, headers=headers, timeout=120)
+        response = clash_request("POST", base_url, json=payload, headers=headers, timeout=120)
         response.raise_for_status()
         res = response.json()
     except Exception as e:
@@ -216,7 +266,7 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
     last_status = None
     for _ in range(max(1, int(timeout_seconds / poll_interval_seconds))):
         try:
-            task_resp = requests.get(task_url, headers=headers, timeout=60)
+            task_resp = clash_request("GET", task_url, headers=headers, timeout=60)
             task_resp.raise_for_status()
             task_res = task_resp.json()
         except Exception as e:

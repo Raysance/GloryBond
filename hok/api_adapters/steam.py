@@ -1,6 +1,6 @@
 """Steam Web API adapters."""
 
-import requests
+from .proxy import clash_request
 
 def steam_api_user_status(api_key, steam_id):
     url = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/"
@@ -9,7 +9,7 @@ def steam_api_user_status(api_key, steam_id):
         'steamids': steam_id
     }
 
-    response = requests.get(url, params=params, timeout=20)
+    response = clash_request("GET", url, params=params, timeout=20)
     data = response.json()
 
     players = data.get('response', {}).get('players', [])
@@ -31,7 +31,7 @@ def steam_api_recent_games(api_key, steam_id):
     }
 
     try:
-        response = requests.get(url, params=params, timeout=20)
+        response = clash_request("GET", url, params=params, timeout=20)
         response.raise_for_status()  # 检查 HTTP 状态码
         data = response.json()
 
