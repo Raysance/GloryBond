@@ -34,7 +34,6 @@ export made by this server-module layer.
 │   │   └── qq-profile/            QQ login and application profile
 │   ├── logs/
 │   │   ├── nbot/
-│   ├── legacy/                   retained BotDemo, Lagrange, napcat-installer
 │   ├── backups/                  existing HOK backups, kept on the host
 │   ├── systemd/
 │   └── nginx/
@@ -69,8 +68,10 @@ The existing NBot `apps/NBot/data/` directory also contains tracked seed files;
 `data/nbot` indexes that real directory. Do not reverse this link while the current
 CI uses `git restore`, which would replace a tracked directory's outward link.
 
-Historical bot implementations under `legacy/` are retained for recovery and
-reference. Their presence does not register or start additional services.
+The historical BotDemo, Lagrange, and NapCat installer trees were removed after
+the module migration was validated. Their files remain recoverable from the
+verified complete HOK export, and BotDemo's Git history is retained as a bundle
+under the migration backup root. They are not runtime dependencies.
 
 ## Service lifecycle
 
@@ -117,9 +118,10 @@ remain active.
 
 ## Compatibility and updates
 
-Existing deployment paths are retained as links into the modules. The principal
-links include `/QQBot/NBot`, `/QQBot/Web`, the previous NapCat and QQ-profile paths,
-the previous Clash installation/configuration paths, and these website paths:
+Existing deployment paths are retained as links into the modules only where they
+are still referenced. The principal active links include `/QQBot/NBot`,
+`/QQBot/Web`, the current NapCat and QQ-profile paths, the previous Clash
+installation/configuration path, and these website paths:
 
 | Compatibility path | Canonical destination |
 | --- | --- |

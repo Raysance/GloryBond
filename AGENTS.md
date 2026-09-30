@@ -98,11 +98,11 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 - 部署服务器上的 NoneBot 进程由 `hok-nbot.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
 - `deployment/` 是跨 Linux 主机部署包：`config/` 保存无密钥模板，`systemd/` 保存可渲染单元，`nginx/` 保存反向代理模板，`scripts/` 提供安装、检查与 bundle 构建，`bin/` 保存服务启动包装器；调整该结构时必须同步维护 `deployment/README.md`。
-- Aliyun 整机部署以 `/srv/modules/{hok,personal-site,clash}` 为三个应用模块；每个模块维护 `module.json`、`apps/`、`config/`、状态/日志、`systemd/`、`nginx/` 和 `ops/`。HOK 的物理代码路径为 `hok/apps/{NBot,Web}`，`/QQBot` 等旧路径保留兼容链接；不要删除仍被 CI、运行时或配置引用的链接。
+- Aliyun 整机部署以 `/srv/modules/{hok,personal-site,clash}` 为三个应用模块；每个模块维护 `module.json`、`apps/`、`config/`、状态/日志、`systemd/`、`nginx/` 和 `ops/`。HOK 的物理代码路径为 `hok/apps/{NBot,Web}`；BotDemo、Lagrange 与旧 NapCat installer 已在完整导出和 Git bundle 备份后移除，`/QQBot` 等位置只保留仍被 CI、运行时或配置引用的兼容链接。
 - 三个统一入口为 `hok.target`、`personal-site.target` 与 `clash.target`，子服务用 `PartOf=` 归属模块，原服务名称保留供 CI 单独重启。Nginx、Redis、PostgreSQL、证书和 Actions runner 是共享基础设施，不随模块停止；个人网站 target 停止 OAuth/API 后，静态页面仍由共享 Nginx 提供。
 - `deployment/server_modules/` 保存服务器迁移、带回滚日志的目录整理、模块管理及私有导出工具；HOK 导出只抓取 HOK PostgreSQL 库和 Redis DB0 的 `hok:*`，不得混入 PlanIt DB9。导出包含密钥和 QQ 会话，必须使用私有权限与 SSH 传输。
 - `/opt/hok-qqbot/{nbot,web}`、`/etc/hok-qqbot`、`/var/lib/hok-qqbot` 与 `/var/log/hok-qqbot` 是独立的全新 HOK 安装模板布局，不是现有 Aliyun 模块的实际路径；新主机恢复细节见 `deployment/server_modules/README.md`。
-- GitHub Actions 在完成代码同步后通过 `systemctl restart hok-nbot.service` 发布，并以 `systemctl is-active` 验证启动结果。
+- GitHub Actions 在 `/srv/modules/hok/apps/NBot` 完成代码同步后通过 `systemctl restart hok-nbot.service` 发布，并以 `systemctl is-active` 验证启动结果。
 - 新版 `deploy_runner.sh` 默认调用项目内 `.venv/bin/nb`，允许 `HOK_NB_BIN` 覆盖；代理、CLI 路径和服务目录通过配置注入，不得新增硬编码。Aliyun 现有 CLI 在主机 Conda 中，路径和代理已集中于 `hok/config/nbot-host.env`，应用虚拟环境继续复用；既有运行日志通过 `log` 链接进入 `hok/logs/nbot`，新装模板进程输出进入 journald，HOK Exception 仍写入配置的错误日志目录。
 
 ## 2. 配置与变量的来源（必须遵守）

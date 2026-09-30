@@ -19,8 +19,10 @@ Clash 模块包含引擎、配置、规则、Dashboard 和日志目录。
 保留原物理位置，通过模块目录中的链接集中索引，避免现有 CI 将目录链接还原。
 
 Nginx、Redis、PostgreSQL、证书续期与 Actions runner 保持共享，不随模块停止。
-PlanIt 的 Redis DB9 未迁移、未导出、未清理。旧 `/QQBot`、NapCat、网站和 Clash
-路径保留兼容链接；不是额外副本，暂时不要删除。
+PlanIt 的 Redis DB9 未迁移、未导出、未清理。仍被运行时、个人网站或共享 Actions
+runner 使用的 `/QQBot`、NapCat、网站和 Clash 路径保留兼容链接；它们不是额外副本。
+BotDemo、Lagrange 与旧 NapCat installer 已于 2026-09-30 在校验完整导出并额外保存
+BotDemo Git bundle 后删除，对应的三个 `/QQBot` 链接也已移除。
 
 ## 日常命令
 
@@ -79,6 +81,8 @@ modulectl export clash --quiesce
 - QQ 与 NoneBot 在 `127.0.0.1:8080` 建立连接，迁移后抽查无启动异常。
 - 服务器 NBot/Web Git 跟踪文件无改动；原 CI 服务名称保持不变。
 - NapCat 和 QQ 会话目录保持 `root:root 0700`。
+- NBot 与 Web Actions 已改为直接在 `/srv/modules/hok/apps/{NBot,Web}` 发布，不再依赖
+  `/QQBot/NBot` 或 `/QQBot/Web` 作为自身代码同步入口。
 
 未在第二台全新 Linux 主机实测。目标主机需要匹配的系统依赖、Python 环境、
 Redis/PostgreSQL、服务用户、TLS 证书和域名配置；二进制目前来自 x86-64 Linux。
@@ -97,5 +101,6 @@ Python 虚拟环境和网站 npm 依赖需重建，NapCat 自带 vendor 依赖�
 需要回滚时，先检查迁移后是否新增部署或数据变更，再依 README 的专用命令执行。
 旧路径链接本身不能作为备份使用。
 
-本地 `HOK_QQBot` 与 `HOK_QQBot_Web` 的部署配置改造和架构规范已同步；没有提交或
-推送 Git。服务器本次直接落地的是模块目录、服务单元与运维工具，未替换业务代码。
+本地 `HOK_QQBot` 与 `HOK_QQBot_Web` 的部署配置改造和架构规范已分别提交并推送；
+服务器 Actions 已从模块物理目录完成发布。旧实现清理的附加备份位于
+`/srv/module-backups/20260930T001926Z-legacy-cleanup`。
