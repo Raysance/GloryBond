@@ -19,10 +19,14 @@ Clash 模块包含引擎、配置、规则、Dashboard 和日志目录。
 保留原物理位置，通过模块目录中的链接集中索引，避免现有 CI 将目录链接还原。
 
 Nginx、Redis、PostgreSQL、证书续期与 Actions runner 保持共享，不随模块停止。
-PlanIt 的 Redis DB9 未迁移、未导出、未清理。仍被运行时、个人网站或共享 Actions
-runner 使用的 `/QQBot`、NapCat、网站和 Clash 路径保留兼容链接；它们不是额外副本。
-BotDemo、Lagrange 与旧 NapCat installer 已于 2026-09-30 在校验完整导出并额外保存
-BotDemo Git bundle 后删除，对应的三个 `/QQBot` 链接也已移除。
+Actions runner 的实际目录已经迁至 `/srv/modules/actions-runner`。PlanIt 的 Redis
+DB9 未迁移、未导出、未清理。BotDemo、Lagrange 与旧 NapCat installer 已于
+2026-09-30 在校验完整导出并额外保存 BotDemo Git bundle 后删除。
+
+同日完成旧根路径退役。HOK、NapCat、QQ profile、个人网站与 Clash 均直接使用
+`/srv/modules` 下的物理路径，原 `/QQBot`、`/root`、网站及 `/clash-for-linux` 兼容链接
+已经移除；`/QQBot` 仅保留独立的 PlanIt 与 traculator。systemd 在 `/etc` 下的入口是
+指向各模块 `systemd/` 文件的标准主机集成链接，不是第二份配置。
 
 ## 日常命令
 
@@ -83,6 +87,9 @@ modulectl export clash --quiesce
 - NapCat 和 QQ 会话目录保持 `root:root 0700`。
 - NBot 与 Web Actions 已改为直接在 `/srv/modules/hok/apps/{NBot,Web}` 发布，不再依赖
   `/QQBot/NBot` 或 `/QQBot/Web` 作为自身代码同步入口。
+- 个人网站 Actions 从 `/srv/modules/personal-site/repository.git` 读取精确提交，直接构建
+  到模块目录；服务器网络异常时不再每次执行完整克隆。
+- Actions runner 本体和注册服务已迁至 `/srv/modules/actions-runner`，迁移后成功承接发布。
 
 未在第二台全新 Linux 主机实测。目标主机需要匹配的系统依赖、Python 环境、
 Redis/PostgreSQL、服务用户、TLS 证书和域名配置；二进制目前来自 x86-64 Linux。

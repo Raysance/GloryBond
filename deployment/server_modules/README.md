@@ -87,8 +87,10 @@ installed service names. Member units participate in their target's stop/restart
 lifecycle through `PartOf=`; existing service names remain usable by CI.
 
 Nginx, Redis, PostgreSQL, certificate renewal, and the Actions runner are shared
-host services. They are not `PartOf=` any application target. Stopping HOK must
-not stop the Redis instance used by PlanIt; PlanIt remains in Redis DB9.
+host services. They are not `PartOf=` any application target. The runner is
+installed at `/srv/modules/actions-runner`; its systemd registration remains a
+host integration point. Stopping HOK must not stop the Redis instance used by
+PlanIt; PlanIt remains in Redis DB9.
 
 Use the installed `modulectl` command, or Python 3.10+ with the bundled
 `ops/modulectl.py` (the host's default Python may be older):
@@ -116,39 +118,27 @@ Clash has its own lifecycle. Applications configured to use its local proxy can
 lose outbound connectivity while Clash is stopped, even though their own services
 remain active.
 
-## Compatibility and updates
+## Updates and host integration
 
-Existing deployment paths are retained as links into the modules only where they
-are still referenced. The principal active links include `/QQBot/NBot`,
-`/QQBot/Web`, the current NapCat and QQ-profile paths, the previous Clash
-installation/configuration path, and these website paths:
+The former `/QQBot` HOK links, `/root/Napcat`, `/root/.config/QQ`, website links,
+and `/clash-for-linux` were retired after their workflows, units, and runtime
+configuration moved to canonical module paths. The installed manifests therefore
+have an empty `legacy_links` object. `/QQBot` now contains only the independent
+PlanIt and traculator applications.
 
-| Compatibility path | Canonical destination |
-| --- | --- |
-| `/QQBot/Web/raysance-site` | `/srv/modules/personal-site/apps/site` |
-| `/QQBot/Web/html/raysance` | `/srv/modules/personal-site/public` |
-| `/etc/raysance-decap-oauth.env` | `/srv/modules/personal-site/config/oauth.env` |
-| `/var/lib/raysance-agent-api` | `/srv/modules/personal-site/state` |
-| `/usr/local/bin/node-raysance-cms` | `/srv/modules/personal-site/runtime/node` |
-
-Consult `legacy_links` in each installed manifest for the complete mapping. Do not
-remove a compatibility link until its CI workflows, startup scripts, and runtime
-configuration no longer reference it. Preserve each module's real directory when
-changing a link; do not replace a directory containing data with an empty target.
+Files under `/etc/systemd/system` are links to the canonical definitions in each
+module's `systemd/` directory. This is required systemd host integration, not a
+second service configuration. Nginx similarly includes the module-owned snippets.
 
 The personal website remains deployed from `Raysance-Studio/personal-website`
 branch `main`. Its `apps/site` directory is a downloaded production source output,
-not an independent Git checkout. The workflow builds there, publishes `dist/` to
-`public/` through the compatibility path, writes deployment status, and restarts
+not an independent Git checkout. The workflow reads the requested commit from
+`/srv/modules/personal-site/repository.git`, builds in `apps/site`, publishes
+`dist/` directly to `public/`, writes deployment status, and restarts
 `raysance-decap-oauth.service`. Editing the server output is not a durable source
-change and can be overwritten by the next publish.
-
-The existing website workflow uses a trailing slash on both `rsync` destination
-paths, allowing the root compatibility links to resolve to their new directories.
-Keep its exclusions for `node_modules`, `dist`, `.astro`, `.admin-backups`, `.env*`,
-and `.git`. HOK's Git-based deployment also retains its old paths and individual
-service names. Changes to deployment workflows belong in their respective source
-repositories.
+change and can be overwritten by the next publish. HOK's Git-based deployments
+also use their canonical module paths while retaining individual service names.
+Changes to deployment workflows belong in their respective source repositories.
 
 OAuth uses `CONTENT_ROOT` and `DEPLOYMENT_STATUS_FILE` from its environment when
 set. Keep the config readable by its service account (`raysance-cms`) with the
@@ -222,9 +212,8 @@ remain active. The manifest records `capture_mode` and the initial unit states.
    adapt the startup wrapper on the destination.
 3. Review all environment files, manifests, units, Nginx snippets, absolute paths,
    service users, file ownership, listening ports, domain names, and proxy settings.
-   Re-create the documented compatibility links where current scripts still need
-   them. Do not carry links to another module without also restoring or replacing
-   that dependency.
+   Install host integration links for systemd and Nginx, but do not recreate the
+   retired `/QQBot`, `/root`, website, or Clash compatibility paths.
 4. Restore HOK PostgreSQL into a prepared destination database using `pg_restore`
    with the intended owner/role. The dump does not provision cluster-level roles or
    passwords. Restore it before starting the applications. Avoid destructive
@@ -267,10 +256,10 @@ deployment.
 ## Operational validation and recovery
 
 Keep migration-time backups on the source host until the new layout has passed
-member-service checks and HTTP/QQ connectivity checks. Retained old paths are
-compatibility links, not an independent backup copy. For rollback, stop affected
+member-service checks and HTTP/QQ connectivity checks. For rollback, stop affected
 application processes before restoring their previous paths and unit definitions,
-then reload systemd and validate Nginx before restarting.
+then reload systemd and validate Nginx before restarting. Retired compatibility
+links are not backups and are not required by the current deployment.
 
 Use `journalctl` with the member service names for process output. Module file logs
 remain under `logs/`; they are intentionally excluded from ordinary exports. The

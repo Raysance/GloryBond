@@ -94,7 +94,6 @@ def private_directory(path: Path) -> Path:
 def snapshot_python(directory: Path, override: str | None) -> str:
     candidates = [override] if override else [
         str(directory / "apps/NBot/.venv/bin/python"),
-        "/QQBot/NBot/.venv/bin/python",
         "/root/miniconda3/bin/python",
         sys.executable,
     ]
