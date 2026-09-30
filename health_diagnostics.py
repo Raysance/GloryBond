@@ -7,9 +7,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import time
+
+from dotenv import dotenv_values
 
 
 def _failure(error: str, *, duration_ms: float = 0, exit_code: int | None = None) -> dict:
@@ -61,7 +64,7 @@ def _process_start_epoch(pid: int) -> float:
     return boot_epoch + int(stat_fields[21]) / os.sysconf("SC_CLK_TCK")
 
 
-def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str]:
+def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str, dict]:
     """Compare the deployed checkout with the live systemd process and its key."""
     started = time.perf_counter()
     root = Path(nbot_root).resolve()
@@ -71,13 +74,13 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str]:
             "status": "skipped",
             "duration_ms": round((time.perf_counter() - started) * 1000, 2),
             "reason": "systemd_procfs_unavailable",
-        }, "")
+        }, "", {})
     try:
         process = subprocess.run(
             [
                 "systemctl", "show", "hok-nbot.service",
                 "--property=ActiveState", "--property=SubState", "--property=MainPID",
-                "--property=ExecMainStartTimestamp",
+                "--property=ExecMainStartTimestamp", "--property=EnvironmentFiles",
             ],
             capture_output=True,
             text=True,
@@ -99,6 +102,26 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str]:
                     environ[key.decode(errors="ignore")] = value.decode(errors="ignore")
         credential = str(environ.get("HOK_CHAT_API_KEY") or "")
         credential_hash = hashlib.sha256(credential.encode()).hexdigest() if credential else ""
+        environment_files = re.findall(
+            r"(\S+)\s+\(ignore_errors=(?:yes|no)\)",
+            properties.get("EnvironmentFiles") or "",
+        )
+        configured_environment = {}
+        for path in environment_files:
+            configured_environment.update({
+                str(key): str(value)
+                for key, value in dotenv_values(path).items()
+                if value is not None
+            })
+        configured_credential = str(configured_environment.get("HOK_CHAT_API_KEY") or "")
+        configured_credential_hash = (
+            hashlib.sha256(configured_credential.encode()).hexdigest()
+            if configured_credential else ""
+        )
+        credential_matches_files = bool(
+            credential_hash and configured_credential_hash
+            and credential_hash == configured_credential_hash
+        )
         ref_candidates = [root / ".git" / "refs" / "heads" / "main", root / ".git" / "FETCH_HEAD"]
         ref_mtimes = [path.stat().st_mtime for path in ref_candidates if path.is_file()]
         process_started = _process_start_epoch(pid) if pid else 0
@@ -107,7 +130,14 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str]:
                                         and process_started + 2 >= checkout_updated)
         active = properties.get("ActiveState") == "active" and properties.get("SubState") == "running"
         cwd_matches = process_root == root
-        passed = active and pid > 0 and cwd_matches and restarted_after_checkout and bool(credential_hash)
+        passed = (
+            active and pid > 0 and cwd_matches and restarted_after_checkout
+            and bool(credential_hash) and credential_matches_files
+        )
+        runtime_environment = {
+            key: value for key, value in environ.items()
+            if key.startswith("HOK_") or key in {"BOT_PATH", "WEB_PATH", "REDIS_CONF"}
+        }
         return ({
             "name": "deployed_nbot_runtime",
             "status": "ok" if passed else "failed",
@@ -117,15 +147,17 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str]:
             "working_directory_matches_checkout": cwd_matches,
             "restarted_after_checkout": restarted_after_checkout,
             "running_chat_credential_available": bool(credential_hash),
+            "environment_files_loaded": len(environment_files),
+            "credential_matches_environment_files": credential_matches_files,
             "service_started_at": properties.get("ExecMainStartTimestamp") or "",
-        }, credential_hash)
+        }, credential_hash, runtime_environment)
     except Exception as error:
         return ({
             "name": "deployed_nbot_runtime",
             "status": "failed",
             "duration_ms": round((time.perf_counter() - started) * 1000, 2),
             "error": f"runtime_inspection_failed:{type(error).__name__}",
-        }, "")
+        }, "", {})
 
 
 def run_chat_runtime_diagnostic(nbot_root: str | Path, timeout: float = 180) -> dict:
@@ -139,8 +171,9 @@ def run_chat_runtime_diagnostic(nbot_root: str | Path, timeout: float = 180) -> 
     if not script.is_file():
         return _failure("chat_diagnostic_tool_missing")
 
-    runtime_check, running_credential_hash = inspect_nbot_runtime(root)
+    runtime_check, running_credential_hash, runtime_environment = inspect_nbot_runtime(root)
     child_environment = os.environ.copy()
+    child_environment.update(runtime_environment)
     if running_credential_hash:
         child_environment["HOK_DIAGNOSTIC_EXPECTED_KEY_SHA256"] = running_credential_hash
 

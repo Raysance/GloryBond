@@ -27,7 +27,11 @@ class HealthDiagnosticsTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="application log\n" + json.dumps(report) + "\n", stderr="",
             )
-            runtime = ({"name": "deployed_nbot_runtime", "status": "ok", "duration_ms": 1}, "abc123")
+            runtime = (
+                {"name": "deployed_nbot_runtime", "status": "ok", "duration_ms": 1},
+                "abc123",
+                {"HOK_CHAT_READONLY_DSN": "REDACTED_CREDENTIAL"},
+            )
             with patch.object(health_diagnostics, "inspect_nbot_runtime", return_value=runtime), \
                     patch.object(health_diagnostics.subprocess, "run", return_value=completed) as run:
                 result = health_diagnostics.run_chat_runtime_diagnostic(root)
@@ -49,6 +53,7 @@ class HealthDiagnosticsTests(unittest.TestCase):
             run.call_args.kwargs["env"]["HOK_DIAGNOSTIC_EXPECTED_KEY_SHA256"],
             "abc123",
         )
+        self.assertEqual(run.call_args.kwargs["env"]["HOK_CHAT_READONLY_DSN"], "REDACTED_CREDENTIAL")
 
     def test_missing_runtime_and_invalid_output_fail_without_stderr_disclosure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -67,7 +72,11 @@ class HealthDiagnosticsTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(
                 args=[], returncode=1, stdout="not json", stderr="secret diagnostic stderr",
             )
-            runtime = ({"name": "deployed_nbot_runtime", "status": "skipped", "duration_ms": 0}, "")
+            runtime = (
+                {"name": "deployed_nbot_runtime", "status": "skipped", "duration_ms": 0},
+                "",
+                {},
+            )
             with patch.object(health_diagnostics, "inspect_nbot_runtime", return_value=runtime), \
                     patch.object(health_diagnostics.subprocess, "run", return_value=completed):
                 result = health_diagnostics.run_chat_runtime_diagnostic(root)
