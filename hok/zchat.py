@@ -227,6 +227,7 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
     remaining = max(1, int(getattr(dmc, "ChatToolBudget", 16)))
     max_rounds = max(1, int(getattr(dmc, "ChatMaxRounds", 10)))
     empty_retries = min(1, max(0, int(getattr(dmc, "ChatEmptyResponseRetries", 1))))
+    empty_recovery_attempts = 0
     stage = "initialize"
     trace = {"kind": "chat_trace", "version": 1, "question": str(user_text),
              "started_at": current_datetime_text(), "model": chat_api_config.get("model", ""),
@@ -295,16 +296,21 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             turn["duration_ms"] = round(elapsed() - turn["start_ms"], 2)
 
     def finish(content, error_name):
-        nonlocal stage
+        nonlocal stage, empty_recovery_attempts
         stage = "finalize"
         final_text = normalize_qq_text(content)
         recovered = False
         if not final_text:
-            trace["rounds"][-1].update(status="error", error=error_name,
-                                       diagnostics=error_record(ValueError(error_name), stage))
-            trace["recovery"] = {"reason": error_name, "attempts": 0}
-            if empty_retries:
-                trace["recovery"]["attempts"] = 1
+            last_turn = trace["rounds"][-1]
+            if last_turn.get("status") != "error" or not last_turn.get("diagnostics"):
+                last_turn.update(status="error", error=error_name,
+                                 diagnostics=error_record(ValueError(error_name), stage))
+            recovery = trace.setdefault("recovery", {"reason": error_name, "attempts": 0})
+            recovery.setdefault("reason", error_name)
+            recovery.setdefault("attempts", empty_recovery_attempts)
+            if empty_recovery_attempts < empty_retries:
+                empty_recovery_attempts += 1
+                recovery["attempts"] = empty_recovery_attempts
                 input_items.append({"role": "system", "content":
                                     "上次模型返回了空回答。不要调用工具，请只根据已有observation给出简短的最终回答；"
                                     "如没有足够证据，明确说明已查询的范围和缺失的信息，必须输出正文。"})
@@ -318,7 +324,9 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                     # ask() has retained the failed request body and exception chain.
                     pass
                 recovered = bool(final_text)
-            trace["recovery"]["outcome"] = "recovered" if recovered else "fallback"
+            recovery["outcome"] = "recovered" if recovered else "fallback"
+        elif trace.get("recovery"):
+            trace["recovery"]["outcome"] = "recovered"
         fallback = not final_text
         if fallback:
             excerpts = []
@@ -406,10 +414,15 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         for _round in range(max_rounds):
             schema_by_name = {schema["name"]: schema for schema in current_schemas()}
             disclosed_before = set(schema_by_name)
-            response, turn = ask(
-                input_items,
-                required_tool="search_chat_history" if not automatic_history_complete else None,
-            )
+            try:
+                response, turn = ask(
+                    input_items,
+                    required_tool="search_chat_history" if not automatic_history_complete else None,
+                )
+            except Exception:
+                if trace.get("recovery", {}).get("reason") == "chat_empty_response":
+                    return finish("", "chat_empty_response_after_recovery")
+                raise
             tool_calls = response.get("tool_calls") or []
             if not tool_calls:
                 if not automatic_history_complete:
@@ -419,6 +432,21 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                         "尚未完成强制历史检索。现在必须调用search_chat_history："
                                         "生成2到6组不同且互补的简短query；管理员私聊还必须传all_groups=true。"
                                         "完成检索前不要输出最终答案。"})
+                    continue
+                if not normalize_qq_text(response.get("content")) and empty_recovery_attempts < empty_retries:
+                    turn.update(status="error", error="chat_empty_response",
+                                diagnostics=error_record(ValueError("chat_empty_response"), "finalize"))
+                    empty_recovery_attempts += 1
+                    trace["recovery"] = {
+                        "reason": "chat_empty_response",
+                        "attempts": empty_recovery_attempts,
+                        "mode": "tools_preserved",
+                    }
+                    input_items.extend(response.get("output_items") or [])
+                    input_items.append({"role": "system", "content":
+                                        "上次模型返回了空内容。已披露工具仍然可用，请继续完成原任务："
+                                        "需要外部数据时调用当前提供的工具，已有足够证据时直接输出正文。"
+                                        "不得在没有失败observation的情况下声称工具、权限或数据不可用。"})
                     continue
                 return finish(response.get("content"), "chat_empty_response")
             input_items.extend(response.get("output_items") or [])
@@ -471,9 +499,6 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                     "discover_tools 已完成。下一轮新增可调用工具：" + ", ".join(new_names)
                                     + "。请先读取随请求提供的具体 schema，再按需调用。"})
                 input_items.extend(_new_tool_context_messages(new_names))
-                if set(new_names) & {"query_game_database", "query_player_hero_power", "query_honor_power",
-                                     "search_chat_history", "fetch_recent_chat_messages"}:
-                    input_items.append(_known_users_context_message())
             if remaining <= 0:
                 trace["stop_reason"] = "tool_budget"
                 input_items.append({"role": "system", "content":

@@ -276,6 +276,46 @@ class HOKChatToolsTests(unittest.TestCase):
         self.assertNotIn("query_player_today_report", names)
         self.assertNotIn("remember_memory", names)
 
+    def test_empty_response_after_disclosure_retries_with_tools_preserved(self):
+        requests = []
+        registry = ZCHAT.HOKChatTools(user_id="100", use_memory=False)
+
+        def model(messages, tools=None, tool_choice="auto", **kwargs):
+            names = {tool["name"] for tool in tools or []}
+            requests.append({"messages": [dict(item) for item in messages],
+                             "names": names, "tool_choice": tool_choice})
+            if len(requests) == 1:
+                call = {"call_id": "discover", "name": "discover_tools",
+                        "arguments": '{"categories":["game_data"],"reason":"需要历史统计"}'}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            if len(requests) == 2:
+                self.assertIn("get_game_database_schema", names)
+                systems = [item.get("content", "") for item in messages if item.get("role") == "system"]
+                self.assertEqual(sum("已知玩家与身份" in text for text in systems), 1)
+                return {"content": None, "tool_calls": [], "output_items": []}
+            if len(requests) == 3:
+                self.assertEqual(tool_choice, "auto")
+                self.assertIn("get_game_database_schema", names)
+                self.assertIn("不得在没有失败observation", messages[-1]["content"])
+                call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            return {"content": "查询已继续完成", "tool_calls": [], "output_items": []}
+
+        with patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[]), \
+                patch.object(ZMEMORY.instance, "save_active_chat"), \
+                patch.object(ZFUNC, "chat_roleplay_get", return_value=None), \
+                patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}) as schema:
+            result = ZCHAT.chat_process(user_text="比较历史数据", user_id="100", nickname="A",
+                                        use_memory=False, model_caller=model,
+                                        tool_registry=registry, return_artifacts=True)
+        self.assertEqual(result["text"], "查询已继续完成")
+        self.assertEqual(result["trace"]["recovery"], {
+            "reason": "chat_empty_response", "attempts": 1,
+            "mode": "tools_preserved", "outcome": "recovered",
+        })
+        self.assertEqual(result["trace"]["summary"]["tool_calls"], 2)
+        schema.assert_called_once_with()
+
     def test_batch_queries_keep_partial_errors_and_datasets_private_to_request(self):
         tools = ZCHAT.HOKChatTools()
         with patch.object(ZFUNC, "chat_check_database_query", side_effect=[
