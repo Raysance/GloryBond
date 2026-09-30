@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
-    parser.add_argument("--backup-dir", default="/QQBot/redis-migration-backups")
+    parser.add_argument("--backup-dir")
     return parser.parse_args()
 
 
@@ -230,7 +230,9 @@ def apply(config, moves):
 
 def main():
     args = parse_args()
-    load_dotenv("/QQBot/.env")
+    project_root = Path(__file__).resolve().parents[1]
+    env_path = os.environ.get("HOK_ENV_FILE") or project_root / ".env"
+    load_dotenv(env_path)
     config_path = os.environ.get("REDIS_CONF")
     if not config_path:
         raise RuntimeError("REDIS_CONF is not configured")
@@ -244,9 +246,12 @@ def main():
     print(json.dumps({"apply": args.apply, "keys": len(moves), "by_db": by_db}, ensure_ascii=False))
     if not args.apply:
         return
-    backup_path = backup(config, moves, args.backup_dir)
+    backup_dir = args.backup_dir or os.environ.get("HOK_REDIS_BACKUP_DIR")
+    if not backup_dir:
+        backup_dir = project_root / "redis-migration-backups"
+    backup_path = backup(config, moves, backup_dir)
     apply(config, moves)
-    config_backup_path = unify_redis_config(config_path, config, args.backup_dir)
+    config_backup_path = unify_redis_config(config_path, config, backup_dir)
     print(json.dumps({
         "status": "complete",
         "backup": str(backup_path),

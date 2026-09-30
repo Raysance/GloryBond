@@ -1,0 +1,21 @@
+[Unit]
+Description=HOK QQBot NapCat QQ client
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@STACK_ROOT@
+EnvironmentFile=@CONFIG_DIR@/common.env
+EnvironmentFile=@CONFIG_DIR@/napcat.env
+ExecStart=@NAPCAT_RUNNER@
+Restart=always
+RestartSec=10
+KillMode=mixed
+TimeoutStopSec=30
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

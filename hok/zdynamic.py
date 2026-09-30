@@ -4,7 +4,7 @@ from .zstatic import *
 import redis
 
 # 引入程序动态变量
-with open('variables_dynamic.json', 'r', encoding='utf-8') as file:
+with open(variables_dynamic_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 globals().update(varia)
 redis_deamon = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)

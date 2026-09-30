@@ -2,6 +2,9 @@
 /.env.local
 /.venv/
 /local_debugger/.venv/
+/build/
+/dist/
+*.egg-info/
 
 # TEMP LOG
 **/__pycache__/

@@ -78,10 +78,31 @@ class PostgresArchiveTests(unittest.TestCase):
             ZDB.read_history_date = fail_database
             ZFILE.readerl = fake_json_reader
             self.assertEqual(ZFILE.read_history_date("2026-09-22"), [{"source": "json"}])
-            self.assertEqual(requested_paths, [os.path.join("data", "history", "2026-09-22.json")])
+            self.assertEqual(
+                requested_paths,
+                [os.path.join(ZFILE.data_root, "history", "2026-09-22.json")],
+            )
         finally:
             ZDB.read_history_date = original_db_reader
             ZFILE.readerl = original_json_reader
+
+    def test_external_data_root_keeps_stable_archive_identifiers(self):
+        original_data_root = ZFILE.data_root
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                ZFILE.data_root = temp_dir
+                target = os.path.join(temp_dir, "history", "2026-09-22.json")
+                self.assertEqual(
+                    ZFILE.classify_postgres_archive_path(target),
+                    {
+                        "kind": "history",
+                        "date": "2026-09-22",
+                        "source_path": "data/history/2026-09-22.json",
+                    },
+                )
+                self.assertEqual(ZFILE.daily_history_path("2026-09-22"), target)
+        finally:
+            ZFILE.data_root = original_data_root
 
     def test_managed_archive_writes_only_postgres_when_enabled(self):
         original_classifier = ZFILE.classify_postgres_archive_path

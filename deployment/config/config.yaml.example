@@ -1,0 +1,38 @@
+ChatAPI:
+  base_url: "https://models.sjtu.edu.cn/api/v1"
+  # Also accepts deepseek-reasoner, qwen and qwen3.8-27b.
+  model: "deepseek-chat"
+  proxy_url: "socks5h://10.203.0.2:1080"
+  # Set HOK_CHAT_API_KEY in the private host environment.
+Proxy:
+  # Steam and APIMart use this proxy exclusively. socks5h://127.0.0.1:7891 is also supported.
+  clash_url: "http://127.0.0.1:7890"
+QQBot:
+  ark_key: "replace-me"
+  ark_responses_model: "replace-me"
+  ark_image_key: "replace-me"
+  apimart_key: "replace-me"
+  bot_qid: 0
+  group_qid: 0
+  super_qid: 0
+wzry:
+  gameopenid: "replace-me"
+  token: "replace-me"
+  openid: "replace-me"
+  gameroleid: "replace-me"
+  x-log-uid: "replace-me"
+  tinkerid: "replace-me"
+  userid: "replace-me"
+  roleid: "replace-me"
+  encoderes: "replace-me"
+  pubkey: "replace-me"
+WebService:
+  server_ip: "127.0.0.1"
+  server_domain: "example.com"
+  secret_key: "replace-with-a-random-secret"
+  valid_pattern: "123456"
+PostgreSQL:
+  dsn: "REDACTED_CREDENTIAL"
+  archive_json: false
+Steam:
+  api_key: "replace-me"

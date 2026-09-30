@@ -1,0 +1,20 @@
+[Unit]
+Description=HOK QQBot FastAPI web service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@WEB_ROOT@
+EnvironmentFile=@CONFIG_DIR@/common.env
+ExecStart=@WEB_ROOT@/.venv/bin/python @WEB_ROOT@/app.py
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

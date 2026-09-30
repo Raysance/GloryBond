@@ -76,7 +76,7 @@ async def dump_today():
 def _dump_today_impl():
     from .ztime import time_sul
     from .zfunc import wzry_data
-    from .zfile import writerl
+    from .zfile import daily_history_path, personal_history_path, writerl
 
     dump_date=time_sul().strftime("%Y-%m-%d")
     log_message("DUMPBEGIN "+dump_date+".json")
@@ -87,7 +87,12 @@ def _dump_today_impl():
         else: visitfield=dmc.DumpTodayFailedList
         for key in visitfield:
             try:
-                gameinfo.append(wzry_data(realname=key,savepath=os.path.join("data","history", "personal", dump_date, str(userlist[key]) + ".json")))
+                gameinfo.append(
+                    wzry_data(
+                        realname=key,
+                        savepath=personal_history_path(dump_date, userlist[key]),
+                    )
+                )
                 time.sleep(0.3)
             except Exception:
                 if (key not in dmc.DumpTodayFailedList):
@@ -99,7 +104,7 @@ def _dump_today_impl():
     if (not retry_time): 
         add_msg("Dump failed for "+str(dmc.DumpTodayFailedList), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         dmc.DumpTodayFailedList=[]
-    filename=os.path.join("data","history",dump_date+".json")
+    filename = daily_history_path(dump_date)
     writerl(filename,gameinfo)
     log_message("DUMPEND "+dump_date+".json")
     return
@@ -211,15 +216,12 @@ async def bili_video_push():
 def _fetch_news_impl():
     from .zapi import ark_api
     from .ztime import date_r
-    from .zfile import file_exist
-    from .zfile import readera
-    from .zfile import writera
+    from .zfile import file_exist, news_text_path, readera, writera
 
     log_message("FETCH_NEWS")
 
     current_date = date_r()
-    news_dir = os.path.join("data","news")
-    file_path = os.path.join(news_dir, f"{current_date}.txt")
+    file_path = news_text_path(current_date)
 
     if file_exist(file_path):
         dmc.today_news = readera(file_path)
@@ -232,11 +234,10 @@ def _fetch_news_impl():
 def _fetch_herorank_impl():
     from .zapi import wzry_get_official
     from .ztime import date_r
-    from .zfile import read_hero_rank
-    from .zfile import writerl
+    from .zfile import hero_rank_archive_path, read_hero_rank, writerl
 
     current_date = date_r()
-    file_path = os.path.join("data","herorank", f"{current_date}.json")
+    file_path = hero_rank_archive_path(current_date)
 
     stored_rank = read_hero_rank(current_date)
     if stored_rank:
@@ -251,12 +252,10 @@ def _fetch_herorank_impl():
 def _fetch_hero_tier_impl():
     from .zapi import tianyuanzhiyi_tier_api
     from .ztime import date_r
-    from .zfile import read_hero_tier
-    from .zfile import writerl
+    from .zfile import hero_tier_archive_path, read_hero_tier, writerl
 
     current_date = date_r()
-    herotier_dir = "herotier"
-    file_path = os.path.join("data",herotier_dir, f"{current_date}.json")
+    file_path = hero_tier_archive_path(current_date)
 
     stored_tier = read_hero_tier(current_date)
     if stored_tier:

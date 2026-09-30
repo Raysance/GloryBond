@@ -44,12 +44,12 @@ def read_history_date(target_date):
             return database_payload
     except Exception as exc:
         log_message(f"POSTGRES_HISTORY_READ_FALLBACK: date={target_date} error={repr(exc)}", logging.WARNING)
-    return readerl(os.path.join("data", "history", f"{target_date}.json"))
+    return readerl(os.path.join(data_root, "history", f"{target_date}.json"))
 
 
 def list_history_archive_dates_descending():
     """List only daily JSON history archives, without consulting PostgreSQL."""
-    history_dir = os.path.join("data", "history")
+    history_dir = os.path.join(data_root, "history")
     if not os.path.isdir(history_dir):
         return []
     dates = []
@@ -62,16 +62,16 @@ def list_history_archive_dates_descending():
 
 def read_history_archive_date(target_date):
     """Read one emergency daily JSON archive without a database lookup."""
-    return readerl(os.path.join("data", "history", f"{target_date}.json"))
+    return readerl(os.path.join(data_root, "history", f"{target_date}.json"))
 
 
 def daily_history_path(target_date):
-    return os.path.join("data", "history", f"{target_date}.json")
+    return os.path.join(data_root, "history", f"{target_date}.json")
 
 
 def personal_history_path(target_date, userid):
     return os.path.join(
-        "data",
+        data_root,
         "history",
         "personal",
         str(target_date),
@@ -80,12 +80,12 @@ def personal_history_path(target_date, userid):
 
 
 def battle_detail_path(gameseq):
-    return os.path.join("data", "history", "battles", f"{gameseq}.json")
+    return os.path.join(data_root, "history", "battles", f"{gameseq}.json")
 
 
 def read_honor_districts():
     """Read the honor-rank district tree through the project's IO boundary."""
-    return readerl(os.path.join("data", "honor", "districts.json"))
+    return readerl(os.path.join(data_root, "honor", "districts.json"))
 
 
 def read_emoji_reference():
@@ -93,7 +93,19 @@ def read_emoji_reference():
 
 
 def read_dynamic_variables():
-    return readerl("variables_dynamic.json")
+    return readerl(variables_dynamic_path)
+
+
+def news_text_path(target_date):
+    return os.path.join(data_root, "news", f"{target_date}.txt")
+
+
+def hero_rank_archive_path(target_date):
+    return os.path.join(data_root, "herorank", f"{target_date}.json")
+
+
+def hero_tier_archive_path(target_date):
+    return os.path.join(data_root, "herotier", f"{target_date}.json")
 
 
 def delete_legacy_chat_cache(user_qid):
@@ -114,7 +126,7 @@ def list_history_dates_descending(start_date=None):
             return database_dates
     except Exception as exc:
         log_message(f"POSTGRES_HISTORY_DATES_FALLBACK: start={start_date} error={repr(exc)}", logging.WARNING)
-    history_dir = os.path.join("data", "history")
+    history_dir = os.path.join(data_root, "history")
     if not os.path.isdir(history_dir):
         return []
     dates = []
@@ -140,7 +152,7 @@ def read_battle_detail(gameseq):
             return database_payload
     except Exception as exc:
         log_message(f"POSTGRES_BATTLE_READ_FALLBACK: GameSeq={gameseq} error={repr(exc)}", logging.WARNING)
-    return readerl(os.path.join("data", "history", "battles", f"{gameseq}.json"))
+    return readerl(os.path.join(data_root, "history", "battles", f"{gameseq}.json"))
 
 
 def read_personal_history(target_date, userid):
@@ -156,7 +168,7 @@ def read_personal_history(target_date, userid):
             f"POSTGRES_PERSONAL_READ_FALLBACK: date={target_date} userid={userid} error={repr(exc)}",
             logging.WARNING,
         )
-    return readerl(os.path.join("data", "history", "personal", str(target_date), f"{userid}.json"))
+    return readerl(os.path.join(data_root, "history", "personal", str(target_date), f"{userid}.json"))
 
 
 def read_hero_tier(target_date):
@@ -169,7 +181,7 @@ def read_hero_tier(target_date):
             return database_payload
     except Exception as exc:
         log_message(f"POSTGRES_HERO_TIER_READ_FALLBACK: date={target_date} error={repr(exc)}", logging.WARNING)
-    return readerl(os.path.join("data", "herotier", f"{target_date}.json"))
+    return readerl(os.path.join(data_root, "herotier", f"{target_date}.json"))
 
 
 def read_hero_rank(target_date):
@@ -182,7 +194,7 @@ def read_hero_rank(target_date):
             return database_payload
     except Exception as exc:
         log_message(f"POSTGRES_HERO_RANK_READ_FALLBACK: date={target_date} error={repr(exc)}", logging.WARNING)
-    return readerl(os.path.join("data", "herorank", f"{target_date}.json"))
+    return readerl(os.path.join(data_root, "herorank", f"{target_date}.json"))
 
 
 def battle_detail_exists(gameseq):
@@ -194,7 +206,7 @@ def battle_detail_exists(gameseq):
             return True
     except Exception as exc:
         log_message(f"POSTGRES_BATTLE_EXISTS_FALLBACK: GameSeq={gameseq} error={repr(exc)}", logging.WARNING)
-    return file_exist(os.path.join("data", "history", "battles", f"{gameseq}.json"))
+    return file_exist(os.path.join(data_root, "history", "battles", f"{gameseq}.json"))
 
 
 def writerl(filepath,data):
@@ -220,9 +232,15 @@ def classify_postgres_archive_path(filepath):
     """Describe a managed JSON archive path without changing the source file."""
     absolute_path = os.path.abspath(str(filepath))
     try:
-        relative_path = os.path.relpath(absolute_path, os.path.abspath(project_root)).replace(os.sep, "/")
+        data_relative_path = os.path.relpath(
+            absolute_path,
+            os.path.abspath(data_root),
+        ).replace(os.sep, "/")
     except Exception:
         return None
+    if data_relative_path == ".." or data_relative_path.startswith("../"):
+        return None
+    relative_path = f"data/{data_relative_path}"
     match = re.fullmatch(r"data/history/(\d{4}-\d{2}-\d{2})\.json", relative_path)
     if match:
         return {"kind": "history", "date": match.group(1), "source_path": relative_path}
@@ -284,12 +302,12 @@ def list_postgres_archive_files(kinds=None):
     """List importable JSON archives through the project's IO boundary."""
     requested = set(kinds or ("history", "battle", "personal", "power", "hero_tier", "hero_rank"))
     roots = {
-        "history": os.path.join(project_root, "data", "history"),
-        "battle": os.path.join(project_root, "data", "history", "battles"),
-        "personal": os.path.join(project_root, "data", "history", "personal"),
-        "power": os.path.join(project_root, "data", "history", "power"),
-        "hero_tier": os.path.join(project_root, "data", "herotier"),
-        "hero_rank": os.path.join(project_root, "data", "herorank"),
+        "history": os.path.join(data_root, "history"),
+        "battle": os.path.join(data_root, "history", "battles"),
+        "personal": os.path.join(data_root, "history", "personal"),
+        "power": os.path.join(data_root, "history", "power"),
+        "hero_tier": os.path.join(data_root, "herotier"),
+        "hero_rank": os.path.join(data_root, "herorank"),
     }
     entries = []
     for kind in requested:
@@ -410,7 +428,7 @@ def battle_power_image_path():
 
 
 def battle_power_history_dir():
-    return os.path.join("data", "history", "power")
+    return os.path.join(data_root, "history", "power")
 
 
 def battle_power_history_path(gameseq):
@@ -418,7 +436,7 @@ def battle_power_history_path(gameseq):
 
 
 def battle_power_failed_dir():
-    return os.path.join("data", "history", "power_failed")
+    return os.path.join(data_root, "history", "power_failed")
 
 
 def battle_power_failed_path(gameseq):
@@ -500,7 +518,7 @@ def write_web_history_payload(filename_hashed, payload):
 
 def write_daily_history_export(date_text, payload):
     """Persist one daily history export through the archive-aware writer."""
-    path = os.path.join("data", "history", f"{date_text}.json")
+    path = os.path.join(data_root, "history", f"{date_text}.json")
     writerl(path, payload)
     return path
 
@@ -616,7 +634,7 @@ def append_hok_exception_log(error_msg, context=None):
         "error": str(error_msg),
         "context": context or {},
     }
-    return append_jsonl(os.path.join("log", "error.log"), item)
+    return append_jsonl(os.path.join(log_root, "error.log"), item)
 
 
 def first_existing_path(paths):

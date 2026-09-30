@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Pull Without Touching History
         run: |
-          cd /QQBot/NBot/
+          cd /srv/modules/hok/apps/NBot/
           git fetch origin main
 
           git reset --mixed origin/main

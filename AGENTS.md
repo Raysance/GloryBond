@@ -97,8 +97,13 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 ### 1.5 部署运行方式
 
 - 部署服务器上的 NoneBot 进程由 `hok-nbot.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
+- `deployment/` 是跨 Linux 主机部署包：`config/` 保存无密钥模板，`systemd/` 保存可渲染单元，`nginx/` 保存反向代理模板，`scripts/` 提供安装、检查与 bundle 构建，`bin/` 保存服务启动包装器；调整该结构时必须同步维护 `deployment/README.md`。
+- Aliyun 整机部署以 `/srv/modules/{hok,personal-site,clash}` 为三个应用模块；每个模块维护 `module.json`、`apps/`、`config/`、状态/日志、`systemd/`、`nginx/` 和 `ops/`。HOK 的物理代码路径为 `hok/apps/{NBot,Web}`，`/QQBot` 等旧路径保留兼容链接；不要删除仍被 CI、运行时或配置引用的链接。
+- 三个统一入口为 `hok.target`、`personal-site.target` 与 `clash.target`，子服务用 `PartOf=` 归属模块，原服务名称保留供 CI 单独重启。Nginx、Redis、PostgreSQL、证书和 Actions runner 是共享基础设施，不随模块停止；个人网站 target 停止 OAuth/API 后，静态页面仍由共享 Nginx 提供。
+- `deployment/server_modules/` 保存服务器迁移、带回滚日志的目录整理、模块管理及私有导出工具；HOK 导出只抓取 HOK PostgreSQL 库和 Redis DB0 的 `hok:*`，不得混入 PlanIt DB9。导出包含密钥和 QQ 会话，必须使用私有权限与 SSH 传输。
+- `/opt/hok-qqbot/{nbot,web}`、`/etc/hok-qqbot`、`/var/lib/hok-qqbot` 与 `/var/log/hok-qqbot` 是独立的全新 HOK 安装模板布局，不是现有 Aliyun 模块的实际路径；新主机恢复细节见 `deployment/server_modules/README.md`。
 - GitHub Actions 在完成代码同步后通过 `systemctl restart hok-nbot.service` 发布，并以 `systemctl is-active` 验证启动结果。
-- `hok-nbot.service` 从 `/QQBot/NBot` 启动 `deploy_runner.sh`，依赖 Redis、PostgreSQL 与网络就绪，运行日志仍写入 `log/run.log`。
+- 新版 `deploy_runner.sh` 默认调用项目内 `.venv/bin/nb`，允许 `HOK_NB_BIN` 覆盖；代理、CLI 路径和服务目录通过配置注入，不得新增硬编码。Aliyun 现有 CLI 在主机 Conda 中，路径和代理已集中于 `hok/config/nbot-host.env`，应用虚拟环境继续复用；既有运行日志通过 `log` 链接进入 `hok/logs/nbot`，新装模板进程输出进入 journald，HOK Exception 仍写入配置的错误日志目录。
 
 ## 2. 配置与变量的来源（必须遵守）
 
@@ -112,6 +117,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 原则：
 1. **任何可能变化的值**不得硬编码在业务逻辑里，必须进入上述文件或对应的静态/动态变量模块。
 2. `zstatic.py` 负责加载静态配置；`zdynamic.py` 负责加载动态配置初始值，不作为运行时持久化写入入口。
+3. 部署环境可通过 `HOK_CONFIG_FILE`、`HOK_STATIC_VARIABLES_FILE`、`HOK_DYNAMIC_VARIABLES_FILE` 指向 `/etc` 下的外置配置；未设置时才读取 `BOT_PATH` 下同名文件。
 
 ### 2.2 Linux 环境变量（在 `hok/zstatic.py` 导入）
 
@@ -128,7 +134,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `HOK_FILE_TRANSFER_DIR`：NBot 与 Web 共享的公开产物目录；默认 `BOT_PATH/file_transfer`。
 - `HOK_LOG_DIR`：NBot 文件日志目录；默认 `BOT_PATH/log`。
 
-项目根目录统一使用全局变量 `BOT_PATH` 的绝对路径，通过 `hok/zstatic.py` 的 `project_root` 暴露给其他模块；Web 静态产物目录统一使用 `BOT_PATH/file_transfer/`，通过 `temp_path` 暴露，不再从 `NGINX_HTML` 读取。
+项目根目录统一使用全局变量 `BOT_PATH` 的绝对路径，通过 `hok/zstatic.py` 的 `project_root` 暴露给其他模块；数据、Web 静态产物与日志分别通过 `data_root`、`temp_path`、`log_root` 暴露，不再从 `NGINX_HTML` 或进程当前目录推断部署状态。
 
 ## 3. 代码结构与改动边界
 
@@ -141,7 +147,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
    - 历史查询数据：PostgreSQL 为主查询源和主写入目标；完成全量 payload 校验与数据库备份后，可清理 `data/history/`、`data/herotier/` 与 `data/herorank/` 下已迁移 JSON。数据库写入失败时，`zfile.py` 才写入同路径应急 JSON，供恢复与补录。
 4. **IO 与时间**：IO 一律走 `zfile.py`；时间一律走 `ztime.py`。
 5. **发送消息**：所有对外消息发送必须走 `utils/message_sender.py`，用于统一出口与后续可观测性。
-6. **运行日志**：部署运行日志统一写入 `log/run.log`，HOK Exception 错误日志统一写入 `log/error.log`；`log/` 为运行时目录，不纳入 Git。
+6. **运行日志**：服务标准输出统一进入 systemd journal，HOK Exception 错误日志统一写入 `HOK_LOG_DIR/error.log`；运行时日志目录不纳入 Git。
 7. **架构规范同步**：每次升级项目、调整目录职责、改变调用链或修改项目架构时，必须同步更新本 `AGENTS.md`，确保后续 AI 与开发者读取到的架构规则始终与当前项目一致。
 
 ### 3.1 Git 发布规则
