@@ -66,6 +66,30 @@ class TracePageTests(unittest.TestCase):
         embedded = response.text[start:].split('>', 1)[1].split('</script>', 1)[0]
         self.assertEqual(json.loads(embedded)["rounds"], self.payload["rounds"])
 
+    def test_harness_context_system_prompts_and_tool_definitions_are_preserved(self):
+        injection = {
+            "messages": [{"role": "system", "content": "SYSTEM_FULL"},
+                         {"role": "user", "content": "USER_FULL"}],
+            "system_messages": [{"role": "system", "content": "SYSTEM_FULL"}],
+            "context_messages": [{"role": "user", "content": "USER_FULL"}],
+            "tool_definitions": [{"type": "function", "name": "lookup",
+                                  "parameters": {"type": "object"}}],
+            "tool_choice": "auto",
+        }
+        self.payload["rounds"] = [{"index": 1, "tools": [], "context_injection": injection}]
+        parsed = parse_chat_trace(json.dumps(self.payload))
+        self.assertEqual(parsed["rounds"][0]["context_injection"], injection)
+        response = self.client.get("/chat-trace", params={"key": self.key})
+        for marker in ("System Prompt", "Context Injection", "Tool Definitions"):
+            self.assertIn(marker, response.text)
+
+    def test_trace_script_uses_request_payload_then_context_snapshot(self):
+        script = (Path(__file__).resolve().parents[1]
+                  / "templates/CommonPages/ChatTrace/app.js").read_text(encoding="utf-8")
+        self.assertIn("request.messages", script)
+        self.assertIn("injected.system_messages", script)
+        self.assertIn("Tool Definition ·", script)
+
 
 if __name__ == "__main__":
     unittest.main()

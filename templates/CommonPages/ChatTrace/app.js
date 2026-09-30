@@ -12,7 +12,8 @@
   const brief = value => (typeof value === 'string' ? value : JSON.stringify(value))?.replace(/\s+/g, ' ').slice(0, 170) || '—';
   const ms = value => Number(value || 0) < 1000 ? `${Math.round(Number(value || 0))} ms` : `${(Number(value) / 1000).toFixed(2)} s`;
   const states = {ok:'已完成', error:'失败', partial:'部分失败', skipped:'未执行'};
-  const labels = {user:'用户', context:'上下文', model:'助手', tool:'工具'};
+  const labels = {user:'用户', system:'系统', context:'上下文', definition:'定义', model:'助手', tool:'工具'};
+  const roleLabels = {system:'System', developer:'Developer', user:'User', assistant:'Assistant', tool:'Tool'};
   const summary = trace.summary || {};
   $('title').textContent = trace.question || 'HOK 运行记录';
   $('title').title = trace.question || '';
@@ -45,9 +46,27 @@
 
   const records = [], groups = [];
   let selected, activeTab = 'summary', collapsed = false;
+  function toolName(definition) {
+    return definition?.function?.name || definition?.name || definition?.type || 'unnamed_tool';
+  }
+  function turnContext(turn = {}) {
+    const injected = turn.context_injection || {};
+    const request = turn.request_payload || {};
+    const messages = Array.isArray(request.messages) ? request.messages
+      : Array.isArray(request.input) ? request.input
+      : Array.isArray(injected.messages) ? injected.messages : [];
+    const systemMessages = messages.length ? messages.filter(message => message?.role === 'system')
+      : Array.isArray(injected.system_messages) ? injected.system_messages : [];
+    const contextMessages = messages.length ? messages.filter(message => message?.role !== 'system')
+      : Array.isArray(injected.context_messages) ? injected.context_messages : [];
+    const toolDefinitions = Array.isArray(request.tools) ? request.tools
+      : Array.isArray(injected.tool_definitions) ? injected.tool_definitions : [];
+    return {messages, systemMessages, contextMessages, toolDefinitions,
+      toolChoice: request.tool_choice ?? injected.tool_choice ?? '未记录'};
+  }
   function addRecord(group, data) {
     const item = {...data, id: `step-${records.length}`};
-    item.searchable = `${item.title} ${states[item.status] || ''} ${json(item.input)} ${json(item.output)}`.toLowerCase();
+    item.searchable = `${item.title} ${states[item.status] || ''} ${json(item.input)} ${json(item.output)} ${json(item.schema)}`.toLowerCase();
     const row = el('button', 'event');
     row.id = item.id;
     row.setAttribute('aria-label', `${labels[item.kind]} ${item.title}`);
@@ -74,10 +93,27 @@
   addRecord(inputGroup, {kind:'user', title:trace.question, input:trace.question, output:null, round:0, start_ms:0, duration_ms:0, status:'ok'});
   const context = trace.context || {};
   const quoteStates = {read:'已读取本次引用消息', unavailable:'引用消息不可用', none:'无引用消息'};
-  const contextText = `${quoteStates[context.quote] || '无引用消息'}；${context.recent_dialogue_enabled ? '已启用近期直接对话' : '记忆已关闭'}`;
-  addRecord(inputGroup, {kind:'context', title:contextText, input:context, output:'完整模型上下文见每轮助手步骤的参数；工具返回内容见工具步骤的结果。', round:0, start_ms:0, duration_ms:0, status:'ok'});
+  const initialContext = turnContext((trace.rounds || [])[0]);
+  const contextText = `${quoteStates[context.quote] || '无引用消息'}；首轮注入 ${initialContext.systemMessages.length} 段 System Prompt、${initialContext.contextMessages.length} 条上下文、${initialContext.toolDefinitions.length} 个工具定义`;
+  const initialInjection = initialContext.messages.length || initialContext.toolDefinitions.length ? {
+    system_messages: initialContext.systemMessages,
+    context_messages: initialContext.contextMessages,
+    tool_definitions: initialContext.toolDefinitions,
+    tool_choice: initialContext.toolChoice,
+  } : {metadata: context, notice:'此历史记录未保存首轮上下文注入；不会伪造补全。'};
+  addRecord(inputGroup, {kind:'context', title:contextText, input:initialInjection, output:context, round:0, start_ms:0, duration_ms:0, status:'ok'});
   for (const [index, turn] of (trace.rounds || []).entries()) {
     const group = addGroup(`第 ${turn.index} 轮${turn.phase === 'recovery' ? ' · 空回复补试' : turn.phase === 'final' ? ' · 收束回答' : ''}`);
+    const injected = turnContext(turn);
+    addRecord(group, {kind:'system', title:`System Prompt · ${injected.systemMessages.length} 段`,
+      input:injected.systemMessages.length ? injected.systemMessages : {notice:'此轮请求未保存 System Prompt；不会伪造补全。'},
+      output:{count:injected.systemMessages.length}, round:turn.index, start_ms:turn.start_ms, duration_ms:0, status:'ok'});
+    addRecord(group, {kind:'context', title:`Context Injection · ${injected.contextMessages.length} 条消息`,
+      input:injected.contextMessages.length ? injected.contextMessages : {notice:'此轮请求未保存非 System 上下文；不会伪造补全。'},
+      output:{count:injected.contextMessages.length, tool_choice:injected.toolChoice}, round:turn.index, start_ms:turn.start_ms, duration_ms:0, status:'ok'});
+    addRecord(group, {kind:'definition', title:`Tool Definitions · ${injected.toolDefinitions.length} 个`,
+      input:injected.toolDefinitions, output:{names:injected.toolDefinitions.map(toolName), tool_choice:injected.toolChoice},
+      schema:injected.toolDefinitions, round:turn.index, start_ms:turn.start_ms, duration_ms:0, status:'ok'});
     const final = index === trace.rounds.length - 1 && turn.status !== 'error';
     const output = Object.hasOwn(turn, 'response_payload') ? turn.response_payload : turn.status === 'error' ? {error:turn.error} : turn.tools.length ? {requested_tools:turn.tools.map(call => call.name)} : trace.answer;
     addRecord(group, {kind:'model', title:turn.status === 'error' ? `模型步骤失败：${turn.error}` : turn.tools.length ? `请求 ${turn.tools.length} 个工具` : brief(trace.answer),
@@ -102,11 +138,11 @@
   }
   const total = Math.max(1, Number(trace.duration_ms));
   for (const item of records) {
-    const kind = ['user','context'].includes(item.kind) ? 'input' : item.kind;
+    const kind = ['user','system','context','definition'].includes(item.kind) ? 'input' : item.kind;
     const block = el('button', `time-block ${kind} ${item.status === 'error' ? 'error' : ''}`);
     block.style.left = `${Math.min(99, Number(item.start_ms || 0) / total * 100)}%`;
     block.style.width = `${Math.max(.35, Math.min(100 - Number(item.start_ms || 0) / total * 100, Number(item.duration_ms || 0) / total * 100))}%`;
-    if (item.kind === 'context') block.style.left = '0.8%';
+    if (['system','context','definition'].includes(item.kind) && !item.round) block.style.left = '0.8%';
     block.title = `${labels[item.kind]} · ${item.title} · ${ms(item.duration_ms)}`;
     block.setAttribute('aria-label', block.title);
     block.addEventListener('click', () => { select(item); const group = groups.find(group => group.items.includes(item)); group.body.hidden = false; group.button.setAttribute('aria-expanded','true'); item.row.scrollIntoView({block:'nearest'}); });
@@ -124,7 +160,14 @@
     heading.append(copy); parent.append(heading, el('pre', `code ${language}`, text));
   }
   function inputDetails(parent, item) {
-    if (item.title === 'query_game_database' && Array.isArray(item.input?.queries)) {
+    if (item.kind === 'system' && Array.isArray(item.input)) {
+      item.input.forEach((message,index) => code(parent, `System Prompt ${index+1}`, message?.content ?? message));
+    } else if (item.kind === 'context' && Array.isArray(item.input)) {
+      item.input.forEach((message,index) => code(parent, `${roleLabels[message?.role] || message?.type || 'Context'} ${index+1}`, message));
+    } else if (item.kind === 'definition' && Array.isArray(item.input)) {
+      if (!item.input.length) parent.append(el('p','note','此轮未向模型提供工具定义。'));
+      item.input.forEach(definition => code(parent, `Tool Definition · ${toolName(definition)}`, definition));
+    } else if (item.title === 'query_game_database' && Array.isArray(item.input?.queries)) {
       item.input.queries.forEach((query,index) => {
         code(parent, `SQL ${index+1}${query.label ? ' · '+query.label : ''}`, query.sql, 'sql');
         if (query.params) code(parent, '参数', query.params);
@@ -133,7 +176,10 @@
     } else if (item.input?.code) {
       code(parent, 'Python', item.input.code, 'python');
       const params = {...item.input}; delete params.code; code(parent, '参数', params);
-    } else code(parent, item.kind === 'model' ? '完整请求 payload' : '参数', item.input);
+    } else {
+      const titles = {model:'完整请求 payload', system:'System Prompt', context:'Context Injection', definition:'Tool Definitions'};
+      code(parent, titles[item.kind] || '参数', item.input);
+    }
   }
   function resultDetails(parent, item) {
     const observations = item.output?.data?.observations;
@@ -167,8 +213,8 @@
     document.querySelectorAll('[data-tab]').forEach(button=>{const active=button.dataset.tab === activeTab; button.classList.toggle('active',active); button.setAttribute('aria-selected',String(active));});
     if (activeTab === 'summary') {
       keyValues(parent,[['类型',item.kind === 'tool' ? item.name : labels[item.kind]],['状态',states[item.status] || item.status],['耗时',ms(item.duration_ms)]]);
-      if (item.kind === 'tool') inputDetails(parent,item);
-      resultDetails(parent,item);
+      if (['tool','system','context','definition'].includes(item.kind)) inputDetails(parent,item);
+      if (item.output !== null && item.output !== undefined) resultDetails(parent,item);
       if (item.schema) {
         const schema=el('details');schema.append(el('summary','','Schema'),el('pre','code',json(item.schema)));parent.append(schema);
       }
@@ -178,7 +224,7 @@
     } else if (activeTab === 'input') inputDetails(parent,item);
     else if (activeTab === 'output') resultDetails(parent,item);
     else if (activeTab === 'schema') {
-      if (item.schema) code(parent,'工具 Schema',item.schema);
+      if (item.schema) code(parent,item.kind === 'definition' ? '本轮全部 Tool Definitions' : '工具 Schema',item.schema);
       else parent.append(el('p','note',item.kind === 'tool' ? '此调用未保存工具 Schema。' : '此步骤不是工具调用。'));
     } else timing(parent,item);
   }
