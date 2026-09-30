@@ -12,9 +12,15 @@
 4. `query_player_hero_power`：指定玩家当前官方英雄战力，可选英雄过滤。
 5. `query_honor_power`：指定玩家账号、英雄与具体地区的荣耀战力。
 
+群聊聚合 SQL 使用独立的 `chat_data` 类别：
+
+1. `get_chat_history_database_schema`：返回受作用域限制的群聊视图、字段、时间和统计口径。
+2. `check_chat_history_database_query`：使用同一纯 AST 边界校验群聊 SELECT/CTE，但白名单只包含 `hok.chat_history_messages`。
+3. `query_chat_history_database`：消费一次性 `check_id`，在同一只读事务中先注入可信群作用域，再执行聚合并返回 dataset。
+
 `get_game_database_schema` 返回十张业务表的字段、关联、JSON 字段语义、声明式字段能力和统计口径，不返回问题特定的 SQL 模板。同一对局的多个快照需要按 `game_seq` 和玩家身份去重；胜负、阵营和底蕴的视角见 schema。展示型时间文本可以输出，但校验器拒绝用它过滤、关联、分组或排序。SQL 默认最多 200 行、40 列、60 KB、5 秒，不能把截断后的行数当作总体样本量。聚合分析应在 SQL 中完成。
 
-`hok.group_chat_messages` 是私有群聊归档表，不属于上述十张游戏业务表，不出现在 `get_game_database_schema`，也不授予 `hok_chat_reader`。群聊原文只能经当前群或已验证管理员私聊范围绑定的 history tools 读取。
+`hok.group_chat_messages` 是私有群聊归档表，不属于上述十张游戏业务表，不出现在 `get_game_database_schema`，也不直接授予 `hok_chat_reader`。`chat_data` 类别提供独立的 `get_chat_history_database_schema` → `check_chat_history_database_query` → `query_chat_history_database` 链，只能查询 `hok.chat_history_messages` security-barrier 视图。普通群请求在只读事务中绑定当前事件群；仅已验证管理员私聊可绑定全部已保存群。私有表、payload 和模型自选作用域均不可查询；SQL统计只覆盖已进入PostgreSQL的归档消息，尚未迁移的应急Redis消息不参与。
 
 模型一轮可返回多个工具调用，每个调用均有对应 observation，包括参数错误、SQL 拒绝和外部服务不可用。结果过长时裁剪 SQL 行预览，保留全部查询状态与数据集编号。绘图继续使用本轮完整的、受数据库限制的数据集。
 
@@ -39,7 +45,7 @@
 ## 运行准备
 
 1. 使用应用 Python 环境安装 `pyproject.toml` 所列依赖，包括 `sqlglot>=30.20,<31`、pandas、numpy、matplotlib、seaborn、Pillow 及 SOCKS 支持。Linux 安装 `bubblewrap` 和中文字体，例如文泉驿微米黑。
-2. 由 PostgreSQL 管理员对 HOK 数据库执行 `database/chat_readonly.sql`，单独设置随机密码；将专用连接串以 `HOK_CHAT_READONLY_DSN` 写入项目根目录、权限为 0600 的 `.env`。不得使用应用写账号。
+2. 由 PostgreSQL 管理员先对 HOK 数据库执行最新 `database/schema.sql` 创建群聊安全视图，再执行 `database/chat_readonly.sql` 更新最小列授权并单独设置随机密码；将专用连接串以 `HOK_CHAT_READONLY_DSN` 写入项目根目录、权限为 0600 的 `.env`。不得使用应用写账号。
 3. `ChatSQL` 配置查询上限，`ChatPlot` 配置超时、内存、行数、代码长度和可选 `font_path`。`config.yaml` 的 `DynamicVariables` 配置每次对话的工具预算、轮数、SQL 批量数、记忆容量及图片数。
 
 2026-09-29 已在 Aliyun 的现有应用虚拟环境安装并验证依赖，创建专用只读角色并写入私有服务环境文件；隔离临时目录中的真实 PostgreSQL 查询和 bubblewrap 中文图表渲染均已通过。该准备步骤未部署应用代码或重启 `hok-nbot.service`。

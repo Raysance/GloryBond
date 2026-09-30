@@ -78,6 +78,19 @@ class ChatRuntimeDiagnosticTests(unittest.TestCase):
         self.assertEqual(history_result["archived_message_count"], 20)
         self.assertNotIn("private chat message", str(history_result))
 
+        history_sql_result = DIAGNOSTIC.group_history_database_check(
+            lambda: {"ok": True, "scope_mode": "current_group",
+                     "tables": {"chat_history_messages": {}}},
+            lambda sql: {"ok": True, "normalized_sql": sql},
+            lambda sql, limit, group_id: {
+                "ok": True, "row_count": 1,
+                "rows": [{"message_count": 20, "private": "not returned"}],
+            },
+        )
+        self.assertEqual(history_sql_result["status"], "ok")
+        self.assertTrue(history_sql_result["scoped_view_ready"])
+        self.assertNotIn("private", str(history_sql_result))
+
         search_result = DIAGNOSTIC.web_search_check(lambda *args, **kwargs: {
             "answer": "private web answer",
             "sources": [{"url": "https://example.test"}],

@@ -228,8 +228,8 @@ CREATE INDEX IF NOT EXISTS hero_rank_entries_name_date_idx
 CREATE INDEX IF NOT EXISTS hero_rank_entries_rank_date_idx
     ON hok.hero_rank_entries (rank_id, snapshot_date DESC, rank_index);
 
--- Private group-chat archive used only by the bounded chat-history interfaces.
--- The model-generated SQL reader deliberately receives no grant on this table.
+-- Private group-chat archive. Model SQL never receives a direct grant on this
+-- table; it can only read the transaction-scoped security-barrier view below.
 CREATE TABLE IF NOT EXISTS hok.group_chat_messages (
     message_order bigserial PRIMARY KEY,
     group_id text NOT NULL,
@@ -255,6 +255,20 @@ CREATE INDEX IF NOT EXISTS group_chat_messages_user_time_idx
 CREATE INDEX IF NOT EXISTS group_chat_messages_reply_idx
     ON hok.group_chat_messages (group_id, reply_to_message_id)
     WHERE reply_to_message_id IS NOT NULL;
+
+-- The application sets hok.chat_group_scope inside the read-only transaction
+-- to one trusted event group or "*" for a verified super_qid private request.
+-- Without that setting the view returns no rows. The model SQL validator only
+-- exposes this view and never the private table or payload column.
+CREATE OR REPLACE VIEW hok.chat_history_messages
+WITH (security_barrier = true) AS
+SELECT group_id, message_id, user_id, reply_to_message_id,
+       sent_at, source_timestamp, message_text
+FROM hok.group_chat_messages
+WHERE current_setting('hok.chat_group_scope', true) = '*'
+   OR group_id = ANY(string_to_array(
+       current_setting('hok.chat_group_scope', true), ','
+   ));
 
 CREATE TABLE IF NOT EXISTS hok.json_import_manifest (
     source_path text PRIMARY KEY,

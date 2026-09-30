@@ -915,8 +915,17 @@ def chat_schema_catalog():
     return result
 
 
-def chat_check_readonly(sql, params=None):
-    """Validate one chat query against the same boundary used at execution."""
+def chat_history_schema_catalog(*, all_groups=False):
+    """Return the scoped group-chat catalogue and the same execution limits."""
+    from .chat_sql_schema import chat_history_schema_catalog as schema_catalog
+    from .zstatic import chat_readonly_dsn
+
+    result = schema_catalog("all_saved_groups" if all_groups else "current_group")
+    result.update({"ok": True, "limits": _chat_sql_limits(), "configured": bool(chat_readonly_dsn)})
+    return result
+
+
+def _chat_check_readonly(sql, params, *, allowed_tables, schema_tool_name):
     from .tools.chat_sql import ChatSQLValidationError, validate_readonly_sql
 
     try:
@@ -924,27 +933,60 @@ def chat_check_readonly(sql, params=None):
             sql,
             params=params,
             max_sql_chars=_chat_sql_limits()["max_sql_chars"],
+            allowed_tables=allowed_tables,
+            column_usage={},
+            schema_tool_name=schema_tool_name,
         )
         return {"ok": True, "normalized_sql": normalized}
     except (ChatSQLValidationError, ValueError) as exc:
         return {"ok": False, "error": str(exc)}
 
 
-def chat_query_readonly(sql, params=None, limit=None):
+def chat_check_readonly(sql, params=None):
+    """Validate one chat query against the same boundary used at execution."""
+    from .chat_sql_schema import CHAT_SQL_TABLES
+
+    # Game-data validation keeps its declarative display-only column rules.
+    from .tools.chat_sql import ChatSQLValidationError, validate_readonly_sql
+    from .chat_sql_schema import CHAT_SQL_COLUMN_USAGE
+    try:
+        normalized = validate_readonly_sql(
+            sql, params=params, max_sql_chars=_chat_sql_limits()["max_sql_chars"],
+            allowed_tables=CHAT_SQL_TABLES, column_usage=CHAT_SQL_COLUMN_USAGE,
+            schema_tool_name="get_game_database_schema",
+        )
+        return {"ok": True, "normalized_sql": normalized}
+    except (ChatSQLValidationError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def chat_check_history_readonly(sql, params=None):
+    """Validate model SQL against only the request-scoped group-chat view."""
+    from .chat_sql_schema import CHAT_HISTORY_SQL_TABLES
+
+    return _chat_check_readonly(
+        sql, params, allowed_tables=CHAT_HISTORY_SQL_TABLES,
+        schema_tool_name="get_chat_history_database_schema",
+    )
+
+
+def _chat_query_readonly(sql, params=None, limit=None, *, history_scope=None):
     """Run one model-generated analytical SELECT as a least-privileged reader.
 
     Always return a structured observation, including for rejected SQL, timeout,
     unavailable connection or partial results. Existing _connect() is never used.
     """
     from .chat_sql_schema import CHAT_SQL_ROLE
-    from .tools.chat_sql import ChatSQLValidationError, validate_readonly_sql
+    from .tools.chat_sql import ChatSQLValidationError
 
     try:
         limits = _chat_sql_limits()
         if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
             raise ChatSQLValidationError("limit 必须为正整数")
         row_limit = min(limit or limits["max_rows"], limits["max_rows"])
-        checked = chat_check_readonly(sql, params=params)
+        is_history = history_scope is not None
+        checked = (chat_check_history_readonly(sql, params=params) if is_history
+                   else chat_check_readonly(sql, params=params))
         if not checked["ok"]:
             raise ChatSQLValidationError(checked["error"])
         normalized = checked["normalized_sql"]
@@ -960,6 +1002,11 @@ def chat_query_readonly(sql, params=None, limit=None):
                 cursor.execute("SELECT set_config('idle_in_transaction_session_timeout', %s, true)", (str(limits["statement_timeout_ms"]),))
                 cursor.execute("SELECT set_config('search_path', 'pg_catalog,hok', true)")
                 cursor.execute("SELECT set_config('TimeZone', 'Asia/Shanghai', true)")
+                if is_history:
+                    cursor.execute(
+                        "SELECT set_config('hok.chat_group_scope', %s, true)",
+                        (history_scope,),
+                    )
                 # A misconfigured writer/superuser DSN must fail closed. The
                 # deployment SQL creates this isolated role with no memberships.
                 cursor.execute("""
@@ -1023,3 +1070,21 @@ def chat_query_readonly(sql, params=None, limit=None):
         else:
             message = f"ChatSQL只读数据库连接或执行未就绪（{type(exc).__name__}）"
         return {"ok": False, "location": "chat_query_readonly.execute", "error": message, "sqlstate": sqlstate}
+
+
+def chat_query_readonly(sql, params=None, limit=None):
+    """Execute model game-data SQL through the isolated reader."""
+    return _chat_query_readonly(sql, params=params, limit=limit)
+
+
+def chat_query_history_readonly(sql, params=None, limit=None, *, group_id=None, all_groups=False):
+    """Execute group-chat SQL with scope derived only from trusted request context."""
+    if all_groups:
+        if group_id not in (None, "", 0, "0"):
+            raise ValueError("all_groups scope cannot include group_id")
+        scope = "*"
+    else:
+        scope = str(group_id or "").strip()
+        if not scope.isascii() or not scope.isdecimal() or int(scope) <= 0:
+            raise ValueError("trusted group_id is required for chat history SQL")
+    return _chat_query_readonly(sql, params=params, limit=limit, history_scope=scope)

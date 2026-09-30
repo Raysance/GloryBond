@@ -23,6 +23,24 @@ def chat_query_database(sql, params=None, limit=None):
     return zdb.chat_query_readonly(sql, params=params, limit=limit)
 
 
+def chat_history_database_schema(*, all_groups=False):
+    from . import zdb
+    return zdb.chat_history_schema_catalog(all_groups=all_groups)
+
+
+def chat_check_history_database_query(sql, params=None):
+    """Validate group-chat SQL without opening a database connection."""
+    from . import zdb
+    return zdb.chat_check_history_readonly(sql, params=params)
+
+
+def chat_query_history_database(sql, params=None, limit=None, *, group_id=None, all_groups=False):
+    from . import zdb
+    return zdb.chat_query_history_readonly(
+        sql, params=params, limit=limit, group_id=group_id, all_groups=all_groups,
+    )
+
+
 def chat_plot_templates():
     from .tools.chat_plot import chat_plot_templates as templates
     return templates()

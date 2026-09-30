@@ -1,6 +1,6 @@
 # PostgreSQL history store
 
-`schema.sql` defines the structured query store for HOK game history and the private `hok.group_chat_messages` archive. The original game JSON archives were used as a read-only migration source and may be removed after a complete payload verification and database backup. Group-chat rows are not granted to the model SQL reader; they remain accessible only through the bounded chat-history interfaces.
+`schema.sql` defines the structured query store for HOK game history, the private `hok.group_chat_messages` archive, and the request-scoped `hok.chat_history_messages` security-barrier view. The original game JSON archives were used as a read-only migration source and may be removed after a complete payload verification and database backup. The model SQL reader never receives a direct grant on the private archive or its payload; it can query only the scoped view after the application binds the trusted current group, or all saved groups for verified administrator private chat.
 
 The chat agent uses a separate least-privileged reader created by `chat_readonly.sql`. See [chat tools and runtime setup](CHAT_AGENT.md) for model-generated SQL, plotting, memory and web search.
 

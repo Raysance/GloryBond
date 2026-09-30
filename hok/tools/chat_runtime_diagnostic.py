@@ -130,12 +130,18 @@ def tool_runtime_check(tool_factory: Callable, plot_templates: Callable) -> dict
             "categories": ["memory", "roleplay"],
             "reason": "manual health diagnostic",
         })
+        registry.execute("discover_tools", {
+            "categories": ["chat_data"],
+            "reason": "manual health diagnostic",
+        })
         disclosed_names = {item["name"] for item in registry.model_schemas()}
         required = {
             "discover_tools", "search_chat_history", "get_game_database_schema",
             "check_game_database_query", "query_game_database", "list_plot_templates",
             "render_python_plot", "web_search", "recall_memory", "remember_memory",
             "forget_memory", "manage_roleplay",
+            "get_chat_history_database_schema", "check_chat_history_database_query",
+            "query_chat_history_database",
         }
         templates = plot_templates()
         template_count = len(templates.get("templates") or [])
@@ -248,6 +254,40 @@ def group_history_check(primary_group_lister: Callable, merged_group_lister: Cal
         )
     except Exception as error:
         return _check("group_history_retrieval", started, status="failed", error=_safe_error(error))
+
+
+def group_history_database_check(schema_loader: Callable, query_checker: Callable,
+                                 query_executor: Callable) -> dict:
+    """Verify the scoped schema/check/execute chain without returning message data."""
+    started = time.perf_counter()
+    try:
+        schema = schema_loader()
+        sql = (
+            "SELECT COUNT(*) AS message_count, MIN(sent_at) AS first_message, "
+            "MAX(sent_at) AS last_message FROM hok.chat_history_messages"
+        )
+        checked = query_checker(sql)
+        result = query_executor(sql, limit=1, group_id="1") if checked.get("ok") else {"ok": False}
+        tables = schema.get("tables") or {}
+        passed = (
+            bool(schema.get("ok"))
+            and set(tables) == {"chat_history_messages"}
+            and schema.get("scope_mode") == "current_group"
+            and bool(checked.get("ok"))
+            and bool(result.get("ok"))
+        )
+        return _check(
+            "group_history_database_readonly",
+            started,
+            status="ok" if passed else "failed",
+            scoped_view_ready=set(tables) == {"chat_history_messages"},
+            sql_ast_check=bool(checked.get("ok")),
+            readonly_query=bool(result.get("ok")),
+            returned_rows=int(result.get("row_count") or 0),
+            error=None if result.get("ok") else str(result.get("error") or "query_failed")[:500],
+        )
+    except Exception as error:
+        return _check("group_history_database_readonly", started, status="failed", error=_safe_error(error))
 
 
 def web_search_check(web_search: Callable, api_key: str = "") -> dict:
@@ -432,6 +472,11 @@ def main() -> int:
                 zdb.list_group_chat_history_groups,
                 zfunc.list_chat_history_groups,
                 zfunc.search_group_chat_history,
+            ),
+            lambda: group_history_database_check(
+                zfunc.chat_history_database_schema,
+                zfunc.chat_check_history_database_query,
+                zfunc.chat_query_history_database,
             ),
             lambda: web_search_check(
                 zapi.aliyun_web_search,

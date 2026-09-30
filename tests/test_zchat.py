@@ -153,6 +153,54 @@ class ChatLoopTests(unittest.TestCase):
         discover = result["trace"]["rounds"][1]["tools"][0]
         self.assertEqual(discover["arguments"]["categories"], ["game_data", "plots"])
 
+    def test_message_count_request_forces_scoped_chat_sql_after_history_search(self):
+        calls = []
+        registry = ZCHAT.HOKChatTools(group_id="200", current_message_id="300",
+                                      original_query="谁发消息最多", user_id="100", use_memory=False)
+        query = ("SELECT user_id, COUNT(*) AS message_count "
+                 "FROM hok.chat_history_messages GROUP BY user_id ORDER BY message_count DESC")
+
+        def model(messages, tools=None, tool_choice="auto", **kwargs):
+            calls.append(tool_choice)
+            stage = len(calls)
+            if stage == 1:
+                self.assertEqual(tool_choice["function"]["name"], "search_chat_history")
+                call = {"call_id": "history", "name": "search_chat_history",
+                        "arguments": '{"queries":["群成员 发言","聊天 活跃"]}'}
+            elif stage == 2:
+                self.assertEqual(tool_choice["function"]["name"], "discover_tools")
+                call = {"call_id": "discover", "name": "discover_tools",
+                        "arguments": '{"categories":["chat_data"]}'}
+            elif stage == 3:
+                self.assertEqual(tool_choice["function"]["name"], "get_chat_history_database_schema")
+                call = {"call_id": "schema", "name": "get_chat_history_database_schema", "arguments": "{}"}
+            elif stage == 4:
+                self.assertEqual(tool_choice["function"]["name"], "check_chat_history_database_query")
+                call = {"call_id": "check", "name": "check_chat_history_database_query",
+                        "arguments": json.dumps({"queries": [{"sql": query, "intent": "统计发言排行"}]})}
+            elif stage == 5:
+                self.assertEqual(tool_choice["function"]["name"], "query_chat_history_database")
+                call = {"call_id": "query", "name": "query_chat_history_database",
+                        "arguments": '{"check_id":"chat_sql_check_1"}'}
+            else:
+                return {"content": "昵称A发言最多，共9条。", "tool_calls": [], "output_items": []}
+            return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+
+        with patch.object(ZFUNC, "search_group_chat_history", return_value=[]), \
+                patch.object(ZFUNC, "chat_history_database_schema",
+                             return_value={"ok": True, "tables": {"chat_history_messages": {}}}), \
+                patch.object(ZFUNC, "chat_check_history_database_query",
+                             return_value={"ok": True, "normalized_sql": query}), \
+                patch.object(ZFUNC, "chat_query_history_database",
+                             return_value={"ok": True, "rows": [{"user_id": "100", "message_count": 9}],
+                                           "columns": ["user_id", "message_count"]}):
+            result = ZCHAT.chat_process(user_text=registry.original_query, user_id="100", nickname="A",
+                                        group_id="200", message_id="300", use_memory=False,
+                                        model_caller=model, tool_registry=registry, return_artifacts=True)
+        self.assertEqual(result["text"], "昵称A发言最多，共9条。")
+        self.assertEqual(result["trace"]["context"]["explicit_discovery_categories"], ["chat_data"])
+        self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
+
     def test_capability_denial_gets_one_forced_discovery_retry(self):
         calls = []
         registry = ZCHAT.HOKChatTools(group_id="200", original_query="群友哪一对组排最多",
@@ -391,6 +439,48 @@ class HOKChatToolsTests(unittest.TestCase):
         registry = ZCHAT.HOKChatTools(group_id="200", original_query="查看群聊历史")
         self.assertTrue(registry.require_automatic_history_search())
         self.assertEqual(registry.required_discovery_categories(), [])
+        self.assertNotIn("get_chat_history_database_schema",
+                         {item["name"] for item in registry.model_schemas()})
+
+    def test_group_message_ranking_requires_scoped_chat_sql_workflow(self):
+        registry = ZCHAT.HOKChatTools(group_id="200", original_query="谁发消息最多")
+        self.assertTrue(registry.require_automatic_history_search())
+        self.assertEqual(registry.required_discovery_categories(), ["chat_data"])
+        disclosed = registry.execute("discover_tools", {"categories": ["chat_data"]})
+        self.assertFalse(disclosed["unavailable_categories"])
+        self.assertEqual(registry.required_workflow_tool(["chat_data"]),
+                         "get_chat_history_database_schema")
+        registry.record_tool_result("get_chat_history_database_schema", {"ok": True})
+        self.assertEqual(registry.required_workflow_tool(["chat_data"]),
+                         "check_chat_history_database_query")
+
+    def test_group_chat_sql_ticket_executes_with_request_bound_scope(self):
+        tools = ZCHAT.HOKChatTools(group_id="200", original_query="发言统计")
+        query = ("SELECT user_id, COUNT(*) AS message_count "
+                 "FROM hok.chat_history_messages GROUP BY user_id")
+        with patch.object(ZFUNC, "chat_check_history_database_query",
+                          return_value={"ok": True, "normalized_sql": query}) as check, \
+                patch.object(ZFUNC, "chat_query_history_database",
+                             return_value={"ok": True, "rows": [{"user_id": "100", "message_count": 9}],
+                                           "columns": ["user_id", "message_count"]}) as execute:
+            checked = tools.execute("check_chat_history_database_query", {"queries": [
+                {"sql": query, "intent": "统计当前群发言量"},
+            ]})
+            self.assertEqual(checked["check_id"], "chat_sql_check_1")
+            result = tools.execute("query_chat_history_database", {"check_id": checked["check_id"]})
+        check.assert_called_once_with(query, params=None)
+        execute.assert_called_once_with(query, limit=None, group_id="200", all_groups=False)
+        self.assertEqual(result["observations"][0]["dataset_id"], "dataset_1")
+        self.assertEqual(tools.datasets["dataset_1"][0]["message_count"], 9)
+        with self.assertRaisesRegex(ValueError, "unknown_or_consumed_check_id"):
+            tools.execute("query_chat_history_database", {"check_id": checked["check_id"]})
+
+    def test_group_chat_sql_is_unavailable_in_ordinary_private_chat(self):
+        private = ZCHAT.HOKChatTools(user_id="100", original_query="群聊发言统计")
+        names = {item["name"] for item in private.schemas()}
+        self.assertNotIn("get_chat_history_database_schema", names)
+        with self.assertRaises(ZCHAT.ChatToolUnavailableError):
+            private.execute("get_chat_history_database_schema", {})
 
     def test_disabled_explicit_category_does_not_force_unknown_tool(self):
         registry = ZCHAT.HOKChatTools(user_id="100", use_memory=False,

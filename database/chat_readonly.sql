@@ -38,9 +38,10 @@ REVOKE ALL ON ALL TABLES IN SCHEMA hok FROM hok_chat_reader;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA hok FROM hok_chat_reader;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA hok FROM hok_chat_reader;
 
--- Column grants deliberately exclude source_path. There are no grants on the
--- private group_chat_messages archive, import manifest, future tables, public
--- tables or database system tables.
+-- Column grants deliberately exclude source_path. The private
+-- group_chat_messages table remains ungranted; model SQL only sees the
+-- security-barrier chat_history_messages view created by schema.sql. There are
+-- no grants on the import manifest, future tables, public tables or system tables.
 GRANT SELECT (
     snapshot_date, player_key, player_index, user_id, role_id, nickname,
     rank_name, rank_star, star, star_up, today_num, total_num, visible,
@@ -92,5 +93,10 @@ GRANT SELECT (
     snapshot_date, rank_id, rank_index, hero_id, hero_name, hero_career, tier_rank,
     ban_rate, show_rate, win_rate, pick_count, ban_count, payload
 ) ON hok.hero_rank_entries TO hok_chat_reader;
+
+GRANT SELECT (
+    group_id, message_id, user_id, reply_to_message_id,
+    sent_at, source_timestamp, message_text
+) ON hok.chat_history_messages TO hok_chat_reader;
 
 COMMIT;

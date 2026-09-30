@@ -61,9 +61,9 @@ def _function_name(node):
     return node.name.lower() if isinstance(node, exp.Anonymous) else node.sql_name()
 
 
-def _validate_column_usage(column, source):
+def _validate_column_usage(column, source, column_usage):
     """Enforce declarative business-column capabilities for a physical source."""
-    rule = CHAT_SQL_COLUMN_USAGE.get(f"{source.name.lower()}.{column.name.lower()}")
+    rule = column_usage.get(f"{source.name.lower()}.{column.name.lower()}")
     if not rule:
         return
     invalid_usage = (
@@ -78,12 +78,18 @@ def _validate_column_usage(column, source):
         )
 
 
-def validate_readonly_sql(sql, params=None, max_sql_chars=20000):
+def validate_readonly_sql(sql, params=None, max_sql_chars=20000, *,
+                          allowed_tables=None, column_usage=None,
+                          schema_tool_name="get_game_database_schema"):
     """Return canonical SQL after validating one bounded analytical read.
 
     Optional parameters use ``:name`` and a dictionary of JSON scalar values.
     Values become AST literals, never SQL string interpolation.
     """
+    allowed_tables = CHAT_SQL_TABLES if allowed_tables is None else allowed_tables
+    column_usage = CHAT_SQL_COLUMN_USAGE if column_usage is None else column_usage
+    if not isinstance(allowed_tables, dict) or not allowed_tables:
+        raise ChatSQLValidationError("SQL表白名单未配置")
     if not isinstance(sql, str) or not sql.strip():
         raise ChatSQLValidationError("sql 必须是非空的 PostgreSQL SELECT")
     if len(sql) > max_sql_chars:
@@ -151,13 +157,13 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000):
                     continue
                 if not table.db and not table.catalog and table.name in scope.cte_sources:
                     continue
-                if table.catalog or table.db not in ("", "hok") or table.name not in CHAT_SQL_TABLES:
+                if table.catalog or table.db not in ("", "hok") or table.name not in allowed_tables:
                     raise ChatSQLValidationError(f"表不在允许的业务表中：{table.name}")
                 table.set("db", exp.to_identifier("hok"))
 
             physical_sources = {
                 alias: source for alias, source in scope.sources.items()
-                if isinstance(source, exp.Table) and source.name.lower() in CHAT_SQL_TABLES
+                if isinstance(source, exp.Table) and source.name.lower() in allowed_tables
             }
 
             def physical_source(column):
@@ -168,13 +174,13 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000):
 
             for column in scope.columns:
                 source = physical_source(column)
-                if source is not None and column.name.lower() not in CHAT_SQL_TABLES[source.name.lower()]["columns"]:
+                if source is not None and column.name.lower() not in allowed_tables[source.name.lower()]["columns"]:
                     qualifier = column.table or source.alias_or_name
                     raise ChatSQLValidationError(
-                        f"列不在已披露schema中：{qualifier}.{column.name}；请按get_game_database_schema返回的列改写"
+                        f"列不在已披露schema中：{qualifier}.{column.name}；请按{schema_tool_name}返回的列改写"
                     )
                 if source is not None:
-                    _validate_column_usage(column, source)
+                    _validate_column_usage(column, source, column_usage)
 
             # sqlglot treats an unqualified ORDER BY name as an output alias and
             # omits it from scope.columns.  When the scope has one physical
@@ -184,7 +190,7 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000):
                 for column in order.find_all(exp.Column):
                     source = physical_source(column)
                     if source is not None:
-                        _validate_column_usage(column, source)
+                        _validate_column_usage(column, source, column_usage)
     except SqlglotError as exc:
         raise ChatSQLValidationError("SQL来源解析失败") from exc
 

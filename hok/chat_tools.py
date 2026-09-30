@@ -66,6 +66,8 @@ class HOKChatTools:
         self.artifacts = []
         self.sql_checks = {}
         self._sql_check_sequence = 0
+        self.history_sql_checks = {}
+        self._history_sql_check_sequence = 0
         self._disclosed = set()
         self._discovery_attempted_categories = set()
         self._tool_results = {}
@@ -76,12 +78,13 @@ class HOKChatTools:
             "discover_tools",
             "按当前任务需要披露一类工具。先选择能力类别；下一轮才会收到该类工具的具体 schema。"
             "可选类别：game_data 游戏数据，plots 图表，internet 联网，memory 长期事实记忆，"
-            "chat_history 群聊历史，roleplay 自定义角色扮演。不要一次选择无关类别。",
+            "chat_history 群聊原文检索，chat_data 群聊SQL统计，roleplay 自定义角色扮演。"
+            "不要一次选择无关类别。",
             {
                 "categories": {
                     "type": "array",
                     "items": {"type": "string", "enum": [
-                        "game_data", "plots", "internet", "memory", "chat_history", "roleplay",
+                        "game_data", "plots", "internet", "memory", "chat_history", "chat_data", "roleplay",
                     ]},
                     "minItems": 1,
                     "maxItems": 3,
@@ -100,6 +103,8 @@ class HOKChatTools:
             "memory": {"recall_memory", "remember_memory", "forget_memory"},
             "chat_history": {"list_chat_groups", "fetch_recent_chat_messages", "search_chat_history",
                              "fetch_chat_context", "fetch_chat_reply_thread"},
+            "chat_data": {"get_chat_history_database_schema", "check_chat_history_database_query",
+                          "query_chat_history_database"},
             "roleplay": {"manage_roleplay"},
         }
 
@@ -117,13 +122,23 @@ class HOKChatTools:
             "internet": ("internet", "web_search", "联网", "网页搜索", "上网搜", "网上搜"),
             "memory": ("memory", "记忆工具"),
             "chat_history": ("chat_history", "群聊历史", "聊天历史", "群聊记录"),
+            "chat_data": ("chat_data", "群聊数据", "聊天数据", "群聊sql", "聊天sql",
+                          "消息统计", "发言统计", "发言排行", "消息排行", "发消息最多",
+                          "发言最多", "谁说话最多", "话最多", "消息数量", "发言数量",
+                          "消息数", "发言数", "群活跃", "最活跃", "活跃排行"),
             "roleplay": ("roleplay", "角色扮演", "角色工具"),
         }
-        return [category for category, words in aliases.items()
-                if category not in self._discovery_attempted_categories
-                and (not available_by_category[category]
-                     or not available_by_category[category] <= self._disclosed)
-                and any(word in query for word in words)]
+        matched = [category for category, words in aliases.items()
+                   if category not in self._discovery_attempted_categories
+                   and (not available_by_category[category]
+                        or not available_by_category[category] <= self._disclosed)
+                   and any(word in query for word in words)]
+        # “群聊SQL/聊天数据库” describes the scoped archive, not gameplay.
+        # Keep game_data only when the request also names an actual game domain.
+        if "chat_data" in matched and "game_data" in matched and not any(
+                word in query for word in ("game_data", "game data", "游戏数据", "对局数据", "战绩数据")):
+            matched.remove("game_data")
+        return matched
 
     @staticmethod
     def merge_required_discovery_categories(arguments, required_categories):
@@ -147,6 +162,15 @@ class HOKChatTools:
                 if self.sql_checks:
                     return "query_game_database"
                 return "check_game_database_query"
+        if "chat_data" in categories:
+            if ("get_chat_history_database_schema" in self._disclosed
+                    and "get_chat_history_database_schema" not in self._tool_results):
+                return "get_chat_history_database_schema"
+            if ("query_chat_history_database" in self._disclosed
+                    and "query_chat_history_database" not in self._tool_results):
+                if self.history_sql_checks:
+                    return "query_chat_history_database"
+                return "check_chat_history_database_query"
         if "plots" in categories:
             if self.datasets and not self.artifacts and "render_python_plot" in self._disclosed:
                 if "list_plot_templates" not in self._tool_results:
@@ -262,7 +286,7 @@ class HOKChatTools:
         if self.cross_group_history:
             tools.append(_schema("list_chat_groups", "列出已保存历史记录的群号及消息数，仅管理员私聊可用。检索前据此确定群号，不代表机器人当前加入的完整群列表。", {}))
         if self.group_id or self.cross_group_history:
-            scope = "指定群" if self.cross_group_history else "当前群"
+            scope = "所有已保存群" if self.cross_group_history else "当前群"
             group_param = {"group_id": {"type": ["string", "integer"],
                           "description": "目标群号，来自用户指定或 list_chat_groups / 检索结果；不能使用消息 ID 代替。"}} if self.cross_group_history else {}
             group_required = ["group_id"] if self.cross_group_history else []
@@ -274,6 +298,19 @@ class HOKChatTools:
                 "user_ids": {"type": "array", "items": text, "maxItems": 20,
                              "description": "旧参数，含义也是 QQ 号；新调用优先用 players 或 qq_ids。"}}
             tools.extend([
+                _schema("get_chat_history_database_schema", f"读取{scope}群聊SQL视图的真实字段、作用域、时间及统计口径。做消息数量、发言排行、活跃趋势等聚合前必须先读取。", {}),
+                _schema("check_chat_history_database_query", "在执行前检查模型生成的群聊PostgreSQL只读SELECT/CTE。只能查询受请求作用域约束的chat_history_messages视图；先根据schema完成时间、身份和聚合口径，再提交检查。全部通过后返回一次性check_id。", {
+                    "queries": {"type": "array", "minItems": 1, "maxItems": int(getattr(dmc, "ChatSQLBatchLimit", 4)),
+                                "items": {"type": "object", "properties": {
+                                    "sql": {"type": "string", "maxLength": 20000},
+                                    "params": {"type": "object", "description": "可选命名参数，SQL中使用:name；值仅支持字符串/数字/布尔/null。"},
+                                    "label": {"type": "string", "maxLength": 120},
+                                    "intent": {"type": "string", "maxLength": 500},
+                                    "assumptions": {"type": "array", "items": text, "maxItems": 10}},
+                                    "required": ["sql", "intent"], "additionalProperties": False}}}, ["queries"]),
+                _schema("query_chat_history_database", "执行已经由check_chat_history_database_query通过的群聊查询。只能传一次性check_id；数据库事务会再次绑定可信群范围。返回逐条observation和可绘图dataset_id。", {
+                    "check_id": {"type": "string", "maxLength": 120},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 200}}, ["check_id"]),
                 _schema("fetch_recent_chat_messages", f"按时间倒序读取{scope}最近发言，不需要关键词。查询某人最近说了什么时优先使用，players 由程序解析为 QQ。返回 messages、实际匹配数及截断标记，消息 user_id 是 QQ 号。", {
                     **group_param, **sender_params, "time_start": text, "time_end": text,
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, group_required),
@@ -303,7 +340,12 @@ class HOKChatTools:
             return self._discover(arguments)
         schema = next((item for item in self.schemas() if item["name"] == name), None)
         if schema is None:
-            if name in {"search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context", "fetch_chat_reply_thread"} and not self.group_id:
+            scoped_chat_tools = {
+                "search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context",
+                "fetch_chat_reply_thread", "get_chat_history_database_schema",
+                "check_chat_history_database_query", "query_chat_history_database",
+            }
+            if name in scoped_chat_tools and not (self.group_id or self.cross_group_history):
                 raise ChatToolUnavailableError(
                     "group_context_required", "当前会话没有绑定群号；请在目标群内发送同一查询。这不是检索服务故障。")
             raise ValueError(f"unknown_or_disabled_chat_tool: {name}")
@@ -355,6 +397,58 @@ class HOKChatTools:
                     observations.append({"ok": False, "label": query.get("label", ""),
                                          "error": type(error).__name__, "detail": str(error),
                                          "diagnostics": error_record(error, "query_game_database")})
+            return {"observations": observations}
+        if name == "get_chat_history_database_schema":
+            return zfunc.chat_history_database_schema(all_groups=self.cross_group_history)
+        if name == "check_chat_history_database_query":
+            observations = []
+            checked_queries = []
+            for query in arguments["queries"]:
+                checked = zfunc.chat_check_history_database_query(query["sql"], params=query.get("params"))
+                observation = {
+                    "label": query.get("label", ""),
+                    "intent": query["intent"],
+                    "assumptions": list(query.get("assumptions") or []),
+                    **checked,
+                }
+                observations.append(observation)
+                if checked.get("ok"):
+                    checked_queries.append({
+                        "label": query.get("label", ""),
+                        "sql": checked["normalized_sql"],
+                    })
+            approved = len(checked_queries) == len(arguments["queries"])
+            check_id = ""
+            if approved:
+                self._history_sql_check_sequence += 1
+                check_id = f"chat_sql_check_{self._history_sql_check_sequence}"
+                self.history_sql_checks[check_id] = checked_queries
+            return {"approved": approved, "check_id": check_id, "observations": observations,
+                    "notice": "核对intent和assumptions后再执行check_id；统计只覆盖PostgreSQL群聊归档。"}
+        if name == "query_chat_history_database":
+            check_id = arguments["check_id"]
+            queries = self.history_sql_checks.pop(check_id, None)
+            if queries is None:
+                raise ValueError("unknown_or_consumed_check_id; call check_chat_history_database_query first")
+            observations = []
+            for query in queries:
+                try:
+                    data = zfunc.chat_query_history_database(
+                        query["sql"], limit=arguments.get("limit"), group_id=self.group_id,
+                        all_groups=self.cross_group_history,
+                    )
+                    if not data.get("ok", True):
+                        observations.append({"label": query.get("label", ""), **data})
+                        continue
+                    dataset_id = f"dataset_{len(self.datasets) + 1}"
+                    self.datasets[dataset_id] = data["rows"]
+                    observations.append({"ok": True, "label": query.get("label", ""),
+                                         "dataset_id": dataset_id, **data})
+                except Exception as error:
+                    from .business.chat_trace import error_record
+                    observations.append({"ok": False, "label": query.get("label", ""),
+                                         "error": type(error).__name__, "detail": str(error),
+                                         "diagnostics": error_record(error, "query_chat_history_database")})
             return {"observations": observations}
         if name == "query_player_hero_power":
             return zfunc.chat_player_hero_power(arguments["player"], arguments.get("hero"))

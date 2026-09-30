@@ -30,15 +30,49 @@ class ChatSQLValidationTests(unittest.TestCase):
             actual_columns = set(re.findall(r"^    ([a-z_]+) \w+", body, re.M))
             self.assertEqual(set(info["columns"]), actual_columns - {"source_path"})
 
-    def test_private_group_chat_table_is_not_disclosed_to_model_sql(self):
+    def test_private_group_chat_table_stays_hidden_behind_scoped_sql_view(self):
         root = Path(__file__).resolve().parents[1]
         schema = (root / "database/schema.sql").read_text()
         grants = (root / "database/chat_readonly.sql").read_text()
         self.assertIn("CREATE TABLE IF NOT EXISTS hok.group_chat_messages", schema)
+        self.assertIn("CREATE OR REPLACE VIEW hok.chat_history_messages", schema)
         self.assertNotIn("group_chat_messages", CATALOG.CHAT_SQL_TABLES)
+        self.assertIn("chat_history_messages", CATALOG.CHAT_HISTORY_SQL_TABLES)
         self.assertNotRegex(grants, r"GRANT\s+SELECT[\s\S]*?ON\s+hok\.group_chat_messages")
+        self.assertRegex(grants, r"ON\s+hok\.chat_history_messages\s+TO\s+hok_chat_reader")
         with self.assertRaisesRegex(SQL.ChatSQLValidationError, "表不在允许的业务表"):
             SQL.validate_readonly_sql("SELECT message_text FROM hok.group_chat_messages")
+
+    def test_group_chat_validator_allows_only_the_scoped_view(self):
+        aggregate = SQL.validate_readonly_sql(
+            """SELECT user_id, COUNT(*) AS message_count,
+                      MIN(sent_at) AS first_message, MAX(sent_at) AS last_message
+                 FROM hok.chat_history_messages
+                GROUP BY user_id ORDER BY message_count DESC""",
+            allowed_tables=CATALOG.CHAT_HISTORY_SQL_TABLES,
+            column_usage={},
+            schema_tool_name="get_chat_history_database_schema",
+        )
+        self.assertIn("hok.chat_history_messages", aggregate)
+        for sql in (
+            "SELECT message_text FROM hok.group_chat_messages",
+            "SELECT game_seq FROM hok.battle_records",
+            "SELECT payload FROM hok.chat_history_messages",
+        ):
+            with self.subTest(sql=sql), self.assertRaises(SQL.ChatSQLValidationError):
+                SQL.validate_readonly_sql(
+                    sql, allowed_tables=CATALOG.CHAT_HISTORY_SQL_TABLES,
+                    column_usage={}, schema_tool_name="get_chat_history_database_schema",
+                )
+
+    def test_group_chat_catalog_describes_bound_scope_and_database_coverage(self):
+        current = CATALOG.chat_history_schema_catalog("current_group")
+        admin = CATALOG.chat_history_schema_catalog("all_saved_groups")
+        self.assertEqual(current["scope_mode"], "current_group")
+        self.assertEqual(admin["scope_mode"], "all_saved_groups")
+        self.assertTrue(any("PostgreSQL" in item for item in current["semantics"]))
+        with self.assertRaises(ValueError):
+            CATALOG.chat_history_schema_catalog("model_selected_group")
 
     def test_rejects_mutations_nested_writes_locks_and_multiple_statements(self):
         queries = [
@@ -318,6 +352,42 @@ class ChatSQLExecutionTests(unittest.TestCase):
             result = DB.chat_query_readonly("SELECT 1 AS n")
         self.assertFalse(result["ok"])
         self.assertNotIn("secret", result["error"])
+
+    def test_group_chat_query_sets_trusted_scope_before_reading_view(self):
+        connection = _Connection(rows=[("100", 9)], columns=("user_id", "message_count"))
+        with self.reader(connection):
+            result = DB.chat_query_history_readonly(
+                "SELECT user_id, COUNT(*) AS message_count "
+                "FROM hok.chat_history_messages GROUP BY user_id",
+                group_id="200",
+            )
+        self.assertTrue(result["ok"])
+        scope_calls = [(sql, params) for sql, params in connection.executed
+                       if "hok.chat_group_scope" in sql]
+        self.assertEqual(scope_calls, [
+            ("SELECT set_config('hok.chat_group_scope', %s, true)", ("200",)),
+        ])
+        self.assertIn("hok.chat_history_messages", connection.executed[-1][0])
+
+    def test_group_chat_scope_is_not_model_selectable(self):
+        with self.assertRaisesRegex(ValueError, "trusted group_id"):
+            DB.chat_query_history_readonly(
+                "SELECT COUNT(*) AS n FROM hok.chat_history_messages",
+            )
+        with self.assertRaisesRegex(ValueError, "cannot include group_id"):
+            DB.chat_query_history_readonly(
+                "SELECT COUNT(*) AS n FROM hok.chat_history_messages",
+                group_id="200", all_groups=True,
+            )
+        connection = _Connection(rows=[(1,)], columns=("n",))
+        with self.reader(connection):
+            result = DB.chat_query_history_readonly(
+                "SELECT COUNT(*) AS n FROM hok.chat_history_messages",
+                all_groups=True,
+            )
+        self.assertTrue(result["ok"])
+        self.assertIn(("SELECT set_config('hok.chat_group_scope', %s, true)", ("*",)),
+                      connection.executed)
 
 
 if __name__ == "__main__":
