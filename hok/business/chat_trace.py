@@ -4,7 +4,7 @@ import re
 
 
 PRIVATE_FIELDS = {
-    "reasoning", "reasoning_content", "chain_of_thought", "system_prompt",
+    "reasoning", "reasoning_content", "chain_of_thought",
     "api_key", "authorization", "password", "secret", "token", "dsn", "path",
 }
 
@@ -14,7 +14,7 @@ def public_value(value, *, secrets=(), payload=False):
     if isinstance(value, dict):
         private = {"api_key", "authorization", "password", "secret", "headers", "api-key", "x-api-key"} if payload else PRIVATE_FIELDS | {"headers"}
         return {str(key): public_value(child, secrets=secrets,
-                                      payload=payload or key in {"request_payload", "response_payload"})
+                                      payload=payload or key in {"request_payload", "response_payload", "tool_definitions"})
                 for key, child in value.items() if str(key).lower() not in private}
     if isinstance(value, (list, tuple)):
         return [public_value(child, secrets=secrets, payload=payload) for child in value]

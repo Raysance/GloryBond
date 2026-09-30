@@ -250,8 +250,21 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         turn = {"index": len(trace["rounds"]) + 1, "phase": "recovery" if recovery else "final" if final else "loop",
                 "start_ms": elapsed(), "status": "running", "tools": []}
         trace["rounds"].append(turn)
+        schemas = [] if final else current_schemas()
+        message_snapshot = json.loads(json.dumps(input_items, ensure_ascii=False, default=str))
+        schema_snapshot = json.loads(json.dumps(schemas, ensure_ascii=False, default=str))
+        turn["context_injection"] = {
+            "messages": message_snapshot,
+            "system_messages": [item for item in message_snapshot if item.get("role") == "system"],
+            "context_messages": [item for item in message_snapshot if item.get("role") != "system"],
+            "tool_definitions": schema_snapshot,
+            "tool_choice": "none" if final else "auto",
+        }
+        for schema in schema_snapshot:
+            if schema.get("name"):
+                trace["schemas"][schema["name"]] = schema
         try:
-            response = caller(input_items, tools=None if final else current_schemas(),
+            response = caller(input_items, tools=None if final else schemas,
                               tool_choice="none" if final else "auto", network=False)
             turn["status"] = "ok"
             turn["requested_calls"] = len(response.get("tool_calls") or [])

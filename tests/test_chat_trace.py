@@ -28,6 +28,12 @@ class Registry:
         return {"observations": [{"ok": True, "rows": [{"score": 9}]}, {"ok": False, "error": "bad SQL"}]}
 
 
+class SchemaRegistry(Registry):
+    def schemas(self):
+        return [{"type": "function", "name": "lookup", "description": "读取资料",
+                 "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}}]
+
+
 class TraceTests(unittest.TestCase):
     def run_chat(self, model, **kwargs):
         with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
@@ -133,6 +139,34 @@ class TraceTests(unittest.TestCase):
         stored = json.loads(save.call_args.args[1])
         self.assertEqual(stored["rounds"], trace["rounds"])
 
+    def test_every_round_records_model_visible_context_and_tool_definitions(self):
+        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
+                patch.object(MEMORY.instance, "save_active_chat"), \
+                patch.object(FUNC, "chat_roleplay_get", return_value=None):
+            result = CHAT.chat_process(
+                user_text="查一下资料", user_id="1", nickname="A", use_memory=False,
+                model_caller=lambda *args, **kwargs: {"content": "完成"},
+                tool_registry=SchemaRegistry(), return_artifacts=True)
+        injected = result["trace"]["rounds"][0]["context_injection"]
+        self.assertGreater(len(injected["system_messages"]), 0)
+        self.assertEqual(injected["context_messages"][-1], {"role": "user", "content": "查一下资料"})
+        self.assertEqual(injected["tool_definitions"][0]["name"], "lookup")
+        self.assertEqual(result["trace"]["schemas"]["lookup"], injected["tool_definitions"][0])
+        self.assertIn("只能调用本次提供的工具", json.dumps(injected, ensure_ascii=False))
+
+    def test_public_trace_keeps_system_prompt_but_still_removes_credentials(self):
+        data = TRACE.public_value({
+            "system_prompt": "SYSTEM_VISIBLE",
+            "api_key": "PRIVATE",
+            "context_injection": {"tool_definitions": [{"parameters": {"properties": {
+                "path": {"type": "string"}, "token": {"type": "string"},
+            }}}]},
+        })
+        self.assertEqual(data["system_prompt"], "SYSTEM_VISIBLE")
+        self.assertNotIn("api_key", data)
+        properties = data["context_injection"]["tool_definitions"][0]["parameters"]["properties"]
+        self.assertEqual(set(properties), {"path", "token"})
+
     def test_pre_model_failure_and_memory_save_warning_keep_stage(self):
         with patch.object(MEMORY.instance, "load_active_chat_records", side_effect=RuntimeError("redis load failed")):
             with self.assertRaises(CHAT.ChatRunError) as raised:
@@ -225,7 +259,7 @@ class QuoteTests(unittest.TestCase):
             self.assertFalse(HANDLER.normalize_quoted_message(self.event(), reply)["available"])
         self.assertFalse(HANDLER.normalize_quoted_message(self.event(), self.reply(message_id=8))["available"])
 
-    def test_quote_is_only_in_current_model_context_not_memory_or_trace(self):
+    def test_quote_is_visible_in_context_trace_but_not_saved_as_memory(self):
         seen = []
         quote = HANDLER.normalize_quoted_message(self.event(self.reply()))
         def model(messages, **kwargs):
@@ -237,7 +271,8 @@ class QuoteTests(unittest.TestCase):
                                        model_caller=model, tool_registry=Registry(), return_artifacts=True)
         self.assertIn("这局表现如何", json.dumps(seen, ensure_ascii=False))
         save.assert_called_once_with("1", "分析引用", "结论")
-        self.assertNotIn("这局表现如何", json.dumps(result["trace"], ensure_ascii=False))
+        injected = result["trace"]["rounds"][0]["context_injection"]["context_messages"]
+        self.assertIn("这局表现如何", json.dumps(injected, ensure_ascii=False))
 
 
 class CollageTests(unittest.TestCase):
