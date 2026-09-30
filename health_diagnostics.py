@@ -88,10 +88,16 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str, dict]:
             check=False,
         )
         properties = {}
+        environment_files = []
         for line in process.stdout.splitlines():
             key, separator, value = line.partition("=")
             if separator:
-                properties[key] = value
+                if key == "EnvironmentFiles":
+                    environment_files.extend(re.findall(
+                        r"(\S+)\s+\(ignore_errors=(?:yes|no)\)", value,
+                    ))
+                else:
+                    properties[key] = value
         pid = int(properties.get("MainPID") or 0)
         process_root = Path(f"/proc/{pid}/cwd").resolve() if pid else None
         environ = {}
@@ -102,10 +108,6 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str, dict]:
                     environ[key.decode(errors="ignore")] = value.decode(errors="ignore")
         credential = str(environ.get("HOK_CHAT_API_KEY") or "")
         credential_hash = hashlib.sha256(credential.encode()).hexdigest() if credential else ""
-        environment_files = re.findall(
-            r"(\S+)\s+\(ignore_errors=(?:yes|no)\)",
-            properties.get("EnvironmentFiles") or "",
-        )
         configured_environment = {}
         for path in environment_files:
             configured_environment.update({
