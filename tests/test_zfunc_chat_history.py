@@ -7,6 +7,7 @@ from local_debugger import import_hok_module
 
 
 ZFUNC = import_hok_module("zfunc")
+ZDB = import_hok_module("zdb")
 CHAT = import_hok_module("zchat")
 TOOLS = import_hok_module("chat_tools")
 IDENTITY = import_hok_module("business.user_helpers")
@@ -47,8 +48,18 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         self.original_max_messages = getattr(ZFUNC.dmc, "ChatHistoryMaxMessages", None)
         ZFUNC.dmc.redis_deamon = FakeRedisList()
         ZFUNC.dmc.ChatHistoryMaxMessages = 0
+        self.postgres_patches = [
+            patch.object(ZDB, "upsert_group_chat_message", side_effect=RuntimeError("database unavailable")),
+            patch.object(ZDB, "load_group_chat_messages", side_effect=RuntimeError("database unavailable")),
+            patch.object(ZDB, "list_group_chat_history_groups", side_effect=RuntimeError("database unavailable")),
+            patch.object(ZFUNC, "log_message"),
+        ]
+        for item in self.postgres_patches:
+            item.start()
 
     def tearDown(self):
+        for item in reversed(self.postgres_patches):
+            item.stop()
         ZFUNC.dmc.redis_deamon = self.original_redis
         if self.original_max_messages is None:
             delattr(ZFUNC.dmc, "ChatHistoryMaxMessages")
@@ -70,6 +81,40 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
 
         self.assertEqual(results[0]["message_id"], "1")
         self.assertEqual([item["message_id"] for item in thread], ["1", "2"])
+
+    def test_postgres_is_primary_and_success_does_not_duplicate_to_redis(self):
+        with patch.object(ZDB, "upsert_group_chat_message", return_value={"group_id": "200", "message_id": "1"}) as save:
+            record = ZFUNC.record_group_chat_message("200", "100", "数据库消息", message_id="1")
+        save.assert_called_once_with(record, trusted_group_id="200")
+        self.assertEqual(ZFUNC.dmc.redis_deamon.values, {})
+
+    def test_sql_and_legacy_redis_are_merged_with_sql_authoritative(self):
+        key = ZFUNC._group_chat_history_key("200")
+        ZFUNC.dmc.redis_deamon.values[key] = [
+            json.dumps({"group_id": "999", "user_id": "100", "message_id": "1",
+                        "timestamp": 10, "time": "1970-01-01 08:00:10", "text": "旧文本"}),
+            json.dumps({"user_id": "101", "message_id": "2", "timestamp": 20,
+                        "time": "1970-01-01 08:00:20", "text": "仅Redis"}),
+        ]
+        sql_records = [
+            {"group_id": "200", "user_id": "100", "message_id": "1", "timestamp": 10,
+             "time": "1970-01-01 08:00:10", "text": "SQL文本"},
+            {"group_id": "200", "user_id": "102", "message_id": "3", "timestamp": 30,
+             "time": "1970-01-01 08:00:30", "text": "仅SQL"},
+        ]
+        with patch.object(ZDB, "load_group_chat_messages", return_value=sql_records):
+            records = ZFUNC.load_group_chat_history("200")
+        self.assertEqual([item["message_id"] for item in records], ["1", "2", "3"])
+        self.assertEqual(records[0]["text"], "SQL文本")
+        self.assertTrue(all(item["group_id"] == "200" for item in records))
+
+    def test_sql_read_remains_available_when_legacy_redis_is_down(self):
+        sql_records = [{"group_id": "200", "user_id": "100", "message_id": "1",
+                        "timestamp": 10, "time": "1970-01-01 08:00:10", "text": "SQL可用"}]
+        with patch.object(ZFUNC.dmc.redis_deamon, "lrange", side_effect=RuntimeError("redis down")), \
+                patch.object(ZDB, "load_group_chat_messages", return_value=sql_records), \
+                patch.object(ZFUNC, "log_message"):
+            self.assertEqual(ZFUNC.load_group_chat_history("200"), sql_records)
 
     def test_unlimited_history_does_not_trim_and_loads_every_record(self):
         for index in range(150):

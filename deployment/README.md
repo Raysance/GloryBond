@@ -49,6 +49,8 @@ units. This avoids assuming distribution-specific unit names such as
 `postgresql-16.service`. Both may be local or remote as long as `redis.json` and
 `HOK_DATABASE_DSN` point to them. HOK Redis data must remain in DB0 under the
 `hok:` namespace; PlanIt DB9 must not be merged into the HOK backup or migration.
+Group-chat history is PostgreSQL-backed; legacy DB0 `hok:chat:group:*` lists are
+retained only as migration/recovery input and are merged by the application.
 
 ## Build a transport bundle
 
@@ -113,6 +115,11 @@ After the first install:
    only the public artifact tree, not private configuration or history data.
 3. Initialize the database once with `database/schema.sql`, using an account
    allowed to create the `hok` schema.
+   On an existing installation, run
+   `scripts/migrate_group_chat_history_to_postgres.py --apply` with a private
+   backup directory before restarting NBot, then rerun it after the old process
+   has stopped to capture any deployment-window Redis writes. The migration is
+   idempotent and does not delete Redis history.
 4. Install and configure NapCat separately. If required, set an `xvfb-run`
    command in `napcat.env`, install the optional module with
    `--modules napcat`, and align its reverse WebSocket token with `nbot.env`.

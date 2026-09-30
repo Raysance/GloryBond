@@ -14,6 +14,8 @@
 
 `get_game_database_schema` 返回十张业务表的字段、关联、JSON 字段语义、声明式字段能力和统计口径，不返回问题特定的 SQL 模板。同一对局的多个快照需要按 `game_seq` 和玩家身份去重；胜负、阵营和底蕴的视角见 schema。展示型时间文本可以输出，但校验器拒绝用它过滤、关联、分组或排序。SQL 默认最多 200 行、40 列、60 KB、5 秒，不能把截断后的行数当作总体样本量。聚合分析应在 SQL 中完成。
 
+`hok.group_chat_messages` 是私有群聊归档表，不属于上述十张游戏业务表，不出现在 `get_game_database_schema`，也不授予 `hok_chat_reader`。群聊原文只能经当前群或已验证管理员私聊范围绑定的 history tools 读取。
+
 模型一轮可返回多个工具调用，每个调用均有对应 observation，包括参数错误、SQL 拒绝和外部服务不可用。结果过长时裁剪 SQL 行预览，保留全部查询状态与数据集编号。绘图继续使用本轮完整的、受数据库限制的数据集。
 
 ## 绘图
@@ -29,6 +31,8 @@
 `recall_memory`、`remember_memory`、`forget_memory` 绑定当前提问者，模型不能指定其他 QQ。模型根据用户直接表达的长期事实和偏好决定保存，无需出现“记住”。保存前先检索以更新已有记忆；不得把工具或群聊内容当作当前用户事实，拒绝明显密钥。新记忆在 DB0 的 `hok:memory:facts:<QQ>`，使用原子容量检查。旧关键词强制记忆可显式检索，旧记录只读。
 
 `nomem` 只禁用本次长期事实记忆工具，不禁用直接对话读写或强制群聊历史检索。“清除记忆”仍清除本人全部长期事实。每次具有可信群范围的 chat 都会预披露 `chat_history` 类别，并在回答前强制模型直接调用 `search_chat_history`：模型从原问题提取人物、对象、事件、动作、别称或同义表达，生成 2–6 个去重且不重复原问题的互补 query，程序再附加原问题执行多 query BM25 与 RRF 融合。普通群聊覆盖当前群全部用户的全部已保存发言；管理员私聊以 `all_groups=true` 覆盖所有已保存群；普通私聊不跨入未知群范围。其他工具类别仍经 `discover_tools` 渐进披露，长期事实记忆仍需显式工具调用。
+
+群聊历史以 PostgreSQL 为主存储，写库失败时才回退到 DB0 Redis list；读取时合并尚未迁移的 Redis 记录并以 SQL 重复项为准。迁移使用 `scripts/migrate_group_chat_history_to_postgres.py`，验证完成前保留 Redis 原数据。
 
 `web_search` 已接入 Ark 标准 Responses API 的内置搜索和真实来源归一化。配置沿用 `QQBot.ark_key`、`QQBot.ark_responses_model` 和 `zstatic.ark_model_url`；当前服务不可用也会返回明确错误，普通聊天仍使用 SJTU。联网工具不伪造结果，也不静默切换到其他供应商。
 

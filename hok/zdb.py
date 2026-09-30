@@ -672,6 +672,155 @@ def update_manifest(source_path, data_kind, source_size, source_mtime_ns, import
             )
 
 
+def _normalize_group_chat_row(record, trusted_group_id=None):
+    """Normalize one runtime or legacy Redis record for PostgreSQL storage."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    if not isinstance(record, dict):
+        raise ValueError("group chat record must be an object")
+    group_id = str(trusted_group_id if trusted_group_id is not None else record.get("group_id") or "").strip()
+    message_id = str(record.get("message_id") or "").strip()
+    text = str(record.get("text") or "").strip()
+    if not group_id or not message_id or not text:
+        raise ValueError("group_id, message_id and text are required")
+    timestamp = _as_int(record.get("timestamp"))
+    timezone = ZoneInfo("Asia/Shanghai")
+    if timestamp is not None and timestamp > 0:
+        try:
+            sent_at = datetime.fromtimestamp(timestamp, timezone)
+        except (OverflowError, OSError, ValueError) as exc:
+            raise ValueError("group chat record timestamp is out of range") from exc
+    else:
+        try:
+            sent_at = datetime.fromisoformat(str(record.get("time") or ""))
+        except ValueError as exc:
+            raise ValueError("group chat record requires a valid timestamp or time") from exc
+        if sent_at.tzinfo is None:
+            sent_at = sent_at.replace(tzinfo=timezone)
+        timestamp = int(sent_at.timestamp())
+    user_id = str(record.get("user_id") or "").strip() or None
+    reply_id = str(record.get("reply_to_message_id") or "").strip() or None
+    return (group_id, message_id, user_id, reply_id, sent_at, timestamp, text, dict(record))
+
+
+_GROUP_CHAT_UPSERT_SQL = """
+    INSERT INTO hok.group_chat_messages (
+        group_id, message_id, user_id, reply_to_message_id, sent_at,
+        source_timestamp, message_text, payload, updated_at
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+    ON CONFLICT (group_id, message_id) DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        reply_to_message_id = EXCLUDED.reply_to_message_id,
+        sent_at = EXCLUDED.sent_at,
+        source_timestamp = EXCLUDED.source_timestamp,
+        message_text = EXCLUDED.message_text,
+        payload = EXCLUDED.payload,
+        updated_at = now()
+"""
+
+
+def upsert_group_chat_message(record, trusted_group_id=None):
+    """Persist one inbound group message idempotently."""
+    row = _normalize_group_chat_row(record, trusted_group_id)
+    values = (*row[:-1], _jsonb(row[-1]))
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(_GROUP_CHAT_UPSERT_SQL, values)
+    return {"group_id": row[0], "message_id": row[1]}
+
+
+def upsert_group_chat_messages(records):
+    """Idempotently import a sequence of legacy group-chat records."""
+    records = list(records or ())
+    unique = {}
+    invalid = 0
+    for item in records:
+        try:
+            row = _normalize_group_chat_row(item)
+        except (TypeError, ValueError):
+            invalid += 1
+            continue
+        unique[(row[0], row[1])] = (*row[:-1], _jsonb(row[-1]))
+    if unique:
+        with _connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.executemany(_GROUP_CHAT_UPSERT_SQL, list(unique.values()))
+    return {"source_records": len(records),
+            "upserted_records": len(unique), "invalid_records": invalid}
+
+
+def _group_chat_record(row):
+    from zoneinfo import ZoneInfo
+
+    payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+    sent_at = row["sent_at"]
+    if hasattr(sent_at, "astimezone"):
+        time_text = sent_at.astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        time_text = str(sent_at)[:19]
+    return {
+        **payload,
+        "group_id": str(row["group_id"]),
+        "user_id": str(row["user_id"]) if row.get("user_id") not in (None, "") else "",
+        "message_id": str(row["message_id"]),
+        "reply_to_message_id": (str(row["reply_to_message_id"])
+                                if row.get("reply_to_message_id") not in (None, "") else None),
+        "time": time_text,
+        "timestamp": int(row["source_timestamp"]),
+        "text": str(row["message_text"]),
+    }
+
+
+def load_group_chat_messages(group_id, limit=None, time_start=None, time_end=None):
+    """Read one trusted group's messages in chronological order."""
+    clauses = ["group_id = %s"]
+    params = [str(group_id)]
+    if time_start is not None:
+        clauses.append("source_timestamp >= %s")
+        params.append(int(time_start))
+    if time_end is not None:
+        clauses.append("source_timestamp <= %s")
+        params.append(int(time_end))
+    order = "ORDER BY source_timestamp ASC, message_order ASC"
+    if limit is not None:
+        if isinstance(limit, bool) or int(limit) <= 0:
+            raise ValueError("limit must be a positive integer")
+        order = "ORDER BY source_timestamp DESC, message_order DESC LIMIT %s"
+        params.append(int(limit))
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT group_id, user_id, message_id, reply_to_message_id,
+                       sent_at, source_timestamp, message_text, payload
+                FROM hok.group_chat_messages
+                WHERE """ + " AND ".join(clauses) + " " + order,
+                tuple(params),
+            )
+            rows = cursor.fetchall()
+    if limit is not None:
+        rows.reverse()
+    return [_group_chat_record(row) for row in rows]
+
+
+def list_group_chat_history_groups():
+    """Return SQL-backed group IDs and message counts without message bodies."""
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT group_id, count(*) AS message_count
+                FROM hok.group_chat_messages
+                WHERE group_id ~ '^[1-9][0-9]*$'
+                GROUP BY group_id
+                ORDER BY group_id::numeric
+                """
+            )
+            return [{"group_id": str(row["group_id"]), "message_count": int(row["message_count"])}
+                    for row in cursor.fetchall()]
+
+
 def table_counts():
     table_names = (
         "history_players",
@@ -684,6 +833,7 @@ def table_counts():
         "hero_tier_scores",
         "hero_rank_snapshots",
         "hero_rank_entries",
+        "group_chat_messages",
         "json_import_manifest",
     )
     counts = {}

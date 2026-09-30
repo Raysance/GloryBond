@@ -228,6 +228,34 @@ CREATE INDEX IF NOT EXISTS hero_rank_entries_name_date_idx
 CREATE INDEX IF NOT EXISTS hero_rank_entries_rank_date_idx
     ON hok.hero_rank_entries (rank_id, snapshot_date DESC, rank_index);
 
+-- Private group-chat archive used only by the bounded chat-history interfaces.
+-- The model-generated SQL reader deliberately receives no grant on this table.
+CREATE TABLE IF NOT EXISTS hok.group_chat_messages (
+    message_order bigserial PRIMARY KEY,
+    group_id text NOT NULL,
+    message_id text NOT NULL,
+    user_id text,
+    reply_to_message_id text,
+    sent_at timestamptz NOT NULL,
+    source_timestamp bigint NOT NULL,
+    message_text text NOT NULL,
+    payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (group_id, message_id),
+    CHECK (group_id <> ''),
+    CHECK (message_id <> ''),
+    CHECK (message_text <> '')
+);
+
+CREATE INDEX IF NOT EXISTS group_chat_messages_group_time_idx
+    ON hok.group_chat_messages (group_id, source_timestamp DESC, message_order DESC);
+CREATE INDEX IF NOT EXISTS group_chat_messages_user_time_idx
+    ON hok.group_chat_messages (group_id, user_id, source_timestamp DESC, message_order DESC);
+CREATE INDEX IF NOT EXISTS group_chat_messages_reply_idx
+    ON hok.group_chat_messages (group_id, reply_to_message_id)
+    WHERE reply_to_message_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS hok.json_import_manifest (
     source_path text PRIMARY KEY,
     data_kind text NOT NULL,

@@ -39,7 +39,8 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA hok FROM hok_chat_reader;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA hok FROM hok_chat_reader;
 
 -- Column grants deliberately exclude source_path. There are no grants on the
--- import manifest, future tables, public tables or database system tables.
+-- private group_chat_messages archive, import manifest, future tables, public
+-- tables or database system tables.
 GRANT SELECT (
     snapshot_date, player_key, player_index, user_id, role_id, nickname,
     rank_name, rank_star, star, star_up, today_num, total_num, visible,

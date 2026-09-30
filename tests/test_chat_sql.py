@@ -30,6 +30,16 @@ class ChatSQLValidationTests(unittest.TestCase):
             actual_columns = set(re.findall(r"^    ([a-z_]+) \w+", body, re.M))
             self.assertEqual(set(info["columns"]), actual_columns - {"source_path"})
 
+    def test_private_group_chat_table_is_not_disclosed_to_model_sql(self):
+        root = Path(__file__).resolve().parents[1]
+        schema = (root / "database/schema.sql").read_text()
+        grants = (root / "database/chat_readonly.sql").read_text()
+        self.assertIn("CREATE TABLE IF NOT EXISTS hok.group_chat_messages", schema)
+        self.assertNotIn("group_chat_messages", CATALOG.CHAT_SQL_TABLES)
+        self.assertNotRegex(grants, r"GRANT\s+SELECT[\s\S]*?ON\s+hok\.group_chat_messages")
+        with self.assertRaisesRegex(SQL.ChatSQLValidationError, "表不在允许的业务表"):
+            SQL.validate_readonly_sql("SELECT message_text FROM hok.group_chat_messages")
+
     def test_rejects_mutations_nested_writes_locks_and_multiple_statements(self):
         queries = [
             "DELETE FROM hok.battle_records",
@@ -180,6 +190,9 @@ class _Cursor:
         if self.result_cursor and self.connection.error:
             raise self.connection.error
 
+    def executemany(self, sql, params_seq):
+        self.connection.executed.append((sql, list(params_seq)))
+
     def fetchone(self):
         if not self.result_cursor:
             return self.connection.identity
@@ -229,6 +242,24 @@ class ChatSQLExecutionTests(unittest.TestCase):
         self.assertEqual(statements[0], "SET TRANSACTION READ ONLY")
         self.assertIn("statement_timeout", statements[1])
         self.assertTrue(statements[-1].endswith("LIMIT 3"))
+
+    def test_group_chat_upsert_is_idempotent_and_batch_skips_invalid_records(self):
+        connection = _Connection()
+        records = [
+            {"group_id": "200", "message_id": "1", "user_id": "100", "timestamp": 10,
+             "time": "1970-01-01 08:00:10", "text": "旧值"},
+            {"group_id": "200", "message_id": "1", "user_id": "100", "timestamp": 11,
+             "time": "1970-01-01 08:00:11", "text": "新值"},
+            {"group_id": "200", "message_id": "", "text": "无效"},
+            {"group_id": "200", "message_id": "2", "timestamp": 10 ** 30, "text": "越界"},
+        ]
+        with patch.object(DB, "_connect", return_value=connection):
+            result = DB.upsert_group_chat_messages(records)
+        self.assertEqual(result, {"source_records": 4, "upserted_records": 1, "invalid_records": 2})
+        sql, values = connection.executed[0]
+        self.assertIn("ON CONFLICT (group_id, message_id) DO UPDATE", sql)
+        self.assertEqual(len(values), 1)
+        self.assertEqual(values[0][5:7], (11, "新值"))
 
     def test_rejects_privileged_or_wrong_database_user(self):
         for identity in [

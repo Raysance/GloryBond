@@ -366,45 +366,20 @@ def _group_chat_history_key(group_id):
     return f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}{str(group_id)}"
 
 
-def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply_to_message_id=None):
-    """Persist one inbound group message for on-demand AI retrieval.
-
-    ``ChatHistoryMaxMessages`` is an optional safety cap.  A value less than or
-    equal to zero keeps the complete history and never trims the Redis list.
-    """
-    from .ztime import current_datetime_text, current_epoch_seconds
-
-    normalized_text = str(text or "").strip()
-    if not normalized_text:
-        return None
-    key = _group_chat_history_key(group_id)
-    if message_id in (None, ""):
-        message_id = f"{current_epoch_seconds()}:{user_id}"
-    record = {
-        "group_id": str(group_id),
-        "user_id": str(user_id),
-        "message_id": str(message_id),
-        "reply_to_message_id": str(reply_to_message_id) if reply_to_message_id not in (None, "") else None,
-        "time": current_datetime_text(),
-        "timestamp": current_epoch_seconds(),
-        "text": normalized_text,
-    }
+def _record_group_chat_message_redis(record):
+    """Emergency/legacy Redis writer retained until migration is verified."""
+    key = _group_chat_history_key(record["group_id"])
     redis_client = dmc.redis_deamon
     redis_client.rpush(key, json.dumps(record, ensure_ascii=False))
     max_messages = int(getattr(dmc, "ChatHistoryMaxMessages", 0) or 0)
     if max_messages > 0:
         redis_client.ltrim(key, -max_messages, -1)
-    return record
 
 
-def load_group_chat_history(group_id, limit=None):
-    key = _group_chat_history_key(group_id)
-    if limit is None:
-        raw_records = dmc.redis_deamon.lrange(key, 0, -1)
-    else:
-        raw_records = dmc.redis_deamon.lrange(key, -max(1, int(limit)), -1)
+def _load_group_chat_history_redis(group_id):
+    """Read the legacy DB0 list without trusting embedded group metadata."""
     records = []
-    for raw in raw_records:
+    for raw in dmc.redis_deamon.lrange(_group_chat_history_key(group_id), 0, -1):
         try:
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
@@ -416,8 +391,7 @@ def load_group_chat_history(group_id, limit=None):
     return records
 
 
-def list_chat_history_groups():
-    """List archived group IDs and counts without loading message contents."""
+def _list_group_chat_history_groups_redis():
     groups = {}
     for key in dmc.redis_deamon.scan_iter(match=f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}*"):
         key = key.decode("utf-8") if isinstance(key, bytes) else key
@@ -427,6 +401,106 @@ def list_chat_history_groups():
         count = dmc.redis_deamon.llen(key)
         if count:
             groups[group_id] = {"group_id": group_id, "message_count": count}
+    return groups
+
+
+def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply_to_message_id=None):
+    """Persist one inbound group message to PostgreSQL, with Redis fallback."""
+    from .ztime import current_datetime_text, current_epoch_seconds
+
+    normalized_text = str(text or "").strip()
+    if not normalized_text:
+        return None
+    if message_id in (None, ""):
+        message_id = f"{current_epoch_seconds()}:{user_id}"
+    record = {
+        "group_id": str(group_id),
+        "user_id": str(user_id),
+        "message_id": str(message_id),
+        "reply_to_message_id": str(reply_to_message_id) if reply_to_message_id not in (None, "") else None,
+        "time": current_datetime_text(),
+        "timestamp": current_epoch_seconds(),
+        "text": normalized_text,
+    }
+    try:
+        from . import zdb
+        zdb.upsert_group_chat_message(record, trusted_group_id=group_id)
+    except Exception as error:
+        log_message(
+            f"GROUP_CHAT_POSTGRES_WRITE_FALLBACK: group_id={group_id} "
+            f"message_id={message_id} error={type(error).__name__}",
+            level=logging.ERROR,
+        )
+        _record_group_chat_message_redis(record)
+    return record
+
+
+def load_group_chat_history(group_id, limit=None, time_start=None, time_end=None):
+    """Read SQL history plus any not-yet-migrated Redis records."""
+    try:
+        legacy = _load_group_chat_history_redis(group_id)
+    except Exception as error:
+        log_message(
+            f"GROUP_CHAT_REDIS_LEGACY_READ_SKIPPED: group_id={group_id} error={type(error).__name__}",
+            level=logging.ERROR,
+        )
+        legacy = []
+    try:
+        from . import zdb
+        sql_records = zdb.load_group_chat_messages(
+            str(group_id), time_start=time_start, time_end=time_end)
+    except Exception as error:
+        log_message(
+            f"GROUP_CHAT_POSTGRES_READ_FALLBACK: group_id={group_id} error={type(error).__name__}",
+            level=logging.ERROR,
+        )
+        sql_records = []
+
+    # SQL is authoritative for duplicate (group_id, message_id) records.  Redis
+    # remains readable during rollout so messages written by an older process
+    # between backup and deployment are not lost.
+    merged = {}
+    for position, record in enumerate([*legacy, *sql_records]):
+        if not isinstance(record, dict):
+            continue
+        message_id = str(record.get("message_id") or "").strip()
+        if not message_id:
+            continue
+        merged[message_id] = ({**record, "group_id": str(group_id)}, position)
+    records = [item for item, _ in sorted(
+        merged.values(),
+        key=lambda pair: (int(pair[0].get("timestamp") or 0), pair[1]),
+    )]
+    if time_start is not None:
+        records = [record for record in records if int(record.get("timestamp") or 0) >= int(time_start)]
+    if time_end is not None:
+        records = [record for record in records if int(record.get("timestamp") or 0) <= int(time_end)]
+    if limit is not None:
+        try:
+            limit = max(1, int(limit))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be a positive integer") from exc
+        records = records[-limit:]
+    return records
+
+
+def list_chat_history_groups():
+    """List SQL groups, including any legacy Redis-only messages during migration."""
+    try:
+        redis_groups = _list_group_chat_history_groups_redis()
+    except Exception as error:
+        log_message(f"GROUP_CHAT_REDIS_GROUPS_SKIPPED: error={type(error).__name__}", level=logging.ERROR)
+        redis_groups = {}
+    try:
+        from . import zdb
+        sql_groups = {item["group_id"]: item for item in zdb.list_group_chat_history_groups()}
+    except Exception as error:
+        log_message(f"GROUP_CHAT_POSTGRES_GROUPS_FALLBACK: error={type(error).__name__}", level=logging.ERROR)
+        sql_groups = {}
+    groups = {**redis_groups, **sql_groups}
+    for group_id in redis_groups.keys() & sql_groups.keys():
+        groups[group_id] = {"group_id": group_id,
+                            "message_count": len(load_group_chat_history(group_id))}
     return [groups[group_id] for group_id in sorted(groups, key=int)]
 
 
@@ -437,9 +511,11 @@ def resolve_chat_history_users(players=(), qq_ids=()):
 
 def _load_chat_history_window(group_id, time_start=None, time_end=None):
     from .ztime import parse_chat_time_bound
-    records = load_group_chat_history(group_id)
     start_timestamp = parse_chat_time_bound(time_start, is_end=False)
     end_timestamp = parse_chat_time_bound(time_end, is_end=True)
+    records = load_group_chat_history(group_id, time_start=start_timestamp, time_end=end_timestamp)
+    # Keep the business boundary correct for alternate/test loaders as well as
+    # the optimized PostgreSQL implementation.
     if start_timestamp is not None:
         records = [record for record in records if int(record.get("timestamp") or 0) >= start_timestamp]
     if end_timestamp is not None:
