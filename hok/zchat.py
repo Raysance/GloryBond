@@ -405,7 +405,9 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                               if automatic_history_required else "none"),
             automatic_history_completed=automatic_history_complete,
             explicit_discovery_categories=explicit_discovery_categories,
+            forced_discovery_categories=list(forced_discovery_categories),
             forced_discovery_completed=not forced_discovery_pending,
+            forced_tool_workflow_completed=not forced_discovery_categories,
         )
         stage = "memory_load"
         retention_limit = max(0, int(getattr(dmc, "ChatActiveDialogueRetention", 10)))
@@ -435,11 +437,19 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         for _round in range(max_rounds):
             schema_by_name = {schema["name"]: schema for schema in current_schemas()}
             disclosed_before = set(schema_by_name)
+            required_workflow_tool = (
+                tools.required_workflow_tool(forced_discovery_categories)
+                if forced_discovery_categories and not forced_discovery_pending
+                and hasattr(tools, "required_workflow_tool") else None
+            )
+            if forced_discovery_categories and not forced_discovery_pending:
+                trace["context"]["forced_tool_workflow_completed"] = not required_workflow_tool
             try:
                 response, turn = ask(
                     input_items,
                     required_tool=("search_chat_history" if not automatic_history_complete else
-                                   "discover_tools" if forced_discovery_pending else None),
+                                   "discover_tools" if forced_discovery_pending else
+                                   required_workflow_tool),
                 )
             except Exception:
                 if trace.get("recovery", {}).get("reason") == "chat_empty_response":
@@ -506,6 +516,11 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                 and hasattr(tools, "merge_required_discovery_categories")):
                             arguments = tools.merge_required_discovery_categories(
                                 arguments, forced_discovery_categories)
+                        elif name == "discover_tools" and forced_discovery_pending:
+                            forced_discovery_categories = list(arguments.get("categories") or [])
+                            trace["context"]["forced_discovery_categories"] = list(
+                                forced_discovery_categories)
+                            trace["context"]["forced_tool_workflow_completed"] = False
                         if hasattr(tools, "model_schemas") and name not in schema_by_name:
                             raise ChatToolUnavailableError(
                                 "tool_not_disclosed",
@@ -523,6 +538,8 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                                 start_ms=begin, duration_ms=round(elapsed() - begin, 2),
                                                 executed=executed))
                 input_items.append({"type": "function_call_output", "call_id": call_id, "output": serialized})
+                if result.get("ok") and hasattr(tools, "record_tool_result"):
+                    tools.record_tool_result(name, result.get("data"))
                 if name == "discover_tools" and result.get("ok"):
                     forced_discovery_pending = False
                     trace["context"]["forced_discovery_completed"] = True

@@ -111,14 +111,37 @@ class ChatLoopTests(unittest.TestCase):
                 call = {"call_id": "discover", "name": "discover_tools",
                         "arguments": '{"categories":["game_data"]}'}
             elif len(calls) == 3:
+                self.assertEqual(tool_choice["function"]["name"], "get_game_database_schema")
                 self.assertTrue({"get_game_database_schema", "render_python_plot"}.issubset(names))
                 call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
+            elif len(calls) == 4:
+                self.assertEqual(tool_choice["function"]["name"], "check_game_database_query")
+                call = {"call_id": "check", "name": "check_game_database_query",
+                        "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value",
+                                                               "intent": "读取战局统计"}]})}
+            elif len(calls) == 5:
+                self.assertEqual(tool_choice["function"]["name"], "query_game_database")
+                call = {"call_id": "query", "name": "query_game_database",
+                        "arguments": '{"check_id":"sql_check_1"}'}
+            elif len(calls) == 6:
+                self.assertEqual(tool_choice["function"]["name"], "list_plot_templates")
+                call = {"call_id": "templates", "name": "list_plot_templates", "arguments": "{}"}
+            elif len(calls) == 7:
+                self.assertEqual(tool_choice["function"]["name"], "render_python_plot")
+                call = {"call_id": "plot", "name": "render_python_plot",
+                        "arguments": '{"dataset_id":"dataset_1"}'}
             else:
                 return {"content": "已按数据库结构继续查询。", "tool_calls": [], "output_items": []}
             return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
 
         with patch.object(ZFUNC, "search_group_chat_history", return_value=[]), \
-                patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}):
+                patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}), \
+                patch.object(ZFUNC, "chat_check_database_query",
+                             return_value={"ok": True, "normalized_sql": "SELECT 1 AS value"}), \
+                patch.object(ZFUNC, "chat_query_database",
+                             return_value={"ok": True, "rows": [{"value": 1}], "columns": ["value"]}), \
+                patch.object(ZFUNC, "chat_plot_templates", return_value={"templates": ["bar"]}), \
+                patch.object(ZFUNC, "chat_render_plot", return_value={"path": "/tmp/forced.png", "width": 800}):
             result = ZCHAT.chat_process(user_text=registry.original_query, user_id="100", nickname="A",
                                         group_id="200", message_id="300", use_memory=False,
                                         model_caller=model, tool_registry=registry, return_artifacts=True)
@@ -126,6 +149,7 @@ class ChatLoopTests(unittest.TestCase):
         self.assertEqual(result["trace"]["context"]["explicit_discovery_categories"],
                          ["game_data", "plots"])
         self.assertTrue(result["trace"]["context"]["forced_discovery_completed"])
+        self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
         discover = result["trace"]["rounds"][1]["tools"][0]
         self.assertEqual(discover["arguments"]["categories"], ["game_data", "plots"])
 
@@ -148,15 +172,36 @@ class ChatLoopTests(unittest.TestCase):
                 call = {"call_id": "discover", "name": "discover_tools",
                         "arguments": '{"categories":["game_data"]}'}
                 return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            if len(calls) == 4:
+                self.assertEqual(tool_choice["function"]["name"], "get_game_database_schema")
+                call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            if len(calls) == 5:
+                self.assertEqual(tool_choice["function"]["name"], "check_game_database_query")
+                call = {"call_id": "check", "name": "check_game_database_query",
+                        "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value",
+                                                               "intent": "统计组排次数"}]})}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            if len(calls) == 6:
+                self.assertEqual(tool_choice["function"]["name"], "query_game_database")
+                call = {"call_id": "query", "name": "query_game_database",
+                        "arguments": '{"check_id":"sql_check_1"}'}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
             return {"content": "已改用游戏数据库查询。", "tool_calls": [], "output_items": []}
 
-        with patch.object(ZFUNC, "search_group_chat_history", return_value=[]):
+        with patch.object(ZFUNC, "search_group_chat_history", return_value=[]), \
+                patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}), \
+                patch.object(ZFUNC, "chat_check_database_query",
+                             return_value={"ok": True, "normalized_sql": "SELECT 1 AS value"}), \
+                patch.object(ZFUNC, "chat_query_database",
+                             return_value={"ok": True, "rows": [{"value": 1}], "columns": ["value"]}):
             result = ZCHAT.chat_process(user_text=registry.original_query, user_id="100", nickname="A",
                                         group_id="200", use_memory=False, model_caller=model,
                                         tool_registry=registry, return_artifacts=True)
         self.assertEqual(result["text"], "已改用游戏数据库查询。")
         self.assertTrue(result["trace"]["rounds"][1]["premature_tool_denial"])
         self.assertTrue(result["trace"]["context"]["forced_discovery_completed"])
+        self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
 
     def test_tool_result_is_appended_before_second_model_turn(self):
         calls = []

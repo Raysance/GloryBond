@@ -68,6 +68,7 @@ class HOKChatTools:
         self._sql_check_sequence = 0
         self._disclosed = set()
         self._discovery_attempted_categories = set()
+        self._tool_results = {}
         self._automatic_history_pending = False
 
     def _discovery_schema(self):
@@ -129,6 +130,37 @@ class HOKChatTools:
         """Make an explicitly requested category survive an imperfect model call."""
         merged = list(dict.fromkeys([*required_categories, *(arguments.get("categories") or [])]))[:3]
         return {**arguments, "categories": merged}
+
+    def record_tool_result(self, name, data):
+        """Record successful observations used by the deterministic workflow guard."""
+        self._tool_results.setdefault(name, []).append(data)
+
+    def required_workflow_tool(self, categories):
+        """Return the next concrete tool required by an explicitly requested capability."""
+        categories = set(categories)
+        if "game_data" in categories:
+            if "get_game_database_schema" not in self._tool_results:
+                return "get_game_database_schema"
+            if "query_game_database" not in self._tool_results:
+                if self.sql_checks:
+                    return "query_game_database"
+                return "check_game_database_query"
+        if "plots" in categories:
+            if self.datasets and not self.artifacts:
+                if "list_plot_templates" not in self._tool_results:
+                    return "list_plot_templates"
+                return "render_python_plot"
+            if "game_data" not in categories and "list_plot_templates" not in self._tool_results:
+                return "list_plot_templates"
+        entry_tools = {
+            "internet": "web_search",
+            "memory": "recall_memory",
+            "roleplay": "manage_roleplay",
+        }
+        for category, tool_name in entry_tools.items():
+            if category in categories and tool_name not in self._tool_results:
+                return tool_name
+        return None
 
     def initial_schemas(self):
         """Expose only discovery initially; concrete schemas are request-local."""
