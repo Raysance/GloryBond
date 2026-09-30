@@ -45,6 +45,18 @@ def _serialize_tool_result(value, max_chars=64000):
     return text
 
 
+def _looks_like_premature_tool_denial(content):
+    """Detect a final answer that mistakes progressive disclosure for no capability."""
+    text = str(content or "").casefold()
+    if not text:
+        return False
+    if any(marker in text for marker in ("查询入口", "数据文件", "无法调用", "不能调用", "没有这个工具")):
+        return True
+    return "工具" in text and any(marker in text for marker in (
+        "不在我手头", "不属于", "没有", "权限不够", "不可用", "未提供", "未接入",
+    ))
+
+
 def _new_tool_context_messages(tool_names):
     """Return detailed policy only for schemas disclosed after discovery."""
     names = set(tool_names)
@@ -377,6 +389,13 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             and tools.require_automatic_history_search()
         )
         automatic_history_complete = not automatic_history_required
+        explicit_discovery_categories = (
+            list(tools.required_discovery_categories())
+            if hasattr(tools, "required_discovery_categories") else []
+        )
+        forced_discovery_categories = list(explicit_discovery_categories)
+        forced_discovery_pending = bool(forced_discovery_categories)
+        discovery_guard_used = bool(forced_discovery_categories)
         trace["context"].update(
             automatic_history_mode="required_search_chat_history" if automatic_history_required else "unavailable",
             automatic_history_scope=("all_saved_groups_all_users" if getattr(tools, "cross_group_history", False)
@@ -385,6 +404,8 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             automatic_history_query_strategy=("original_plus_model_generated_2_to_6"
                                               if automatic_history_required else "none"),
             automatic_history_completed=automatic_history_complete,
+            explicit_discovery_categories=explicit_discovery_categories,
+            forced_discovery_completed=not forced_discovery_pending,
         )
         stage = "memory_load"
         retention_limit = max(0, int(getattr(dmc, "ChatActiveDialogueRetention", 10)))
@@ -417,7 +438,8 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             try:
                 response, turn = ask(
                     input_items,
-                    required_tool="search_chat_history" if not automatic_history_complete else None,
+                    required_tool=("search_chat_history" if not automatic_history_complete else
+                                   "discover_tools" if forced_discovery_pending else None),
                 )
             except Exception:
                 if trace.get("recovery", {}).get("reason") == "chat_empty_response":
@@ -432,6 +454,19 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                         "尚未完成强制历史检索。现在必须调用search_chat_history："
                                         "生成2到6组不同且互补的简短query；管理员私聊还必须传all_groups=true。"
                                         "完成检索前不要输出最终答案。"})
+                    continue
+                if (not discovery_guard_used and hasattr(tools, "model_schemas")
+                        and "discover_tools" in schema_by_name
+                        and _looks_like_premature_tool_denial(response.get("content"))):
+                    discovery_guard_used = True
+                    forced_discovery_pending = True
+                    turn["premature_tool_denial"] = True
+                    trace["context"]["forced_discovery_completed"] = False
+                    input_items.extend(response.get("output_items") or [])
+                    input_items.append({"role": "system", "content":
+                                        "你把尚未披露的能力误判成了系统没有能力。当前只显示群聊工具不代表"
+                                        "game_data、plots、internet、memory或roleplay不可用。现在必须调用"
+                                        "discover_tools选择完成原问题所需的类别，不能索要用户另行提供查询入口或数据文件。"})
                     continue
                 if not normalize_qq_text(response.get("content")) and empty_recovery_attempts < empty_retries:
                     turn.update(status="error", error="chat_empty_response",
@@ -466,6 +501,11 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                         arguments = json.loads(arguments)
                         if not isinstance(arguments, dict):
                             raise ValueError("tool arguments must be an object")
+                        if (name == "discover_tools" and forced_discovery_pending
+                                and forced_discovery_categories
+                                and hasattr(tools, "merge_required_discovery_categories")):
+                            arguments = tools.merge_required_discovery_categories(
+                                arguments, forced_discovery_categories)
                         if hasattr(tools, "model_schemas") and name not in schema_by_name:
                             raise ChatToolUnavailableError(
                                 "tool_not_disclosed",
@@ -483,6 +523,9 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                                 start_ms=begin, duration_ms=round(elapsed() - begin, 2),
                                                 executed=executed))
                 input_items.append({"type": "function_call_output", "call_id": call_id, "output": serialized})
+                if name == "discover_tools" and result.get("ok"):
+                    forced_discovery_pending = False
+                    trace["context"]["forced_discovery_completed"] = True
                 if (not automatic_history_complete and name == "search_chat_history" and result.get("ok")
                         and (not getattr(tools, "cross_group_history", False) or arguments.get("all_groups") is True)):
                     automatic_history_complete = True

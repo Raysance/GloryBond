@@ -92,6 +92,72 @@ class ChatLoopTests(unittest.TestCase):
         self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
         self.assertIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
 
+    def test_explicit_database_request_forces_discovery_after_history(self):
+        calls = []
+        registry = ZCHAT.HOKChatTools(group_id="200", current_message_id="300",
+                                      original_query="调用game_data工具并画可视化图",
+                                      user_id="100", use_memory=False)
+
+        def model(messages, tools=None, tool_choice="auto", **kwargs):
+            names = {tool["name"] for tool in tools or []}
+            calls.append({"names": names, "tool_choice": tool_choice,
+                          "messages": [dict(item) for item in messages]})
+            if len(calls) == 1:
+                self.assertEqual(tool_choice["function"]["name"], "search_chat_history")
+                call = {"call_id": "history", "name": "search_chat_history",
+                        "arguments": '{"queries":["赛季 战局","组排 数据"]}'}
+            elif len(calls) == 2:
+                self.assertEqual(tool_choice["function"]["name"], "discover_tools")
+                call = {"call_id": "discover", "name": "discover_tools",
+                        "arguments": '{"categories":["game_data"]}'}
+            elif len(calls) == 3:
+                self.assertTrue({"get_game_database_schema", "render_python_plot"}.issubset(names))
+                call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
+            else:
+                return {"content": "已按数据库结构继续查询。", "tool_calls": [], "output_items": []}
+            return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+
+        with patch.object(ZFUNC, "search_group_chat_history", return_value=[]), \
+                patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}):
+            result = ZCHAT.chat_process(user_text=registry.original_query, user_id="100", nickname="A",
+                                        group_id="200", message_id="300", use_memory=False,
+                                        model_caller=model, tool_registry=registry, return_artifacts=True)
+        self.assertEqual(result["text"], "已按数据库结构继续查询。")
+        self.assertEqual(result["trace"]["context"]["explicit_discovery_categories"],
+                         ["game_data", "plots"])
+        self.assertTrue(result["trace"]["context"]["forced_discovery_completed"])
+        discover = result["trace"]["rounds"][1]["tools"][0]
+        self.assertEqual(discover["arguments"]["categories"], ["game_data", "plots"])
+
+    def test_capability_denial_gets_one_forced_discovery_retry(self):
+        calls = []
+        registry = ZCHAT.HOKChatTools(group_id="200", original_query="群友哪一对组排最多",
+                                      user_id="100", use_memory=False)
+
+        def model(messages, tools=None, tool_choice="auto", **kwargs):
+            calls.append(tool_choice)
+            if len(calls) == 1:
+                call = {"call_id": "history", "name": "search_chat_history",
+                        "arguments": '{"queries":["组排 搭档","双排 次数"]}'}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            if len(calls) == 2:
+                return {"content": "这个不属于群聊工具，需要你提供查询入口。", "tool_calls": [],
+                        "output_items": [{"role": "assistant", "content": "这个不属于群聊工具，需要你提供查询入口。"}]}
+            if len(calls) == 3:
+                self.assertEqual(tool_choice["function"]["name"], "discover_tools")
+                call = {"call_id": "discover", "name": "discover_tools",
+                        "arguments": '{"categories":["game_data"]}'}
+                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+            return {"content": "已改用游戏数据库查询。", "tool_calls": [], "output_items": []}
+
+        with patch.object(ZFUNC, "search_group_chat_history", return_value=[]):
+            result = ZCHAT.chat_process(user_text=registry.original_query, user_id="100", nickname="A",
+                                        group_id="200", use_memory=False, model_caller=model,
+                                        tool_registry=registry, return_artifacts=True)
+        self.assertEqual(result["text"], "已改用游戏数据库查询。")
+        self.assertTrue(result["trace"]["rounds"][1]["premature_tool_denial"])
+        self.assertTrue(result["trace"]["context"]["forced_discovery_completed"])
+
     def test_tool_result_is_appended_before_second_model_turn(self):
         calls = []
 
@@ -275,6 +341,11 @@ class HOKChatToolsTests(unittest.TestCase):
                          "render_python_plot", "web_search"}.issubset(names))
         self.assertNotIn("query_player_today_report", names)
         self.assertNotIn("remember_memory", names)
+
+    def test_pre_disclosed_history_does_not_force_redundant_discovery(self):
+        registry = ZCHAT.HOKChatTools(group_id="200", original_query="查看群聊历史")
+        self.assertTrue(registry.require_automatic_history_search())
+        self.assertEqual(registry.required_discovery_categories(), [])
 
     def test_empty_response_after_disclosure_retries_with_tools_preserved(self):
         requests = []

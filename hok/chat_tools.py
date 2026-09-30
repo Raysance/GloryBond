@@ -67,6 +67,7 @@ class HOKChatTools:
         self.sql_checks = {}
         self._sql_check_sequence = 0
         self._disclosed = set()
+        self._discovery_attempted_categories = set()
         self._automatic_history_pending = False
 
     def _discovery_schema(self):
@@ -101,6 +102,34 @@ class HOKChatTools:
             "roleplay": {"manage_roleplay"},
         }
 
+    def required_discovery_categories(self):
+        """Return capability categories explicitly named by the current request."""
+        query = self.original_query.casefold()
+        available = {schema["name"] for schema in self.schemas()}
+        category_tools = self._tool_categories()
+        available_by_category = {
+            category: names & available for category, names in category_tools.items()
+        }
+        aliases = {
+            "game_data": ("game_data", "game data", "数据库", "sql", "游戏数据", "对局数据", "战绩数据"),
+            "plots": ("plots", "plot", "可视化", "图表", "画图", "绘图"),
+            "internet": ("internet", "web_search", "联网", "网页搜索", "上网搜", "网上搜"),
+            "memory": ("memory", "记忆工具"),
+            "chat_history": ("chat_history", "群聊历史", "聊天历史", "群聊记录"),
+            "roleplay": ("roleplay", "角色扮演", "角色工具"),
+        }
+        return [category for category, words in aliases.items()
+                if category not in self._discovery_attempted_categories
+                and (not available_by_category[category]
+                     or not available_by_category[category] <= self._disclosed)
+                and any(word in query for word in words)]
+
+    @staticmethod
+    def merge_required_discovery_categories(arguments, required_categories):
+        """Make an explicitly requested category survive an imperfect model call."""
+        merged = list(dict.fromkeys([*required_categories, *(arguments.get("categories") or [])]))[:3]
+        return {**arguments, "categories": merged}
+
     def initial_schemas(self):
         """Expose only discovery initially; concrete schemas are request-local."""
         return [self._discovery_schema()]
@@ -125,6 +154,7 @@ class HOKChatTools:
         unavailable = []
         categories = self._tool_categories()
         for category in dict.fromkeys(arguments["categories"]):
+            self._discovery_attempted_categories.add(category)
             names = sorted(categories[category] & available.keys())
             if not names:
                 unavailable.append(category)
