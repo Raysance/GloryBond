@@ -6,6 +6,7 @@
 - `chat_trace.py`：公开聊天运行记录的 token/载荷校验及 Jinja 渲染；`app.py` 的 `/chat-trace` 路由仅委托该模块，Redis 读取仍由入口注入。
 - `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
+- `health_diagnostics.py`：管理员手动深度诊断的固定命令执行与安全 JSON 解析；只允许调用 NBot 的 `hok/tools/chat_runtime_diagnostic.py`，不接受来自请求的命令、模型或地址参数，不回传子进程 stderr。
 - `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
 - `runtime_config.py`：Web 运行目录与外置配置的唯一解析入口；负责兼容 `/opt/hok-qqbot/{nbot,web}`、Aliyun `/srv/modules/hok/apps/` 与显式环境变量布局，其他模块不得重新硬编码兄弟仓库相对路径。
 - `templates/`：Jinja2 HTML 模板根目录。
@@ -43,6 +44,7 @@
 - B 站订阅视频跳转页使用 `/bili-video?key=...`，后端直接从 Redis 读取临时视频 payload 后按 User-Agent 302 分流；电脑端跳转到 B 站官网视频页，移动端跳转到应用宝中转页；不要渲染中间内容页，不要新增额外 JSON 代理接口。应用宝中转页的 `android_schema` 传入 B 站移动端当前唤端实现对应的 `bilibili://video/{aid}?page=0`，缺少 `aid` 时降级到移动端 HTTPS 视频页。
 - 页面数据路径尽量在后端计算后传入模板，不要让前端拼接业务路径或 Redis key。
 - 管理后台路由保持在 `/admin/...` 命名空间下，并继续使用 `AdminKey` Cookie 和 `SECRET_KEY` 校验。
+- 公开 `/health` 只执行不产生外部模型费用的快速服务检查；`/admin/funcs/health-check` 由管理员手动触发 DeepSeek 普通请求及工具续传深度诊断。深度诊断不得接入 Web/NBot 启动、systemd 重启、GitHub Actions 或公开匿名接口，并禁止并发重复执行。
 - HOK_QQBot 与 Web 的全部 Redis 数据统一使用 `REDIS_DB`（DB0）和 `hok:` 根命名空间；Web 只创建一个 Redis 客户端。访问分析使用 `hok:web:analytics:*`，查询参数中的 key、AdminKey、token 等凭据禁止写入统计，后台只返回脱敏 IP。地域查询必须异步执行并按 IP 缓存，不得阻塞普通页面响应。
 - NBot 与 Web 共享的网页临时载荷保存为 `hok:web:artifact:<token>`，URL 仍只暴露 token；收藏集合为 `hok:battle:liked_ids`；网页分享与底蕴分析队列分别为 `hok:queue:battle:share`、`hok:queue:battle:analyze`。Web 是两条业务队列的生产者，NBot 是消费者，修改名称或载荷结构时必须同步修改两个项目及 NBot 的 DB0 收敛迁移脚本。
 - 错误场景优先复用 `templates/ErrorPages/illegal.html` 或 `templates/ErrorPages/expired.html`。

@@ -26,6 +26,7 @@ from request_analytics import (
     should_track_request,
     store_request_event,
 )
+from health_diagnostics import run_chat_runtime_diagnostic
 
 # 引入变量
 variables_to_import = ["userlist", "roleidlist", "qid", "namenick", "nameref", "extra_useridlist", "extra_roleidlist", "extra_namenick"]
@@ -59,6 +60,7 @@ r_share_queue = r_com
 r_analyze_queue = r_com
 r_chat = r_com
 analytics_tasks = set()
+manual_health_check_lock = asyncio.Lock()
 
 WEB_ARTIFACT_PREFIX = "hok:web:artifact:"
 BATTLE_LIKED_IDS_KEY = "hok:battle:liked_ids"
@@ -478,10 +480,9 @@ def compact_health_payload(services: dict) -> dict:
         },
     })
 
-@app.get("/health")
-async def health_check():
+def collect_health_services() -> dict:
     processes = process_snapshot()
-    services = {
+    return {
         "web": {
             "status": "ok",
             "pid": os.getpid(),
@@ -494,6 +495,23 @@ async def health_check():
         "qqbot": check_qqbot_health(processes),
         "onebot": check_onebot_health(processes),
     }
+
+def manual_health_service_summary(services: dict) -> dict:
+    return {
+        name: {
+            "status": item.get("status", "unknown"),
+            **({"latency_ms": item.get("latency_ms")} if item.get("latency_ms") is not None else {}),
+            **(
+                {"commit": item.get("repository", {}).get("short_head")}
+                if item.get("repository", {}).get("short_head") else {}
+            ),
+        }
+        for name, item in services.items()
+    }
+
+@app.get("/health")
+async def health_check():
+    services = collect_health_services()
     return Response(
         json.dumps(compact_health_payload(services), ensure_ascii=False, indent=2),
         media_type="application/json",
@@ -927,6 +945,36 @@ async def admin_request_analytics_page(request: Request, AdminKey: str = Cookie(
             "AdminKey": AdminKey,
         }
     )
+
+@app.get("/admin/funcs/health-check", response_class=HTMLResponse)
+async def admin_health_check_page(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login")
+    return templates.TemplateResponse(
+        "AdminPages/HealthCheck.html",
+        {"request": request, "AdminKey": AdminKey},
+    )
+
+@app.post("/admin/funcs/health-check/run")
+async def admin_health_check_run(AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return JSONResponse({"status": "error", "message": "认证失败"}, status_code=401)
+    if manual_health_check_lock.locked():
+        return JSONResponse(
+            {"status": "error", "message": "已有一项深度诊断正在运行"},
+            status_code=409,
+        )
+    async with manual_health_check_lock:
+        services = await asyncio.to_thread(collect_health_services)
+        platform_status = service_overall_status(services)
+        chat_report = await asyncio.to_thread(run_chat_runtime_diagnostic, RUNTIME.nbot_root)
+    status = "failed" if chat_report.get("status") != "ok" or platform_status == "down" else platform_status
+    return JSONResponse({
+        "status": status,
+        "platform_status": platform_status,
+        "services": manual_health_service_summary(services),
+        "chat": chat_report,
+    })
 
 @app.get("/admin/funcs/request-analytics/data")
 async def admin_request_analytics_data(
