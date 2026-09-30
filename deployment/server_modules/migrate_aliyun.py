@@ -294,6 +294,7 @@ def apply(source_dir):
         runtime_env = (
             'BOT_PATH=/srv/modules/hok/apps/NBot\n'
             'WEB_PATH=/srv/modules/hok/apps/Web\n'
+            'HOK_NAPCAT_ROOT=/srv/modules/hok/apps/napcat\n'
             'REDIS_CONF=/srv/modules/hok/config/redis.json\n'
             'NGINX_HTML=/srv/modules/hok/public\n'
         )

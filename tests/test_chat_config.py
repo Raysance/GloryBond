@@ -44,7 +44,7 @@ class ChatEnvironmentTests(unittest.TestCase):
         return result, environment, loaded
 
     def test_local_env_uses_bot_path_loaded_from_base_dotenv(self):
-        base = "/QQBot/.env"
+        base = "/fixture/.env"
         private = "/fixture/bot/.env.local"
         result, environment, loaded = self.run_environment_loader({
             base: "BOT_PATH=/fixture/bot\n",
@@ -60,7 +60,7 @@ class ChatEnvironmentTests(unittest.TestCase):
         explicit = "/fixture/private.env"
         result, environment, loaded = self.run_environment_loader({
             explicit: "BOT_PATH=/fixture/bot\nHOK_CHAT_API_KEY=fixture-explicit-key\n",
-            "/QQBot/.env": "HOK_CHAT_API_KEY=fixture-base-key\n",
+            "/fixture/.env": "HOK_CHAT_API_KEY=fixture-base-key\n",
             "/fixture/bot/.env.local": "HOK_CHAT_API_KEY=fixture-local-key\n",
         }, {"HOK_ENV_FILE": explicit})
 
@@ -69,7 +69,7 @@ class ChatEnvironmentTests(unittest.TestCase):
         self.assertEqual(result, explicit)
 
     def test_process_api_key_is_not_overridden_by_dotenv_files(self):
-        base = "/QQBot/.env"
+        base = "/fixture/.env"
         private = "/fixture/bot/.env.local"
         _, environment, loaded = self.run_environment_loader({
             base: "HOK_CHAT_API_KEY=fixture-base-key\n",

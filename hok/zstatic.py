@@ -33,7 +33,6 @@ def _load_runtime_environment():
         candidates = [explicit_path]
     else:
         candidates = [
-            "/QQBot/.env",
             os.path.join(os.path.dirname(os.getcwd()), ".env"),
             os.path.join(os.getcwd(), ".env"),
         ]
