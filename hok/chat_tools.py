@@ -65,6 +65,7 @@ class HOKChatTools:
         self.datasets = {}
         self.artifacts = []
         self._disclosed = set()
+        self._automatic_history_pending = False
 
     def _discovery_schema(self):
         return _schema(
@@ -105,6 +106,15 @@ class HOKChatTools:
     def model_schemas(self):
         by_name = {schema["name"]: schema for schema in self.schemas()}
         return [self._discovery_schema(), *(by_name[name] for name in sorted(self._disclosed) if name in by_name)]
+
+    def require_automatic_history_search(self):
+        """Pre-disclose only the request-bound history category for mandatory retrieval."""
+        if not (self.group_id or self.cross_group_history):
+            return False
+        available = {schema["name"] for schema in self.schemas()}
+        self._disclosed.update(self._tool_categories()["chat_history"] & available)
+        self._automatic_history_pending = "search_chat_history" in self._disclosed
+        return self._automatic_history_pending
 
     def _discover(self, arguments):
         _validate(arguments, self._discovery_schema()["parameters"])
@@ -193,11 +203,14 @@ class HOKChatTools:
                 _schema("fetch_recent_chat_messages", f"按时间倒序读取{scope}最近发言，不需要关键词。查询某人最近说了什么时优先使用，players 由程序解析为 QQ。返回 messages、实际匹配数及截断标记，消息 user_id 是 QQ 号。", {
                     **group_param, **sender_params, "time_start": text, "time_end": text,
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, group_required),
-                _schema("search_chat_history", f"检索{scope}历史消息。根据原问题生成 2 到 6 组互补查询；命中后可展开上下文。", {
+                _schema("search_chat_history", f"检索{scope}全部用户的历史消息。必须从原问题提取人物、对象、事件、动作、别称或同义表达，生成 2 到 6 组简短且互补的查询；去掉寒暄和提问套话，不得重复原问题或编造事实。命中后可展开上下文。", {
                     **group_param, **sender_params,
-                    "queries": {"type": "array", "items": text, "minItems": 1, "maxItems": 6},
+                    **({"all_groups": {"type": "boolean",
+                                       "description": "仅管理员私聊可用；true 表示在所有已保存群中统一检索，不能同时传 group_id。"}}
+                       if self.cross_group_history else {}),
+                    "queries": {"type": "array", "items": text, "minItems": 2, "maxItems": 6},
                     "time_start": text, "time_end": text,
-                    "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, ["queries", *group_required]),
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20}}, ["queries"]),
                 _schema("fetch_chat_context", f"根据 message_id 展开{scope}前后原始消息。", {
                     **group_param,
                     "message_id": {"type": ["string", "integer"]},
@@ -282,14 +295,41 @@ class HOKChatTools:
             return zfunc.chat_memory_delete(self.user_id, arguments["memory_id"])
         if name == "list_chat_groups":
             return zfunc.list_chat_history_groups()
+        if name == "search_chat_history":
+            normalized_queries = []
+            seen_queries = set()
+            original_key = " ".join(self.original_query.lower().split())
+            for query in arguments["queries"]:
+                query = " ".join(str(query or "").split())
+                key = query.lower()
+                if query and key not in seen_queries and key != original_key:
+                    normalized_queries.append(query)
+                    seen_queries.add(key)
+            if len(normalized_queries) < 2:
+                raise ValueError("search_chat_history requires 2 to 6 distinct complementary queries; do not repeat the original question")
+            arguments = {**arguments, "queries": normalized_queries}
+            if self._automatic_history_pending:
+                scoped_filters = ("players", "qq_ids", "user_ids", "time_start", "time_end")
+                if any(arguments.get(key) not in (None, "", []) for key in scoped_filters):
+                    raise ValueError("automatic search_chat_history must scan all users and all saved times without filters")
+                if self.cross_group_history and arguments.get("all_groups") is not True:
+                    raise ValueError("administrator automatic search_chat_history requires all_groups=true")
         if name in {"search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context", "fetch_chat_reply_thread"}:
             group_id = self.group_id
             if self.cross_group_history:
-                group_id = str(arguments["group_id"])
-                available = {group["group_id"] for group in zfunc.list_chat_history_groups()}
-                if group_id not in available:
-                    raise ChatToolUnavailableError(
-                        "chat_group_not_found", "目标群没有已保存的历史记录；请用 list_chat_groups 核对群号。")
+                all_groups = bool(arguments.get("all_groups")) if name == "search_chat_history" else False
+                if all_groups:
+                    if arguments.get("group_id") not in (None, "", 0, "0"):
+                        raise ValueError("search_chat_history accepts either all_groups=true or group_id, not both")
+                    group_id = None
+                else:
+                    if arguments.get("group_id") in (None, "", 0, "0"):
+                        raise ValueError("arguments.group_id: required unless search_chat_history uses all_groups=true")
+                    group_id = str(arguments["group_id"])
+                    available = {group["group_id"] for group in zfunc.list_chat_history_groups()}
+                    if group_id not in available:
+                        raise ChatToolUnavailableError(
+                            "chat_group_not_found", "目标群没有已保存的历史记录；请用 list_chat_groups 核对群号。")
         if name in {"search_chat_history", "fetch_recent_chat_messages"}:
             senders = zfunc.resolve_chat_history_users(arguments.get("players", []),
                         [*arguments.get("qq_ids", []), *arguments.get("user_ids", [])])
@@ -298,12 +338,21 @@ class HOKChatTools:
                 time_start=arguments.get("time_start"), time_end=arguments.get("time_end"),
                 limit=arguments.get("limit", 20), exclude_message_id=self.current_message_id if self.group_id else None)
         if name == "search_chat_history":
-            return zfunc.search_group_chat_history(
-                group_id, [self.original_query, *arguments["queries"]],
-                user_ids=senders, time_start=arguments.get("time_start"), time_end=arguments.get("time_end"),
-                limit=arguments.get("limit", int(getattr(dmc, "ChatHistorySearchLimit", 8))),
-                exclude_message_id=self.current_message_id if self.group_id else None,
-            )
+            if self.cross_group_history and arguments.get("all_groups"):
+                result = zfunc.search_all_group_chat_history(
+                    [self.original_query, *arguments["queries"]],
+                    user_ids=senders, time_start=arguments.get("time_start"), time_end=arguments.get("time_end"),
+                    limit=arguments.get("limit", int(getattr(dmc, "ChatHistorySearchLimit", 8))),
+                )
+            else:
+                result = zfunc.search_group_chat_history(
+                    group_id, [self.original_query, *arguments["queries"]],
+                    user_ids=senders, time_start=arguments.get("time_start"), time_end=arguments.get("time_end"),
+                    limit=arguments.get("limit", int(getattr(dmc, "ChatHistorySearchLimit", 8))),
+                    exclude_message_id=self.current_message_id if self.group_id else None,
+                )
+            self._automatic_history_pending = False
+            return result
         if name == "fetch_chat_context":
             return zfunc.fetch_group_chat_context(group_id, arguments["message_id"],
                                                  before=arguments.get("before", 5), after=arguments.get("after", 8))

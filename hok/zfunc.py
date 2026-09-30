@@ -462,6 +462,16 @@ def search_group_chat_history(group_id, queries, *, user_ids=None, time_start=No
     )
 
 
+def search_all_group_chat_history(queries, *, user_ids=None, time_start=None, time_end=None, limit=8):
+    """Search every saved group for a verified administrator's private chat tool call."""
+    from .zmemory import search_history_records
+
+    records = []
+    for group in list_chat_history_groups():
+        records.extend(_load_chat_history_window(group["group_id"], time_start, time_end))
+    return search_history_records(records, queries, user_ids=user_ids, limit=limit)
+
+
 def fetch_group_chat_context(group_id, message_id, *, before=5, after=8):
     from .zmemory import fetch_history_context
 

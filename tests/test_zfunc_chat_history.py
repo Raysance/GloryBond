@@ -10,6 +10,7 @@ ZFUNC = import_hok_module("zfunc")
 CHAT = import_hok_module("zchat")
 TOOLS = import_hok_module("chat_tools")
 IDENTITY = import_hok_module("business.user_helpers")
+MEMORY = import_hok_module("zmemory")
 
 
 class FakeRedisList:
@@ -110,6 +111,78 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         records = ZFUNC.load_group_chat_history("200")
         self.assertEqual([record["group_id"] for record in records], ["200", "200"])
 
+    def test_search_tool_reads_all_users_in_current_group_and_excludes_current_message(self):
+        ZFUNC.record_group_chat_message("200", "100", "辅助英雄应该保护射手", message_id="1")
+        ZFUNC.record_group_chat_message("200", "101", "辅助游走也很重要", message_id="2")
+        ZFUNC.record_group_chat_message("200", "102", "辅助推荐", message_id="3")
+        ZFUNC.record_group_chat_message("300", "103", "其他群辅助资料", message_id="4")
+
+        tools = TOOLS.HOKChatTools(group_id="200", current_message_id="3", original_query="辅助推荐")
+        result = tools.execute("search_chat_history", {"queries": ["辅助英雄 射手", "辅助 游走"]})
+
+        self.assertEqual({item["user_id"] for item in result}, {"100", "101"})
+        self.assertTrue(all(item["group_id"] == "200" for item in result))
+        self.assertNotIn("3", {item["message_id"] for item in result})
+
+    def test_admin_search_tool_can_read_all_groups_without_private_message_id_exclusion(self):
+        ZFUNC.record_group_chat_message("200", "100", "内卷记录 A", message_id="42")
+        ZFUNC.record_group_chat_message("300", "101", "内卷记录 B", message_id="42")
+
+        with patch.dict(ZFUNC.confs["QQBot"], {"super_qid": 999}):
+            tools = TOOLS.HOKChatTools(user_id="999", current_message_id="42", original_query="查看内卷记录")
+            result = tools.execute("search_chat_history", {
+                "all_groups": True,
+                "queries": ["内卷 记录", "竞争 压力"],
+            })
+
+        self.assertEqual({item["group_id"] for item in result}, {"200", "300"})
+
+    def test_every_group_chat_forces_model_generated_queries_through_search_tool(self):
+        ZFUNC.record_group_chat_message("200", "100", "AUTO_HISTORY 辅助英雄保护射手", message_id="1")
+        ZFUNC.record_group_chat_message("200", "101", "完全无关的话题", message_id="2")
+        ZFUNC.record_group_chat_message("200", "102", "辅助英雄推荐", message_id="3")
+        requests = []
+
+        def model(messages, tools=None, **kwargs):
+            requests.append({"messages": list(messages), "tools": tools, **kwargs})
+            if len(requests) == 1:
+                self.assertEqual(kwargs["tool_choice"]["function"]["name"], "search_chat_history")
+                self.assertIn("search_chat_history", {schema["name"] for schema in tools})
+                return {"tool_calls": [{"call_id": "history", "name": "search_chat_history",
+                                        "arguments": '{"queries":["辅助英雄 射手","保护 后排"]}'}]}
+            output = json.loads(next(item["output"] for item in reversed(messages)
+                                     if item.get("type") == "function_call_output"))
+            self.assertIn("AUTO_HISTORY", json.dumps(output, ensure_ascii=False))
+            return {"content": "已结合历史回答"}
+
+        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
+                patch.object(MEMORY.instance, "save_active_chat"), \
+                patch.object(ZFUNC, "chat_roleplay_get", return_value=None):
+            result = CHAT.chat_process(
+                user_text="辅助英雄推荐", user_id="102", nickname="C", group_id="200", message_id="3",
+                use_memory=False, model_caller=model, return_artifacts=True)
+
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[1]["tool_choice"], "auto")
+        self.assertEqual(result["trace"]["context"]["automatic_history_scope"], "current_group_all_users")
+        self.assertTrue(result["trace"]["context"]["automatic_history_completed"])
+        self.assertEqual(result["trace"]["context"]["automatic_history_queries"], ["辅助英雄 射手", "保护 后排"])
+        self.assertEqual(result["trace"]["context"]["automatic_history_matches"], 1)
+
+    def test_mandatory_history_search_cannot_narrow_users_or_saved_time(self):
+        ZFUNC.record_group_chat_message("200", "100", "辅助英雄保护射手", message_id="1")
+        tools = TOOLS.HOKChatTools(group_id="200", original_query="辅助怎么选")
+        self.assertTrue(tools.require_automatic_history_search())
+
+        with self.assertRaisesRegex(ValueError, "all users and all saved times"):
+            tools.execute("search_chat_history", {
+                "players": ["示例玩家41"],
+                "queries": ["辅助英雄", "保护射手"],
+            })
+
+        result = tools.execute("search_chat_history", {"queries": ["辅助英雄", "保护射手"]})
+        self.assertEqual(result[0]["message_id"], "1")
+
     def test_cross_group_access_requires_super_id_in_private_event(self):
         history = {"search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context", "fetch_chat_reply_thread"}
         calls = {"list_chat_groups": {}, "search_chat_history": {"queries": ["内卷"]},
@@ -141,7 +214,8 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
             tools = TOOLS.HOKChatTools(user_id="999", current_message_id="42", original_query="内卷", use_memory=False)
             for group_id, marker in [("200", "A"), ("300", "B")]:
                 with self.subTest(group_id=group_id):
-                    hits = tools.execute("search_chat_history", {"group_id": group_id, "queries": ["内卷"]})
+                    hits = tools.execute("search_chat_history", {"group_id": group_id,
+                                                                 "queries": ["内卷 记录", "竞争 压力"]})
                     self.assertEqual(hits[0]["message_id"], "42")
                     recent = tools.execute("fetch_recent_chat_messages", {"group_id": group_id})
                     self.assertEqual({message["message_id"] for message in recent["messages"]}, {"42", "43"})
@@ -172,7 +246,8 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
                 patch.object(IDENTITY, "roleidlist", {"player": "901"}):
             tools = TOOLS.HOKChatTools(group_id="200")
             for name, args in [("fetch_recent_chat_messages", {"qq_ids": ["900"]}),
-                               ("search_chat_history", {"user_ids": ["901"], "queries": ["好"]})]:
+                               ("search_chat_history", {"user_ids": ["901"],
+                                                        "queries": ["表现 好", "发挥 不错"]})]:
                 with self.subTest(name=name), patch.object(ZFUNC, "load_group_chat_history") as load:
                     with self.assertRaisesRegex(ValueError, "chat_game_id_not_qq.*100"):
                         tools.execute(name, args)
@@ -197,15 +272,16 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
             tools = TOOLS.HOKChatTools(user_id="999", use_memory=False)
             with patch.object(ZFUNC, "load_group_chat_history") as load:
                 with self.assertRaisesRegex(ValueError, "group_id: required"):
-                    tools.execute("search_chat_history", {"queries": ["内卷"]})
+                    tools.execute("search_chat_history", {"queries": ["内卷 讨论", "竞争 压力"]})
                 with self.assertRaises(TOOLS.ChatToolUnavailableError) as error:
                     tools.execute("fetch_chat_context", {"group_id": "123", "message_id": "42"})
                 self.assertEqual(error.exception.code, "chat_group_not_found")
                 with self.assertRaisesRegex(ValueError, "unknown parameters"):
-                    tools.execute("search_chat_history", {"queries": ["内卷"], "group_id": "200", "user_id": "999"})
+                    tools.execute("search_chat_history", {"queries": ["内卷 讨论", "竞争 压力"],
+                                                          "group_id": "200", "user_id": "999"})
                 load.assert_not_called()
 
-    def test_admin_private_loop_discovers_searches_and_shares_tool_results(self):
+    def test_admin_private_loop_automatically_searches_all_groups_and_shares_results(self):
         ZFUNC.record_group_chat_message("200", "100", "PRIVATE_HISTORY 内卷", message_id="42")
         stages = []
 
@@ -213,18 +289,11 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
             stage = len(stages)
             stages.append(stage)
             if stage == 0:
-                self.assertEqual({schema["name"] for schema in tools}, {"discover_tools"})
-                name, arguments = "discover_tools", {"categories": ["chat_history"]}
+                self.assertIn("search_chat_history", {schema["name"] for schema in tools})
+                self.assertEqual(kwargs["tool_choice"]["function"]["name"], "search_chat_history")
+                name, arguments = "search_chat_history", {
+                    "all_groups": True, "queries": ["内卷 讨论", "竞争 压力"]}
             elif stage == 1:
-                self.assertIn("list_chat_groups", {schema["name"] for schema in tools})
-                self.assertTrue(any("管理员私聊" in message.get("content", "") for message in messages))
-                name, arguments = "list_chat_groups", {}
-            elif stage == 2:
-                groups = json.loads(next(item["output"] for item in reversed(messages)
-                                         if item.get("type") == "function_call_output"))["data"]
-                self.assertEqual(groups[0]["group_id"], "200")
-                name, arguments = "search_chat_history", {"group_id": groups[0]["group_id"], "queries": ["内卷", "压力"]}
-            elif stage == 3:
                 hit = json.loads(next(item["output"] for item in reversed(messages)
                                       if item.get("type") == "function_call_output"))["data"][0]
                 name, arguments = "fetch_chat_context", {"group_id": hit["group_id"], "message_id": hit["message_id"]}
@@ -239,10 +308,10 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
             result = CHAT.chat_process(user_text="查看内卷的对话上下文", user_id="999", nickname="管理员",
                                        use_memory=False, model_caller=model, return_artifacts=True)
         self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
-        self.assertEqual(len(stages), 5)
+        self.assertEqual(len(stages), 3)
         self.assertTrue(result["trace"]["context"]["cross_group_history_enabled"])
+        self.assertTrue(result["trace"]["context"]["automatic_history_completed"])
         self.assertIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
-        self.assertIn("message_count", json.dumps(result["trace"]))
 
 
 if __name__ == "__main__":

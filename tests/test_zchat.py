@@ -75,11 +75,8 @@ class ChatLoopTests(unittest.TestCase):
         def model(messages, tools=None, **kwargs):
             calls.append(messages)
             if len(calls) == 1:
-                self.assertEqual({tool["name"] for tool in tools}, {"discover_tools"})
-                return {"tool_calls": [{"call_id": "discover", "name": "discover_tools",
-                                        "arguments": '{"categories":["chat_history"]}'}]}
-            self.assertIn("search_chat_history", {tool["name"] for tool in tools})
-            if len(calls) == 2:
+                self.assertIn("search_chat_history", {tool["name"] for tool in tools})
+                self.assertEqual(kwargs["tool_choice"]["function"]["name"], "search_chat_history")
                 return {"tool_calls": [{"call_id": "search", "name": "search_chat_history",
                                         "arguments": '{"queries":["内卷","竞争 压力"],"limit":5}'}]}
             output = next(item for item in reversed(messages) if item.get("type") == "function_call_output")
@@ -255,7 +252,7 @@ class HOKChatToolsTests(unittest.TestCase):
             with self.subTest(group_id=group_id), patch.object(ZFUNC, "search_group_chat_history") as search:
                 with self.assertRaises(ValueError):
                     ZCHAT.HOKChatTools(group_id=group_id).execute(
-                        "search_chat_history", {"queries": ["内卷"], "group_id": "other-group"})
+                        "search_chat_history", {"queries": ["内卷 竞争", "压力 讨论"], "group_id": "other-group"})
                 search.assert_not_called()
 
     def test_large_batch_preserves_each_outcome_and_dataset(self):
