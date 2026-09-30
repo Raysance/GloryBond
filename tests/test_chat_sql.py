@@ -18,10 +18,10 @@ DB = import_hok_module("zdb")
 
 
 class ChatSQLValidationTests(unittest.TestCase):
-    def test_all_documented_examples_execute_through_the_validator(self):
-        for example in CATALOG.CHAT_SQL_EXAMPLES:
-            with self.subTest(purpose=example["purpose"]):
-                self.assertTrue(SQL.validate_readonly_sql(example["sql"]).startswith(("SELECT", "WITH")))
+    def test_catalog_does_not_embed_question_specific_query_templates(self):
+        catalog = CATALOG.schema_catalog()
+        self.assertNotIn("examples", catalog)
+        self.assertNotIn("query_templates", catalog)
 
     def test_columns_are_verified_against_actual_schema(self):
         schema = (Path(__file__).resolve().parents[1] / "database/schema.sql").read_text()
@@ -93,9 +93,50 @@ class ChatSQLValidationTests(unittest.TestCase):
         """
         self.assertIn("DATE_TRUNC", SQL.validate_readonly_sql(sql))
 
+    def test_postgres_unnest_is_not_rejected_as_sqlglot_explode(self):
+        sql = "SELECT UNNEST(ARRAY[1, 2, 3]) AS role_id"
+        self.assertIn("UNNEST", SQL.validate_readonly_sql(sql))
+
+    def test_unknown_physical_columns_fail_before_database_execution(self):
+        for sql in (
+            "SELECT d.game_time_epoch FROM hok.battle_details d",
+            "SELECT game_time_epoch FROM hok.battle_details",
+        ):
+            with self.subTest(sql=sql), self.assertRaisesRegex(
+                SQL.ChatSQLValidationError, "列不在已披露schema中.*game_time_epoch"
+            ):
+                SQL.validate_readonly_sql(sql)
+
+    def test_duplicate_result_names_fail_before_database_execution(self):
+        with self.assertRaisesRegex(SQL.ChatSQLValidationError, "结果列名重复.*start_time_label"):
+            SQL.validate_readonly_sql(
+                "SELECT game_seq, start_time_label, start_time_label FROM hok.battle_details"
+            )
+
     def test_lateral_json_array_expansion(self):
         sql = "SELECT x.value->>'equipName' AS equip FROM hok.battle_participants p CROSS JOIN LATERAL jsonb_array_elements(p.payload->'battleRecords'->'finalEquips') x(value)"
         self.assertIn("JSONB_ARRAY_ELEMENTS", SQL.validate_readonly_sql(sql))
+
+    def test_catalog_makes_identity_time_and_period_rules_structured(self):
+        catalog = CATALOG.schema_catalog()
+        self.assertIn("guidance", catalog)
+        self.assertIsNone(catalog["guidance"]["time"]["battle_details"]["exact_epoch"])
+        self.assertIn("禁止", catalog["guidance"]["identity"]["rule"])
+        self.assertEqual(catalog["column_usage"]["battle_details.start_time_label"]["usage"], "display_only")
+
+    def test_display_only_time_labels_can_be_selected_but_not_analyzed(self):
+        self.assertIn(
+            "start_time_label",
+            SQL.validate_readonly_sql("SELECT start_time_label FROM hok.battle_details"),
+        )
+        invalid = (
+            "SELECT game_seq FROM hok.battle_details WHERE start_time_label >= '2026-09-23'",
+            "SELECT start_time_label, COUNT(*) FROM hok.battle_details GROUP BY start_time_label",
+            "SELECT start_time_label FROM hok.battle_details ORDER BY start_time_label",
+        )
+        for sql in invalid:
+            with self.subTest(sql=sql), self.assertRaisesRegex(SQL.ChatSQLValidationError, "字段仅供展示"):
+                SQL.validate_readonly_sql(sql)
 
     def test_star_projection_is_blocked_but_count_is_allowed(self):
         self.assertIn("COUNT(*)", SQL.validate_readonly_sql("SELECT COUNT(*) FROM hok.history_players"))

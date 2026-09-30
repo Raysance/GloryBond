@@ -6,11 +6,13 @@
 
 游戏数据工具分为三块：
 
-1. `query_game_database`：模型根据真实 schema 编写 PostgreSQL SELECT/CTE，查询玩家、英雄、战局、跨玩家关系、底蕴及历史比较。一轮最多四条 SQL，各自返回状态、列、行、截断信息和 `dataset_id`。支持标量命名参数 `:name` 与 `params` 对象。
-2. `query_player_hero_power`：指定玩家当前官方英雄战力，可选英雄过滤。
-3. `query_honor_power`：指定玩家账号、英雄与具体地区的荣耀战力。
+1. `get_game_database_schema`：返回真实表列、关联、字段能力、JSON 语义和统计口径，不内置针对某类提问的 SQL 范式。
+2. `check_game_database_query`：模型写出 SELECT/CTE 后先提交意图、假设和 SQL；程序只做 AST、业务表列、字段能力、函数、参数与结果列校验，不连接数据库。整批通过后返回一次性 `check_id`。
+3. `query_game_database`：只接受未消费的 `check_id`，执行校验器保存的规范化 SQL，不能在执行时另传或修改 SQL。每条返回状态、列、行、截断信息和 `dataset_id`。
+4. `query_player_hero_power`：指定玩家当前官方英雄战力，可选英雄过滤。
+5. `query_honor_power`：指定玩家账号、英雄与具体地区的荣耀战力。
 
-`get_game_database_schema` 返回十张业务表的字段、关联、JSON 字段语义和 SQL 示例。同一对局的多个快照需要按 `game_seq` 和玩家身份去重；胜负、阵营和底蕴的视角见 schema。SQL 默认最多 200 行、40 列、60 KB、5 秒，不能把截断后的行数当作总体样本量。聚合分析应在 SQL 中完成。
+`get_game_database_schema` 返回十张业务表的字段、关联、JSON 字段语义、声明式字段能力和统计口径，不返回问题特定的 SQL 模板。同一对局的多个快照需要按 `game_seq` 和玩家身份去重；胜负、阵营和底蕴的视角见 schema。展示型时间文本可以输出，但校验器拒绝用它过滤、关联、分组或排序。SQL 默认最多 200 行、40 列、60 KB、5 秒，不能把截断后的行数当作总体样本量。聚合分析应在 SQL 中完成。
 
 模型一轮可返回多个工具调用，每个调用均有对应 observation，包括参数错误、SQL 拒绝和外部服务不可用。结果过长时裁剪 SQL 行预览，保留全部查询状态与数据集编号。绘图继续使用本轮完整的、受数据库限制的数据集。
 

@@ -8,7 +8,7 @@ from sqlglot import exp, parse
 from sqlglot.errors import ErrorLevel, SqlglotError
 from sqlglot.optimizer.scope import traverse_scope
 
-from ..chat_sql_schema import CHAT_SQL_TABLES
+from ..chat_sql_schema import CHAT_SQL_COLUMN_USAGE, CHAT_SQL_TABLES
 
 
 # Names here are sqlglot's canonical names, not arbitrary server functions.
@@ -16,7 +16,7 @@ SAFE_FUNCTIONS = frozenset("""
     ABS ACOS ASIN ATAN ATAN2 AVG AND ARRAY ARRAY_AGG ARRAY_SIZE BOOL_AND BOOL_OR
     CASE CAST CEIL COALESCE CONCAT CONCAT_WS CORR COS COUNT COVAR_POP COVAR_SAMP
     CUME_DIST CURRENT_DATE CURRENT_TIMESTAMP DATE DATE_ADD DATE_DIFF DATE_TRUNC
-    DENSE_RANK EXP EXTRACT FIRST_VALUE FLOOR GREATEST IF JSON_EXTRACT
+    DENSE_RANK EXP EXPLODE EXTRACT FIRST_VALUE FLOOR GREATEST IF JSON_EXTRACT
     JSON_EXTRACT_SCALAR JSONB_EXTRACT JSONB_EXTRACT_SCALAR LAG LAST_VALUE LEAD
     LEAST LEFT LENGTH LN LOG LOWER MAX MIN MOD NTH_VALUE NTILE NULLIF
     OR PERCENT_RANK PERCENTILE_CONT PERCENTILE_DISC POW POWER RANK REGEXP_LIKE REGEXP_I_LIKE
@@ -59,6 +59,23 @@ class ChatSQLValidationError(ValueError):
 
 def _function_name(node):
     return node.name.lower() if isinstance(node, exp.Anonymous) else node.sql_name()
+
+
+def _validate_column_usage(column, source):
+    """Enforce declarative business-column capabilities for a physical source."""
+    rule = CHAT_SQL_COLUMN_USAGE.get(f"{source.name.lower()}.{column.name.lower()}")
+    if not rule:
+        return
+    invalid_usage = (
+        (not rule.get("allow_predicate", True)
+         and (column.find_ancestor(exp.Predicate) or column.find_ancestor(exp.Join)))
+        or (not rule.get("allow_grouping", True) and column.find_ancestor(exp.Group))
+        or (not rule.get("allow_ordering", True) and column.find_ancestor(exp.Order))
+    )
+    if invalid_usage:
+        raise ChatSQLValidationError(
+            f"字段仅供展示，不能参与过滤、关联、分组或排序：{source.name}.{column.name}；{rule['rule']}"
+        )
 
 
 def validate_readonly_sql(sql, params=None, max_sql_chars=20000):
@@ -137,8 +154,44 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000):
                 if table.catalog or table.db not in ("", "hok") or table.name not in CHAT_SQL_TABLES:
                     raise ChatSQLValidationError(f"表不在允许的业务表中：{table.name}")
                 table.set("db", exp.to_identifier("hok"))
+
+            physical_sources = {
+                alias: source for alias, source in scope.sources.items()
+                if isinstance(source, exp.Table) and source.name.lower() in CHAT_SQL_TABLES
+            }
+
+            def physical_source(column):
+                source = physical_sources.get(column.table) if column.table else None
+                if source is None and not column.table and len(physical_sources) == 1:
+                    source = next(iter(physical_sources.values()))
+                return source
+
+            for column in scope.columns:
+                source = physical_source(column)
+                if source is not None and column.name.lower() not in CHAT_SQL_TABLES[source.name.lower()]["columns"]:
+                    qualifier = column.table or source.alias_or_name
+                    raise ChatSQLValidationError(
+                        f"列不在已披露schema中：{qualifier}.{column.name}；请按get_game_database_schema返回的列改写"
+                    )
+                if source is not None:
+                    _validate_column_usage(column, source)
+
+            # sqlglot treats an unqualified ORDER BY name as an output alias and
+            # omits it from scope.columns.  When the scope has one physical
+            # source, still enforce that source column's declared capability.
+            order = scope.expression.args.get("order")
+            if order is not None:
+                for column in order.find_all(exp.Column):
+                    source = physical_source(column)
+                    if source is not None:
+                        _validate_column_usage(column, source)
     except SqlglotError as exc:
         raise ChatSQLValidationError("SQL来源解析失败") from exc
+
+    output_names = [name.lower() for name in query.named_selects if name and name != "*"]
+    duplicate_names = sorted({name for name in output_names if output_names.count(name) > 1})
+    if duplicate_names:
+        raise ChatSQLValidationError("结果列名重复；请为这些字段添加唯一别名：" + ", ".join(duplicate_names))
 
     # Re-serialization discards unsupported original syntax. Never execute the
     # original model string after validating a different representation.

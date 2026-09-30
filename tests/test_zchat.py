@@ -270,18 +270,27 @@ class HOKChatToolsTests(unittest.TestCase):
         registry = ZCHAT.HOKChatTools()
         self.assertEqual({item["name"] for item in registry.initial_schemas()}, {"discover_tools"})
         names = {item["name"] for item in registry.schemas()}
-        self.assertTrue({"query_game_database", "query_player_hero_power", "query_honor_power",
+        self.assertTrue({"check_game_database_query", "query_game_database",
+                         "query_player_hero_power", "query_honor_power",
                          "render_python_plot", "web_search"}.issubset(names))
         self.assertNotIn("query_player_today_report", names)
         self.assertNotIn("remember_memory", names)
 
     def test_batch_queries_keep_partial_errors_and_datasets_private_to_request(self):
         tools = ZCHAT.HOKChatTools()
-        with patch.object(ZFUNC, "chat_query_database", side_effect=[
+        with patch.object(ZFUNC, "chat_check_database_query", side_effect=[
+            {"ok": True, "normalized_sql": "SELECT 1 AS score"},
+            {"ok": True, "normalized_sql": "SELECT 2 AS score"},
+        ]), patch.object(ZFUNC, "chat_query_database", side_effect=[
             {"ok": True, "rows": [{"player": "A", "score": 9}], "columns": ["player", "score"]},
             {"ok": False, "error": "forbidden_sql"},
         ]):
-            result = tools.execute("query_game_database", {"queries": [{"sql": "SELECT ..."}, {"sql": "DELETE ..."}]})
+            checked = tools.execute("check_game_database_query", {"queries": [
+                {"sql": "SELECT 1 AS score", "intent": "first metric"},
+                {"sql": "SELECT 2 AS score", "intent": "second metric"},
+            ]})
+            self.assertTrue(checked["approved"])
+            result = tools.execute("query_game_database", {"check_id": checked["check_id"]})
         self.assertEqual(len(result["observations"]), 2)
         self.assertEqual(result["observations"][0]["dataset_id"], "dataset_1")
         self.assertFalse(result["observations"][1]["ok"])
@@ -294,6 +303,30 @@ class HOKChatToolsTests(unittest.TestCase):
         self.assertEqual(plot.call_args.args[0], [{"player": "A", "score": 9}])
         with self.assertRaises(ValueError):
             ZCHAT.HOKChatTools().execute("render_python_plot", {"dataset_id": "dataset_1"})
+        with self.assertRaisesRegex(ValueError, "unknown_or_consumed_check_id"):
+            tools.execute("query_game_database", {"check_id": checked["check_id"]})
+        with patch.object(ZFUNC, "chat_check_database_query",
+                          return_value={"ok": True, "normalized_sql": "SELECT 3 AS score"}):
+            next_checked = tools.execute("check_game_database_query", {"queries": [
+                {"sql": "SELECT 3 AS score", "intent": "third metric"},
+            ]})
+        self.assertEqual(next_checked["check_id"], "sql_check_2")
+
+    def test_database_batch_cannot_execute_until_every_query_passes_checker(self):
+        tools = ZCHAT.HOKChatTools()
+        with patch.object(ZFUNC, "chat_check_database_query", side_effect=[
+            {"ok": True, "normalized_sql": "SELECT 1 AS value"},
+            {"ok": False, "error": "unknown column"},
+        ]):
+            checked = tools.execute("check_game_database_query", {"queries": [
+                {"sql": "SELECT 1 AS value", "intent": "valid part"},
+                {"sql": "SELECT missing", "intent": "invalid part", "assumptions": ["schema checked"]},
+            ]})
+        self.assertFalse(checked["approved"])
+        self.assertEqual(checked["check_id"], "")
+        self.assertEqual(tools.sql_checks, {})
+        with self.assertRaisesRegex(ValueError, "unknown_or_consumed_check_id"):
+            tools.execute("query_game_database", {"check_id": "sql_check_1"})
 
     def test_memory_is_bound_to_user_and_nomem_disables_it(self):
         tools = ZCHAT.HOKChatTools(user_id="100")
@@ -334,18 +367,24 @@ class HOKChatToolsTests(unittest.TestCase):
         def model(messages, **kwargs):
             snapshots.append([dict(item) for item in messages])
             if len(snapshots) == 1:
-                calls = [{"call_id": "query", "name": "query_game_database", "arguments": json.dumps({"queries": [{"sql": "SELECT ..."}]})},
+                calls = [{"call_id": "check", "name": "check_game_database_query", "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value", "intent": "compare values"}]})},
                          {"call_id": "web", "name": "web_search", "arguments": '{"query":"赛事新闻"}'}]
             elif len(snapshots) == 2:
                 outputs = [item for item in messages if item.get("type") == "function_call_output"]
-                self.assertEqual([item["call_id"] for item in outputs], ["query", "web"])
+                self.assertEqual([item["call_id"] for item in outputs], ["check", "web"])
                 self.assertTrue(json.loads(outputs[0]["output"])["ok"])
                 self.assertFalse(json.loads(outputs[1]["output"])["ok"])
+                calls = [{"call_id": "query", "name": "query_game_database", "arguments": '{"check_id":"sql_check_1"}'}]
+            elif len(snapshots) == 3:
+                output = next(item for item in reversed(messages)
+                              if item.get("type") == "function_call_output" and item["call_id"] == "query")
+                self.assertTrue(json.loads(output["output"])["ok"])
                 calls = [{"call_id": "plot", "name": "render_python_plot", "arguments": '{"dataset_id":"dataset_1"}'}]
             else:
                 return {"content": "已生成图表，联网暂不可用", "tool_calls": []}
             return {"tool_calls": calls, "output_items": [{"type": "function_call", **call} for call in calls]}
-        with patch.object(ZFUNC, "chat_query_database", return_value={"ok": True, "rows": [{"label": "A", "value": 9}]}), \
+        with patch.object(ZFUNC, "chat_check_database_query", return_value={"ok": True, "normalized_sql": "SELECT 1 AS value"}), \
+                patch.object(ZFUNC, "chat_query_database", return_value={"ok": True, "rows": [{"label": "A", "value": 9}]}), \
                 patch.object(ZFUNC, "chat_web_search", side_effect=RuntimeError("OpenRouter unavailable")), \
                 patch.object(ZFUNC, "chat_render_plot", return_value={"path": "/tmp/trusted.png", "width": 1456}), \
                 patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[]), \
@@ -353,7 +392,7 @@ class HOKChatToolsTests(unittest.TestCase):
             result = ZCHAT.chat_process(user_text="比较并画图", user_id="100", nickname="A", use_memory=False,
                                         model_caller=model, tool_registry=registry, return_artifacts=True)
         self.assertEqual(result["artifacts"][0]["path"], "/tmp/trusted.png")
-        self.assertEqual(len(snapshots), 3)
+        self.assertEqual(len(snapshots), 4)
         save.assert_called_once_with("100", "比较并画图", "已生成图表，联网暂不可用")
 
 

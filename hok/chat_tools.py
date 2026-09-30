@@ -64,6 +64,8 @@ class HOKChatTools:
         self.use_memory = bool(use_memory)
         self.datasets = {}
         self.artifacts = []
+        self.sql_checks = {}
+        self._sql_check_sequence = 0
         self._disclosed = set()
         self._automatic_history_pending = False
 
@@ -89,7 +91,7 @@ class HOKChatTools:
 
     def _tool_categories(self):
         return {
-            "game_data": {"get_game_database_schema", "query_game_database",
+            "game_data": {"get_game_database_schema", "check_game_database_query", "query_game_database",
                           "query_player_hero_power", "query_honor_power"},
             "plots": {"list_plot_templates", "render_python_plot"},
             "internet": {"web_search"},
@@ -137,14 +139,20 @@ class HOKChatTools:
         text = {"type": "string"}
         tools = [
             _schema("get_game_database_schema", "读取真实游戏数据库的表、字段、关联、JSON 结构与去重/统计口径。写 SQL 前核对。", {}),
-            _schema("query_game_database", "执行模型生成的 PostgreSQL 只读 SELECT/CTE。适用于玩家、英雄、战局、跨玩家关系、底蕴、排名和所有历史比较；一次可提交多个查询，各自产生 observation 和可绘图的 dataset_id。先检查 schema，禁止猜字段或绕过只读限制。", {
+            _schema("check_game_database_query", "在执行前检查模型生成的 PostgreSQL 只读 SELECT/CTE。先根据原问题和schema完成字段关联、查询分解及假设检查，再提交此工具；它只做AST、表、列、函数、参数和结果列校验，不访问数据库。全部查询通过后返回一次性 check_id；失败时根据逐条 observation 修正后重新检查。", {
                 "queries": {"type": "array", "minItems": 1, "maxItems": int(getattr(dmc, "ChatSQLBatchLimit", 4)),
                             "items": {"type": "object", "properties": {
                                 "sql": {"type": "string", "maxLength": 20000},
                                 "params": {"type": "object", "description": "可选命名参数，SQL 中使用 :name；值仅支持字符串/数字/布尔/null。"},
-                                "label": {"type": "string", "maxLength": 120}},
-                                "required": ["sql"], "additionalProperties": False}},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 200}}, ["queries"]),
+                                "label": {"type": "string", "maxLength": 120},
+                                "intent": {"type": "string", "maxLength": 500,
+                                           "description": "这条SQL要回答的子问题，用于在执行前核对与用户原问题是否一致。"},
+                                "assumptions": {"type": "array", "items": text, "maxItems": 10,
+                                                "description": "时间范围、统计口径、身份和缺失数据等显式假设。"}},
+                                "required": ["sql", "intent"], "additionalProperties": False}}}, ["queries"]),
+            _schema("query_game_database", "执行已经由check_game_database_query通过的查询。只能传一次性check_id，不能重新提交或修改SQL；返回逐条observation和可绘图dataset_id。数据库错误会作为observation返回，修正后的SQL必须重新检查。", {
+                "check_id": {"type": "string", "maxLength": 120},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200}}, ["check_id"]),
             _schema("query_player_hero_power", "查询指定玩家当前官方英雄战力，hero 可省略以列出全部。历史表现、胜率等比较应查询数据库。", {
                 "player": text, "hero": text}, ["player"]),
             _schema("query_honor_power", "查询指定英雄在指定地区的荣耀战力分布。player 用于选择已关联账号，region 必须是具体省市区。", {
@@ -236,11 +244,40 @@ class HOKChatTools:
         _validate(arguments, schema["parameters"])
         if name == "get_game_database_schema":
             return zfunc.chat_database_schema()
-        if name == "query_game_database":
+        if name == "check_game_database_query":
             observations = []
+            checked_queries = []
             for query in arguments["queries"]:
+                checked = zfunc.chat_check_database_query(query["sql"], params=query.get("params"))
+                observation = {
+                    "label": query.get("label", ""),
+                    "intent": query["intent"],
+                    "assumptions": list(query.get("assumptions") or []),
+                    **checked,
+                }
+                observations.append(observation)
+                if checked.get("ok"):
+                    checked_queries.append({
+                        "label": query.get("label", ""),
+                        "sql": checked["normalized_sql"],
+                    })
+            approved = len(checked_queries) == len(arguments["queries"])
+            check_id = ""
+            if approved:
+                self._sql_check_sequence += 1
+                check_id = f"sql_check_{self._sql_check_sequence}"
+                self.sql_checks[check_id] = checked_queries
+            return {"approved": approved, "check_id": check_id, "observations": observations,
+                    "notice": "核对intent和assumptions后再执行check_id；checker通过不代表业务语义必然正确。"}
+        if name == "query_game_database":
+            check_id = arguments["check_id"]
+            queries = self.sql_checks.pop(check_id, None)
+            if queries is None:
+                raise ValueError("unknown_or_consumed_check_id; call check_game_database_query first")
+            observations = []
+            for query in queries:
                 try:
-                    data = zfunc.chat_query_database(query["sql"], params=query.get("params"), limit=arguments.get("limit"))
+                    data = zfunc.chat_query_database(query["sql"], limit=arguments.get("limit"))
                     if not data.get("ok", True):
                         observations.append({"label": query.get("label", ""), **data})
                         continue

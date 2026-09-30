@@ -66,8 +66,13 @@ def _new_tool_context_messages(tool_names):
     if "query_game_database" in names:
         messages.append({"role": "system", "content": (
             "历史玩家、英雄、战局、共玩、底蕴、排行和比较使用只读数据库。写SQL前调用get_game_database_schema核对真实字段、"
-            "关联和去重口径；空结果不等于事实不存在。当前官方英雄战力与地区荣耀战力使用各自工具。"
-            f"本赛季起始日期为{this_season_start_date}。")})
+            "关联和去重口径；schema中的tables.columns是完整列白名单，禁止查询系统目录或猜字段。多玩家分析必须在同一条SQL中"
+            "关联player_key/role_id，禁止先查ID再手工复制到IN或ARRAY。battle_details没有game_time_epoch，时间过滤按schema中的"
+            "guidance和column_usage执行；空结果不等于事实不存在。SQL必须先交check_game_database_query，逐条复核返回的intent、"
+            "assumptions和normalized_sql，全部通过后才能把一次性check_id交给query_game_database；任何修改都必须重新检查。"
+            "当前官方英雄战力与地区荣耀战力使用各自工具。"
+            f"只有用户明确要求本赛季，或英雄统计未给时期时，才使用本赛季起始日期{this_season_start_date}；"
+            "组排、互动、共玩、总场次等一般历史问题未指定时期时覆盖全部可用记录并返回时间范围。")})
     if "render_python_plot" in names:
         messages.append({"role": "system", "content": (
             "绘图前用list_plot_templates核对模板或受限Python语法，再将本轮dataset_id交给render_python_plot。"
@@ -471,11 +476,17 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                     input_items.append(_known_users_context_message())
             if remaining <= 0:
                 trace["stop_reason"] = "tool_budget"
-                input_items.append({"role": "system", "content": "工具调用次数已用完。请根据已有结果直接给出最终答案，不要继续调用工具。"})
+                input_items.append({"role": "system", "content":
+                                    "工具调用次数已用完，工具现已禁用。只输出面向用户的最终结论："
+                                    "使用成功observation中已经验证的数据；若没有足够数据，明确说明本次未能得出结论及最关键错误。"
+                                    "禁止继续规划查询、展示SQL、说“让我再试”或声称接下来会调用工具。"})
                 response, _ = ask(input_items, final=True)
                 return finish(response.get("content"), "chat_empty_response_after_tool_budget")
         trace["stop_reason"] = "round_limit"
-        input_items.append({"role": "system", "content": "已达到最大推理轮数。请根据已有结果立即给出最终答案。"})
+        input_items.append({"role": "system", "content":
+                            "已达到最大推理轮数，工具现已禁用。只输出面向用户的最终结论："
+                            "使用成功observation中已经验证的数据；若没有足够数据，明确说明本次未能得出结论及最关键错误。"
+                            "禁止继续规划查询、展示SQL、说“让我再试”或声称接下来会调用工具。"})
         response, _ = ask(input_items, final=True)
         return finish(response.get("content"), "chat_empty_response_after_round_limit")
     except Exception as error:

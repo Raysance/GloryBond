@@ -765,6 +765,21 @@ def chat_schema_catalog():
     return result
 
 
+def chat_check_readonly(sql, params=None):
+    """Validate one chat query against the same boundary used at execution."""
+    from .tools.chat_sql import ChatSQLValidationError, validate_readonly_sql
+
+    try:
+        normalized = validate_readonly_sql(
+            sql,
+            params=params,
+            max_sql_chars=_chat_sql_limits()["max_sql_chars"],
+        )
+        return {"ok": True, "normalized_sql": normalized}
+    except (ChatSQLValidationError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def chat_query_readonly(sql, params=None, limit=None):
     """Run one model-generated analytical SELECT as a least-privileged reader.
 
@@ -779,7 +794,10 @@ def chat_query_readonly(sql, params=None, limit=None):
         if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
             raise ChatSQLValidationError("limit 必须为正整数")
         row_limit = min(limit or limits["max_rows"], limits["max_rows"])
-        normalized = validate_readonly_sql(sql, params=params, max_sql_chars=limits["max_sql_chars"])
+        checked = chat_check_readonly(sql, params=params)
+        if not checked["ok"]:
+            raise ChatSQLValidationError(checked["error"])
+        normalized = checked["normalized_sql"]
     except (ChatSQLValidationError, ValueError) as exc:
         return {"ok": False, "location": "chat_query_readonly.validate", "error": str(exc)}
 

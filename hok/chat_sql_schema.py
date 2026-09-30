@@ -96,13 +96,13 @@ CHAT_SQL_TABLES = {
 
 CHAT_SQL_SEMANTICS = [
     "SQL 方言 PostgreSQL。仅单条 SELECT 或非递归 WITH ... SELECT，可 JOIN/聚合/窗口/JSON。必须显式列名，COUNT(*) 可用。表加 hok. 前缀；不给文件路径、系统目录或导入清单访问权。",
-    "同名昵称不保证身份唯一。用 player_key、role_id 或 user_id 确定身份，QQ号不是营地 user_id；先按提供的关联玩家目录或 history_players 查明身份。",
+    "同名昵称不保证身份唯一。用 player_key、role_id 或 user_id 确定身份，QQ号不是营地 user_id。多玩家分析必须在同一条SQL中通过history_players或battle_records关联身份，禁止先查询ID再由模型手抄到ARRAY/IN列表。",
     "history_players 是每日快照。最新资料使用 DISTINCT ON (player_key) 并 ORDER BY player_key,snapshot_date DESC,player_index DESC；不能把每日 total_num 累加当作场次。visible/invisible 表示采集时可见性，缺数据不代表零。",
     "battle_records 同一对局可有多个玩家视角，也可能出现在多个快照。统计每名玩家先按(role_id或player_key, game_seq)去重并选最新快照；game_seq 为 NULL 时以原主键保留，不能把所有 NULL 合成一局。统计比赛总数用 COUNT(DISTINCT game_seq)，统计参赛人次则保留每人一行。",
     "battle_records 与 history_players 用(snapshot_date,player_index)连接；battle_records.game_seq 对 battle_details.game_seq；参赛者表、底蕴表都通过 game_seq 连接。按目标玩家追加 role_id 等值，防止每条战绩被10名参赛者或多张快照重复放大。",
     "battle_records.result 为中文 '胜利' 或 '失败'，不是1/2。map_type=1排位、-1巅峰、0其他。star_after_game 是折算总星数，非排位常为-1；peak_grade_after/before 非巅峰常为-1。rank_star 是当前段位内星数，star 为折算星数。",
-    "默认正式5v5口径与 battle_metrics.check_btl_official 一致：map_name ~ '(排位|巅峰|战队)' AND map_name !~* '(1v1|2v2|3v3)'。用户明确要求匹配、娱乐或全部时另选过滤，并在结论说明。英雄统计未给时期时默认当前赛季，按会话给出的赛季起止日期过滤。",
-    "日期以 Asia/Shanghai 为准。snapshot_date 是业务日快照；精确小时范围使用 game_time_epoch（秒）及 to_timestamp(game_time_epoch)；会话给出当前日期。日期窗口推荐 >=起点 AND <下一天。game_time_label 是展示标签，不可靠地用于排序；updated_at 是写库时间，不是开局时间。",
+    "默认正式5v5口径与 battle_metrics.check_btl_official 一致：map_name ~ '(排位|巅峰|战队)' AND map_name !~* '(1v1|2v2|3v3)'。用户明确要求匹配、娱乐或全部时另选过滤，并在结论说明。只有英雄统计未给时期时默认当前赛季；组排、互动、共玩、总场次等一般历史统计未给时期时覆盖全部可用数据，并在结果中返回最早/最晚时间。",
+    "日期以 Asia/Shanghai 为准。只有battle_records有snapshot_date与game_time_epoch：业务日用snapshot_date，精确时间用game_time_epoch（秒）及to_timestamp(game_time_epoch)。battle_details没有game_time_epoch，start_time_label/event_time_label只是缺少年份的MM-DD HH:MM展示文本，不能与YYYY-MM-DD比较；需要对battle_details或battle_participants按日期过滤时，必须通过game_seq连接battle_records。updated_at是写库时间，不是开局时间。",
     "game_grade 是个人评分。胜率=胜局/有效场次（0到1）；KDA=(kill_count+assist_count)/GREATEST(death_count,1)，需说明按单局平均或汇总KDA。缺失评分用NULL排除，不强行填0；比较需返回样本数和时间范围。",
     "battle_participants.camp 是官方 basicInfo.acntCamp 的文本值；同一game_seq且camp相等为队友，不同为对手。participant_index及red/blue列表顺序不等于目标玩家阵营。payload.battleRecords.position 是分路，payload.battleStats 含伤害/承伤/参团等更多字段。",
     "battle_details.payload.head 只是最后写入者视角，不能用它判断任意玩家胜负。优先使用目标玩家 battle_records.result；仅查未关联参赛者时，把其camp与payload.redTeam/blueTeam.acntCamp比较，匹配队伍的gameResult=1为胜利。",
@@ -113,6 +113,70 @@ CHAT_SQL_SEMANTICS = [
     "hero_rank_entries 的 ban_rate/show_rate/win_rate 按原API数值存储，写库未统一百分比单位；先检查样本/分布再判断0到1或0到100。不同rank_id对应不同筛选范围，不可混合；与快照用(snapshot_date,rank_id)连接。",
     "JSON路径区分大小写。先使用已知规范列；需要新增payload字段时先取少量样本/JSON键验证，不能猜测不存在字段。底蕴players与participant的participant_index来源不同，跨这两表按game_seq+role_id连接。",
 ]
+
+CHAT_SQL_GUIDANCE = {
+    "authoritative_schema": (
+        "tables.columns 是可查询列的完整白名单。不得查询 information_schema/pg_catalog，"
+        "不得猜测目录中不存在的列；需要JSON子字段时先查询少量业务样本。"
+    ),
+    "identity": {
+        "rule": "在一条SQL中用player_key/role_id/user_id完成关联；禁止把前一条结果中的ID手工复制进下一条SQL。",
+        "tracked_players": "battle_records.player_key 是已关联玩家的稳定标识；跨玩家历史关系优先从去重后的battle_records构造参赛集合。",
+        "participant_join": "需要判断同队/对手时，再按(game_seq,role_id)连接battle_participants并比较camp。",
+    },
+    "time": {
+        "battle_records": {
+            "business_day": "snapshot_date",
+            "exact_epoch": "game_time_epoch",
+            "display_only": "game_time_label",
+        },
+        "battle_details": {
+            "exact_epoch": None,
+            "display_only": ["start_time_label", "event_time_label"],
+            "rule": "按时间过滤必须经game_seq连接battle_records；updated_at不是比赛时间。",
+        },
+        "battle_participants": {
+            "exact_epoch": None,
+            "rule": "按时间过滤必须经game_seq连接battle_records。",
+        },
+    },
+    "period_defaults": {
+        "hero_statistics": "用户未指定时期时使用当前赛季。",
+        "general_history": "组排、互动、共玩、总场次等未指定时期时使用全部可用记录，并返回MIN/MAX时间说明覆盖范围。",
+    },
+    "query_shape": (
+        "优先把身份解析、去重、时间过滤和最终聚合写成一条CTE查询。"
+        "不要先查询身份再手工拼接ID，不要为了查看列名访问系统目录。"
+    ),
+}
+
+# Declarative column capabilities consumed by both the model-facing catalogue
+# and the deterministic SQL checker.  These are data-contract facts, not query
+# templates: display labels remain selectable for presentation, but must not be
+# treated as sortable/filterable business time.
+CHAT_SQL_COLUMN_USAGE = {
+    "battle_records.game_time_label": {
+        "usage": "display_only",
+        "allow_predicate": False,
+        "allow_grouping": False,
+        "allow_ordering": False,
+        "rule": "精确时间、过滤和排序使用game_time_epoch；业务日使用snapshot_date。",
+    },
+    "battle_details.start_time_label": {
+        "usage": "display_only",
+        "allow_predicate": False,
+        "allow_grouping": False,
+        "allow_ordering": False,
+        "rule": "该字段缺少年份，仅供展示；按时间分析需经game_seq关联battle_records。",
+    },
+    "battle_details.event_time_label": {
+        "usage": "display_only",
+        "allow_predicate": False,
+        "allow_grouping": False,
+        "allow_ordering": False,
+        "rule": "该字段缺少年份，仅供展示；按时间分析需经game_seq关联battle_records。",
+    },
+}
 
 CHAT_SQL_JSON_FIELDS = {
     "battle_participants.payload.battleStats": {
@@ -168,26 +232,6 @@ CHAT_SQL_JSON_FIELDS = {
     },
 }
 
-CHAT_SQL_EXAMPLES = [
-    {
-        "purpose": "查看最近有数据的日期与玩家，不伪造当前在线情况",
-        "sql": "SELECT player_key, nickname, role_id, user_id, MAX(snapshot_date) AS last_date FROM hok.history_players GROUP BY player_key, nickname, role_id, user_id ORDER BY last_date DESC LIMIT 30",
-    },
-    {
-        "purpose": "指定时间内按玩家比较正式对局评分和胜率；替换日期后执行",
-        "sql": "WITH ranked AS (SELECT player_key, role_id, game_seq, hero_name, result, game_grade, ROW_NUMBER() OVER (PARTITION BY player_key, COALESCE(game_seq::text, snapshot_date::text || ':' || player_index::text || ':' || detail_index::text) ORDER BY snapshot_date DESC, detail_index DESC) AS rn FROM hok.battle_records WHERE snapshot_date >= DATE '2026-09-01' AND snapshot_date < DATE '2026-10-01' AND map_name ~ '(排位|巅峰|战队)' AND map_name !~* '(1v1|2v2|3v3)') SELECT player_key, COUNT(*) AS games, ROUND(AVG(CASE WHEN result='胜利' THEN 1.0 ELSE 0.0 END), 4) AS win_rate, ROUND(AVG(game_grade), 3) AS avg_grade FROM ranked WHERE rn=1 GROUP BY player_key ORDER BY avg_grade DESC",
-    },
-    {
-        "purpose": "跨玩家同队/对手次数，先限定两位玩家和时期后执行",
-        "sql": "SELECT a.role_id AS player_a, b.role_id AS player_b, COUNT(DISTINCT a.game_seq) FILTER (WHERE a.camp=b.camp) AS teammate_games, COUNT(DISTINCT a.game_seq) FILTER (WHERE a.camp<>b.camp) AS opponent_games FROM hok.battle_participants a JOIN hok.battle_participants b ON a.game_seq=b.game_seq AND a.role_id<b.role_id GROUP BY a.role_id,b.role_id ORDER BY teammate_games DESC LIMIT 20",
-    },
-    {
-        "purpose": "按目标玩家而非缓存视角比较历史底蕴",
-        "sql": "SELECT p.role_id, p.hero_name, p.game_seq, p.single_level, CASE WHEN p.side='my' THEN b.my_side_level ELSE b.opponent_side_level END AS own_level, CASE WHEN p.side='my' THEN b.opponent_side_level ELSE b.my_side_level END AS opponent_level FROM hok.battle_power_players p JOIN hok.battle_power b ON b.game_seq=p.game_seq WHERE p.single_level>0 ORDER BY p.game_seq DESC LIMIT 20",
-    },
-]
-
-
 def schema_catalog():
     """Return a fresh, JSON-safe description suitable for a tool observation."""
     return {
@@ -196,6 +240,7 @@ def schema_catalog():
         "timezone": "Asia/Shanghai",
         "tables": deepcopy(CHAT_SQL_TABLES),
         "semantics": list(CHAT_SQL_SEMANTICS),
+        "guidance": deepcopy(CHAT_SQL_GUIDANCE),
+        "column_usage": deepcopy(CHAT_SQL_COLUMN_USAGE),
         "json_fields": deepcopy(CHAT_SQL_JSON_FIELDS),
-        "examples": deepcopy(CHAT_SQL_EXAMPLES),
     }

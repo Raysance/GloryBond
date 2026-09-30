@@ -12,6 +12,12 @@ def chat_database_schema():
     return zdb.chat_schema_catalog()
 
 
+def chat_check_database_query(sql, params=None):
+    """Validate and normalize one model query without opening a database connection."""
+    from . import zdb
+    return zdb.chat_check_readonly(sql, params=params)
+
+
 def chat_query_database(sql, params=None, limit=None):
     from . import zdb
     return zdb.chat_query_readonly(sql, params=params, limit=limit)
