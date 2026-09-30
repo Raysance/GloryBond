@@ -58,22 +58,29 @@ def _chat_completion_create(input_items, tools=None, tool_choice="auto", tempera
     }
     if temperature is not None:
         request["temperature"] = temperature
+    is_deepseek = urlparse(chat_api_config["base_url"]).hostname == "api.deepseek.com"
+    continues_tool_chain = any(
+        message.get("role") == "tool" or bool(message.get("tool_calls"))
+        for message in messages
+    )
     if tools:
         request["tools"] = [
             {"type": "function", "function": {key: value for key, value in tool.items() if key != "type"}}
             for tool in tools
         ]
         request["tool_choice"] = tool_choice
-        if urlparse(chat_api_config["base_url"]).hostname == "api.deepseek.com":
-            # The harness starts a tool chain with a named choice.  DeepSeek
-            # rejects that choice in thinking mode, and switching the next auto
-            # turn back to thinking makes it demand reasoning_content from the
-            # preceding non-thinking assistant tool call.  Keep every
-            # tool-bearing turn in the same non-thinking mode instead of
-            # fabricating reasoning content.
-            request["extra_body"] = {"thinking": {"type": "disabled"}}
     elif tool_choice == "none":
         request["tool_choice"] = "none"
+    if is_deepseek and (tools or continues_tool_chain):
+        # The harness starts its tool chain in non-thinking mode because named
+        # tool choices are unsupported in thinking mode.  A no-tools final
+        # request is still part of that same chain when its history contains
+        # assistant tool calls/results; re-enabling thinking there makes
+        # DeepSeek demand reasoning_content that the non-thinking turns never
+        # produced.  Preserve one mode for the complete chain instead of
+        # fabricating reasoning content.  Standalone no-tools requests retain
+        # the provider's default mode.
+        request["extra_body"] = {"thinking": {"type": "disabled"}}
 
     request_payload = {key: value for key, value in request.items() if key != "timeout"}
     response_payload = None

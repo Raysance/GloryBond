@@ -239,6 +239,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
         final_request = self.requests[1]["body"]
         self.assertNotIn("tools", final_request)
         self.assertEqual(final_request["tool_choice"], "none")
+        self.assertEqual(final_request["thinking"], {"type": "disabled"})
         results = [message for message in final_request["messages"] if message["role"] == "tool"]
         self.assertEqual([message["tool_call_id"] for message in results], ["call-alpha", "call-beta"])
         self.assertEqual(json.loads(results[1]["content"]), {
@@ -290,6 +291,35 @@ class ChatCompletionsApiTests(unittest.TestCase):
 
         self.assertEqual(self.requests[0]["body"]["thinking"], {"type": "disabled"})
         self.assertNotIn("extra_body", self.requests[0]["body"])
+
+    def test_deepseek_no_tools_continuation_keeps_tool_chain_non_thinking(self):
+        assistant = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [tool_call("call-1", "alpha")],
+        }
+        self.responses.append({"role": "assistant", "content": "alpha 为 42 分"})
+
+        result = ZAPI.ai_response_create([
+            {"role": "user", "content": "查 alpha"},
+            assistant,
+            {"type": "function_call_output", "call_id": "call-1", "output": '{"score":42}'},
+        ], tools=None, tool_choice="none")
+
+        self.assertEqual(result["content"], "alpha 为 42 分")
+        self.assertNotIn("tools", self.requests[0]["body"])
+        self.assertEqual(self.requests[0]["body"]["tool_choice"], "none")
+        self.assertEqual(self.requests[0]["body"]["thinking"], {"type": "disabled"})
+
+    def test_deepseek_standalone_no_tools_request_retains_default_mode(self):
+        self.responses.append({"role": "assistant", "content": "普通回答"})
+
+        result = ZAPI.ai_response_create(
+            [{"role": "user", "content": "你好"}], tools=None, tool_choice="none",
+        )
+
+        self.assertEqual(result["content"], "普通回答")
+        self.assertNotIn("thinking", self.requests[0]["body"])
 
 
 class ResponsesApiTests(unittest.TestCase):
