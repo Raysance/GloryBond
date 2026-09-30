@@ -29,6 +29,7 @@
         .badge { font-size:12px; border-radius:999px; padding:4px 9px; background:#eef2f7; }
         .badge.ok { color:var(--green); background:#eaf8f2; }
         .badge.failed { color:var(--red); background:#fff0f1; }
+        .badge.skipped { color:var(--amber); background:#fff7e7; }
         dl { display:grid; grid-template-columns:minmax(150px,220px) 1fr; gap:7px 14px; margin:0; font-size:14px; }
         dt { color:var(--muted); }
         dd { margin:0; overflow-wrap:anywhere; }
@@ -40,14 +41,14 @@
     <header>
         <div>
             <h1>系统健康诊断</h1>
-            <p>公开健康检查保持轻量。这里的深度诊断仅在手动点击后运行，并会实际请求 DeepSeek 验证普通回复与工具续传链路。</p>
+            <p>公开健康检查保持轻量。这里的深度诊断仅在手动点击后运行，覆盖部署进程、存储、检索、工具披露、DeepSeek 与联网搜索链路。</p>
         </div>
         <a href="/admin/dashboard">返回控制台</a>
     </header>
     <section class="card">
         <div class="actions">
             <button id="run" type="button">运行深度诊断</button>
-            <span class="hint">约 3 次小型模型请求，最长等待 100 秒；不会重启服务或修改数据。</span>
+            <span class="hint">约 4 次小型外部请求，最长等待 180 秒；不会重启服务或修改数据。</span>
         </div>
         <div id="summary" class="summary"></div>
         <div id="checks" class="checks"></div>

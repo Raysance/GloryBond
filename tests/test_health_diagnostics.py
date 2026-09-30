@@ -27,11 +27,14 @@ class HealthDiagnosticsTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(
                 args=[], returncode=0, stdout="application log\n" + json.dumps(report) + "\n", stderr="",
             )
-            with patch.object(health_diagnostics.subprocess, "run", return_value=completed) as run:
+            runtime = ({"name": "deployed_nbot_runtime", "status": "ok", "duration_ms": 1}, "abc123")
+            with patch.object(health_diagnostics, "inspect_nbot_runtime", return_value=runtime), \
+                    patch.object(health_diagnostics.subprocess, "run", return_value=completed) as run:
                 result = health_diagnostics.run_chat_runtime_diagnostic(root)
 
         self.assertEqual(result["status"], "ok")
         self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(result["checks"][0]["name"], "deployed_nbot_runtime")
         command = run.call_args.args[0]
         resolved_root = root.resolve()
         self.assertEqual(command, [
@@ -42,6 +45,10 @@ class HealthDiagnosticsTests(unittest.TestCase):
         ])
         self.assertEqual(run.call_args.kwargs["cwd"], resolved_root)
         self.assertNotIn("shell", run.call_args.kwargs)
+        self.assertEqual(
+            run.call_args.kwargs["env"]["HOK_DIAGNOSTIC_EXPECTED_KEY_SHA256"],
+            "abc123",
+        )
 
     def test_missing_runtime_and_invalid_output_fail_without_stderr_disclosure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -60,7 +67,9 @@ class HealthDiagnosticsTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(
                 args=[], returncode=1, stdout="not json", stderr="secret diagnostic stderr",
             )
-            with patch.object(health_diagnostics.subprocess, "run", return_value=completed):
+            runtime = ({"name": "deployed_nbot_runtime", "status": "skipped", "duration_ms": 0}, "")
+            with patch.object(health_diagnostics, "inspect_nbot_runtime", return_value=runtime), \
+                    patch.object(health_diagnostics.subprocess, "run", return_value=completed):
                 result = health_diagnostics.run_chat_runtime_diagnostic(root)
 
         self.assertEqual(result["status"], "failed")
