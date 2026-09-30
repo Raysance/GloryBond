@@ -6,9 +6,21 @@ from local_debugger import import_hok_module
 
 
 DIAGNOSTIC = import_hok_module("tools.chat_runtime_diagnostic")
+CHAT_TOOLS = import_hok_module("chat_tools")
 
 
 class ChatRuntimeDiagnosticTests(unittest.TestCase):
+    def test_tool_runtime_uses_unified_sql_analysis_tools(self):
+        result = DIAGNOSTIC.tool_runtime_check(
+            lambda: CHAT_TOOLS.HOKChatTools(
+                group_id="1", original_query="检查数据库和群聊统计",
+                user_id="1", use_memory=True,
+            ),
+            lambda: {"templates": ["bar", "line", "scatter", "heatmap", "distribution"]},
+        )
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["progressive_disclosure_ready"])
+
     def test_configuration_check_requires_deepseek_flash_without_proxy(self):
         good = DIAGNOSTIC.configuration_check({
             "base_url": "https://api.deepseek.com",

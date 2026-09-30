@@ -139,10 +139,13 @@ CHAT_HISTORY_SQL_GUIDANCE = {
 
 CHAT_SQL_SEMANTICS = [
     "SQL 方言 PostgreSQL。仅单条 SELECT 或非递归 WITH ... SELECT，可 JOIN/聚合/窗口/JSON。必须显式列名，COUNT(*) 可用。表加 hok. 前缀；不给文件路径、系统目录或导入清单访问权。",
-    "同名昵称不保证身份唯一。用 player_key、role_id 或 user_id 确定身份，QQ号不是营地 user_id。多玩家分析必须在同一条SQL中通过history_players或battle_records关联身份，禁止先查询ID再由模型手抄到ARRAY/IN列表。",
+    "同名昵称不保证身份唯一。用 player_key、role_id 或 user_id 确定身份，QQ号不是营地 user_id。多玩家分析必须在同一条SQL中通过history_players或battle_records关联身份，禁止先查询ID再由模型手抄到ARRAY/IN/VALUES列表。",
     "history_players 是每日快照。最新资料使用 DISTINCT ON (player_key) 并 ORDER BY player_key,snapshot_date DESC,player_index DESC；不能把每日 total_num 累加当作场次。visible/invisible 表示采集时可见性，缺数据不代表零。",
     "battle_records 同一对局可有多个玩家视角，也可能出现在多个快照。统计每名玩家先按(role_id或player_key, game_seq)去重并选最新快照；game_seq 为 NULL 时以原主键保留，不能把所有 NULL 合成一局。统计比赛总数用 COUNT(DISTINCT game_seq)，统计参赛人次则保留每人一行。",
     "battle_records 与 history_players 用(snapshot_date,player_index)连接；battle_records.game_seq 对 battle_details.game_seq；参赛者表、底蕴表都通过 game_seq 连接。按目标玩家追加 role_id 等值，防止每条战绩被10名参赛者或多张快照重复放大。",
+    "联表分析先在 battle_records 按目标玩家或时间范围筛选并按(player_key,game_seq)去重，再连接参赛者或展开JSON；避免对全量战绩多次去重后才过滤目标，易触发只读查询超时。",
+    "聚合SQL先确定用户要求的结果粒度：每局、每玩家、每英雄或每周。只按要求的维度分组；‘所有玩家每周总场次’按周汇总，不能额外按玩家展开到结果行数上限。",
+    "用户给出配置昵称或别名时，先从本次身份表取player_key做过滤，不能用history_players.nickname等于用户叫法来定位；游戏内nickname可能不同。输出已关联玩家时保留player_key供最终回答映射配置昵称。",
     "battle_records.result 为中文 '胜利' 或 '失败'，不是1/2。map_type=1排位、-1巅峰、0其他。star_after_game 是折算总星数，非排位常为-1；peak_grade_after/before 非巅峰常为-1。rank_star 是当前段位内星数，star 为折算星数。",
     "默认正式5v5口径与 battle_metrics.check_btl_official 一致：map_name ~ '(排位|巅峰|战队)' AND map_name !~* '(1v1|2v2|3v3)'。用户明确要求匹配、娱乐或全部时另选过滤，并在结论说明。只有英雄统计未给时期时默认当前赛季；组排、互动、共玩、总场次等一般历史统计未给时期时覆盖全部可用数据，并在结果中返回最早/最晚时间。",
     "日期以 Asia/Shanghai 为准。只有battle_records有snapshot_date与game_time_epoch：业务日用snapshot_date，精确时间用game_time_epoch（秒）及to_timestamp(game_time_epoch)。battle_details没有game_time_epoch，start_time_label/event_time_label只是缺少年份的MM-DD HH:MM展示文本，不能与YYYY-MM-DD比较；需要对battle_details或battle_participants按日期过滤时，必须通过game_seq连接battle_records。updated_at是写库时间，不是开局时间。",
@@ -154,7 +157,7 @@ CHAT_SQL_SEMANTICS = [
     "battle_power_players.hero_power 是评估时该英雄战力，hero_win_rate 为0到1，hero_average_score 为采集到的历史均分；payload含starNum、peakScore、mvpRate、recentWinRate、heroShowCnt等。需要当前玩家英雄战力时使用独立工具，地区荣耀门槛使用荣耀战力工具。",
     "团队贡献系数原口径：(5*个人评分/阵营总评分)*POWER(5*个人gold/阵营总gold,-0.5)；穿学识宝石/近卫/极影等辅助装备乘0.9（payload.battleRecords.finalEquips[*].equipName）。分母非正或金钱缺失返回NULL。受益度及代表局指数不是数据库现成字段；自定义比较须解释公式，不能冒称复现完整旧指数。",
     "hero_rank_entries 的 ban_rate/show_rate/win_rate 按原API数值存储，写库未统一百分比单位；先检查样本/分布再判断0到1或0到100。不同rank_id对应不同筛选范围，不可混合；与快照用(snapshot_date,rank_id)连接。",
-    "JSON路径区分大小写。先使用已知规范列；需要新增payload字段时先取少量样本/JSON键验证，不能猜测不存在字段。底蕴players与participant的participant_index来源不同，跨这两表按game_seq+role_id连接。",
+    "JSON路径区分大小写。分类依赖payload中的名称或枚举时，先查询实际值及频数再决定匹配条件，不能猜测固定IN列表；采样后还须执行正式汇总，核对未匹配/其他类比例。需要新增payload字段时先取少量样本/JSON键验证。底蕴players与participant的participant_index来源不同，跨这两表按game_seq+role_id连接。",
 ]
 
 CHAT_SQL_GUIDANCE = {
@@ -247,7 +250,7 @@ CHAT_SQL_JSON_FIELDS = {
     },
     "battle_participants.payload.battleRecords": {
         "position": "项目映射0对抗路、1中路、2发育路、3打野、4游走；其他值未知",
-        "finalEquips": "装备对象数组；equipName为装备名",
+        "finalEquips": "装备对象数组；equipName为装备名，实库含带中点及后缀的组合名（如极影·救赎、近卫·救赎）。分类前查实际装备名及频数，不可只精确匹配基础名。",
         "usedHero": "英雄对象（heroId、heroName、heroIcon）",
         "skill": "召唤师技能对象，需查看少量样本确定子字段",
     },
@@ -274,6 +277,15 @@ CHAT_SQL_JSON_FIELDS = {
         "betterHeroPower": "底蕴计算采用的高战力英雄基准",
     },
 }
+
+# Roots with a documented table-specific nested shape. Keep this derived from
+# the same catalogue the model sees, so the SQL checker can reject a known
+# JSON path when it is read from a different physical table.
+CHAT_SQL_JSON_ROOT_OWNERS = {}
+for _location in CHAT_SQL_JSON_FIELDS:
+    _parts = _location.split(".")
+    if len(_parts) >= 3 and _parts[1] == "payload":
+        CHAT_SQL_JSON_ROOT_OWNERS.setdefault(_parts[2], set()).add(_parts[0])
 
 def schema_catalog():
     """Return a fresh, JSON-safe description suitable for a tool observation."""

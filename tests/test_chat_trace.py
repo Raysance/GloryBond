@@ -56,7 +56,11 @@ class TraceTests(unittest.TestCase):
                     "output_items": [{"role": "assistant", "reasoning_content": "PRIVATE_REASONING"}]}
         with patch.object(CHAT.dmc, "ChatToolBudget", 2):
             trace = self.run_chat(model)["trace"]
-        self.assertEqual(trace["summary"], {"model_calls": 2, "tool_calls": 2, "skipped_calls": 1, "tool_errors": 2})
+        self.assertEqual(trace["summary"]["model_calls"], 2)
+        self.assertEqual(trace["summary"]["tool_calls"], 2)
+        self.assertEqual(trace["summary"]["skipped_calls"], 1)
+        self.assertEqual(trace["summary"]["tool_errors"], 2)
+        self.assertEqual(trace["summary"]["token_usage"]["total_tokens"], 0)
         self.assertEqual([call["status"] for call in trace["rounds"][0]["tools"]], ["partial", "error", "skipped"])
         self.assertEqual(trace["rounds"][0]["tools"][0]["observation"]["data"]["observations"][0]["rows"][0]["score"], 9)
         self.assertNotIn("PRIVATE_REASONING", json.dumps(trace))
@@ -72,6 +76,26 @@ class TraceTests(unittest.TestCase):
             trace = self.run_chat(model)["trace"]
         self.assertEqual(len(calls), 3)
         self.assertEqual(trace["stop_reason"], "round_limit")
+
+    def test_summary_aggregates_deepseek_cache_and_token_usage(self):
+        rounds = [
+            {"tools": [], "response_meta": {"usage": {
+                "prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120,
+                "prompt_cache_hit_tokens": 80, "prompt_cache_miss_tokens": 20,
+            }}},
+            {"tools": [], "response_meta": {"usage": {
+                "prompt_tokens": 150, "completion_tokens": 30, "total_tokens": 180,
+                "prompt_cache_hit_tokens": 120, "prompt_cache_miss_tokens": 30,
+            }}},
+        ]
+        usage = TRACE.trace_summary(rounds)["token_usage"]
+        self.assertEqual(usage, {
+            "prompt_tokens": 250,
+            "completion_tokens": 50,
+            "total_tokens": 300,
+            "prompt_cache_hit_tokens": 200,
+            "prompt_cache_miss_tokens": 50,
+        })
 
     def test_empty_final_retries_once_without_reexecuting_tools(self):
         requests = []

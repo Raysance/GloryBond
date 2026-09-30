@@ -85,6 +85,8 @@ class ChatEnvironmentTests(unittest.TestCase):
             "api_key": "legacy-private-key",
             "model": "deepseek-flash",
             "proxy_url": "",
+            "tool_max_tokens": 4096,
+            "final_max_tokens": 800,
         })
 
     def test_explicit_empty_proxy_overrides_configured_proxy(self):

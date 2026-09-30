@@ -151,6 +151,79 @@ class ChatSQLValidationTests(unittest.TestCase):
             ):
                 SQL.validate_readonly_sql(sql)
 
+    def test_multitable_queries_require_qualified_columns_before_execution(self):
+        sql = ("SELECT game_seq FROM hok.battle_records r "
+               "JOIN hok.battle_participants p ON r.game_seq = p.game_seq")
+        with self.assertRaisesRegex(SQL.ChatSQLValidationError,
+                                    "多表作用域中的列必须带表或别名限定.*game_seq"):
+            SQL.validate_readonly_sql(sql)
+        qualified = ("SELECT r.game_seq FROM hok.battle_records r "
+                     "JOIN hok.battle_participants p ON r.game_seq = p.game_seq")
+        self.assertIn("SELECT r.game_seq", SQL.validate_readonly_sql(qualified))
+
+    def test_cte_and_subquery_columns_are_checked_before_database_execution(self):
+        for sql in (
+            "WITH a AS (SELECT game_seq FROM hok.battle_records) SELECT a.result FROM a",
+            "SELECT q.result FROM (SELECT game_seq FROM hok.battle_records) q",
+        ):
+            with self.subTest(sql=sql), self.assertRaisesRegex(
+                SQL.ChatSQLValidationError, "CTE或子查询未输出列.*result"
+            ):
+                SQL.validate_readonly_sql(sql)
+        with self.assertRaisesRegex(SQL.ChatSQLValidationError, "表或别名不在当前查询作用域"):
+            SQL.validate_readonly_sql("SELECT p.game_seq FROM hok.battle_records r")
+
+    def test_join_cannot_use_alias_introduced_later(self):
+        sql = ("WITH me AS (SELECT role_id FROM hok.battle_records) "
+               "SELECT p.game_seq FROM hok.battle_participants p "
+               "JOIN hok.history_players h ON p.role_id <> me.role_id CROSS JOIN me")
+        with self.assertRaisesRegex(SQL.ChatSQLValidationError, "JOIN条件引用了尚未引入的表别名"):
+            SQL.validate_readonly_sql(sql)
+
+    def test_correlated_json_table_function_alias_is_not_mistaken_for_a_column(self):
+        sql = (
+            "SELECT p.game_seq, EXISTS (SELECT 1 FROM "
+            "jsonb_array_elements(p.payload->'battleRecords'->'finalEquips') e "
+            "WHERE e ->> 'equipName' = '学识宝石') AS equipped "
+            "FROM hok.battle_participants p"
+        )
+        self.assertIn("JSONB_ARRAY_ELEMENTS", SQL.validate_readonly_sql(sql))
+        lateral = (
+            "SELECT e->>'equipName' AS equip_name, COUNT(*) AS cnt "
+            "FROM hok.battle_participants p CROSS JOIN LATERAL "
+            "jsonb_array_elements(p.payload->'battleRecords'->'finalEquips') e "
+            "GROUP BY 1"
+        )
+        self.assertIn("JSONB_ARRAY_ELEMENTS", SQL.validate_readonly_sql(lateral))
+        named = (
+            "SELECT eq.elem->>'equipName' AS equip_name "
+            "FROM hok.battle_participants p CROSS JOIN LATERAL "
+            "jsonb_array_elements(p.payload->'battleRecords'->'finalEquips') AS eq(elem)"
+        )
+        self.assertIn("eq.elem", SQL.validate_readonly_sql(named))
+        with self.assertRaisesRegex(SQL.ChatSQLValidationError, "CTE或子查询未输出列"):
+            SQL.validate_readonly_sql(named.replace("eq.elem", "eq.equip_name"))
+
+    def test_documented_json_root_cannot_be_read_from_wrong_table_or_cte(self):
+        wrong = (
+            "SELECT b.payload->'battleRecords'->>'position' AS position "
+            "FROM hok.battle_records b"
+        )
+        via_cte = (
+            "WITH rec AS (SELECT b.payload AS raw FROM hok.battle_records b) "
+            "SELECT rec.raw->'battleRecords'->>'position' AS position FROM rec"
+        )
+        for sql in (wrong, via_cte):
+            with self.subTest(sql=sql), self.assertRaisesRegex(
+                SQL.ChatSQLValidationError, "JSON路径payload.battleRecords不属于battle_records"
+            ):
+                SQL.validate_readonly_sql(sql)
+        valid = (
+            "SELECT p.payload->'battleRecords'->>'position' AS position "
+            "FROM hok.battle_participants p"
+        )
+        self.assertIn("'battleRecords'", SQL.validate_readonly_sql(valid))
+
     def test_duplicate_result_names_fail_before_database_execution(self):
         with self.assertRaisesRegex(SQL.ChatSQLValidationError, "结果列名重复.*start_time_label"):
             SQL.validate_readonly_sql(

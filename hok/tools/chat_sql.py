@@ -8,14 +8,14 @@ from sqlglot import exp, parse
 from sqlglot.errors import ErrorLevel, SqlglotError
 from sqlglot.optimizer.scope import traverse_scope
 
-from ..chat_sql_schema import CHAT_SQL_COLUMN_USAGE, CHAT_SQL_TABLES
+from ..chat_sql_schema import CHAT_SQL_COLUMN_USAGE, CHAT_SQL_JSON_ROOT_OWNERS, CHAT_SQL_TABLES
 
 
 # Names here are sqlglot's canonical names, not arbitrary server functions.
 SAFE_FUNCTIONS = frozenset("""
     ABS ACOS ASIN ATAN ATAN2 AVG AND ARRAY ARRAY_AGG ARRAY_SIZE BOOL_AND BOOL_OR
     CASE CAST CEIL COALESCE CONCAT CONCAT_WS CORR COS COUNT COVAR_POP COVAR_SAMP
-    CUME_DIST CURRENT_DATE CURRENT_TIMESTAMP DATE DATE_ADD DATE_DIFF DATE_TRUNC
+    CUME_DIST CURRENT_DATE CURRENT_TIMESTAMP DATE DATE_ADD DATE_DIFF DATE_TRUNC EXISTS
     DENSE_RANK EXP EXPLODE EXTRACT FIRST_VALUE FLOOR GREATEST IF JSON_EXTRACT
     JSON_EXTRACT_SCALAR JSONB_EXTRACT JSONB_EXTRACT_SCALAR LAG LAST_VALUE LEAD
     LEAST LEFT LENGTH LN LOG LOWER MAX MIN MOD NTH_VALUE NTILE NULLIF
@@ -61,7 +61,7 @@ def _function_name(node):
     return node.name.lower() if isinstance(node, exp.Anonymous) else node.sql_name()
 
 
-def _validate_column_usage(column, source, column_usage):
+def _validate_column_usage(column, source, column_usage, *, usage=None):
     """Enforce declarative business-column capabilities for a physical source."""
     rule = column_usage.get(f"{source.name.lower()}.{column.name.lower()}")
     if not rule:
@@ -69,8 +69,8 @@ def _validate_column_usage(column, source, column_usage):
     invalid_usage = (
         (not rule.get("allow_predicate", True)
          and (column.find_ancestor(exp.Predicate) or column.find_ancestor(exp.Join)))
-        or (not rule.get("allow_grouping", True) and column.find_ancestor(exp.Group))
-        or (not rule.get("allow_ordering", True) and column.find_ancestor(exp.Order))
+        or (not rule.get("allow_grouping", True) and (usage == "group" or column.find_ancestor(exp.Group)))
+        or (not rule.get("allow_ordering", True) and (usage == "order" or column.find_ancestor(exp.Order)))
     )
     if invalid_usage:
         raise ChatSQLValidationError(
@@ -97,7 +97,8 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000, *,
     try:
         statements = parse(sql, read="postgres", error_level=ErrorLevel.RAISE)
     except SqlglotError as exc:
-        raise ChatSQLValidationError("PostgreSQL SQL 解析失败；请检查语法") from exc
+        detail = " ".join(str(exc).split())[:500]
+        raise ChatSQLValidationError(f"PostgreSQL SQL解析失败：{detail}") from exc
     if len(statements) != 1 or statements[0] is None:
         raise ChatSQLValidationError("每次仅允许一条 SELECT/CTE；禁止多语句")
     query = statements[0]
@@ -161,26 +162,136 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000, *,
                     raise ChatSQLValidationError(f"表不在允许的业务表中：{table.name}")
                 table.set("db", exp.to_identifier("hok"))
 
-            physical_sources = {
-                alias: source for alias, source in scope.sources.items()
-                if isinstance(source, exp.Table) and source.name.lower() in allowed_tables
+            relational_sources = {
+                alias: source for alias, (_, source) in scope.selected_sources.items()
+                if (isinstance(source, type(scope))
+                    and isinstance(source.expression, (exp.Select, exp.Union, exp.Intersect, exp.Except))) or (
+                    isinstance(source, exp.Table) and source.name.lower() in allowed_tables
+                )
             }
 
-            def physical_source(column):
-                source = physical_sources.get(column.table) if column.table else None
-                if source is None and not column.table and len(physical_sources) == 1:
-                    source = next(iter(physical_sources.values()))
-                return source
+            def resolve_source(column):
+                if not column.table:
+                    if column.name in scope.selected_sources and column.name not in relational_sources:
+                        # PostgreSQL permits the table-function row itself as
+                        # an expression, e.g. e ->> 'equipName'.
+                        return None
+                    if len(relational_sources) > 1:
+                        aliases = ", ".join(sorted(relational_sources))
+                        raise ChatSQLValidationError(
+                            f"多表作用域中的列必须带表或别名限定：{column.name}；当前来源：{aliases}"
+                        )
+                    return next(iter(relational_sources.values()), None)
+                ancestor = scope
+                while ancestor is not None:
+                    selected = ancestor.selected_sources.get(column.table)
+                    if selected is not None:
+                        return selected[1]
+                    ancestor = ancestor.parent
+                raise ChatSQLValidationError(f"表或别名不在当前查询作用域：{column.table}")
+
+            def validate_source_column(column, source):
+                if isinstance(source, exp.Table) and source.name.lower() in allowed_tables:
+                    if column.name.lower() not in allowed_tables[source.name.lower()]["columns"]:
+                        qualifier = column.table or source.alias_or_name
+                        raise ChatSQLValidationError(
+                            f"列不在已披露schema中：{qualifier}.{column.name}；请按{schema_tool_name}返回的列改写"
+                        )
+                    _validate_column_usage(column, source, column_usage)
+                elif isinstance(source, type(scope)):
+                    output_names = (source.expression.alias_column_names
+                                    if isinstance(source.expression, exp.Lateral)
+                                    else source.expression.named_selects)
+                    if column.name.lower() not in {
+                        name.lower() for name in output_names if name and name != "*"
+                    }:
+                        raise ChatSQLValidationError(
+                            f"CTE或子查询未输出列：{column.table}.{column.name}；请检查该来源的SELECT列表"
+                        )
+
+            def validate_output_alias(column, usage):
+                if column.table:
+                    return False
+                for projection in scope.expression.selects:
+                    if projection.alias_or_name.lower() != column.name.lower():
+                        continue
+                    for underlying in projection.find_all(exp.Column):
+                        source = resolve_source(underlying)
+                        if isinstance(source, exp.Table) and source.name.lower() in allowed_tables:
+                            _validate_column_usage(underlying, source, column_usage, usage=usage)
+                    return True
+                return False
+
+            def physical_origin(column, lookup_scope):
+                """Follow simple projected columns through CTEs/subqueries."""
+                if column.table:
+                    selected = lookup_scope.selected_sources.get(column.table)
+                else:
+                    sources = list(lookup_scope.selected_sources.values())
+                    selected = sources[0] if len(sources) == 1 else None
+                if selected is None:
+                    return None
+                source = selected[1]
+                if isinstance(source, exp.Table):
+                    return source.name.lower(), column.name.lower()
+                if isinstance(source, type(scope)) and isinstance(source.expression, exp.Select):
+                    for projection in source.expression.selects:
+                        if projection.alias_or_name.lower() != column.name.lower():
+                            continue
+                        projected = projection.this if isinstance(projection, exp.Alias) else projection
+                        if isinstance(projected, exp.Column):
+                            return physical_origin(projected, source)
+                return None
 
             for column in scope.columns:
-                source = physical_source(column)
-                if source is not None and column.name.lower() not in allowed_tables[source.name.lower()]["columns"]:
-                    qualifier = column.table or source.alias_or_name
+                # sqlglot also propagates columns from nested correlated
+                # subqueries to the enclosing scope. Resolve each in its own
+                # lexical scope so table-function aliases are not treated as
+                # columns of an unrelated outer physical table.
+                if column.find_ancestor(exp.Select) is not scope.expression:
+                    continue
+                if (column.find_ancestor(exp.Group) is not None
+                        and validate_output_alias(column, "group")):
+                    continue
+                validate_source_column(column, resolve_source(column))
+
+            for extraction in scope.expression.find_all(exp.JSONExtract):
+                if extraction.find_ancestor(exp.Select) is not scope.expression:
+                    continue
+                base = extraction.this
+                if not isinstance(base, exp.Column):
+                    continue
+                origin = physical_origin(base, scope)
+                path = extraction.expression
+                keys = [part.this for part in path.expressions
+                        if isinstance(part, exp.JSONPathKey)] if isinstance(path, exp.JSONPath) else []
+                if not origin or origin[1] != "payload" or not keys:
+                    continue
+                owners = CHAT_SQL_JSON_ROOT_OWNERS.get(str(keys[0]), set())
+                if owners and origin[0] not in owners:
                     raise ChatSQLValidationError(
-                        f"列不在已披露schema中：{qualifier}.{column.name}；请按{schema_tool_name}返回的列改写"
+                        f"JSON路径payload.{keys[0]}不属于{origin[0]}；"
+                        f"已确认来源：{', '.join(sorted(owners))}.payload"
                     )
-                if source is not None:
-                    _validate_column_usage(column, source, column_usage)
+
+            # PostgreSQL resolves each JOIN's ON clause before later JOINs
+            # enter scope. sqlglot's final source map alone cannot detect a
+            # reference to an alias introduced by a subsequent CROSS JOIN.
+            from_clause = scope.expression.args.get("from_")
+            available_aliases = ({from_clause.this.alias_or_name}
+                                 if from_clause is not None and from_clause.this is not None else set())
+            for join in scope.expression.args.get("joins") or []:
+                alias = join.this.alias_or_name
+                on_clause = join.args.get("on")
+                if on_clause is not None:
+                    for column in on_clause.find_all(exp.Column):
+                        if (column.find_ancestor(exp.Select) is scope.expression
+                                and column.table in scope.selected_sources
+                                and column.table not in available_aliases | {alias}):
+                            raise ChatSQLValidationError(
+                                f"JOIN条件引用了尚未引入的表别名：{column.table}；请调整JOIN顺序"
+                            )
+                available_aliases.add(alias)
 
             # sqlglot treats an unqualified ORDER BY name as an output alias and
             # omits it from scope.columns.  When the scope has one physical
@@ -188,8 +299,10 @@ def validate_readonly_sql(sql, params=None, max_sql_chars=20000, *,
             order = scope.expression.args.get("order")
             if order is not None:
                 for column in order.find_all(exp.Column):
-                    source = physical_source(column)
-                    if source is not None:
+                    if validate_output_alias(column, "order"):
+                        continue
+                    source = resolve_source(column)
+                    if isinstance(source, exp.Table) and source.name.lower() in allowed_tables:
                         _validate_column_usage(column, source, column_usage)
     except SqlglotError as exc:
         raise ChatSQLValidationError("SQL来源解析失败") from exc

@@ -59,6 +59,11 @@ def _build_chat_api_config(config, environment):
         values[key] = str(raw_value or "").strip()
     if not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
         values["api_key"] = str(config.get("QQBot", {}).get("deepseek_key") or "").strip()
+    for key, default in (("tool_max_tokens", 4096), ("final_max_tokens", 800)):
+        try:
+            values[key] = max(1, int(config.get("ChatAPI", {}).get(key, default)))
+        except (TypeError, ValueError):
+            values[key] = default
     return values
 
 

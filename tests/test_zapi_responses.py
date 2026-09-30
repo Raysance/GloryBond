@@ -42,6 +42,8 @@ class ChatCompletionsApiTests(unittest.TestCase):
             "api_key": "test-deepseek-key",
             "model": "deepseek-flash",
             "proxy_url": "",
+            "tool_max_tokens": 4096,
+            "final_max_tokens": 800,
         }
         self.requests = []
         self.responses = []
@@ -128,6 +130,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
             "model": "deepseek-flash",
             "messages": [{"role": "user", "content": "查 alpha"}],
             "stream": False,
+            "max_tokens": 4096,
             "tools": [{"type": "function", "function": {
                 key: value for key, value in TOOL_SCHEMA.items() if key != "type"
             }}],
@@ -150,6 +153,23 @@ class ChatCompletionsApiTests(unittest.TestCase):
             "name": "lookup",
             "arguments": call["function"]["arguments"],
         }])
+
+    def test_adapter_uses_separate_tool_and_no_tool_output_caps(self):
+        self.responses.extend([
+            {"role": "assistant", "content": "", "tool_calls": [tool_call("call-1", "alpha")]},
+            {"role": "assistant", "content": "alpha 为 42 分"},
+        ])
+        ZAPI.ai_response_create(
+            [{"role": "user", "content": "查 alpha"}],
+            tools=[TOOL_SCHEMA],
+        )
+        ZAPI.ai_response_create(
+            [{"role": "user", "content": "总结"}],
+            tools=None,
+            tool_choice="none",
+        )
+        self.assertEqual(self.requests[0]["body"]["max_tokens"], 4096)
+        self.assertEqual(self.requests[1]["body"]["max_tokens"], 800)
 
     def test_http_error_keeps_both_payloads_through_wrapper(self):
         body = {"error": {"message": "context length exceeded", "code": "context_length"}}

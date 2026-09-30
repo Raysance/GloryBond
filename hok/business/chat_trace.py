@@ -77,6 +77,30 @@ def tool_record(call, arguments, result, *, start_ms, duration_ms, executed):
 
 def trace_summary(rounds):
     calls = [call for turn in rounds for call in turn["tools"]]
+    usages = [
+        (turn.get("response_meta") or {}).get("usage") or {}
+        for turn in rounds
+    ]
+    prompt_tokens = sum(int(item.get("prompt_tokens") or item.get("input_tokens") or 0)
+                        for item in usages if isinstance(item, dict))
+    completion_tokens = sum(int(item.get("completion_tokens") or item.get("output_tokens") or 0)
+                            for item in usages if isinstance(item, dict))
+    total_tokens = sum(int(item.get("total_tokens") or 0)
+                       for item in usages if isinstance(item, dict))
+    cache_hit_tokens = sum(int(
+        item.get("prompt_cache_hit_tokens")
+        or (item.get("input_tokens_details") or {}).get("cached_tokens")
+        or 0
+    ) for item in usages if isinstance(item, dict))
+    cache_miss_tokens = sum(int(item.get("prompt_cache_miss_tokens") or 0)
+                            for item in usages if isinstance(item, dict))
     return {"model_calls": len(rounds), "tool_calls": sum(call["executed"] for call in calls),
             "skipped_calls": sum(not call["executed"] for call in calls),
-            "tool_errors": sum(call["status"] in {"error", "partial"} for call in calls)}
+            "tool_errors": sum(call["status"] in {"error", "partial"} for call in calls),
+            "token_usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens or prompt_tokens + completion_tokens,
+                "prompt_cache_hit_tokens": cache_hit_tokens,
+                "prompt_cache_miss_tokens": cache_miss_tokens,
+            }}

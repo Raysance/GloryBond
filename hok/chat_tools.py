@@ -35,8 +35,9 @@ def _validate(value, schema, path="arguments"):
             if required not in value:
                 raise ValueError(f"{path}.{required}: required")
         properties = schema.get("properties", {})
-        if schema.get("additionalProperties") is False and set(value) - set(properties):
-            raise ValueError(f"{path}: unknown parameters")
+        unknown = sorted(set(value) - set(properties))
+        if schema.get("additionalProperties") is False and unknown:
+            raise ValueError(f"{path}: unknown parameters {unknown}; allowed: {sorted(properties)}")
         for key, child in value.items():
             if key in properties:
                 _validate(child, properties[key], f"{path}.{key}")
@@ -68,6 +69,8 @@ class HOKChatTools:
         self._sql_check_sequence = 0
         self.history_sql_checks = {}
         self._history_sql_check_sequence = 0
+        self._analysis_failures = {"game_data": 0, "chat_data": 0}
+        self._empty_analysis_rechecked = {"game_data": False, "chat_data": False}
         self._disclosed = set()
         self._discovery_attempted_categories = set()
         self._tool_results = {}
@@ -96,15 +99,14 @@ class HOKChatTools:
 
     def _tool_categories(self):
         return {
-            "game_data": {"get_game_database_schema", "check_game_database_query", "query_game_database",
+            "game_data": {"analyze_game_database",
                           "query_player_hero_power", "query_honor_power"},
             "plots": {"list_plot_templates", "render_python_plot"},
             "internet": {"web_search"},
             "memory": {"recall_memory", "remember_memory", "forget_memory"},
             "chat_history": {"list_chat_groups", "fetch_recent_chat_messages", "search_chat_history",
                              "fetch_chat_context", "fetch_chat_reply_thread"},
-            "chat_data": {"get_chat_history_database_schema", "check_chat_history_database_query",
-                          "query_chat_history_database"},
+            "chat_data": {"analyze_chat_history_database"},
             "roleplay": {"manage_roleplay"},
         }
 
@@ -133,6 +135,21 @@ class HOKChatTools:
                    and (not available_by_category[category]
                         or not available_by_category[category] <= self._disclosed)
                    and any(word in query for word in words)]
+        # A request can describe a gameplay aggregation without naming the
+        # database or SQL. Bind that domain before the model picks a category;
+        # otherwise a generic "weekly trend" may be mistaken for chat_data.
+        game_subject = any(word in query for word in (
+            "对局", "战绩", "英雄", "组队", "同队", "游走位", "辅助装", "胜率", "评分", "底蕴",
+        ))
+        aggregate_intent = any(word in query for word in (
+            "统计", "排行", "排名", "趋势", "比较", "对比", "平均", "总数", "总场次",
+            "场次", "多少", "最差", "最多", "最少", "胜率", "样本量",
+        ))
+        if (game_subject and aggregate_intent and "game_data" not in matched
+                and "game_data" not in self._discovery_attempted_categories
+                and available_by_category["game_data"]
+                and not available_by_category["game_data"] <= self._disclosed):
+            matched.append("game_data")
         # “群聊SQL/聊天数据库” describes the scoped archive, not gameplay.
         # Keep game_data only when the request also names an actual game domain.
         if "chat_data" in matched and "game_data" in matched and not any(
@@ -148,29 +165,22 @@ class HOKChatTools:
 
     def record_tool_result(self, name, data):
         """Record successful observations used by the deterministic workflow guard."""
+        if (name in {"analyze_game_database", "analyze_chat_history_database"}
+                and isinstance(data, dict) and not data.get("completed")):
+            return
         self._tool_results.setdefault(name, []).append(data)
 
     def required_workflow_tool(self, categories):
         """Return the next concrete tool required by an explicitly requested capability."""
         categories = set(categories)
         if "game_data" in categories:
-            if ("get_game_database_schema" in self._disclosed
-                    and "get_game_database_schema" not in self._tool_results):
-                return "get_game_database_schema"
-            if ("query_game_database" in self._disclosed
-                    and "query_game_database" not in self._tool_results):
-                if self.sql_checks:
-                    return "query_game_database"
-                return "check_game_database_query"
+            if ("analyze_game_database" in self._disclosed
+                    and "analyze_game_database" not in self._tool_results):
+                return "analyze_game_database"
         if "chat_data" in categories:
-            if ("get_chat_history_database_schema" in self._disclosed
-                    and "get_chat_history_database_schema" not in self._tool_results):
-                return "get_chat_history_database_schema"
-            if ("query_chat_history_database" in self._disclosed
-                    and "query_chat_history_database" not in self._tool_results):
-                if self.history_sql_checks:
-                    return "query_chat_history_database"
-                return "check_chat_history_database_query"
+            if ("analyze_chat_history_database" in self._disclosed
+                    and "analyze_chat_history_database" not in self._tool_results):
+                return "analyze_chat_history_database"
         if "plots" in categories:
             if self.datasets and not self.artifacts and "render_python_plot" in self._disclosed:
                 if "list_plot_templates" not in self._tool_results:
@@ -225,9 +235,55 @@ class HOKChatTools:
         return {"disclosed": disclosed, "unavailable_categories": unavailable,
                 "notice": "具体参数 schema 将在下一轮提供；只调用与当前任务有关的已披露工具。"}
 
+    @staticmethod
+    def _analysis_queries_schema(text, description):
+        return {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": int(getattr(dmc, "ChatSQLBatchLimit", 4)),
+            "description": description,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "sql": {"type": "string", "maxLength": 20000},
+                    "params": {
+                        "type": "object",
+                        "description": "可选命名参数，SQL中使用:name；值仅支持字符串、数字、布尔或null。",
+                    },
+                    "label": {"type": "string", "maxLength": 120},
+                    "intent": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "该SQL直接回答的子问题。",
+                    },
+                    "assumptions": {
+                        "type": "array",
+                        "items": text,
+                        "maxItems": 10,
+                        "description": "时间范围、统计口径、身份、去重和缺失数据假设。",
+                    },
+                },
+                "required": ["sql", "intent"],
+                "additionalProperties": False,
+            },
+        }
+
     def schemas(self):
         text = {"type": "string"}
         tools = [
+            _schema(
+                "analyze_game_database",
+                "按discover_tools返回的权威游戏数据库目录提交一批PostgreSQL分析查询。一次调用会先对整批做AST、表列、函数、参数和结果列校验；只有全部通过才在独立只读账号与只读事务中立即执行。模型看到的结果行默认省略URL等机器内容，原始数据集仍保留；确需URL时设include_machine_fields=true。失败observation会指出校验或数据库阶段，修正后重新提交本工具即可，不需要schema/check_id中间调用。",
+                {
+                    "queries": self._analysis_queries_schema(
+                        text,
+                        "优先用一条CTE查询完成身份关联、去重、时间过滤和聚合；只有相互独立且确有必要时才拆成多条。",
+                    ),
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+                    "include_machine_fields": {"type": "boolean", "description": "仅当用户明确需要URL、图片地址或原始机器字段时设为true；默认结果行省略这类内容以节省上下文。"},
+                },
+                ["queries"],
+            ),
             _schema("get_game_database_schema", "读取真实游戏数据库的表、字段、关联、JSON 结构与去重/统计口径。写 SQL 前核对。", {}),
             _schema("check_game_database_query", "在执行前检查模型生成的 PostgreSQL 只读 SELECT/CTE。先根据原问题和schema完成字段关联、查询分解及假设检查，再提交此工具；它只做AST、表、列、函数、参数和结果列校验，不访问数据库。全部查询通过后返回一次性 check_id；失败时根据逐条 observation 修正后重新检查。", {
                 "queries": {"type": "array", "minItems": 1, "maxItems": int(getattr(dmc, "ChatSQLBatchLimit", 4)),
@@ -298,6 +354,19 @@ class HOKChatTools:
                 "user_ids": {"type": "array", "items": text, "maxItems": 20,
                              "description": "旧参数，含义也是 QQ 号；新调用优先用 players 或 qq_ids。"}}
             tools.extend([
+                _schema(
+                    "analyze_chat_history_database",
+                    f"按discover_tools返回的{scope}群聊SQL目录提交聚合查询。一次调用先校验整批SQL，全部通过后才在请求绑定作用域的只读事务中立即执行；模型看到的结果行默认省略URL等机器内容，确需时设include_machine_fields=true。修正失败SQL后重新提交本工具，不需要schema/check_id中间调用。",
+                    {
+                        "queries": self._analysis_queries_schema(
+                            text,
+                            "只允许查询hok.chat_history_messages；计数、排行、频率和趋势必须由SQL完整聚合。",
+                        ),
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+                        "include_machine_fields": {"type": "boolean", "description": "仅当用户明确需要URL等原始机器字段时设为true；默认结果行省略。"},
+                    },
+                    ["queries"],
+                ),
                 _schema("get_chat_history_database_schema", f"读取{scope}群聊SQL视图的真实字段、作用域、时间及统计口径。做消息数量、发言排行、活跃趋势等聚合前必须先读取。", {}),
                 _schema("check_chat_history_database_query", "在执行前检查模型生成的群聊PostgreSQL只读SELECT/CTE。只能查询受请求作用域约束的chat_history_messages视图；先根据schema完成时间、身份和聚合口径，再提交检查。全部通过后返回一次性check_id。", {
                     "queries": {"type": "array", "minItems": 1, "maxItems": int(getattr(dmc, "ChatSQLBatchLimit", 4)),
@@ -334,15 +403,144 @@ class HOKChatTools:
             ])
         return tools
 
+    def _analyze_database_batch(self, arguments, *, category, checker, executor, archive_notice=""):
+        """Validate a complete batch, then execute it without another model round."""
+        max_attempts = max(1, int(getattr(dmc, "ChatSQLMaxAttempts", 3)))
+        if self._analysis_failures[category] >= max_attempts:
+            return {
+                "ok": False,
+                "approved": False,
+                "completed": False,
+                "stage": "attempt_limit",
+                "attempt": self._analysis_failures[category],
+                "remaining_attempts": 0,
+                "observations": [{
+                    "ok": False,
+                    "stage": "attempt_limit",
+                    "error": f"SQL修复次数已达到{max_attempts}次上限",
+                }],
+                "notice": "不要继续生成SQL；请根据已有成功observation回答，并简要说明仍缺失的数据。",
+            }
+        checked_queries = []
+        validation = []
+        for query in arguments["queries"]:
+            checked = checker(query["sql"], params=query.get("params"))
+            item = {
+                "ok": bool(checked.get("ok")),
+                "stage": "validation",
+                "label": query.get("label", ""),
+                "intent": query["intent"],
+                "assumptions": list(query.get("assumptions") or []),
+                **checked,
+            }
+            validation.append(item)
+            if checked.get("ok"):
+                checked_queries.append({
+                    "label": query.get("label", ""),
+                    "intent": query["intent"],
+                    "assumptions": list(query.get("assumptions") or []),
+                    "sql": checked["normalized_sql"],
+                })
+
+        if len(checked_queries) != len(arguments["queries"]):
+            self._analysis_failures[category] += 1
+            failure_attempt = self._analysis_failures[category]
+            return {
+                "approved": False,
+                "completed": False,
+                "stage": "validation",
+                "attempt": failure_attempt,
+                "remaining_attempts": max(0, max_attempts - failure_attempt),
+                "observations": validation,
+                "notice": "整批未执行。只修正失败observation后重新提交analyze工具；已通过项无需改写。",
+            }
+
+        observations = []
+        for query in checked_queries:
+            base = {
+                "label": query["label"],
+                "intent": query["intent"],
+                "assumptions": query["assumptions"],
+                "normalized_sql": query["sql"],
+                "stage": "execution",
+            }
+            try:
+                data = executor(query["sql"], arguments.get("limit"))
+                if not data.get("ok", True):
+                    observations.append({"ok": False, **base, **data})
+                    continue
+                dataset_id = f"dataset_{len(self.datasets) + 1}"
+                self.datasets[dataset_id] = data.get("rows", [])
+                observations.append({"ok": True, **base, "dataset_id": dataset_id, **data})
+            except Exception as error:
+                from .business.chat_trace import error_record
+                observations.append({
+                    "ok": False,
+                    **base,
+                    "error": type(error).__name__,
+                    "detail": str(error),
+                    "diagnostics": error_record(error, "database_analysis"),
+                })
+        succeeded = bool(observations) and all(item.get("ok") for item in observations)
+        truncated = succeeded and any(item.get("truncated") for item in observations)
+        empty = succeeded and all(
+            int(item.get("row_count", len(item.get("rows") or [])) or 0) == 0
+            for item in observations
+        )
+        recheck_empty = empty and not self._empty_analysis_rechecked[category]
+        if recheck_empty:
+            self._empty_analysis_rechecked[category] = True
+        completed = succeeded and not truncated and not recheck_empty
+        if completed:
+            self._analysis_failures[category] = 0
+        else:
+            self._analysis_failures[category] += 1
+        failure_attempt = self._analysis_failures[category]
+        if truncated:
+            notice = ("SQL结果超过预览上限，当前数据不完整。下一轮应在数据库端按用户要求的粒度聚合、"
+                      "收窄范围或分页；不得从截断行推断总体，也不得提前结束。")
+        elif recheck_empty:
+            notice = ("首轮SQL结果为空；不能据此断言没有记录。请先核对身份映射、时间范围和JSON来源，"
+                      "再提交一次诊断或修正查询；如复核后仍为空，再说明实际查询范围。")
+        else:
+            notice = "查询已在同一次工具调用中完成；直接根据observation回答，除非确有失败需要修正。"
+        if archive_notice:
+            notice += archive_notice
+        return {
+            "approved": True,
+            "completed": completed,
+            "stage": ("complete" if completed else "truncated" if truncated else
+                      "empty_result" if recheck_empty else "execution"),
+            "attempt": failure_attempt,
+            "remaining_attempts": max(0, max_attempts - failure_attempt),
+            "observations": observations,
+            "notice": notice,
+        }
+
     def execute(self, name, arguments):
         from . import zfunc
         if name == "discover_tools":
-            return self._discover(arguments)
+            result = self._discover(arguments)
+            contexts = {}
+            disclosed_names = {item["name"] for item in result["disclosed"]}
+            if "analyze_game_database" in disclosed_names:
+                contexts["game_data"] = zfunc.chat_database_schema()
+            if "analyze_chat_history_database" in disclosed_names:
+                contexts["chat_data"] = zfunc.chat_history_database_schema(
+                    all_groups=self.cross_group_history)
+            if contexts:
+                result["authoritative_context"] = contexts
+                result["notice"] = (
+                    "authoritative_context已包含下一轮SQL所需完整目录；直接调用对应analyze工具，"
+                    "不要再调用旧schema/check/check_id链。"
+                )
+            return result
         schema = next((item for item in self.schemas() if item["name"] == name), None)
         if schema is None:
             scoped_chat_tools = {
                 "search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context",
-                "fetch_chat_reply_thread", "get_chat_history_database_schema",
+                "fetch_chat_reply_thread", "analyze_chat_history_database",
+                "get_chat_history_database_schema",
                 "check_chat_history_database_query", "query_chat_history_database",
             }
             if name in scoped_chat_tools and not (self.group_id or self.cross_group_history):
@@ -350,6 +548,13 @@ class HOKChatTools:
                     "group_context_required", "当前会话没有绑定群号；请在目标群内发送同一查询。这不是检索服务故障。")
             raise ValueError(f"unknown_or_disabled_chat_tool: {name}")
         _validate(arguments, schema["parameters"])
+        if name == "analyze_game_database":
+            return self._analyze_database_batch(
+                arguments,
+                category="game_data",
+                checker=zfunc.chat_check_database_query,
+                executor=lambda sql, limit: zfunc.chat_query_database(sql, limit=limit),
+            )
         if name == "get_game_database_schema":
             return zfunc.chat_database_schema()
         if name == "check_game_database_query":
@@ -400,6 +605,19 @@ class HOKChatTools:
             return {"observations": observations}
         if name == "get_chat_history_database_schema":
             return zfunc.chat_history_database_schema(all_groups=self.cross_group_history)
+        if name == "analyze_chat_history_database":
+            return self._analyze_database_batch(
+                arguments,
+                category="chat_data",
+                checker=zfunc.chat_check_history_database_query,
+                executor=lambda sql, limit: zfunc.chat_query_history_database(
+                    sql,
+                    limit=limit,
+                    group_id=self.group_id,
+                    all_groups=self.cross_group_history,
+                ),
+                archive_notice="统计只覆盖PostgreSQL群聊归档。",
+            )
         if name == "check_chat_history_database_query":
             observations = []
             checked_queries = []

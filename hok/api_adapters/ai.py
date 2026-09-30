@@ -31,7 +31,8 @@ class AIRequestError(RuntimeError):
         self.request_id = getattr(error, "request_id", None)
 
 
-def _chat_completion_create(input_items, tools=None, tool_choice="auto", temperature=None, timeout=30):
+def _chat_completion_create(input_items, tools=None, tool_choice="auto", temperature=None, timeout=30,
+                            max_tokens=None):
     """Call the configured provider without inheriting ambient proxy settings."""
     missing = [key for key in ("base_url", "api_key", "model") if not chat_api_config.get(key)]
     if missing:
@@ -58,6 +59,8 @@ def _chat_completion_create(input_items, tools=None, tool_choice="auto", tempera
     }
     if temperature is not None:
         request["temperature"] = temperature
+    if max_tokens is not None:
+        request["max_tokens"] = max(1, int(max_tokens))
     is_deepseek = urlparse(chat_api_config["base_url"]).hostname == "api.deepseek.com"
     continues_tool_chain = any(
         message.get("role") == "tool" or bool(message.get("tool_calls"))
@@ -371,7 +374,13 @@ def ai_response_create(input_items, tools=None, tool_choice="auto", network=Fals
     log_message("VISIT: ai_response_create")
     try:
         if not network:
-            return _chat_completion_create(input_items, tools=tools, tool_choice=tool_choice)
+            token_key = "tool_max_tokens" if tools else "final_max_tokens"
+            return _chat_completion_create(
+                input_items,
+                tools=tools,
+                tool_choice=tool_choice,
+                max_tokens=chat_api_config.get(token_key),
+            )
         client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_model_url)
         model = confs["QQBot"]["ark_responses_model"]
         request = {

@@ -136,12 +136,10 @@ def tool_runtime_check(tool_factory: Callable, plot_templates: Callable) -> dict
         })
         disclosed_names = {item["name"] for item in registry.model_schemas()}
         required = {
-            "discover_tools", "search_chat_history", "get_game_database_schema",
-            "check_game_database_query", "query_game_database", "list_plot_templates",
+            "discover_tools", "search_chat_history", "analyze_game_database", "list_plot_templates",
             "render_python_plot", "web_search", "recall_memory", "remember_memory",
             "forget_memory", "manage_roleplay",
-            "get_chat_history_database_schema", "check_chat_history_database_query",
-            "query_chat_history_database",
+            "analyze_chat_history_database",
         }
         templates = plot_templates()
         template_count = len(templates.get("templates") or [])

@@ -111,22 +111,15 @@ class ChatLoopTests(unittest.TestCase):
                 call = {"call_id": "discover", "name": "discover_tools",
                         "arguments": '{"categories":["game_data"]}'}
             elif len(calls) == 3:
-                self.assertEqual(tool_choice["function"]["name"], "get_game_database_schema")
-                self.assertTrue({"get_game_database_schema", "render_python_plot"}.issubset(names))
-                call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
-            elif len(calls) == 4:
-                self.assertEqual(tool_choice["function"]["name"], "check_game_database_query")
-                call = {"call_id": "check", "name": "check_game_database_query",
+                self.assertEqual(tool_choice["function"]["name"], "analyze_game_database")
+                self.assertTrue({"analyze_game_database", "render_python_plot"}.issubset(names))
+                call = {"call_id": "analysis", "name": "analyze_game_database",
                         "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value",
-                                                               "intent": "读取战局统计"}]})}
-            elif len(calls) == 5:
-                self.assertEqual(tool_choice["function"]["name"], "query_game_database")
-                call = {"call_id": "query", "name": "query_game_database",
-                        "arguments": '{"check_id":"sql_check_1"}'}
-            elif len(calls) == 6:
+                                                                 "intent": "读取战局统计"}]})}
+            elif len(calls) == 4:
                 self.assertEqual(tool_choice["function"]["name"], "list_plot_templates")
                 call = {"call_id": "templates", "name": "list_plot_templates", "arguments": "{}"}
-            elif len(calls) == 7:
+            elif len(calls) == 5:
                 self.assertEqual(tool_choice["function"]["name"], "render_python_plot")
                 call = {"call_id": "plot", "name": "render_python_plot",
                         "arguments": '{"dataset_id":"dataset_1"}'}
@@ -152,6 +145,8 @@ class ChatLoopTests(unittest.TestCase):
         self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
         discover = result["trace"]["rounds"][1]["tools"][0]
         self.assertEqual(discover["arguments"]["categories"], ["game_data", "plots"])
+        self.assertIn("game_data", discover["observation"]["data"]["authoritative_context"])
+        self.assertEqual(len(calls), 6)
 
     def test_message_count_request_forces_scoped_chat_sql_after_history_search(self):
         calls = []
@@ -172,16 +167,9 @@ class ChatLoopTests(unittest.TestCase):
                 call = {"call_id": "discover", "name": "discover_tools",
                         "arguments": '{"categories":["chat_data"]}'}
             elif stage == 3:
-                self.assertEqual(tool_choice["function"]["name"], "get_chat_history_database_schema")
-                call = {"call_id": "schema", "name": "get_chat_history_database_schema", "arguments": "{}"}
-            elif stage == 4:
-                self.assertEqual(tool_choice["function"]["name"], "check_chat_history_database_query")
-                call = {"call_id": "check", "name": "check_chat_history_database_query",
+                self.assertEqual(tool_choice["function"]["name"], "analyze_chat_history_database")
+                call = {"call_id": "analysis", "name": "analyze_chat_history_database",
                         "arguments": json.dumps({"queries": [{"sql": query, "intent": "统计发言排行"}]})}
-            elif stage == 5:
-                self.assertEqual(tool_choice["function"]["name"], "query_chat_history_database")
-                call = {"call_id": "query", "name": "query_chat_history_database",
-                        "arguments": '{"check_id":"chat_sql_check_1"}'}
             else:
                 return {"content": "昵称A发言最多，共9条。", "tool_calls": [], "output_items": []}
             return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
@@ -200,6 +188,7 @@ class ChatLoopTests(unittest.TestCase):
         self.assertEqual(result["text"], "昵称A发言最多，共9条。")
         self.assertEqual(result["trace"]["context"]["explicit_discovery_categories"], ["chat_data"])
         self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
+        self.assertEqual(len(calls), 4)
 
     def test_capability_denial_gets_one_forced_discovery_retry(self):
         calls = []
@@ -221,19 +210,10 @@ class ChatLoopTests(unittest.TestCase):
                         "arguments": '{"categories":["game_data"]}'}
                 return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
             if len(calls) == 4:
-                self.assertEqual(tool_choice["function"]["name"], "get_game_database_schema")
-                call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
-                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
-            if len(calls) == 5:
-                self.assertEqual(tool_choice["function"]["name"], "check_game_database_query")
-                call = {"call_id": "check", "name": "check_game_database_query",
+                self.assertEqual(tool_choice["function"]["name"], "analyze_game_database")
+                call = {"call_id": "analysis", "name": "analyze_game_database",
                         "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value",
                                                                "intent": "统计组排次数"}]})}
-                return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
-            if len(calls) == 6:
-                self.assertEqual(tool_choice["function"]["name"], "query_game_database")
-                call = {"call_id": "query", "name": "query_game_database",
-                        "arguments": '{"check_id":"sql_check_1"}'}
                 return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
             return {"content": "已改用游戏数据库查询。", "tool_calls": [], "output_items": []}
 
@@ -250,6 +230,49 @@ class ChatLoopTests(unittest.TestCase):
         self.assertTrue(result["trace"]["rounds"][1]["premature_tool_denial"])
         self.assertTrue(result["trace"]["context"]["forced_discovery_completed"])
         self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
+        self.assertEqual(len(calls), 5)
+
+    def test_repeated_sql_failures_stop_at_configured_attempt_limit(self):
+        calls = []
+        registry = ZCHAT.HOKChatTools(
+            user_id="100", use_memory=False,
+            original_query="调用game_data查询历史战绩",
+        )
+
+        def model(messages, tools=None, tool_choice="auto", **kwargs):
+            calls.append(tool_choice)
+            if len(calls) == 1:
+                call = {"call_id": "discover", "name": "discover_tools",
+                        "arguments": '{"categories":["game_data"]}'}
+            elif len(calls) <= 4:
+                call = {"call_id": f"analysis-{len(calls)}", "name": "analyze_game_database",
+                        "arguments": json.dumps({"queries": [{
+                            "sql": "SELECT missing FROM hok.battle_records",
+                            "intent": "故意触发列校验失败",
+                        }]})}
+            else:
+                self.assertEqual(tool_choice, "none")
+                return {"content": "三次查询均未通过字段校验，暂时无法给出结果。",
+                        "tool_calls": [], "output_items": []}
+            return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
+
+        with patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[]), \
+                patch.object(ZMEMORY.instance, "save_active_chat"), \
+                patch.object(ZFUNC, "chat_roleplay_get", return_value=None), \
+                patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}), \
+                patch.object(ZFUNC, "chat_check_database_query",
+                             return_value={"ok": False, "error": "unknown column"}), \
+                patch.object(ZFUNC, "chat_query_database") as execute, \
+                patch.object(ZCHAT.dmc, "ChatSQLMaxAttempts", 3):
+            result = ZCHAT.chat_process(
+                user_text=registry.original_query, user_id="100", nickname="A",
+                use_memory=False, model_caller=model, tool_registry=registry,
+                return_artifacts=True,
+            )
+        self.assertEqual(result["trace"]["stop_reason"], "sql_attempt_limit")
+        self.assertEqual(result["trace"]["limits"]["sql_max_attempts"], 3)
+        self.assertEqual(len(calls), 5)
+        execute.assert_not_called()
 
     def test_tool_result_is_appended_before_second_model_turn(self):
         calls = []
@@ -425,11 +448,57 @@ class HOKChatToolsTests(unittest.TestCase):
             self.assertTrue(item["context_truncated"])
         self.assertEqual(len(observations[0]["rows"]), 50)
 
+    def test_successful_sql_context_does_not_echo_the_submitted_plan(self):
+        observation = {
+            "ok": True,
+            "stage": "execution",
+            "intent": "统计胜率",
+            "assumptions": ["本赛季"],
+            "normalized_sql": "SELECT player_key FROM hok.battle_records",
+            "dataset_id": "dataset_1",
+            "rows": [{"player_key": "a"}],
+        }
+        value = {"ok": True, "data": {"observations": [observation]}}
+        serialized = json.loads(ZCHAT._serialize_tool_result(value))
+        sent = serialized["data"]["observations"][0]
+        self.assertNotIn("normalized_sql", sent)
+        self.assertNotIn("intent", sent)
+        self.assertNotIn("assumptions", sent)
+        self.assertEqual(sent["dataset_id"], "dataset_1")
+        self.assertIn("normalized_sql", observation)
+
+    def test_sql_row_projection_omits_machine_values_without_mutating_dataset(self):
+        row = {
+            "hero": "瑶",
+            "description": "推荐出装见 https://example.test/build?token=private，胜率为 52%",
+            "metadata": {"icon_url": "https://example.test/very/long/icon.png",
+                         "image": "data:image/png;base64," + "a" * 600,
+                         "blob": "A" * 300},
+            "scores": [51.2, 52.8],
+        }
+        value = {"ok": True, "data": {"observations": [{
+            "ok": True, "stage": "execution", "rows": [row], "row_count": 1,
+            "columns": list(row), "dataset_id": "dataset_1",
+        }]}}
+        projected = json.loads(ZCHAT._serialize_tool_result(value, omit_sql_machine_values=True))
+        sent = projected["data"]["observations"][0]
+        self.assertEqual(sent["dataset_id"], "dataset_1")
+        self.assertEqual(sent["row_count"], 1)
+        self.assertEqual(sent["columns"], list(row))
+        self.assertEqual(sent["rows"][0]["hero"], "瑶")
+        self.assertIn("，胜率为 52%", sent["rows"][0]["description"])
+        self.assertNotIn("example.test", json.dumps(sent, ensure_ascii=False))
+        self.assertEqual(sent["rows"][0]["metadata"]["image"], "[URL omitted]")
+        self.assertIn("opaque content omitted", sent["rows"][0]["metadata"]["blob"])
+        self.assertEqual(value["data"]["observations"][0]["rows"][0], row)
+        raw = json.loads(ZCHAT._serialize_tool_result(value))
+        self.assertEqual(raw["data"]["observations"][0]["rows"][0], row)
+
     def test_database_and_live_power_are_separate_tools(self):
         registry = ZCHAT.HOKChatTools()
         self.assertEqual({item["name"] for item in registry.initial_schemas()}, {"discover_tools"})
         names = {item["name"] for item in registry.schemas()}
-        self.assertTrue({"check_game_database_query", "query_game_database",
+        self.assertTrue({"analyze_game_database", "check_game_database_query", "query_game_database",
                          "query_player_hero_power", "query_honor_power",
                          "render_python_plot", "web_search"}.issubset(names))
         self.assertNotIn("query_player_today_report", names)
@@ -448,11 +517,21 @@ class HOKChatToolsTests(unittest.TestCase):
         self.assertEqual(registry.required_discovery_categories(), ["chat_data"])
         disclosed = registry.execute("discover_tools", {"categories": ["chat_data"]})
         self.assertFalse(disclosed["unavailable_categories"])
+        self.assertIn("chat_data", disclosed["authoritative_context"])
         self.assertEqual(registry.required_workflow_tool(["chat_data"]),
-                         "get_chat_history_database_schema")
-        registry.record_tool_result("get_chat_history_database_schema", {"ok": True})
-        self.assertEqual(registry.required_workflow_tool(["chat_data"]),
-                         "check_chat_history_database_query")
+                         "analyze_chat_history_database")
+        registry.record_tool_result("analyze_chat_history_database", {"completed": True})
+        self.assertIsNone(registry.required_workflow_tool(["chat_data"]))
+
+    def test_game_aggregations_without_sql_words_disclose_game_data(self):
+        for question in (
+            "统计最近半年所有玩家每个自然周的正式对局总场次趋势",
+            "分析游走位出辅助装和不出辅助装时的平均评分差异",
+            "谁和示例玩家41同队次数最多，列共同场次与胜率",
+        ):
+            with self.subTest(question=question):
+                registry = ZCHAT.HOKChatTools(user_id="100", original_query=question)
+                self.assertIn("game_data", registry.required_discovery_categories())
 
     def test_group_chat_sql_ticket_executes_with_request_bound_scope(self):
         tools = ZCHAT.HOKChatTools(group_id="200", original_query="发言统计")
@@ -479,8 +558,12 @@ class HOKChatToolsTests(unittest.TestCase):
         private = ZCHAT.HOKChatTools(user_id="100", original_query="群聊发言统计")
         names = {item["name"] for item in private.schemas()}
         self.assertNotIn("get_chat_history_database_schema", names)
+        self.assertNotIn("analyze_chat_history_database", names)
         with self.assertRaises(ZCHAT.ChatToolUnavailableError):
-            private.execute("get_chat_history_database_schema", {})
+            private.execute("analyze_chat_history_database", {"queries": [{
+                "sql": "SELECT COUNT(*) FROM hok.chat_history_messages",
+                "intent": "统计群聊消息",
+            }]})
 
     def test_disabled_explicit_category_does_not_force_unknown_tool(self):
         registry = ZCHAT.HOKChatTools(user_id="100", use_memory=False,
@@ -504,15 +587,17 @@ class HOKChatToolsTests(unittest.TestCase):
                         "arguments": '{"categories":["game_data"],"reason":"需要历史统计"}'}
                 return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
             if len(requests) == 2:
-                self.assertIn("get_game_database_schema", names)
+                self.assertIn("analyze_game_database", names)
                 systems = [item.get("content", "") for item in messages if item.get("role") == "system"]
                 self.assertEqual(sum("已知玩家与身份" in text for text in systems), 1)
                 return {"content": None, "tool_calls": [], "output_items": []}
             if len(requests) == 3:
                 self.assertEqual(tool_choice, "auto")
-                self.assertIn("get_game_database_schema", names)
+                self.assertIn("analyze_game_database", names)
                 self.assertIn("不得在没有失败observation", messages[-1]["content"])
-                call = {"call_id": "schema", "name": "get_game_database_schema", "arguments": "{}"}
+                call = {"call_id": "analysis", "name": "analyze_game_database",
+                        "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value",
+                                                                 "intent": "继续历史统计"}]})}
                 return {"tool_calls": [call], "output_items": [{"type": "function_call", **call}]}
             return {"content": "查询已继续完成", "tool_calls": [], "output_items": []}
 
@@ -572,16 +657,74 @@ class HOKChatToolsTests(unittest.TestCase):
         with patch.object(ZFUNC, "chat_check_database_query", side_effect=[
             {"ok": True, "normalized_sql": "SELECT 1 AS value"},
             {"ok": False, "error": "unknown column"},
-        ]):
-            checked = tools.execute("check_game_database_query", {"queries": [
+        ]), patch.object(ZFUNC, "chat_query_database") as execute:
+            checked = tools.execute("analyze_game_database", {"queries": [
                 {"sql": "SELECT 1 AS value", "intent": "valid part"},
                 {"sql": "SELECT missing", "intent": "invalid part", "assumptions": ["schema checked"]},
             ]})
         self.assertFalse(checked["approved"])
-        self.assertEqual(checked["check_id"], "")
+        self.assertFalse(checked["completed"])
+        self.assertEqual(checked["stage"], "validation")
+        execute.assert_not_called()
         self.assertEqual(tools.sql_checks, {})
-        with self.assertRaisesRegex(ValueError, "unknown_or_consumed_check_id"):
-            tools.execute("query_game_database", {"check_id": "sql_check_1"})
+
+    def test_single_analysis_call_validates_executes_and_creates_dataset(self):
+        tools = ZCHAT.HOKChatTools()
+        query = "SELECT 1 AS value"
+        with patch.object(ZFUNC, "chat_check_database_query",
+                          return_value={"ok": True, "normalized_sql": query}) as check, \
+                patch.object(ZFUNC, "chat_query_database",
+                             return_value={"ok": True, "rows": [{"value": 1}],
+                                           "columns": ["value"]}) as execute:
+            result = tools.execute("analyze_game_database", {"queries": [
+                {"sql": query, "intent": "读取一个值", "assumptions": ["无业务时间范围"]},
+            ]})
+        check.assert_called_once_with(query, params=None)
+        execute.assert_called_once_with(query, limit=None)
+        self.assertTrue(result["approved"])
+        self.assertTrue(result["completed"])
+        self.assertEqual(result["observations"][0]["dataset_id"], "dataset_1")
+        self.assertEqual(tools.datasets["dataset_1"], [{"value": 1}])
+
+    def test_truncated_sql_result_requires_database_side_refinement(self):
+        tools = ZCHAT.HOKChatTools(original_query="统计每周总场次")
+        tools.execute("discover_tools", {"categories": ["game_data"]})
+        query = "SELECT 1 AS value"
+        with patch.object(ZFUNC, "chat_check_database_query",
+                          return_value={"ok": True, "normalized_sql": query}), \
+                patch.object(ZFUNC, "chat_query_database", side_effect=[
+                    {"ok": True, "rows": [{"value": 1}], "row_count": 1, "truncated": True},
+                    {"ok": True, "rows": [{"value": 1}], "row_count": 1, "truncated": False},
+                ]):
+            first = tools.execute("analyze_game_database", {"queries": [
+                {"sql": query, "intent": "统计每周总场次"},
+            ]})
+            self.assertEqual(first["stage"], "truncated")
+            self.assertFalse(first["completed"])
+            tools.record_tool_result("analyze_game_database", first)
+            self.assertEqual(tools.required_workflow_tool(["game_data"]), "analyze_game_database")
+            second = tools.execute("analyze_game_database", {"queries": [
+                {"sql": query, "intent": "按要求聚合"},
+            ]})
+        self.assertTrue(second["completed"])
+
+    def test_first_empty_sql_result_requires_one_identity_or_scope_check(self):
+        tools = ZCHAT.HOKChatTools(original_query="比较两人的英雄评分")
+        tools.execute("discover_tools", {"categories": ["game_data"]})
+        query = "SELECT 1 AS value"
+        with patch.object(ZFUNC, "chat_check_database_query",
+                          return_value={"ok": True, "normalized_sql": query}), \
+                patch.object(ZFUNC, "chat_query_database",
+                             return_value={"ok": True, "rows": [], "row_count": 0}):
+            first = tools.execute("analyze_game_database", {"queries": [
+                {"sql": query, "intent": "比较两人的英雄评分"},
+            ]})
+            second = tools.execute("analyze_game_database", {"queries": [
+                {"sql": query, "intent": "核对身份和时间后复查"},
+            ]})
+        self.assertEqual(first["stage"], "empty_result")
+        self.assertFalse(first["completed"])
+        self.assertTrue(second["completed"])
 
     def test_memory_is_bound_to_user_and_nomem_disables_it(self):
         tools = ZCHAT.HOKChatTools(user_id="100")
@@ -622,18 +765,13 @@ class HOKChatToolsTests(unittest.TestCase):
         def model(messages, **kwargs):
             snapshots.append([dict(item) for item in messages])
             if len(snapshots) == 1:
-                calls = [{"call_id": "check", "name": "check_game_database_query", "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value", "intent": "compare values"}]})},
+                calls = [{"call_id": "analysis", "name": "analyze_game_database", "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value", "intent": "compare values"}]})},
                          {"call_id": "web", "name": "web_search", "arguments": '{"query":"赛事新闻"}'}]
             elif len(snapshots) == 2:
                 outputs = [item for item in messages if item.get("type") == "function_call_output"]
-                self.assertEqual([item["call_id"] for item in outputs], ["check", "web"])
+                self.assertEqual([item["call_id"] for item in outputs], ["analysis", "web"])
                 self.assertTrue(json.loads(outputs[0]["output"])["ok"])
                 self.assertFalse(json.loads(outputs[1]["output"])["ok"])
-                calls = [{"call_id": "query", "name": "query_game_database", "arguments": '{"check_id":"sql_check_1"}'}]
-            elif len(snapshots) == 3:
-                output = next(item for item in reversed(messages)
-                              if item.get("type") == "function_call_output" and item["call_id"] == "query")
-                self.assertTrue(json.loads(output["output"])["ok"])
                 calls = [{"call_id": "plot", "name": "render_python_plot", "arguments": '{"dataset_id":"dataset_1"}'}]
             else:
                 return {"content": "已生成图表，联网暂不可用", "tool_calls": []}
@@ -647,7 +785,7 @@ class HOKChatToolsTests(unittest.TestCase):
             result = ZCHAT.chat_process(user_text="比较并画图", user_id="100", nickname="A", use_memory=False,
                                         model_caller=model, tool_registry=registry, return_artifacts=True)
         self.assertEqual(result["artifacts"][0]["path"], "/tmp/trusted.png")
-        self.assertEqual(len(snapshots), 4)
+        self.assertEqual(len(snapshots), 3)
         save.assert_called_once_with("100", "比较并画图", "已生成图表，联网暂不可用")
 
 
