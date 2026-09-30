@@ -358,8 +358,7 @@ def onebot_path_candidates() -> list[str]:
     candidates = [
         os.environ.get("ONEBOT_PATH"),
         os.environ.get("NAPCAT_PATH"),
-        "/root/Napcat",
-        "/root/NapCat",
+        str(RUNTIME.napcat_root),
     ]
     deduped = []
     for path in candidates:

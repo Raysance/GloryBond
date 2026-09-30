@@ -16,6 +16,7 @@ class RuntimePaths:
     stack_root: Path
     nbot_root: Path
     web_root: Path
+    napcat_root: Path
     env_file: Path
     config_file: Path
     static_variables_file: Path
@@ -29,13 +30,6 @@ def _absolute_path(value: str | os.PathLike[str], base: Path) -> Path:
     if not path.is_absolute():
         path = base / path
     return path.resolve()
-
-
-def _first_existing(candidates: list[Path], fallback: Path) -> Path:
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return fallback.resolve()
 
 
 def _first_named_child(parent: Path, names: list[str], fallback: Path) -> Path:
@@ -76,10 +70,7 @@ def resolve_runtime_paths(
         stack_root,
     )
 
-    default_env_file = _first_existing(
-        [stack_root / ".env", Path("/QQBot/.env")],
-        stack_root / ".env",
-    )
+    default_env_file = stack_root / ".env"
     env_file = _absolute_path(
         env.get("HOK_ENV_FILE") or default_env_file,
         stack_root,
@@ -90,6 +81,10 @@ def resolve_runtime_paths(
         stack_root=stack_root,
         nbot_root=nbot_root,
         web_root=web_root,
+        napcat_root=_absolute_path(
+            env.get("HOK_NAPCAT_ROOT") or stack_root / "napcat",
+            stack_root,
+        ),
         env_file=env_file,
         config_file=_absolute_path(
             env.get("HOK_CONFIG_FILE") or nbot_root / "config.yaml",

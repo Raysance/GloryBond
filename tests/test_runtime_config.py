@@ -13,6 +13,7 @@ class RuntimeConfigTests(unittest.TestCase):
                 "HOK_STACK_ROOT": str(root / "stack"),
                 "BOT_PATH": str(root / "code" / "nbot"),
                 "WEB_PATH": str(root / "code" / "web"),
+                "HOK_NAPCAT_ROOT": str(root / "runtime" / "napcat"),
                 "HOK_ENV_FILE": str(root / "etc" / "common.env"),
                 "HOK_CONFIG_FILE": str(root / "etc" / "config.yaml"),
                 "HOK_STATIC_VARIABLES_FILE": str(root / "etc" / "variables_static.json"),
@@ -25,6 +26,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
             self.assertEqual(runtime.nbot_root, (root / "code" / "nbot").resolve())
             self.assertEqual(runtime.web_root, (root / "code" / "web").resolve())
+            self.assertEqual(runtime.napcat_root, (root / "runtime" / "napcat").resolve())
             self.assertEqual(runtime.config_file, (root / "etc" / "config.yaml").resolve())
             self.assertEqual(runtime.data_dir, (root / "state" / "data").resolve())
             self.assertEqual(
@@ -43,6 +45,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
             self.assertEqual(runtime.nbot_root, (stack_root / "NBot").resolve())
             self.assertEqual(runtime.web_root, app_root.resolve())
+            self.assertEqual(runtime.napcat_root, (stack_root / "napcat").resolve())
 
 
 if __name__ == "__main__":
