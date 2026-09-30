@@ -8,6 +8,7 @@ from local_debugger import import_hok_module
 
 TOOLS = import_hok_module("chat_tools")
 ZFUNC = import_hok_module("zfunc")
+STATIC = import_hok_module("zstatic")
 
 
 CASES = [
@@ -158,6 +159,7 @@ class NaturalLanguageSQLWorkflowTests(unittest.TestCase):
     def test_diverse_questions_use_one_validated_execution_call_each(self):
         for question, sql in CASES:
             with self.subTest(question=question):
+                sql = sql.replace("DATE '2026-07-01'", f"DATE '{STATIC.this_season_start_date}'")
                 tools = TOOLS.HOKChatTools(original_query=question)
                 discovery = tools.execute("discover_tools", {"categories": ["game_data"]})
                 self.assertIn("game_data", discovery["authoritative_context"])

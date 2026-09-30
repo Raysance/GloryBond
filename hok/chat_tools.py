@@ -1,7 +1,9 @@
 """Model-facing tools with request-bound identity, datasets and image artifacts."""
 
+import re
+
 from . import zdynamic as dmc
-from .zstatic import confs
+from .zstatic import confs, this_season_start_date
 
 
 class ChatToolUnavailableError(ValueError):
@@ -53,6 +55,55 @@ def _validate(value, schema, path="arguments"):
             raise ValueError(f"{path}: number out of range")
 
 
+_ANALYSIS_MEASURES = re.compile(
+    r"最多|最少|最高|最低|第几|多少|几(?:个|场|次|人|条|局|天|周)|"
+    r"统计|排行|排名|平均|总数|总量|总场次|占比|比例|频率|趋势|分布|"
+    r"胜率|场次|样本量"
+)
+_ANALYSIS_REQUEST = re.compile(r"谁|哪|多少|几|查|算|统计|列|分析|比较|对比|排名|排行|[?？]")
+_DATA_FOLLOWUP = re.compile(r"查|算|统计|数据|数字|证据|来源|明细|详情|具体")
+_EXPLICIT_PERIOD = re.compile(
+    r"最近|过去|近\s*\d|上赛季|本周|上周|本月|上月|今年|去年|"
+    r"全部|全历史|所有记录|历史|累计|总共|从.+(?:到|至)|\d{4}[-年/]"
+)
+
+
+def needs_analysis_discovery(query, *, previous_query=""):
+    """Recognize a request for verifiable aggregates without naming entities.
+
+    The model chooses the data domain at discovery time. A short data-seeking
+    follow-up may inherit the preceding user question, never its model answer.
+    """
+    current = str(query or "").strip()
+    previous = str(previous_query or "").strip()
+    if _ANALYSIS_MEASURES.search(current) and _ANALYSIS_REQUEST.search(current):
+        return True
+    return bool(previous and len(current) <= 24 and _DATA_FOLLOWUP.search(current)
+                and _ANALYSIS_MEASURES.search(previous) and _ANALYSIS_REQUEST.search(previous))
+
+
+def resolved_analysis_question(query, *, previous_query=""):
+    """Use the preceding user request only for a short data-seeking follow-up."""
+    current = str(query or "").strip()
+    previous = str(previous_query or "").strip()
+    if (previous and len(current) <= 24 and _DATA_FOLLOWUP.search(current)
+            and _ANALYSIS_MEASURES.search(previous) and _ANALYSIS_REQUEST.search(previous)):
+        return previous
+    return current
+
+
+def _game_period_contract(sql, question):
+    """Enforce the documented default season for unspecified hero aggregates."""
+    if (_EXPLICIT_PERIOD.search(str(question or ""))
+            or "battle_records" not in sql.lower() or "hero_name" not in sql.lower()):
+        return ""
+    if str(this_season_start_date) in sql:
+        return ""
+    return (f"未指定时期的英雄历史统计默认本赛季，从{this_season_start_date}起。"
+            "请在使用battle_records.hero_name的统计SQL中按snapshot_date或等价时间条件限制本赛季；"
+            "不要把全历史结果作为默认口径。")
+
+
 class HOKChatTools:
     def __init__(self, *, group_id=None, current_message_id=None, original_query="", user_id=None,
                  use_memory=True):
@@ -62,6 +113,7 @@ class HOKChatTools:
                                        and self.user_id == str(confs["QQBot"]["super_qid"]))
         self.current_message_id = current_message_id
         self.original_query = str(original_query or "").strip()
+        self.analysis_query = self.original_query
         self.use_memory = bool(use_memory)
         self.datasets = {}
         self.artifacts = []
@@ -162,6 +214,35 @@ class HOKChatTools:
         """Make an explicitly requested category survive an imperfect model call."""
         merged = list(dict.fromkeys([*required_categories, *(arguments.get("categories") or [])]))[:3]
         return {**arguments, "categories": merged}
+
+    def normalize_model_arguments(self, name, arguments):
+        """Repair harmless tool-call shape drift before schema validation.
+
+        Only descriptive metadata is inferred; SQL text, scope and filters are
+        never invented. The underlying executor still applies its full schema
+        and SQL checks.
+        """
+        if name == "search_chat_history" and self._automatic_history_pending:
+            scoped = {"players", "qq_ids", "user_ids", "time_start", "time_end", "group_id"}
+            arguments = {key: value for key, value in arguments.items() if key not in scoped}
+            if self.cross_group_history:
+                arguments["all_groups"] = True
+            else:
+                arguments.pop("all_groups", None)
+        if name in {"analyze_game_database", "analyze_chat_history_database"}:
+            queries = arguments.get("queries")
+            if isinstance(queries, list):
+                normalized = []
+                for query in queries:
+                    if isinstance(query, str):
+                        query = {"sql": query}
+                    if isinstance(query, dict):
+                        query = dict(query)
+                        if query.get("sql") and not query.get("intent"):
+                            query["intent"] = self.original_query
+                    normalized.append(query)
+                arguments = {**arguments, "queries": normalized}
+        return arguments
 
     def record_tool_result(self, name, data):
         """Record successful observations used by the deterministic workflow guard."""
@@ -425,6 +506,10 @@ class HOKChatTools:
         validation = []
         for query in arguments["queries"]:
             checked = checker(query["sql"], params=query.get("params"))
+            if checked.get("ok") and category == "game_data":
+                period_error = _game_period_contract(checked["normalized_sql"], self.analysis_query)
+                if period_error:
+                    checked = {"ok": False, "error": period_error}
             item = {
                 "ok": bool(checked.get("ok")),
                 "stage": "validation",
@@ -500,7 +585,8 @@ class HOKChatTools:
             notice = ("SQL结果超过预览上限，当前数据不完整。下一轮应在数据库端按用户要求的粒度聚合、"
                       "收窄范围或分页；不得从截断行推断总体，也不得提前结束。")
         elif recheck_empty:
-            notice = ("首轮SQL结果为空；不能据此断言没有记录。请先核对身份映射、时间范围和JSON来源，"
+            notice = ("首轮SQL结果为空；不能据此断言没有记录。请保持用户要求的身份、时间和统计口径，"
+                      "核对原始样本量与筛选阈值（例如HAVING可能只表示无人达标），必要时检查JSON来源，"
                       "再提交一次诊断或修正查询；如复核后仍为空，再说明实际查询范围。")
         else:
             notice = "查询已在同一次工具调用中完成；直接根据observation回答，除非确有失败需要修正。"

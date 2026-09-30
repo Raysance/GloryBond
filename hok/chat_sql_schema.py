@@ -139,7 +139,7 @@ CHAT_HISTORY_SQL_GUIDANCE = {
 
 CHAT_SQL_SEMANTICS = [
     "SQL 方言 PostgreSQL。仅单条 SELECT 或非递归 WITH ... SELECT，可 JOIN/聚合/窗口/JSON。必须显式列名，COUNT(*) 可用。表加 hok. 前缀；不给文件路径、系统目录或导入清单访问权。",
-    "同名昵称不保证身份唯一。用 player_key、role_id 或 user_id 确定身份，QQ号不是营地 user_id。多玩家分析必须在同一条SQL中通过history_players或battle_records关联身份，禁止先查询ID再由模型手抄到ARRAY/IN/VALUES列表。",
+    "同名昵称不保证身份唯一。用 player_key、role_id 或 user_id 确定身份，QQ号不是营地 user_id。battle_records.player_key 已是已记录玩家的稳定键；统计全体玩家可直接按它分组，无须抄写身份清单。跨表时在同一条SQL中通过真实键关联，禁止手抄ID到ARRAY/IN/VALUES列表，尤其不能混用user_id与role_id。",
     "history_players 是每日快照。最新资料使用 DISTINCT ON (player_key) 并 ORDER BY player_key,snapshot_date DESC,player_index DESC；不能把每日 total_num 累加当作场次。visible/invisible 表示采集时可见性，缺数据不代表零。",
     "battle_records 同一对局可有多个玩家视角，也可能出现在多个快照。统计每名玩家先按(role_id或player_key, game_seq)去重并选最新快照；game_seq 为 NULL 时以原主键保留，不能把所有 NULL 合成一局。统计比赛总数用 COUNT(DISTINCT game_seq)，统计参赛人次则保留每人一行。",
     "battle_records 与 history_players 用(snapshot_date,player_index)连接；battle_records.game_seq 对 battle_details.game_seq；参赛者表、底蕴表都通过 game_seq 连接。按目标玩家追加 role_id 等值，防止每条战绩被10名参赛者或多张快照重复放大。",
@@ -189,6 +189,10 @@ CHAT_SQL_GUIDANCE = {
     "period_defaults": {
         "hero_statistics": "用户未指定时期时使用当前赛季。",
         "general_history": "组排、互动、共玩、总场次等未指定时期时使用全部可用记录，并返回MIN/MAX时间说明覆盖范围。",
+    },
+    "scope_defaults": {
+        "battle_mode": "未指定模式时，主统计仅含正式5v5排位、巅峰、战队，排除1v1/2v2/3v3；其他模式若作对照须分开标注。",
+        "answer_source": "最终排名必须取符合用户时间与模式要求的主查询；不能把用于诊断的更宽范围查询冒充主查询。",
     },
     "query_shape": (
         "优先把身份解析、去重、时间过滤和最终聚合写成一条CTE查询。"

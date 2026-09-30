@@ -112,7 +112,7 @@ class ChatLoopTests(unittest.TestCase):
                         "arguments": '{"categories":["game_data"]}'}
             elif len(calls) == 3:
                 self.assertEqual(tool_choice["function"]["name"], "analyze_game_database")
-                self.assertTrue({"analyze_game_database", "render_python_plot"}.issubset(names))
+                self.assertEqual(names, {"analyze_game_database"})
                 call = {"call_id": "analysis", "name": "analyze_game_database",
                         "arguments": json.dumps({"queries": [{"sql": "SELECT 1 AS value",
                                                                  "intent": "读取战局统计"}]})}
@@ -190,6 +190,67 @@ class ChatLoopTests(unittest.TestCase):
         self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
         self.assertEqual(len(calls), 4)
 
+    def test_implicit_analysis_and_data_followup_discover_then_query(self):
+        query = "SELECT 7 AS games"
+        for question, history in (
+            ("群里谁玩猪八戒最多", []),
+            ("查下具体数据呢", [{"time": "2026-09-30 22:11:54",
+                             "Q": "群里谁玩猪八戒最多", "A": "只看聊天记录查不了。"}]),
+        ):
+            with self.subTest(question=question):
+                choices = []
+                registry = ZCHAT.HOKChatTools(group_id="200", original_query=question,
+                                               user_id="100", use_memory=False)
+
+                def model(messages, tools=None, tool_choice="auto", **kwargs):
+                    choices.append(tool_choice)
+                    if len(choices) == 1:
+                        call = {"call_id": "history", "name": "search_chat_history",
+                                "arguments": '{"queries":["英雄场次","游戏玩家"]}'}
+                    elif len(choices) == 2:
+                        self.assertEqual(tool_choice["function"]["name"], "discover_tools")
+                        call = {"call_id": "discovery", "name": "discover_tools",
+                                "arguments": '{"categories":["game_data"]}'}
+                    elif len(choices) == 3:
+                        self.assertEqual(tool_choice["function"]["name"], "analyze_game_database")
+                        call = {"call_id": "analysis", "name": "analyze_game_database",
+                                "arguments": json.dumps({"queries": [{"sql": query,
+                                                                     "intent": "统计英雄使用场次"}]})}
+                    else:
+                        return {"content": "查到 7 场。", "tool_calls": [], "output_items": []}
+                    return {"tool_calls": [call],
+                            "output_items": [{"type": "function_call", **call}]}
+
+                with patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=history), \
+                        patch.object(ZFUNC, "search_group_chat_history", return_value=[]), \
+                        patch.object(ZFUNC, "chat_database_schema", return_value={"ok": True, "tables": {}}), \
+                        patch.object(ZFUNC, "chat_check_database_query",
+                                     return_value={"ok": True, "normalized_sql": query}), \
+                        patch.object(ZFUNC, "chat_query_database",
+                                     return_value={"ok": True, "rows": [{"games": 7}],
+                                                   "columns": ["games"]}):
+                    result = ZCHAT.chat_process(user_text=question, user_id="100", nickname="A",
+                                                group_id="200", use_memory=False, model_caller=model,
+                                                tool_registry=registry, return_artifacts=True)
+                self.assertEqual(result["text"], "查到 7 场。")
+                self.assertEqual(len(choices), 4)
+                self.assertEqual(result["trace"]["context"]["explicit_discovery_categories"], [])
+                self.assertEqual(result["trace"]["context"]["forced_discovery_categories"], ["game_data"])
+                self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
+
+    def test_generic_smalltalk_does_not_force_analytical_discovery(self):
+        self.assertFalse(ZCHAT.needs_analysis_discovery("你是谁"))
+        self.assertFalse(ZCHAT.needs_analysis_discovery("谢谢，先不用了", previous_query="谁玩英雄最多"))
+        self.assertFalse(ZCHAT.needs_analysis_discovery("查下具体数据呢"))
+        self.assertTrue(ZCHAT.needs_analysis_discovery("查下具体数据呢", previous_query="谁玩英雄最多"))
+
+    def test_model_identity_context_uses_player_key_not_copied_game_ids(self):
+        context = ZCHAT._known_users_context_message()["content"]
+        self.assertIn('"player":', context)
+        self.assertIn('"namenick":', context)
+        self.assertNotIn('"game_user_id":', context)
+        self.assertNotIn('"game_role_id":', context)
+
     def test_capability_denial_gets_one_forced_discovery_retry(self):
         calls = []
         registry = ZCHAT.HOKChatTools(group_id="200", original_query="群友哪一对组排最多",
@@ -227,7 +288,7 @@ class ChatLoopTests(unittest.TestCase):
                                         group_id="200", use_memory=False, model_caller=model,
                                         tool_registry=registry, return_artifacts=True)
         self.assertEqual(result["text"], "已改用游戏数据库查询。")
-        self.assertTrue(result["trace"]["rounds"][1]["premature_tool_denial"])
+        self.assertEqual(result["trace"]["rounds"][1]["required_tool_missing"], "discover_tools")
         self.assertTrue(result["trace"]["context"]["forced_discovery_completed"])
         self.assertTrue(result["trace"]["context"]["forced_tool_workflow_completed"])
         self.assertEqual(len(calls), 5)
@@ -429,6 +490,46 @@ class ChatLoopTests(unittest.TestCase):
 
 
 class HOKChatToolsTests(unittest.TestCase):
+    def test_model_argument_normalization_preserves_trusted_history_scope(self):
+        tools = ZCHAT.HOKChatTools(group_id="200", original_query="谁发言最多")
+        tools.require_automatic_history_search()
+        result = tools.normalize_model_arguments("search_chat_history", {
+            "queries": ["发言 排行", "消息 次数"], "players": ["A"],
+            "time_start": "2026-09-01", "group_id": "other", "limit": 10,
+        })
+        self.assertEqual(result, {"queries": ["发言 排行", "消息 次数"], "limit": 10})
+        with patch.object(ZFUNC, "search_group_chat_history", return_value=[]) as search:
+            tools.execute("search_chat_history", result)
+        self.assertEqual(search.call_args.args[0], "200")
+        self.assertEqual(search.call_args.kwargs["user_ids"], [])
+
+    def test_analysis_argument_normalization_only_fills_descriptive_intent(self):
+        tools = ZCHAT.HOKChatTools(original_query="谁的对局最多")
+        result = tools.normalize_model_arguments("analyze_game_database", {
+            "queries": ["SELECT 1 AS games", {"sql": "SELECT 2 AS games", "intent": "另一组"}],
+        })
+        self.assertEqual(result["queries"], [
+            {"sql": "SELECT 1 AS games", "intent": "谁的对局最多"},
+            {"sql": "SELECT 2 AS games", "intent": "另一组"},
+        ])
+
+    def test_unspecified_hero_period_must_follow_documented_season_default(self):
+        tools = ZCHAT.HOKChatTools(original_query="谁玩某个英雄最多")
+        sql = "SELECT hero_name, COUNT(*) FROM hok.battle_records GROUP BY hero_name"
+        with patch.object(ZFUNC, "chat_check_database_query",
+                          return_value={"ok": True, "normalized_sql": sql}), \
+                patch.object(ZFUNC, "chat_query_database") as execute:
+            result = tools.execute("analyze_game_database", {"queries": [
+                {"sql": sql, "intent": "英雄使用次数"},
+            ]})
+        self.assertEqual(result["stage"], "validation")
+        self.assertIn("默认本赛季", result["observations"][0]["error"])
+        execute.assert_not_called()
+        self.assertEqual(
+            ZCHAT.resolved_analysis_question("查下具体数据呢", previous_query="谁玩某个英雄最多"),
+            "谁玩某个英雄最多",
+        )
+
     def test_group_scope_cannot_be_set_by_model_arguments(self):
         for group_id in (None, "200"):
             with self.subTest(group_id=group_id), patch.object(ZFUNC, "search_group_chat_history") as search:

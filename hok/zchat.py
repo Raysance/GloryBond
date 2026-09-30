@@ -12,7 +12,8 @@ from .business.chat_trace import error_record, failed_request_payloads, public_v
 from .tools.chat_text import format_chat_reply, normalize_qq_text
 
 
-from .chat_tools import ChatToolUnavailableError, HOKChatTools
+from .chat_tools import (ChatToolUnavailableError, HOKChatTools,
+                         needs_analysis_discovery, resolved_analysis_question)
 
 
 _URL_IN_TEXT = re.compile(r"(?:https?://|ftp://|data:[^\s,]+,)[^\s\]\[<>\"'，。；：！？]+", re.IGNORECASE)
@@ -122,17 +123,23 @@ def _new_tool_context_messages(tool_names):
         messages.append({"role": "system", "content": (
             "历史玩家、英雄、战局、共玩、底蕴、排行和比较使用只读数据库。discover_tools的observation已给出权威目录；"
             "其中tables.columns是完整列白名单，禁止查询系统目录或猜字段。直接调用analyze_game_database提交SQL，"
-            "该工具会在一次调用内校验整批查询并仅在全部通过后执行。多玩家分析必须在同一条SQL中"
-            "关联player_key/role_id，禁止先查ID再手工复制到IN、ARRAY或VALUES。battle_details没有game_time_epoch，时间过滤按schema中的"
+            "该工具会在一次调用内校验整批查询并仅在全部通过后执行。统计全部已记录玩家时，"
+            "直接按battle_records.player_key分组，不要把身份表抄成IN、ARRAY或VALUES；"
+            "跨表时才通过player_key/role_id正确关联。battle_details没有game_time_epoch，时间过滤按schema中的"
             "guidance和column_usage执行；任何层级的SELECT *均不允许，CTE也须逐列列明。"
             "先按用户要求确定结果粒度，别额外按玩家或英雄分组导致行数截断；"
             "配置昵称和别名按身份表解析为player_key，不能拿字面昵称过滤history_players.nickname。"
+            "主统计SQL必须遵守目录里的默认时间与正式对局口径；若另查更宽范围作诊断，"
+            "最终回答仍只用主统计口径，替代口径必须显式标注，不得混在同一排行榜。"
             "涉及JSON名称分类时先查实际值和频数，再做正式汇总，不凭猜测的固定名称列表下结论。"
             "空结果不等于事实不存在。校验或执行失败时只根据失败observation修正后重提analyze工具，"
+            "带HAVING阈值的空结果只表示无人达到阈值；复核时保持用户原定时间范围，另查该范围内原始样本量，"
+            "不得把其他时期的结果冒充本次范围或把范围内有记录说成完全没有记录。"
             "不要退回旧schema/check/check_id链。"
             "当前官方英雄战力与地区荣耀战力使用各自工具。"
             f"只有用户明确要求本赛季，或英雄统计未给时期时，才使用本赛季起始日期{this_season_start_date}；"
-            "组排、互动、共玩、总场次等一般历史问题未指定时期时覆盖全部可用记录并返回时间范围。")})
+            "组排、互动、共玩、总场次等一般历史问题未指定时期时覆盖全部可用记录并返回时间范围。"
+            "用户未另指模式时，以正式5v5为主统计口径；不要把所有模式的总数充当正式对局结论。")})
     if "render_python_plot" in names:
         messages.append({"role": "system", "content": (
             "绘图前用list_plot_templates核对模板或受限Python语法，再将本轮dataset_id交给render_python_plot。"
@@ -152,12 +159,11 @@ def _known_users_context_message():
     for player_name in dict.fromkeys([*namenick, *qid, *userlist, *roleidlist]):
         aliases = nameref.get(player_name, []) if isinstance(nameref, dict) else []
         known_users.append({"player": player_name, "namenick": namenick.get(player_name) or "该玩家",
-                            "qq_id": str(qid.get(player_name, "")), "aliases": aliases,
-                            "game_user_id": str(userlist.get(player_name, "")),
-                            "game_role_id": str(roleidlist.get(player_name, ""))})
+                            "qq_id": str(qid.get(player_name, "")), "aliases": aliases})
     return {"role": "system", "content": (
         "已知玩家与身份：namenick是最终显示名；player与aliases只用于识别。"
-        "qq_id用于群聊，game_user_id/game_role_id用于游戏数据，不能混用。"
+        "qq_id仅用于群聊；游戏SQL用player作为player_key过滤/分组，需其他游戏ID时只通过数据库列关联，"
+        "不要把qq_id当成营地user_id或role_id。"
         + json.dumps(known_users, ensure_ascii=False))}
 
 
@@ -333,7 +339,9 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         turn = {"index": len(trace["rounds"]) + 1, "phase": "recovery" if recovery else "final" if final else "loop",
                 "start_ms": elapsed(), "status": "running", "tools": []}
         trace["rounds"].append(turn)
-        schemas = [] if final else current_schemas()
+        available_schemas = [] if final else current_schemas()
+        schemas = ([schema for schema in available_schemas if schema.get("name") == required_tool]
+                   if required_tool else available_schemas)
         message_snapshot = json.loads(json.dumps(input_items, ensure_ascii=False, default=str))
         schema_snapshot = json.loads(json.dumps(schemas, ensure_ascii=False, default=str))
         tool_choice = "none" if final else ({"type": "function", "function": {"name": required_tool}}
@@ -450,13 +458,6 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             and tools.require_automatic_history_search()
         )
         automatic_history_complete = not automatic_history_required
-        explicit_discovery_categories = (
-            list(tools.required_discovery_categories())
-            if hasattr(tools, "required_discovery_categories") else []
-        )
-        forced_discovery_categories = list(explicit_discovery_categories)
-        forced_discovery_pending = bool(forced_discovery_categories)
-        discovery_guard_used = bool(forced_discovery_categories)
         trace["context"].update(
             automatic_history_mode="required_search_chat_history" if automatic_history_required else "unavailable",
             automatic_history_scope=("all_saved_groups_all_users" if getattr(tools, "cross_group_history", False)
@@ -465,10 +466,6 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
             automatic_history_query_strategy=("original_plus_model_generated_2_to_6"
                                               if automatic_history_required else "none"),
             automatic_history_completed=automatic_history_complete,
-            explicit_discovery_categories=explicit_discovery_categories,
-            forced_discovery_categories=list(forced_discovery_categories),
-            forced_discovery_completed=not forced_discovery_pending,
-            forced_tool_workflow_completed=not forced_discovery_categories,
         )
         stage = "memory_load"
         retention_limit = max(0, int(getattr(dmc, "ChatActiveDialogueRetention", 10)))
@@ -482,6 +479,26 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                 recent_dialogue_latest_at=active_dialogue[-1]["time"] if active_dialogue else "",
                                 stored_dialogue_turns=len(stored_dialogue),
                                 dialogue_retrieval="recent_plus_bm25")
+        explicit_discovery_categories = (
+            list(tools.required_discovery_categories())
+            if hasattr(tools, "required_discovery_categories") else []
+        )
+        previous_question = stored_dialogue[-1]["Q"] if stored_dialogue else ""
+        analysis_discovery_required = needs_analysis_discovery(
+            user_text, previous_query=previous_question)
+        if hasattr(tools, "analysis_query"):
+            tools.analysis_query = resolved_analysis_question(
+                user_text, previous_query=previous_question)
+        forced_discovery_categories = list(explicit_discovery_categories)
+        forced_discovery_pending = bool(forced_discovery_categories or analysis_discovery_required)
+        discovery_guard_used = forced_discovery_pending
+        trace["context"].update(
+            explicit_discovery_categories=explicit_discovery_categories,
+            analysis_discovery_required=analysis_discovery_required,
+            forced_discovery_categories=list(forced_discovery_categories),
+            forced_discovery_completed=not forced_discovery_pending,
+            forced_tool_workflow_completed=not forced_discovery_pending,
+        )
         stage = "role_load"
         try:
             custom_role = zfunc.chat_roleplay_get(str(user_id))
@@ -495,6 +512,14 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                          nickname=str(nickname), active_dialogue=active_dialogue,
                                          quoted_message=quoted_message, tool_names=tuple(schema_by_name),
                                          custom_role=custom_role)
+        if analysis_discovery_required and not explicit_discovery_categories:
+            input_items.append({"role": "system", "content": (
+                "本轮请求需要可核验的数据。强制群聊原文检索结束后，先调用discover_tools选择一个真正能完成"
+                "统计的数据类别：游戏玩家、英雄和战局用game_data；发言、消息数量用chat_data；"
+                "时效性外部资料用internet。短追问可承接最近一条用户问题，但之前的模型回答"
+                "不是工具权限或数据可用性的证据。补查具体数据时保持上一问的对象、时间和统计口径，"
+                "除非用户明确更改；不能只根据群聊搜索命中推断总量。"
+            )})
         for _round in range(max_rounds):
             schema_by_name = {schema["name"]: schema for schema in current_schemas()}
             disclosed_before = set(schema_by_name)
@@ -516,6 +541,8 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                 if trace.get("recovery", {}).get("reason") == "chat_empty_response":
                     return finish("", "chat_empty_response_after_recovery")
                 raise
+            offered_names = {schema.get("name") for schema in
+                             turn["context_injection"]["tool_definitions"]}
             tool_calls = response.get("tool_calls") or []
             if not tool_calls:
                 if not automatic_history_complete:
@@ -525,6 +552,15 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                                         "尚未完成强制历史检索。现在必须调用search_chat_history："
                                         "生成2到6组不同且互补的简短query；管理员私聊还必须传all_groups=true。"
                                         "完成检索前不要输出最终答案。"})
+                    continue
+                pending_tool = "discover_tools" if forced_discovery_pending else required_workflow_tool
+                if pending_tool:
+                    turn["required_tool_missing"] = pending_tool
+                    input_items.extend(response.get("output_items") or [])
+                    input_items.append({"role": "system", "content": (
+                        f"本轮尚未完成必需的{pending_tool}调用。刚才的正文不是查询结果；"
+                        "请先调用该工具，收到observation后再作答。"
+                    )})
                     continue
                 if (not discovery_guard_used and hasattr(tools, "model_schemas")
                         and "discover_tools" in schema_by_name
@@ -573,6 +609,8 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                         arguments = json.loads(arguments)
                         if not isinstance(arguments, dict):
                             raise ValueError("tool arguments must be an object")
+                        if hasattr(tools, "normalize_model_arguments"):
+                            arguments = tools.normalize_model_arguments(name, arguments)
                         if (name == "discover_tools" and forced_discovery_pending
                                 and forced_discovery_categories
                                 and hasattr(tools, "merge_required_discovery_categories")):
@@ -583,10 +621,10 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
                             trace["context"]["forced_discovery_categories"] = list(
                                 forced_discovery_categories)
                             trace["context"]["forced_tool_workflow_completed"] = False
-                        if hasattr(tools, "model_schemas") and name not in schema_by_name:
+                        if hasattr(tools, "model_schemas") and name not in offered_names:
                             raise ChatToolUnavailableError(
                                 "tool_not_disclosed",
-                                "该工具尚未通过 discover_tools 向本轮披露；请先披露对应能力类别，并在下一轮按 schema 调用。",
+                                "该工具未在本轮模型请求中提供；请先完成当前必需工具，再按下一轮schema调用。",
                             )
                         result = {"ok": True, "data": tools.execute(name, arguments)}
                     except Exception as error:
