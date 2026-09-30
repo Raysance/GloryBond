@@ -1,4 +1,6 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from local_debugger import import_hok_module
 
@@ -25,6 +27,66 @@ class ChatRuntimeDiagnosticTests(unittest.TestCase):
             "proxy_url": "http://proxy.test",
         })
         self.assertEqual(bad["status"], "failed")
+
+    def test_configuration_detects_running_process_credential_mismatch(self):
+        config = {
+            "base_url": "https://api.deepseek.com",
+            "api_key": "current-secret",
+            "model": "deepseek-flash",
+            "proxy_url": "",
+        }
+        with patch.dict("os.environ", {"HOK_DIAGNOSTIC_EXPECTED_KEY_SHA256": "wrong"}):
+            result = DIAGNOSTIC.configuration_check(config)
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(result["credential_comparison_available"])
+        self.assertFalse(result["credential_matches_running_process"])
+        self.assertNotIn("current-secret", str(result))
+
+    def test_storage_database_history_and_search_checks_return_only_summaries(self):
+        class FakeRedis:
+            connection_pool = SimpleNamespace(connection_kwargs={"db": 0})
+
+            @staticmethod
+            def ping():
+                return True
+
+        fake_zfunc = SimpleNamespace(
+            chat_active_dialogue_load=lambda *args, **kwargs: [],
+            chat_memory_list=lambda *args, **kwargs: {"memories": [], "total": 0},
+            chat_roleplay_get=lambda *args, **kwargs: None,
+        )
+        redis_result = DIAGNOSTIC.redis_storage_check(FakeRedis(), fake_zfunc)
+        self.assertEqual(redis_result["status"], "ok")
+
+        database_result = DIAGNOSTIC.game_database_check(
+            lambda: {"ok": True, "tables": {str(index): {} for index in range(10)}},
+            lambda sql: {"ok": True, "normalized_sql": sql},
+            lambda sql, limit: {
+                "ok": True, "row_count": 1, "rows": [{"private": "not returned"}],
+                "truncated": False,
+            },
+        )
+        self.assertEqual(database_result["status"], "ok")
+        self.assertNotIn("private", str(database_result))
+
+        history_result = DIAGNOSTIC.group_history_check(
+            lambda: [{"group_id": "123", "message_count": 20}],
+            lambda: [{"group_id": "123", "message_count": 20}],
+            lambda *args, **kwargs: [{"text": "private chat message"}],
+        )
+        self.assertEqual(history_result["status"], "ok")
+        self.assertEqual(history_result["archived_message_count"], 20)
+        self.assertNotIn("private chat message", str(history_result))
+
+        search_result = DIAGNOSTIC.web_search_check(lambda *args, **kwargs: {
+            "answer": "private web answer",
+            "sources": [{"url": "https://example.test"}],
+            "provider": "openrouter",
+            "model": "search-model",
+            "search_requests": 1,
+        })
+        self.assertEqual(search_result["status"], "ok")
+        self.assertNotIn("private web answer", str(search_result))
 
     def test_run_diagnostics_exercises_text_and_tool_continuation(self):
         requests = []

@@ -7,8 +7,12 @@ an authenticated Web administrator action or directly from the command line.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import platform
 import re
+import shutil
 import time
 from typing import Callable
 from urllib.parse import urlparse
@@ -64,7 +68,15 @@ def configuration_check(config: dict) -> dict:
     proxy_disabled = not bool(str(config.get("proxy_url") or "").strip())
     expected_provider = hostname == "api.deepseek.com"
     expected_model = model == "deepseek-flash"
+    expected_credential = str(os.environ.get("HOK_DIAGNOSTIC_EXPECTED_KEY_SHA256") or "").strip()
+    actual_credential = hashlib.sha256(str(config.get("api_key") or "").encode()).hexdigest()
+    credential_comparison_available = bool(expected_credential)
+    credential_matches_running_process = (
+        actual_credential == expected_credential if credential_comparison_available else None
+    )
     passed = all((expected_provider, expected_model, key_configured, proxy_disabled))
+    if credential_comparison_available:
+        passed = passed and credential_matches_running_process
     return _check(
         "configuration",
         started,
@@ -75,7 +87,191 @@ def configuration_check(config: dict) -> dict:
         direct_connection=proxy_disabled,
         expected_provider=expected_provider,
         expected_model=expected_model,
+        credential_comparison_available=credential_comparison_available,
+        credential_matches_running_process=credential_matches_running_process,
     )
+
+
+def dependency_configuration_check(
+    openrouter_config: dict,
+    clash_proxy_url: str,
+    readonly_dsn: str,
+    redis_db,
+) -> dict:
+    """Check configuration presence without returning endpoints or credentials."""
+    started = time.perf_counter()
+    search_configured = all(str(openrouter_config.get(key) or "").strip()
+                            for key in ("base_url", "api_key", "model", "engine"))
+    clash_configured = bool(str(clash_proxy_url or "").strip())
+    readonly_sql_configured = bool(str(readonly_dsn or "").strip())
+    redis_db_zero = str(redis_db) == "0"
+    passed = all((search_configured, clash_configured, readonly_sql_configured, redis_db_zero))
+    return _check(
+        "dependency_configuration",
+        started,
+        status="ok" if passed else "failed",
+        openrouter_search_configured=search_configured,
+        clash_proxy_configured=clash_configured,
+        readonly_sql_configured=readonly_sql_configured,
+        redis_db_zero=redis_db_zero,
+    )
+
+
+def tool_runtime_check(tool_factory: Callable, plot_templates: Callable) -> dict:
+    """Validate progressive disclosure, tool schemas and plot prerequisites."""
+    started = time.perf_counter()
+    try:
+        registry = tool_factory()
+        initial_names = {item["name"] for item in registry.initial_schemas()}
+        history_ready = registry.require_automatic_history_search()
+        registry.execute("discover_tools", {
+            "categories": ["game_data", "plots", "internet"],
+            "reason": "manual health diagnostic",
+        })
+        registry.execute("discover_tools", {
+            "categories": ["memory", "roleplay"],
+            "reason": "manual health diagnostic",
+        })
+        disclosed_names = {item["name"] for item in registry.model_schemas()}
+        required = {
+            "discover_tools", "search_chat_history", "get_game_database_schema",
+            "check_game_database_query", "query_game_database", "list_plot_templates",
+            "render_python_plot", "web_search", "recall_memory", "remember_memory",
+            "forget_memory", "manage_roleplay",
+        }
+        templates = plot_templates()
+        template_count = len(templates.get("templates") or [])
+        bubblewrap_required = platform.system() == "Linux"
+        bubblewrap_available = bool(shutil.which("bwrap"))
+        passed = (
+            initial_names == {"discover_tools"}
+            and history_ready
+            and required <= disclosed_names
+            and template_count >= 5
+            and (bubblewrap_available or not bubblewrap_required)
+        )
+        return _check(
+            "tool_runtime",
+            started,
+            status="ok" if passed else "failed",
+            initial_tools=sorted(initial_names),
+            progressive_disclosure_ready=required <= disclosed_names,
+            mandatory_history_search_ready=history_ready,
+            disclosed_tool_count=len(disclosed_names),
+            plot_template_count=template_count,
+            bubblewrap_required=bubblewrap_required,
+            bubblewrap_available=bubblewrap_available,
+        )
+    except Exception as error:
+        return _check("tool_runtime", started, status="failed", error=_safe_error(error))
+
+
+def redis_storage_check(redis_client, zfunc) -> dict:
+    """Exercise the read-only paths used by direct dialogue, facts and roles."""
+    started = time.perf_counter()
+    try:
+        ping = bool(redis_client.ping())
+        connection_db = redis_client.connection_pool.connection_kwargs.get("db")
+        dialogue = zfunc.chat_active_dialogue_load("__health_probe__", limit=1)
+        memories = zfunc.chat_memory_list("__health_probe__", limit=1)
+        role = zfunc.chat_roleplay_get("__health_probe__")
+        passed = ping and str(connection_db) == "0"
+        return _check(
+            "redis_chat_storage",
+            started,
+            status="ok" if passed else "failed",
+            ping=ping,
+            redis_db_zero=str(connection_db) == "0",
+            active_dialogue_readable=isinstance(dialogue, list),
+            fact_memory_readable=isinstance(memories, dict),
+            roleplay_readable=role is None or isinstance(role, dict),
+        )
+    except Exception as error:
+        return _check("redis_chat_storage", started, status="failed", error=_safe_error(error))
+
+
+def game_database_check(schema_loader: Callable, query_checker: Callable, query_executor: Callable) -> dict:
+    """Use the exact schema/check/least-privileged execution chain exposed to the model."""
+    started = time.perf_counter()
+    try:
+        schema = schema_loader()
+        sql = (
+            "SELECT player_key, snapshot_date, player_index "
+            "FROM hok.history_players ORDER BY snapshot_date DESC, player_index DESC LIMIT 1"
+        )
+        checked = query_checker(sql)
+        result = query_executor(sql, limit=1) if checked.get("ok") else {"ok": False}
+        table_count = len(schema.get("tables") or {})
+        passed = bool(schema.get("ok")) and table_count >= 10 and bool(checked.get("ok")) and bool(result.get("ok"))
+        return _check(
+            "game_database_readonly",
+            started,
+            status="ok" if passed else "failed",
+            schema_table_count=table_count,
+            sql_ast_check=bool(checked.get("ok")),
+            readonly_query=bool(result.get("ok")),
+            returned_rows=int(result.get("row_count") or 0),
+            truncated=bool(result.get("truncated")),
+            error=None if result.get("ok") else str(result.get("error") or "query_failed")[:500],
+        )
+    except Exception as error:
+        return _check("game_database_readonly", started, status="failed", error=_safe_error(error))
+
+
+def group_history_check(primary_group_lister: Callable, merged_group_lister: Callable,
+                        history_search: Callable) -> dict:
+    """Verify PostgreSQL archive discovery and the real BM25/RRF retrieval path."""
+    started = time.perf_counter()
+    try:
+        primary_groups = list(primary_group_lister() or [])
+        merged_groups = list(merged_group_lister() or [])
+        archived_messages = sum(int(item.get("message_count") or 0) for item in primary_groups)
+        search_executed = False
+        hit_count = 0
+        candidates = [item for item in merged_groups if int(item.get("message_count") or 0) > 0]
+        if candidates:
+            selected = min(candidates, key=lambda item: int(item.get("message_count") or 0))
+            hits = history_search(
+                selected["group_id"],
+                ["王者 游戏", "一起 对局"],
+                limit=1,
+            )
+            search_executed = True
+            hit_count = len(hits or [])
+        return _check(
+            "group_history_retrieval",
+            started,
+            status="ok",
+            postgres_group_count=len(primary_groups),
+            merged_group_count=len(merged_groups),
+            archived_message_count=archived_messages,
+            bm25_rrf_search_executed=search_executed,
+            hit_count=hit_count,
+        )
+    except Exception as error:
+        return _check("group_history_retrieval", started, status="failed", error=_safe_error(error))
+
+
+def web_search_check(web_search: Callable, api_key: str = "") -> dict:
+    """Make one real OpenRouter server-tool request through the configured Clash proxy."""
+    started = time.perf_counter()
+    try:
+        result = web_search("OpenAI 官方网站 ChatGPT 产品页面", max_results=1)
+        sources = list(result.get("sources") or [])
+        search_requests = int(result.get("search_requests") or 0)
+        passed = bool(str(result.get("answer") or "").strip()) and (search_requests > 0 or bool(sources))
+        return _check(
+            "openrouter_web_search",
+            started,
+            status="ok" if passed else "failed",
+            provider=str(result.get("provider") or ""),
+            model=str(result.get("model") or ""),
+            search_requests=search_requests,
+            source_count=len(sources),
+            answer_received=bool(str(result.get("answer") or "").strip()),
+        )
+    except Exception as error:
+        return _check("openrouter_web_search", started, status="failed", error=_safe_error(error, api_key))
 
 
 def text_completion_check(ai_create: Callable, api_key: str = "") -> dict:
@@ -170,10 +366,10 @@ def tool_continuation_check(ai_create: Callable, api_key: str = "") -> dict:
         )
 
 
-def run_diagnostics(config: dict, ai_create: Callable) -> dict:
+def run_diagnostics(config: dict, ai_create: Callable, *, additional_checks=()) -> dict:
     """Run all manual chat checks and return a JSON-serializable report."""
     started = time.perf_counter()
-    checks = [configuration_check(config)]
+    checks = [configuration_check(config), *[check() for check in additional_checks]]
     if checks[0]["status"] == "ok":
         api_key = str(config.get("api_key") or "")
         checks.append(text_completion_check(ai_create, api_key))
@@ -205,7 +401,47 @@ def main() -> int:
 
     zapi = import_hok_module("zapi")
     zstatic = import_hok_module("zstatic")
-    report = run_diagnostics(zstatic.chat_api_config, zapi.ai_response_create)
+    zfunc = import_hok_module("zfunc")
+    zdb = import_hok_module("zdb")
+    zdynamic = import_hok_module("zdynamic")
+    chat_tools = import_hok_module("chat_tools")
+    report = run_diagnostics(
+        zstatic.chat_api_config,
+        zapi.ai_response_create,
+        additional_checks=(
+            lambda: dependency_configuration_check(
+                zstatic.openrouter_search_config,
+                zstatic.clash_proxy_url,
+                zstatic.chat_readonly_dsn,
+                zstatic.REDIS_DB,
+            ),
+            lambda: tool_runtime_check(
+                lambda: chat_tools.HOKChatTools(
+                    group_id="1",
+                    current_message_id="health-probe",
+                    original_query="检查数据库、可视化、联网、记忆、群聊历史和角色扮演",
+                    user_id="__health_probe__",
+                    use_memory=True,
+                ),
+                zfunc.chat_plot_templates,
+            ),
+            lambda: redis_storage_check(zdynamic.redis_deamon, zfunc),
+            lambda: game_database_check(
+                zfunc.chat_database_schema,
+                zfunc.chat_check_database_query,
+                zfunc.chat_query_database,
+            ),
+            lambda: group_history_check(
+                zdb.list_group_chat_history_groups,
+                zfunc.list_chat_history_groups,
+                zfunc.search_group_chat_history,
+            ),
+            lambda: web_search_check(
+                zapi.openrouter_web_search,
+                zstatic.openrouter_search_config.get("api_key", ""),
+            ),
+        ),
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2 if args.pretty else None))
     return 0 if report["status"] == "ok" else 1
 

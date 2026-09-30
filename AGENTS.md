@@ -62,7 +62,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `hok/tools/chat_plot.py`：五种图表模板、JSON 数据和受限 Python 校验，经 `zfile.py` 调用绘图 worker。
 - `hok/plot_runtime/worker.py`：独立绘图运行时，逐节点解释 Python AST，不执行任意代码；只允许 numpy/pandas/matplotlib/seaborn 的明确操作。该边界例外允许 stdin/stdout、进程资源限制和沙箱内临时字体缓存；不得导入应用配置或处理正式文件路径。Linux 必须使用 bubblewrap 隔离文件系统与网络，缺失时拒绝执行。
 - `hok/tools/chat_text.py`：使用 `markdown-it-py` 将模型 Markdown 解析为 QQ 纯文本，去除标题、强调、引用、代码围栏和链接语法，表格转为字段值行，保留代码和数学中的字面符号；`format_chat_reply()` 接收配置昵称及身份映射，只处理最终纯文本中的内部玩家键与身份字段，普通词语、统计数值和公开链接保持原样。
-- `hok/tools/chat_runtime_diagnostic.py`：管理员手动触发的只读 chat 运行诊断；验证 DeepSeek 直连配置、普通文本请求以及“强制工具调用 → observation → 自动续传”协议，输出仅含脱敏摘要。该工具不得接入应用启动、systemd 重启或 GitHub Actions 自动部署检查，避免增加发布耗时和模型调用费用。
+- `hok/tools/chat_runtime_diagnostic.py`：管理员手动触发的只读 chat 运行诊断；验证 DeepSeek 直连及运行进程凭据一致性、DB0 对话/记忆/角色读取、PostgreSQL 群聊归档和模型只读 SQL、BM25/RRF 检索、工具渐进披露、绘图隔离依赖、普通文本及工具续传协议，以及 OpenRouter 经 Clash 的真实联网搜索，输出仅含脱敏摘要。该工具不得接入应用启动、systemd 重启或 GitHub Actions 自动部署检查，避免增加发布耗时和模型调用费用。
 - `hok/tools/endecoder.py`：王者营地接口加解密与请求参数生成工具。
 - `hok/tools/emoji_renderer.py`：emoji 文本拆分与图片文字渲染辅助。
 - `hok/tools/gen_battle_res.py`：单局战绩详情长图生成器。
