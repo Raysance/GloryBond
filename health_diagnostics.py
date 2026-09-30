@@ -138,7 +138,7 @@ def inspect_nbot_runtime(nbot_root: str | Path) -> tuple[dict, str, dict]:
         )
         runtime_environment = {
             key: value for key, value in environ.items()
-            if key.startswith("HOK_") or key in {"BOT_PATH", "WEB_PATH", "REDIS_CONF"}
+            if key.startswith("HOK_") or key in {"BOT_PATH", "WEB_PATH"}
         }
         return ({
             "name": "deployed_nbot_runtime",

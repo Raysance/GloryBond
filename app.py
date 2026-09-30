@@ -16,7 +16,7 @@ import time
 import subprocess
 import shutil
 from urllib.parse import urlencode
-from runtime_config import RUNTIME
+from runtime_config import RUNTIME, load_shared_config
 from utils import *
 from request_analytics import (
     analytics_payload,
@@ -29,12 +29,12 @@ from request_analytics import (
 from health_diagnostics import run_chat_runtime_diagnostic
 
 # 引入变量
+confs = load_shared_config()
 variables_to_import = ["userlist", "roleidlist", "qid", "namenick", "nameref", "extra_useridlist", "extra_roleidlist", "extra_namenick"]
-variables_file_path = str(RUNTIME.static_variables_file)
+config_file_path = str(RUNTIME.config_file)
 
 def reload_variables():
-    with open(variables_file_path, 'r', encoding='utf-8') as file:
-        data = json.load(file)
+    data = load_shared_config().get("StaticVariables", {})
     for var_name in variables_to_import:
         if var_name in data:
             globals()[var_name] = data[var_name]
@@ -46,9 +46,7 @@ reload_variables()
 templates = Jinja2Templates(directory=str(RUNTIME.app_root / "templates"))
 # 引入Redis变量
 file_path_root = str(RUNTIME.file_transfer_dir)
-redis_path = str(RUNTIME.redis_config_file)
-with open(redis_path, 'r', encoding='utf-8') as file:
-    varia = json.load(file)
+varia = confs.get("Redis", {})
 globals().update(varia)
 
 # 初始化fastapi与redis
@@ -80,9 +78,6 @@ def get_web_artifact(key: str):
 def web_artifact_exists(key: str) -> bool:
     return bool(r_com.exists(web_artifact_storage_key(key)))
 
-confs = {}
-with open(RUNTIME.config_file, 'r', encoding='utf-8') as file:
-    confs = yaml.load(file, Loader=yaml.FullLoader)
 SECRET_KEY = confs["WebService"]["secret_key"]
 VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])]
 
@@ -1232,8 +1227,9 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
     if AdminKey != SECRET_KEY:
         return JSONResponse({"status": "error", "message": "AdminKey失效"}, status_code=401)
     try:
-        with open(variables_file_path, 'r', encoding='utf-8') as f:
-            full_data = json.load(f)
+        with open(config_file_path, 'r', encoding='utf-8') as f:
+            full_config = yaml.safe_load(f) or {}
+        full_data = full_config.setdefault("StaticVariables", {})
         
         for change in changes:
             op = change.get('op')
@@ -1260,8 +1256,10 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
                     if f_name in full_data and ckey in full_data[f_name]:
                         del full_data[f_name][ckey]
 
-        with open(variables_file_path, 'w', encoding='utf-8') as f:
-            json.dump(full_data, f, ensure_ascii=False, indent=2)
+        temporary_path = config_file_path + ".tmp"
+        with open(temporary_path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump(full_config, f, allow_unicode=True, sort_keys=False)
+        os.replace(temporary_path, config_file_path)
         
         # 同步更新到内存中的全局变量
         reload_variables()

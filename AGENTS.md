@@ -8,7 +8,7 @@
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `health_diagnostics.py`：管理员手动深度诊断的固定命令执行与安全 JSON 解析；只允许调用 NBot 的 `hok/tools/chat_runtime_diagnostic.py`，不接受来自请求的命令、模型或地址参数，不回传子进程 stderr；同时核对 systemd 当前 NBot 进程的工作目录、重启时间和 chat 凭据指纹是否与诊断进程一致，指纹不写入响应。
 - `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
-- `runtime_config.py`：Web 运行目录与外置配置的唯一解析入口；负责兼容 `/opt/hok-qqbot/{nbot,web}`、Aliyun `/srv/modules/hok/apps/` 与显式环境变量布局，其他模块不得重新硬编码兄弟仓库相对路径。
+- `runtime_config.py`：Web 运行目录与 NBot 共享配置的唯一解析入口；负责兼容 `/opt/hok-qqbot/{nbot,web}`、Aliyun `/srv/modules/hok/apps/` 与显式环境变量布局，只加载 NBot 根目录 `.env` 与 `config.yaml`，并将前者的凭据注入后者的运行时视图。其他模块不得重新硬编码兄弟仓库相对路径或自建配置加载逻辑。
 - `templates/`：Jinja2 HTML 模板根目录。
 - `templates/CommonPages/`：普通用户侧页面模板，包括全部战绩、单人战绩、周期战绩、战斗详情、查询页、B 站订阅视频详情页等。
 - `templates/CommonPages/BenefitVisualizer/`：受益受害贝叶斯收缩可视化单页面资源目录。
@@ -32,7 +32,7 @@
 
 - 临时组合查询结果继续以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
 - 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；仅在数据库未命中时读取 QQBot 数据库写入失败所产生的应急 JSON。
-- 运行路径统一由 `runtime_config.py` 解析。`BOT_PATH` / `WEB_PATH` 指向两个代码目录，`HOK_NAPCAT_ROOT` 指向 NapCat 安装目录，`HOK_CONFIG_FILE` / `HOK_STATIC_VARIABLES_FILE` / `REDIS_CONF` 指向外置配置，`HOK_DATA_DIR` 指向应急数据目录，`HOK_FILE_TRANSFER_DIR` 指向 NBot 与 Web 共享的公开产物目录。
+- 运行路径统一由 `runtime_config.py` 解析。`BOT_PATH` / `WEB_PATH` 指向两个代码目录，`HOK_NAPCAT_ROOT` 指向 NapCat 安装目录，`HOK_ENV_FILE` / `HOK_CONFIG_FILE` 可选覆盖 NBot 根目录 `.env` / `config.yaml`，`HOK_DATA_DIR` 指向应急数据目录，`HOK_FILE_TRANSFER_DIR` 指向 NBot 与 Web 共享的公开产物目录。Web 不得再读取 `variables_static.json`、`redis.json`、`.env.local` 或其他独立配置。
 - 除 PostgreSQL 单局战绩的 `/battle-data/{game_seq}` 适配外，不要为同一份 JSON 数据额外新增 API 代理接口，除非用户明确要求。
 - 不要为历史目录、调试目录或示例数据做冗余 fallback。
 - `key` 表示 `temp_files` 下对应 JSON 文件名；如未带 `.json`，可在后端补齐 `.json`。

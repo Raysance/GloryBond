@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Mapping
 
 from dotenv import load_dotenv
+import yaml
 
 
 @dataclass(frozen=True)
@@ -19,8 +20,6 @@ class RuntimePaths:
     napcat_root: Path
     env_file: Path
     config_file: Path
-    static_variables_file: Path
-    redis_config_file: Path
     data_dir: Path
     file_transfer_dir: Path
 
@@ -70,7 +69,7 @@ def resolve_runtime_paths(
         stack_root,
     )
 
-    default_env_file = stack_root / ".env"
+    default_env_file = nbot_root / ".env"
     env_file = _absolute_path(
         env.get("HOK_ENV_FILE") or default_env_file,
         stack_root,
@@ -88,15 +87,6 @@ def resolve_runtime_paths(
         env_file=env_file,
         config_file=_absolute_path(
             env.get("HOK_CONFIG_FILE") or nbot_root / "config.yaml",
-            stack_root,
-        ),
-        static_variables_file=_absolute_path(
-            env.get("HOK_STATIC_VARIABLES_FILE")
-            or nbot_root / "variables_static.json",
-            stack_root,
-        ),
-        redis_config_file=_absolute_path(
-            env.get("REDIS_CONF") or nbot_root / "redis.json",
             stack_root,
         ),
         data_dir=_absolute_path(
@@ -118,3 +108,33 @@ def load_runtime_paths() -> RuntimePaths:
 
 
 RUNTIME = load_runtime_paths()
+
+
+def load_shared_config(
+    runtime: RuntimePaths = RUNTIME,
+    environ: Mapping[str, str] | None = None,
+) -> dict:
+    """Load the shared non-secret YAML and inject credentials from NBot's .env."""
+    env = environ if environ is not None else os.environ
+    with runtime.config_file.open("r", encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file) or {}
+    secret_paths = {
+        "HOK_DEEPSEEK_API_KEY": ("QQBot", "deepseek_key"),
+        "HOK_ARK_API_KEY": ("QQBot", "ark_key"),
+        "HOK_ARK_IMAGE_API_KEY": ("QQBot", "ark_image_key"),
+        "HOK_APIMART_API_KEY": ("QQBot", "apimart_key"),
+        "HOK_STEAM_API_KEY": ("Steam", "api_key"),
+        "HOK_WEB_SECRET_KEY": ("WebService", "secret_key"),
+        "HOK_WEB_VALID_PATTERN": ("WebService", "valid_pattern"),
+        "HOK_WZRY_TOKEN": ("wzry", "token"),
+        "HOK_WZRY_ENCODERES": ("wzry", "encoderes"),
+        "HOK_DATABASE_DSN": ("PostgreSQL", "dsn"),
+    }
+    for env_name, (section, key) in secret_paths.items():
+        if env_name in env:
+            section_values = config.get(section)
+            if not isinstance(section_values, dict):
+                section_values = {}
+                config[section] = section_values
+            section_values[key] = str(env[env_name]).strip()
+    return config

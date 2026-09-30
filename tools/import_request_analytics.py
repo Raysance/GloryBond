@@ -97,9 +97,10 @@ def collect_events(log_paths: list[Path], cutoff: datetime) -> list[tuple[dict, 
 
 def connect_redis():
     import redis
+    import yaml
 
-    with open(RUNTIME.redis_config_file, "r", encoding="utf-8") as config_file:
-        config = json.load(config_file)
+    with open(RUNTIME.config_file, "r", encoding="utf-8") as config_file:
+        config = (yaml.safe_load(config_file) or {})["Redis"]
     return redis.Redis(
         host=config["REDIS_HOST"],
         port=config["REDIS_PORT"],

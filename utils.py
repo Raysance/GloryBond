@@ -2,7 +2,6 @@ from openai import OpenAI
 import requests
 from ratelimit import limits, sleep_and_retry
 import json
-import yaml
 import time
 import os
 import logging
@@ -10,11 +9,9 @@ import logging
 from database import battle_exists as postgres_battle_exists
 from database import fetch_battle as postgres_fetch_battle
 from database import ping as postgres_ping
-from runtime_config import RUNTIME
+from runtime_config import RUNTIME, load_shared_config
 
-confs={}
-with open(RUNTIME.config_file, 'r', encoding='utf-8') as file:
-    confs = yaml.load(file, Loader=yaml.FullLoader)
+confs = load_shared_config()
 POSTGRES_DSN = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")
