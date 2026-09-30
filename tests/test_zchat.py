@@ -42,18 +42,16 @@ class ChatLoopTests(unittest.TestCase):
 
         def model(messages, tools=None, **kwargs):
             requests.append(list(messages))
-            self.assertNotIn("search_chat_history", {tool["name"] for tool in tools})
+            self.assertEqual({tool["name"] for tool in tools}, {"discover_tools"})
             if len(requests) == 1:
                 system_text = "\n".join(item["content"] for item in messages if item.get("role") == "system")
-                self.assertIn("请在目标群内发送同一查询", system_text)
-                self.assertNotIn("必须先调用search_chat_history", system_text)
-                self.assertNotIn("先recall_memory", system_text)
-                return {"tool_calls": [{"call_id": "history", "name": "search_chat_history",
-                                        "arguments": '{"queries":["PRIVATE_QUERY"]}'}]}
-            output = json.loads(messages[-1]["output"])
-            self.assertFalse(output["ok"])
-            self.assertEqual(output["code"], "group_context_required")
-            self.assertIn("请在目标群内", output["detail"])
+                self.assertIn("选择chat_history", system_text)
+                return {"tool_calls": [{"call_id": "discover", "name": "discover_tools",
+                                        "arguments": '{"categories":["chat_history"]}'}]}
+            output = json.loads(next(item["output"] for item in reversed(messages)
+                                     if item.get("type") == "function_call_output"))
+            self.assertTrue(output["ok"])
+            self.assertEqual(output["data"]["unavailable_categories"], ["chat_history"])
             return {"content": "请在目标群内发送同一查询。"}
 
         with patch.object(ZFUNC, "search_group_chat_history") as search:
@@ -62,10 +60,9 @@ class ChatLoopTests(unittest.TestCase):
         search.assert_not_called()
         self.assertFalse(result["trace"]["context"]["group_history_enabled"])
         observation = result["trace"]["rounds"][0]["tools"][0]["observation"]
-        self.assertEqual(observation["code"], "group_context_required")
-        self.assertEqual(observation["error"], "ChatToolUnavailableError")
-        self.assertEqual(result["trace"]["rounds"][0]["tools"][0]["arguments"], {"queries": ["PRIVATE_QUERY"]})
-        self.assertIn("请在目标群内", observation["detail"])
+        self.assertEqual(observation["data"]["unavailable_categories"], ["chat_history"])
+        self.assertEqual(result["trace"]["rounds"][0]["tools"][0]["arguments"],
+                         {"categories": ["chat_history"]})
 
     def test_group_request_keeps_history_search_bound_to_event_group(self):
         handler = import_hok_module("event_handlers.chat")
@@ -77,12 +74,16 @@ class ChatLoopTests(unittest.TestCase):
 
         def model(messages, tools=None, **kwargs):
             calls.append(messages)
-            self.assertIn("search_chat_history", {tool["name"] for tool in tools})
             if len(calls) == 1:
-                self.assertTrue(any("必须先调用search_chat_history" in item.get("content", "") for item in messages))
+                self.assertEqual({tool["name"] for tool in tools}, {"discover_tools"})
+                return {"tool_calls": [{"call_id": "discover", "name": "discover_tools",
+                                        "arguments": '{"categories":["chat_history"]}'}]}
+            self.assertIn("search_chat_history", {tool["name"] for tool in tools})
+            if len(calls) == 2:
                 return {"tool_calls": [{"call_id": "search", "name": "search_chat_history",
                                         "arguments": '{"queries":["内卷","竞争 压力"],"limit":5}'}]}
-            self.assertEqual(json.loads(messages[-1]["output"])["data"][0]["message_id"], "42")
+            output = next(item for item in reversed(messages) if item.get("type") == "function_call_output")
+            self.assertEqual(json.loads(output["output"])["data"][0]["message_id"], "42")
             return {"content": "已找到相关对话。"}
 
         with patch.object(ZFUNC, "search_group_chat_history", return_value=[{"message_id": "42", "text": "PRIVATE_HISTORY"}]) as search:
@@ -128,7 +129,7 @@ class ChatLoopTests(unittest.TestCase):
         self.assertEqual(tools.calls, [("lookup", {"name": "alpha"})])
         self.assertEqual(calls[1][-1]["type"], "function_call_output")
         self.assertEqual(calls[1][-1]["call_id"], "call-1")
-        self.assertEqual(self.saved, [])
+        self.assertEqual(self.saved, [("100", "查一下alpha", "最终回答")])
 
     def test_invalid_arguments_still_receive_tool_result(self):
         calls = []
@@ -269,7 +270,9 @@ class HOKChatToolsTests(unittest.TestCase):
         self.assertEqual(len(observations[0]["rows"]), 50)
 
     def test_database_and_live_power_are_separate_tools(self):
-        names = {item["name"] for item in ZCHAT.HOKChatTools().schemas()}
+        registry = ZCHAT.HOKChatTools()
+        self.assertEqual({item["name"] for item in registry.initial_schemas()}, {"discover_tools"})
+        names = {item["name"] for item in registry.schemas()}
         self.assertTrue({"query_game_database", "query_player_hero_power", "query_honor_power",
                          "render_python_plot", "web_search"}.issubset(names))
         self.assertNotIn("query_player_today_report", names)
@@ -330,6 +333,7 @@ class HOKChatToolsTests(unittest.TestCase):
     def test_multiple_calls_receive_independent_observations_and_artifact_delivery(self):
         snapshots = []
         registry = ZCHAT.HOKChatTools(user_id="100", use_memory=False)
+        registry.execute("discover_tools", {"categories": ["game_data", "internet", "plots"]})
         def model(messages, **kwargs):
             snapshots.append([dict(item) for item in messages])
             if len(snapshots) == 1:
@@ -345,14 +349,15 @@ class HOKChatToolsTests(unittest.TestCase):
                 return {"content": "已生成图表，联网暂不可用", "tool_calls": []}
             return {"tool_calls": calls, "output_items": [{"type": "function_call", **call} for call in calls]}
         with patch.object(ZFUNC, "chat_query_database", return_value={"ok": True, "rows": [{"label": "A", "value": 9}]}), \
-                patch.object(ZFUNC, "chat_web_search", side_effect=RuntimeError("Ark unavailable")), \
+                patch.object(ZFUNC, "chat_web_search", side_effect=RuntimeError("OpenRouter unavailable")), \
                 patch.object(ZFUNC, "chat_render_plot", return_value={"path": "/tmp/trusted.png", "width": 1456}), \
+                patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[]), \
                 patch.object(ZMEMORY.instance, "save_active_chat") as save:
             result = ZCHAT.chat_process(user_text="比较并画图", user_id="100", nickname="A", use_memory=False,
                                         model_caller=model, tool_registry=registry, return_artifacts=True)
         self.assertEqual(result["artifacts"][0]["path"], "/tmp/trusted.png")
         self.assertEqual(len(snapshots), 3)
-        save.assert_not_called()
+        save.assert_called_once_with("100", "比较并画图", "已生成图表，联网暂不可用")
 
 
 if __name__ == "__main__":

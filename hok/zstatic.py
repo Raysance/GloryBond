@@ -19,6 +19,7 @@ REDIS_KEY_DIY_CODES = "hok:diy:codes"
 REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
 REDIS_KEY_CHAT_FACTS_PREFIX = "hok:memory:facts:"
 REDIS_KEY_ACTIVE_CHAT_PREFIX = "hok:memory:active_chat:"
+REDIS_KEY_CHAT_ROLE_PREFIX = "hok:chat:role:"
 
 
 def _runtime_path(env_name, default_path):
@@ -91,6 +92,15 @@ chat_api_config = {
         "proxy_url": "HOK_CHAT_PROXY_URL",
     }.items()
 }
+openrouter_search_config = {
+    key: str(os.environ.get(env_name) or confs.get("OpenRouterSearch", {}).get(key) or default).strip()
+    for key, env_name, default in (
+        ("base_url", "HOK_OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
+        ("api_key", "HOK_OPENROUTER_API_KEY", ""),
+        ("model", "HOK_OPENROUTER_SEARCH_MODEL", "openrouter/auto"),
+        ("engine", "HOK_OPENROUTER_SEARCH_ENGINE", "auto"),
+    )
+}
 clash_proxy_url = str(
     os.environ.get("HOK_CLASH_PROXY_URL")
     or confs.get("Proxy", {}).get("clash_url")
@@ -118,3 +128,11 @@ for heroid,heroname in varia["HeroList"].items():
 for heroid,heroname in varia["HeroName_replacements"].items():
     varia["HeroNames"].append(heroname)
 globals().update(varia)
+
+# OpenRouter 搜索密钥默认跟随静态变量文件，部署环境变量仍拥有最高优先级。
+openrouter_search_config["api_key"] = str(
+    os.environ.get("HOK_OPENROUTER_API_KEY")
+    or globals().get("openrouter_api_key")
+    or confs.get("OpenRouterSearch", {}).get("api_key")
+    or ""
+).strip()

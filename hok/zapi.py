@@ -15,6 +15,7 @@ from .api_adapters.ai import (
     ark_api,
     ark_images_generate,
     ark_web_search,
+    openrouter_web_search,
 )
 from .api_adapters.bilibili import (
     BilibiliEsportsAPI,
@@ -45,6 +46,7 @@ __all__ = [
     "ark_api",
     "ark_images_generate",
     "ark_web_search",
+    "openrouter_web_search",
     "bilibili_esports_get_bytes",
     "bilibili_esports_get_json",
     "bilibili_get_user_card",

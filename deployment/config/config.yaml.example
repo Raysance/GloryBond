@@ -4,6 +4,11 @@ ChatAPI:
   model: "deepseek-chat"
   proxy_url: "socks5h://10.203.0.2:1080"
   # Set HOK_CHAT_API_KEY in the private host environment.
+OpenRouterSearch:
+  base_url: "https://openrouter.ai/api/v1/chat/completions"
+  model: "openrouter/auto"
+  engine: "auto"
+  # API key defaults to variables_static.json; HOK_OPENROUTER_API_KEY overrides it.
 Proxy:
   # Steam and APIMart use this proxy exclusively. socks5h://127.0.0.1:7891 is also supported.
   clash_url: "http://127.0.0.1:7890"

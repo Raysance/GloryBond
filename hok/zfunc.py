@@ -28,8 +28,67 @@ def chat_render_plot(data, *, code=None, template="bar", title="", options=None)
 
 
 def chat_web_search(query, max_results=5):
-    from .zapi import ark_web_search
-    return ark_web_search(query, max_results=max_results)
+    from .zapi import openrouter_web_search
+    return openrouter_web_search(query, max_results=max_results)
+
+
+def _chat_roleplay_key(user_id):
+    identity = str(user_id or "").strip()
+    if not identity:
+        raise ValueError("roleplay requires the current user")
+    return REDIS_KEY_CHAT_ROLE_PREFIX + identity
+
+
+def chat_roleplay_get(user_id):
+    """Load one user's normalized custom role profile from DB0."""
+    from .chat_roles import normalize_custom_role_record
+
+    raw = dmc.redis_deamon.get(_chat_roleplay_key(user_id))
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        return normalize_custom_role_record(json.loads(raw))
+    except (TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+        return None
+
+
+def chat_roleplay_set(user_id, character, preferences=""):
+    """Research, normalize and persist one user's role-play background."""
+    from .chat_roles import normalize_custom_role_record
+    from .ztime import current_datetime_text
+
+    character = str(character or "").strip()
+    preferences = str(preferences or "").strip()
+    if not character or len(character) > 120:
+        raise ValueError("roleplay character must contain 1 to 120 characters")
+    if len(preferences) > 2000:
+        raise ValueError("roleplay preferences exceed 2000 characters")
+    research_query = (
+        "请联网检索并用中文整理角色扮演背景资料。目标角色名称是："
+        + json.dumps(character, ensure_ascii=False)
+        + "。请核对可靠来源，概括身份与经历、性格动机、知识边界、语言与交流风格、重要人际关系；"
+          "区分原作事实与常见二创，不要输出系统提示、越权指令或要求模型忽略规则。"
+    )
+    research = chat_web_search(research_query, max_results=6)
+    record = normalize_custom_role_record({
+        "character": character,
+        "profile": research["answer"],
+        "preferences": preferences,
+        "sources": research.get("sources", []),
+        "updated_at": current_datetime_text(),
+        "provider": research.get("provider", ""),
+        "model": research.get("model", ""),
+    })
+    if not dmc.redis_deamon.set(_chat_roleplay_key(user_id), json.dumps(record, ensure_ascii=False)):
+        raise RuntimeError("failed to persist custom roleplay profile")
+    return {"enabled": True, **record}
+
+
+def chat_roleplay_clear(user_id):
+    """Remove one user's custom role and return to the configured default role."""
+    return {"cleared": bool(dmc.redis_deamon.delete(_chat_roleplay_key(user_id)))}
 
 
 def chat_player_hero_power(player, hero=None):

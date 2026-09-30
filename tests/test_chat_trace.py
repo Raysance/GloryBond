@@ -30,8 +30,11 @@ class Registry:
 
 class TraceTests(unittest.TestCase):
     def run_chat(self, model, **kwargs):
-        return CHAT.chat_process(user_text="对比战绩", user_id="1", nickname="A", use_memory=False,
-                                 model_caller=model, tool_registry=Registry(), return_artifacts=True, **kwargs)
+        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
+                patch.object(MEMORY.instance, "save_active_chat"), \
+                patch.object(FUNC, "chat_roleplay_get", return_value=None):
+            return CHAT.chat_process(user_text="对比战绩", user_id="1", nickname="A", use_memory=False,
+                                     model_caller=model, tool_registry=Registry(), return_artifacts=True, **kwargs)
 
     def test_batch_errors_private_reasoning_and_budget_are_recorded(self):
         requests = []
@@ -137,12 +140,13 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(raised.exception.trace["failure"]["stage"], "memory_load")
         self.assertEqual(raised.exception.trace["rounds"], [])
         with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat", side_effect=RuntimeError("redis save failed")):
+                patch.object(MEMORY.instance, "save_active_chat", side_effect=RuntimeError("redis save failed")), \
+                patch.object(FUNC, "chat_roleplay_get", return_value=None):
             result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True,
                                        model_caller=lambda *args, **kwargs: {"content": "正常答案"})
         self.assertEqual(result["text"], "正常答案")
         self.assertEqual(result["trace"]["status"], "partial")
-        self.assertEqual(result["trace"]["warnings"][0]["stage"], "memory_save")
+        self.assertTrue(any(warning["stage"] == "memory_save" for warning in result["trace"]["warnings"]))
 
     def test_model_error_keeps_previous_observation(self):
         def model(messages, **kwargs):

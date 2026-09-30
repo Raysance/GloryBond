@@ -9,6 +9,7 @@ from local_debugger import import_hok_module
 
 ZFUNC = import_hok_module("zfunc")
 ZTIME = import_hok_module("ztime")
+ZMEMORY = import_hok_module("zmemory")
 
 
 class MemoryRedis:
@@ -136,17 +137,19 @@ class ChatMemoryStoreTests(unittest.TestCase):
         self.assertEqual(memory.instance.load_active_chat_records("100")[-1]["A"], result["text"])
         self.assertEqual(memory.instance.load_active_chat_records("200"), [])
 
-    def test_nomem_does_not_read_or_save_direct_dialogue(self):
+    def test_nomem_still_reads_and_saves_direct_dialogue(self):
         chat = import_hok_module("zchat")
         ZFUNC.chat_active_dialogue_save("100", "上轮问题", "历史回答")
         before = list(self.redis.lists["hok:memory:active_chat:100"])
         def model(messages, **kwargs):
-            self.assertFalse(any(message.get("role") == "assistant" for message in messages))
+            self.assertTrue(any(message.get("role") == "assistant" and message.get("content") == "历史回答"
+                                for message in messages))
             return {"content": "新的回答"}
         with patch.object(ZFUNC, "chat_active_dialogue_load") as load:
+            load.return_value = [{"time": "2026-09-29 10:00:00", "Q": "上轮问题", "A": "历史回答"}]
             chat.chat_process(user_text="当前问题", user_id="100", nickname="A", model_caller=model, use_memory=False)
-        load.assert_not_called()
-        self.assertEqual(self.redis.lists["hok:memory:active_chat:100"], before)
+        load.assert_called_once_with("100", 10)
+        self.assertEqual(len(self.redis.lists["hok:memory:active_chat:100"]), len(before) + 1)
 
     def test_direct_memory_limits_legacy_shape_and_malformed_records(self):
         for index in range(12):
@@ -158,6 +161,17 @@ class ChatMemoryStoreTests(unittest.TestCase):
         self.redis.lists["hok:memory:active_chat:100"] += ["bad", "[]", '{}', '{"Q":"半条"}',
             json.dumps({"time": "legacy", "Q": "旧问题", "A": "旧答案"})]
         self.assertEqual(ZFUNC.chat_active_dialogue_load("100", 5), [{"time": "legacy", "Q": "旧问题", "A": "旧答案"}])
+
+    def test_dialogue_context_combines_relevant_older_turns_with_recent_turns(self):
+        records = [
+            {"time": "1", "Q": "我喜欢辅助英雄", "A": "记下了辅助偏好"},
+            {"time": "2", "Q": "今天天气", "A": "天气不错"},
+            {"time": "3", "Q": "聊点别的", "A": "好的"},
+            {"time": "4", "Q": "上一局怎么样", "A": "发挥稳定"},
+        ]
+        selected = ZMEMORY.select_active_dialogue_context(
+            records, "按我的辅助偏好推荐英雄", recent_limit=2, relevant_limit=1)
+        self.assertEqual([item["time"] for item in selected], ["1", "3", "4"])
 
     def test_quote_stays_current_and_passive_memory_is_not_loaded(self):
         chat = import_hok_module("zchat")

@@ -44,7 +44,7 @@ for file in "${required_files[@]}"; do
     fi
 done
 
-if grep -RqsE 'replace-me|replace-with-a-random' "$HOK_CONFIG_FILE" "$config_dir/nbot.env"; then
+if grep -RqsE 'replace-me|replace-with-a-random' "$HOK_CONFIG_FILE" "$common_env" "$config_dir/nbot.env"; then
     fail "placeholder secrets remain in $config_dir"
 else
     ok "configuration placeholders replaced"

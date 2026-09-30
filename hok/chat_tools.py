@@ -64,6 +64,64 @@ class HOKChatTools:
         self.use_memory = bool(use_memory)
         self.datasets = {}
         self.artifacts = []
+        self._disclosed = set()
+
+    def _discovery_schema(self):
+        return _schema(
+            "discover_tools",
+            "按当前任务需要披露一类工具。先选择能力类别；下一轮才会收到该类工具的具体 schema。"
+            "可选类别：game_data 游戏数据，plots 图表，internet 联网，memory 长期事实记忆，"
+            "chat_history 群聊历史，roleplay 自定义角色扮演。不要一次选择无关类别。",
+            {
+                "categories": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": [
+                        "game_data", "plots", "internet", "memory", "chat_history", "roleplay",
+                    ]},
+                    "minItems": 1,
+                    "maxItems": 3,
+                },
+                "reason": {"type": "string", "maxLength": 300},
+            },
+            ["categories"],
+        )
+
+    def _tool_categories(self):
+        return {
+            "game_data": {"get_game_database_schema", "query_game_database",
+                          "query_player_hero_power", "query_honor_power"},
+            "plots": {"list_plot_templates", "render_python_plot"},
+            "internet": {"web_search"},
+            "memory": {"recall_memory", "remember_memory", "forget_memory"},
+            "chat_history": {"list_chat_groups", "fetch_recent_chat_messages", "search_chat_history",
+                             "fetch_chat_context", "fetch_chat_reply_thread"},
+            "roleplay": {"manage_roleplay"},
+        }
+
+    def initial_schemas(self):
+        """Expose only discovery initially; concrete schemas are request-local."""
+        return [self._discovery_schema()]
+
+    def model_schemas(self):
+        by_name = {schema["name"]: schema for schema in self.schemas()}
+        return [self._discovery_schema(), *(by_name[name] for name in sorted(self._disclosed) if name in by_name)]
+
+    def _discover(self, arguments):
+        _validate(arguments, self._discovery_schema()["parameters"])
+        available = {schema["name"]: schema for schema in self.schemas()}
+        disclosed = []
+        unavailable = []
+        categories = self._tool_categories()
+        for category in dict.fromkeys(arguments["categories"]):
+            names = sorted(categories[category] & available.keys())
+            if not names:
+                unavailable.append(category)
+                continue
+            self._disclosed.update(names)
+            disclosed.extend({"name": name, "summary": available[name]["description"].split("。", 1)[0]}
+                              for name in names)
+        return {"disclosed": disclosed, "unavailable_categories": unavailable,
+                "notice": "具体参数 schema 将在下一轮提供；只调用与当前任务有关的已披露工具。"}
 
     def schemas(self):
         text = {"type": "string"}
@@ -91,7 +149,7 @@ class HOKChatTools:
                     "xlabel": {"type": "string", "maxLength": 100},
                     "ylabel": {"type": "string", "maxLength": 100}},
                     "additionalProperties": False}}, ["dataset_id"]),
-            _schema("web_search", "通过 Ark 搜索互联网事实和时效信息，无需 &。当前服务可能不可用；失败会返回 observation，不能编造已联网结果。", {
+            _schema("web_search", "通过 OpenRouter 的联网搜索工具查询互联网事实和时效信息，强制走 Clash 代理。失败会返回 observation，不能编造已联网结果。", {
                 "query": {"type": "string", "maxLength": 2000},
                 "max_results": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"]),
         ]
@@ -105,6 +163,18 @@ class HOKChatTools:
                 _schema("forget_memory", "按当前用户意愿删除其一条记忆，先 recall_memory 获取 ID。只允许当前用户自己的记忆。", {
                     "memory_id": text}, ["memory_id"]),
             ])
+        if self.user_id:
+            tools.append(_schema(
+                "manage_roleplay",
+                "管理当前提问者专属的自定义角色扮演。set 会先联网检索角色背景并持久化，后续对话自动注入；"
+                "get 查看当前自定义角色；clear 清除后恢复全局默认角色。",
+                {
+                    "action": {"type": "string", "enum": ["get", "set", "clear"]},
+                    "character": {"type": "string", "maxLength": 120},
+                    "preferences": {"type": "string", "maxLength": 2000},
+                },
+                ["action"],
+            ))
         if self.cross_group_history:
             tools.append(_schema("list_chat_groups", "列出已保存历史记录的群号及消息数，仅管理员私聊可用。检索前据此确定群号，不代表机器人当前加入的完整群列表。", {}))
         if self.group_id or self.cross_group_history:
@@ -142,6 +212,8 @@ class HOKChatTools:
 
     def execute(self, name, arguments):
         from . import zfunc
+        if name == "discover_tools":
+            return self._discover(arguments)
         schema = next((item for item in self.schemas() if item["name"] == name), None)
         if schema is None:
             if name in {"search_chat_history", "fetch_recent_chat_messages", "fetch_chat_context", "fetch_chat_reply_thread"} and not self.group_id:
@@ -191,6 +263,17 @@ class HOKChatTools:
             return {key: value for key, value in artifact.items() if key != "path"}
         if name == "web_search":
             return zfunc.chat_web_search(arguments["query"], max_results=arguments.get("max_results", 5))
+        if name == "manage_roleplay":
+            action = arguments["action"]
+            if action == "get":
+                role = zfunc.chat_roleplay_get(self.user_id)
+                return {"enabled": bool(role), "role": role}
+            if action == "clear":
+                return zfunc.chat_roleplay_clear(self.user_id)
+            character = str(arguments.get("character") or "").strip()
+            if not character:
+                raise ValueError("manage_roleplay.set requires character")
+            return zfunc.chat_roleplay_set(self.user_id, character, arguments.get("preferences", ""))
         if name == "recall_memory":
             return zfunc.chat_memory_list(self.user_id, query=arguments.get("query", ""), limit=arguments.get("limit", 20))
         if name == "remember_memory":

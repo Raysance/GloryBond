@@ -24,6 +24,24 @@ def parse_active_dialogue(records):
     return result
 
 
+def select_active_dialogue_context(records, query, *, recent_limit=5, relevant_limit=3):
+    """Combine recent turns with BM25-selected older turns for every chat request."""
+    records = list(records or [])
+    recent_limit = max(0, int(recent_limit))
+    relevant_limit = max(0, int(relevant_limit))
+    recent_start = max(0, len(records) - recent_limit)
+    selected = set(range(recent_start, len(records)))
+    older_indexes = list(range(recent_start))
+    if older_indexes and relevant_limit and str(query or "").strip():
+        documents = [tokenize_history_text(records[index]["Q"] + " " + records[index]["A"])
+                     for index in older_indexes]
+        scores = _bm25_scores(tokenize_history_text(query), documents)
+        ranked = sorted(range(len(older_indexes)), key=lambda index: (-scores[index], -older_indexes[index]))
+        matched = [older_indexes[index] for index in ranked if scores[index] > 0]
+        selected.update(matched[:relevant_limit])
+    return [records[index] for index in sorted(selected)]
+
+
 class ZMemory:
     class EmojiMemory:
         def __init__(self, parent):

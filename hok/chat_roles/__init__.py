@@ -1,6 +1,7 @@
 """Registry for portable, independently maintained chat roles."""
 
 from .base import ChatRole
+from .custom import build_custom_role_prompt, normalize_custom_role_record
 from .instructions import build_common_roleplay_instructions
 from .makise_kurisu import ROLE as MAKISE_KURISU
 
@@ -38,7 +39,8 @@ def list_roles():
     return tuple(_ROLES.values())
 
 
-__all__ = ["ChatRole", "build_role_prompt", "get_role", "list_roles", "register_role"]
+__all__ = ["ChatRole", "build_custom_role_prompt", "build_role_prompt", "get_role", "list_roles",
+           "normalize_custom_role_record", "register_role"]
 
 
 register_role(MAKISE_KURISU)

@@ -212,20 +212,26 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         def model(messages, tools=None, **kwargs):
             stage = len(stages)
             stages.append(stage)
-            self.assertIn("list_chat_groups", {schema["name"] for schema in tools})
             if stage == 0:
-                self.assertTrue(any("管理员私聊" in message.get("content", "") for message in messages))
-                self.assertFalse(any("请在目标群内发送同一查询" in message.get("content", "") for message in messages))
-                name, arguments = "list_chat_groups", {}
+                self.assertEqual({schema["name"] for schema in tools}, {"discover_tools"})
+                name, arguments = "discover_tools", {"categories": ["chat_history"]}
             elif stage == 1:
-                groups = json.loads(messages[-1]["output"])["data"]
+                self.assertIn("list_chat_groups", {schema["name"] for schema in tools})
+                self.assertTrue(any("管理员私聊" in message.get("content", "") for message in messages))
+                name, arguments = "list_chat_groups", {}
+            elif stage == 2:
+                groups = json.loads(next(item["output"] for item in reversed(messages)
+                                         if item.get("type") == "function_call_output"))["data"]
                 self.assertEqual(groups[0]["group_id"], "200")
                 name, arguments = "search_chat_history", {"group_id": groups[0]["group_id"], "queries": ["内卷", "压力"]}
-            elif stage == 2:
-                hit = json.loads(messages[-1]["output"])["data"][0]
+            elif stage == 3:
+                hit = json.loads(next(item["output"] for item in reversed(messages)
+                                      if item.get("type") == "function_call_output"))["data"][0]
                 name, arguments = "fetch_chat_context", {"group_id": hit["group_id"], "message_id": hit["message_id"]}
             else:
-                self.assertIn("PRIVATE_HISTORY", messages[-1]["output"])
+                output = next(item["output"] for item in reversed(messages)
+                              if item.get("type") == "function_call_output")
+                self.assertIn("PRIVATE_HISTORY", output)
                 return {"content": "已找到并展开群内对话。"}
             return {"tool_calls": [{"call_id": str(stage), "name": name, "arguments": json.dumps(arguments)}]}
 
@@ -233,7 +239,7 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
             result = CHAT.chat_process(user_text="查看内卷的对话上下文", user_id="999", nickname="管理员",
                                        use_memory=False, model_caller=model, return_artifacts=True)
         self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
-        self.assertEqual(len(stages), 4)
+        self.assertEqual(len(stages), 5)
         self.assertTrue(result["trace"]["context"]["cross_group_history_enabled"])
         self.assertIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
         self.assertIn("message_count", json.dumps(result["trace"]))

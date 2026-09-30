@@ -135,8 +135,9 @@ Ordinary chat and the shared `ai_api` / `ai_function` helpers use SJTU Chat
 Completions at `https://models.sjtu.edu.cn/api/v1`, with `deepseek-chat` as the
 default model. Set `ChatAPI.model` to `deepseek-reasoner`, `qwen`, or `qwen3.8-27b`
 to switch models. The adapter preserves tool calls, tool results, and
-`reasoning_content` across the existing multi-round chat loop. `&` web chat
-continues to use Ark Responses and its built-in web search.
+`reasoning_content` across the existing multi-round chat loop. Chat tools use
+progressive disclosure: the model first selects a capability category and only
+receives concrete tool schemas on the next round.
 
 Set `HOK_CHAT_API_KEY` in the service's private environment file. Local debugging
 also loads the Git-ignored `.env.local` beneath `BOT_PATH` when `HOK_ENV_FILE` is
@@ -144,12 +145,19 @@ not set. `ChatAPI.base_url`, `model`, `proxy_url`, and an optional `api_key` are
 read from the active `config.yaml`; `HOK_CHAT_BASE_URL`, `HOK_CHAT_MODEL`,
 `HOK_CHAT_PROXY_URL`, and `HOK_CHAT_API_KEY` override the corresponding values.
 
+Chat web search uses OpenRouter's `openrouter:web_search` server tool. Its API
+key defaults to `openrouter_api_key` in `variables_static.json`; optional
+`HOK_OPENROUTER_API_KEY`, `HOK_OPENROUTER_BASE_URL`, `HOK_OPENROUTER_SEARCH_MODEL`, and
+`HOK_OPENROUTER_SEARCH_ENGINE` override `OpenRouterSearch`. OpenRouter requests
+use the Clash route configured by `HOK_CLASH_PROXY_URL` and never fall back to a
+direct connection. The old `&` switch is not used by chat.
+
 SJTU requests explicitly use the `sjtu-vpn` proxy
 `socks5h://10.203.0.2:1080`. The deployment host must be able to reach that proxy;
 the adapter does not fall back to a global proxy or a direct connection. Install
 the declared `httpx[socks]` dependency for SOCKS5 with proxy-side DNS resolution.
 
-Steam and APIMart use the separate `Proxy.clash_url` route. The default template
+Steam, APIMart, and OpenRouter search use the separate `Proxy.clash_url` route. The default template
 uses `http://127.0.0.1:7890`; `socks5h://127.0.0.1:7891` is also supported. Set
 `HOK_CLASH_PROXY_URL` to override it per host. These adapters disable inherited
 environment proxies and fail when their dedicated Clash route is missing, so

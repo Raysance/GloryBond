@@ -53,6 +53,9 @@ class ChatCompletionsApiTests(unittest.TestCase):
         client_patch = patch.object(AI_ADAPTER, "DefaultHttpxClient", self.make_http_client)
         client_patch.start()
         self.addCleanup(client_patch.stop)
+        history_patch = patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[])
+        history_patch.start()
+        self.addCleanup(history_patch.stop)
 
     def make_http_client(self, **kwargs):
         self.client_options.append(kwargs)
@@ -100,7 +103,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
                 use_memory=False,
                 tool_registry=FakeTools(),
             )
-            save.assert_not_called()
+            save.assert_called_once()
         return result, calls
 
     def test_chat_payload_proxy_and_normalized_tool_calls(self):
