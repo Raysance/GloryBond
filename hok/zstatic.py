@@ -43,11 +43,6 @@ def _load_runtime_environment():
         if candidate and os.path.isfile(candidate):
             load_dotenv(dotenv_path=candidate, override=False)
             loaded_paths.append(os.path.abspath(candidate))
-    if not explicit_path:
-        private_path = os.path.join(os.environ.get("BOT_PATH") or os.getcwd(), ".env.local")
-        if os.path.isfile(private_path):
-            load_dotenv(dotenv_path=private_path, override=False)
-            loaded_paths.append(os.path.abspath(private_path))
     return os.pathsep.join(loaded_paths)
 
 
@@ -67,6 +62,25 @@ def _build_chat_api_config(config, environment):
     return values
 
 
+def _apply_secret_environment(config, environment):
+    """Inject credentials from the single .env file into runtime config."""
+    secret_paths = {
+        "HOK_DEEPSEEK_API_KEY": ("QQBot", "deepseek_key"),
+        "HOK_ARK_API_KEY": ("QQBot", "ark_key"),
+        "HOK_ARK_IMAGE_API_KEY": ("QQBot", "ark_image_key"),
+        "HOK_APIMART_API_KEY": ("QQBot", "apimart_key"),
+        "HOK_STEAM_API_KEY": ("Steam", "api_key"),
+        "HOK_WEB_SECRET_KEY": ("WebService", "secret_key"),
+        "HOK_WEB_VALID_PATTERN": ("WebService", "valid_pattern"),
+        "HOK_WZRY_TOKEN": ("wzry", "token"),
+        "HOK_WZRY_ENCODERES": ("wzry", "encoderes"),
+    }
+    for env_name, (section, key) in secret_paths.items():
+        if env_name in environment:
+            config.setdefault(section, {})[key] = str(environment[env_name]).strip()
+    return config
+
+
 env_path = _load_runtime_environment()
 project_root = _runtime_path("BOT_PATH", os.getcwd())
 data_root = _runtime_path("HOK_DATA_DIR", os.path.join(project_root, "data"))
@@ -79,37 +93,29 @@ config_path = _runtime_path(
     "HOK_CONFIG_FILE",
     os.path.join(project_root, "config.yaml"),
 )
-variables_static_path = _runtime_path(
-    "HOK_STATIC_VARIABLES_FILE",
-    os.path.join(project_root, "variables_static.json"),
-)
-variables_dynamic_path = _runtime_path(
-    "HOK_DYNAMIC_VARIABLES_FILE",
-    os.path.join(project_root, "variables_dynamic.json"),
-)
 
-# 引入Redis配置
-redis_path = _runtime_path(
-    "REDIS_CONF",
-    os.path.join(project_root, "redis.json"),
-)
-with open(redis_path, 'r', encoding='utf-8') as file:
-    varia = json.load(file)
-globals().update(varia)
-# 引入程序配置
-confs={}
+# .env stores credentials; config.yaml stores every non-secret setting.
 with open(config_path, 'r', encoding='utf-8') as file:
-    confs = yaml.load(file, Loader=yaml.FullLoader)
+    confs = yaml.load(file, Loader=yaml.FullLoader) or {}
+_apply_secret_environment(confs, os.environ)
+globals().update(confs.get("Redis", {}))
 chat_api_config = _build_chat_api_config(confs, os.environ)
-openrouter_search_config = {
-    key: str(os.environ.get(env_name) or confs.get("OpenRouterSearch", {}).get(key) or default).strip()
+aliyun_search_config = {
+    key: str(os.environ.get(env_name) or confs.get("AliyunSearch", {}).get(key) or default).strip()
     for key, env_name, default in (
-        ("base_url", "HOK_OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions"),
-        ("api_key", "HOK_OPENROUTER_API_KEY", ""),
-        ("model", "HOK_OPENROUTER_SEARCH_MODEL", "openrouter/auto"),
-        ("engine", "HOK_OPENROUTER_SEARCH_ENGINE", "auto"),
+        ("endpoint", "HOK_ALIYUN_SEARCH_ENDPOINT", ""),
+        ("api_key", "HOK_ALIYUN_SEARCH_API_KEY", ""),
+        ("workspace", "HOK_ALIYUN_SEARCH_WORKSPACE", "default"),
+        ("service_id", "HOK_ALIYUN_SEARCH_SERVICE_ID", "ops-web-search-001"),
+        ("content_type", "HOK_ALIYUN_SEARCH_CONTENT_TYPE", "snippet"),
+        ("way", "HOK_ALIYUN_SEARCH_WAY", "pro"),
     )
 }
+aliyun_search_config["query_rewrite"] = str(
+    os.environ.get("HOK_ALIYUN_SEARCH_QUERY_REWRITE")
+    if "HOK_ALIYUN_SEARCH_QUERY_REWRITE" in os.environ
+    else confs.get("AliyunSearch", {}).get("query_rewrite", True)
+).strip().casefold() not in {"0", "false", "no", "off"}
 clash_proxy_url = str(
     os.environ.get("HOK_CLASH_PROXY_URL")
     or confs.get("Proxy", {}).get("clash_url")
@@ -129,19 +135,11 @@ postgres_dsn = str(
 )
 postgres_archive_json = bool(confs.get("PostgreSQL", {}).get("archive_json", False))
 
-# 引入程序静态变量
-with open(variables_static_path, 'r', encoding='utf-8') as file:
-    varia = json.load(file)
+# Static and dynamic variables share the same non-secret config file.
+varia = dict(confs.get("StaticVariables", {}))
 for heroid,heroname in varia["HeroList"].items():
     varia["HeroNames"].append(heroname)
 for heroid,heroname in varia["HeroName_replacements"].items():
     varia["HeroNames"].append(heroname)
 globals().update(varia)
-
-# OpenRouter 搜索密钥默认跟随静态变量文件，部署环境变量仍拥有最高优先级。
-openrouter_search_config["api_key"] = str(
-    os.environ.get("HOK_OPENROUTER_API_KEY")
-    or globals().get("openrouter_api_key")
-    or confs.get("OpenRouterSearch", {}).get("api_key")
-    or ""
-).strip()
+dynamic_variables = dict(confs.get("DynamicVariables", {}))

@@ -115,6 +115,16 @@ class ClashProxyRoutingTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(self.sessions, [])
 
+    def test_direct_request_disables_environment_and_has_no_proxy(self):
+        self.responses.append(FakeResponse({"ok": True}))
+
+        result = PROXY.direct_request("POST", "https://example.test", json={"query": "test"})
+
+        self.assertEqual(result.json(), {"ok": True})
+        self.assertFalse(self.calls[0]["trust_env"])
+        self.assertEqual(self.calls[0]["proxies"], {})
+        self.assertTrue(self.sessions[0].closed)
+
 
 if __name__ == "__main__":
     unittest.main()

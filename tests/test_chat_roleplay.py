@@ -38,8 +38,8 @@ class CustomRoleplayTests(unittest.TestCase):
         research = {
             "answer": "角色背景、性格、语言风格与重要关系。",
             "sources": [{"title": "角色资料", "url": "https://example.com/role"}],
-            "provider": "openrouter",
-            "model": "openrouter/auto",
+            "provider": "aliyun_opensearch",
+            "service_id": "ops-web-search-001",
         }
         with patch.object(ZFUNC, "chat_web_search", return_value=research) as search:
             saved = ZFUNC.chat_roleplay_set("100", "测试角色", "说话简洁")

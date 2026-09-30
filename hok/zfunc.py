@@ -34,8 +34,8 @@ def chat_render_plot(data, *, code=None, template="bar", title="", options=None)
 
 
 def chat_web_search(query, max_results=5):
-    from .zapi import openrouter_web_search
-    return openrouter_web_search(query, max_results=max_results)
+    from .zapi import aliyun_web_search
+    return aliyun_web_search(query, max_results=max_results)
 
 
 def _chat_roleplay_key(user_id):

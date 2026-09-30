@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 import redis
+import yaml
 from dotenv import load_dotenv
 
 
@@ -139,7 +140,7 @@ def backup(config, moves, backup_dir):
     return path
 
 
-def unify_redis_config(config_path, config, backup_dir):
+def unify_redis_config(config_path, full_config, config, backup_dir):
     legacy_fields = [
         "REDIS_DB_LIKED_SET",
         "REDIS_DB_SHARE_QUEUE",
@@ -164,7 +165,8 @@ def unify_redis_config(config_path, config, backup_dir):
             updated[field] = target_db
     config_file = Path(config_path)
     temp_file = config_file.with_name(f".{config_file.name}.tmp")
-    temp_file.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+    full_config["Redis"] = updated
+    temp_file.write_text(yaml.safe_dump(full_config, allow_unicode=True, sort_keys=False), encoding="utf-8")
     temp_file.chmod(config_file.stat().st_mode & 0o777)
     os.replace(temp_file, config_file)
     return backup_path
@@ -233,11 +235,10 @@ def main():
     project_root = Path(__file__).resolve().parents[1]
     env_path = os.environ.get("HOK_ENV_FILE") or project_root / ".env"
     load_dotenv(env_path)
-    config_path = os.environ.get("REDIS_CONF")
-    if not config_path:
-        raise RuntimeError("REDIS_CONF is not configured")
+    config_path = os.environ.get("HOK_CONFIG_FILE") or project_root / "config.yaml"
     with open(config_path, "r", encoding="utf-8") as config_file:
-        config = json.load(config_file)
+        full_config = yaml.safe_load(config_file) or {}
+    config = full_config["Redis"]
     moves = discover(config)
     by_db = {}
     for move in moves:
@@ -251,7 +252,7 @@ def main():
         backup_dir = project_root / "redis-migration-backups"
     backup_path = backup(config, moves, backup_dir)
     apply(config, moves)
-    config_backup_path = unify_redis_config(config_path, config, backup_dir)
+    config_backup_path = unify_redis_config(config_path, full_config, config, backup_dir)
     print(json.dumps({
         "status": "complete",
         "backup": str(backup_path),

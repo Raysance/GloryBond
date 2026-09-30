@@ -39,7 +39,7 @@ result = zfunc.Analyses.get_benefit_data()
 它会准备：
 
 - 项目根目录 `sys.path`
-- 本地 `REDIS_CONF`
+- 项目根目录 `config.yaml` 中的 `Redis`
 - 项目根目录下的 `file_transfer/` 静态产物根目录
 - 缺失的 import-time 依赖占位
 - 不执行 `hok/__init__.py` 的 `hok` 命名空间

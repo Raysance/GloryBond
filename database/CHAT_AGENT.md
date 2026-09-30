@@ -34,13 +34,13 @@
 
 群聊历史以 PostgreSQL 为主存储，写库失败时才回退到 DB0 Redis list；读取时合并尚未迁移的 Redis 记录并以 SQL 重复项为准。迁移使用 `scripts/migrate_group_chat_history_to_postgres.py`，验证完成前保留 Redis 原数据。
 
-`web_search` 通过 OpenRouter 的 `openrouter:web_search` server tool 和 Clash 代理执行，归一化真实来源；服务不可用时返回明确错误，普通聊天仍保持 DeepSeek 官方直连。联网工具不伪造结果，也不静默切换供应商。
+`web_search` 通过阿里云 OpenSearch 的 `ops-web-search-001` 服务直连执行，归一化 API 返回的标题、链接、内容与发布时间；服务不可用时返回明确错误，普通聊天仍保持 DeepSeek 官方直连。联网工具不伪造结果，也不静默切换供应商。
 
 ## 运行准备
 
 1. 使用应用 Python 环境安装 `pyproject.toml` 所列依赖，包括 `sqlglot>=30.20,<31`、pandas、numpy、matplotlib、seaborn、Pillow 及 SOCKS 支持。Linux 安装 `bubblewrap` 和中文字体，例如文泉驿微米黑。
-2. 由 PostgreSQL 管理员对 HOK 数据库执行 `database/chat_readonly.sql`，单独设置随机密码；将专用连接串以 `HOK_CHAT_READONLY_DSN` 写入权限为 0600 的私有服务环境文件。不得使用应用写账号或把密码写入 Git。
-3. `ChatSQL` 配置查询上限，`ChatPlot` 配置超时、内存、行数、代码长度和可选 `font_path`。`variables_dynamic.json` 配置每次对话的工具预算、轮数、SQL 批量数、记忆容量及图片数。
+2. 由 PostgreSQL 管理员对 HOK 数据库执行 `database/chat_readonly.sql`，单独设置随机密码；将专用连接串以 `HOK_CHAT_READONLY_DSN` 写入项目根目录、权限为 0600 的 `.env`。不得使用应用写账号。
+3. `ChatSQL` 配置查询上限，`ChatPlot` 配置超时、内存、行数、代码长度和可选 `font_path`。`config.yaml` 的 `DynamicVariables` 配置每次对话的工具预算、轮数、SQL 批量数、记忆容量及图片数。
 
 2026-09-29 已在 Aliyun 的现有应用虚拟环境安装并验证依赖，创建专用只读角色并写入私有服务环境文件；隔离临时目录中的真实 PostgreSQL 查询和 bubblewrap 中文图表渲染均已通过。该准备步骤未部署应用代码或重启 `hok-nbot.service`。
 

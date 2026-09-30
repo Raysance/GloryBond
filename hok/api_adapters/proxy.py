@@ -1,8 +1,15 @@
-"""Explicit outbound proxy helpers for external API adapters."""
+"""Explicit outbound routing helpers for external API adapters."""
 
 import requests
 
 from ..zstatic import clash_proxy_url
+
+
+def direct_request(method, url, **kwargs):
+    """Send one request directly without inheriting ambient proxy settings."""
+    with requests.Session() as session:
+        session.trust_env = False
+        return session.request(method, url, **kwargs)
 
 
 def clash_request(method, url, **kwargs):
@@ -16,4 +23,4 @@ def clash_request(method, url, **kwargs):
         return session.request(method, url, **kwargs)
 
 
-__all__ = ["clash_request"]
+__all__ = ["clash_request", "direct_request"]

@@ -81,8 +81,8 @@ class ChatRuntimeDiagnosticTests(unittest.TestCase):
         search_result = DIAGNOSTIC.web_search_check(lambda *args, **kwargs: {
             "answer": "private web answer",
             "sources": [{"url": "https://example.test"}],
-            "provider": "openrouter",
-            "model": "search-model",
+            "provider": "aliyun_opensearch",
+            "service_id": "ops-web-search-001",
             "search_requests": 1,
         })
         self.assertEqual(search_result["status"], "ok")

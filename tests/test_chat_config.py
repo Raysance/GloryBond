@@ -35,6 +35,19 @@ def load_chat_config_function():
 CHAT_CONFIG_FUNCTION = load_chat_config_function()
 
 
+def load_secret_config_function():
+    source_path = Path(__file__).resolve().parents[1] / "hok" / "zstatic.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8-sig"))
+    function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_apply_secret_environment"
+    )
+    return compile(ast.Module(body=[function], type_ignores=[]), str(source_path), "exec")
+
+
+SECRET_CONFIG_FUNCTION = load_secret_config_function()
+
+
 class ChatEnvironmentTests(unittest.TestCase):
     def build_chat_config(self, config, environment):
         from urllib.parse import urlparse
@@ -42,6 +55,20 @@ class ChatEnvironmentTests(unittest.TestCase):
         namespace = {"urlparse": urlparse}
         exec(CHAT_CONFIG_FUNCTION, namespace)
         return namespace["_build_chat_api_config"](config, environment)
+
+    def test_secret_environment_populates_runtime_sections(self):
+        namespace = {}
+        exec(SECRET_CONFIG_FUNCTION, namespace)
+        config = {"QQBot": {"ark_responses_model": "model"}, "wzry": {"roleid": "1"}}
+
+        result = namespace["_apply_secret_environment"](config, {
+            "HOK_ARK_API_KEY": "ark-secret",
+            "HOK_WZRY_TOKEN": "wzry-secret",
+        })
+
+        self.assertEqual(result["QQBot"]["ark_key"], "ark-secret")
+        self.assertEqual(result["QQBot"]["ark_responses_model"], "model")
+        self.assertEqual(result["wzry"], {"roleid": "1", "token": "wzry-secret"})
 
     def test_official_deepseek_reuses_legacy_key_and_allows_direct_connection(self):
         result = self.build_chat_config({
@@ -92,43 +119,38 @@ class ChatEnvironmentTests(unittest.TestCase):
             environment = dict(os.environ)
         return result, environment, loaded
 
-    def test_local_env_uses_bot_path_loaded_from_base_dotenv(self):
+    def test_project_env_is_the_single_local_configuration_file(self):
         base = "/fixture/.env"
-        private = "/fixture/bot/.env.local"
         result, environment, loaded = self.run_environment_loader({
-            base: "BOT_PATH=/fixture/bot\n",
-            private: "HOK_CHAT_API_KEY=fixture-local-key\n",
+            base: "BOT_PATH=/fixture/bot\nHOK_CHAT_API_KEY=fixture-key\n",
         })
 
         self.assertEqual(environment["BOT_PATH"], "/fixture/bot")
-        self.assertEqual(environment["HOK_CHAT_API_KEY"], "fixture-local-key")
-        self.assertEqual(loaded, [base, private])
-        self.assertEqual(result, os.pathsep.join([base, private]))
+        self.assertEqual(environment["HOK_CHAT_API_KEY"], "fixture-key")
+        self.assertEqual(loaded, [base])
+        self.assertEqual(result, base)
 
     def test_explicit_env_file_does_not_load_local_env(self):
         explicit = "/fixture/private.env"
         result, environment, loaded = self.run_environment_loader({
             explicit: "BOT_PATH=/fixture/bot\nHOK_CHAT_API_KEY=fixture-explicit-key\n",
             "/fixture/.env": "HOK_CHAT_API_KEY=fixture-base-key\n",
-            "/fixture/bot/.env.local": "HOK_CHAT_API_KEY=fixture-local-key\n",
         }, {"HOK_ENV_FILE": explicit})
 
         self.assertEqual(environment["HOK_CHAT_API_KEY"], "fixture-explicit-key")
         self.assertEqual(loaded, [explicit])
         self.assertEqual(result, explicit)
 
-    def test_process_api_key_is_not_overridden_by_dotenv_files(self):
+    def test_process_api_key_is_not_overridden_by_project_env(self):
         base = "/fixture/.env"
-        private = "/fixture/bot/.env.local"
         _, environment, loaded = self.run_environment_loader({
             base: "HOK_CHAT_API_KEY=fixture-base-key\n",
-            private: "HOK_CHAT_API_KEY=fixture-local-key\n",
         }, {
             "BOT_PATH": "/fixture/bot",
             "HOK_CHAT_API_KEY": "fixture-process-key",
         })
 
-        self.assertEqual(loaded, [base, private])
+        self.assertEqual(loaded, [base])
         self.assertEqual(environment["HOK_CHAT_API_KEY"], "fixture-process-key")
 
 

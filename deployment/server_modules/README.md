@@ -22,12 +22,8 @@ export made by this server-module layer.
 │   │   ├── Web/                   HOK FastAPI source
 │   │   └── napcat/                QQ/NapCat installation
 │   ├── config/
-│   │   ├── common.env             host paths and runtime configuration
-│   │   ├── nbot-host.env          host CLI path and outbound proxy
-│   │   ├── redis.json             Redis connection configuration
-│   │   ├── config.yaml            link to the existing tracked configuration
-│   │   ├── variables_static.json  link to the existing tracked configuration
-│   │   └── variables_dynamic.json link to the existing tracked configuration
+│   │   ├── .env                   link to the tracked credential file
+│   │   └── config.yaml            link to the tracked non-secret configuration
 │   ├── data/
 │   │   ├── nbot/                  link to app data (includes Git-tracked seeds)
 │   │   ├── file_transfer/         shared public artifacts
@@ -59,11 +55,11 @@ export made by this server-module layer.
 `NBot` and `Web` retain their physical capitalization. Do not substitute lowercase
 paths from the separate `/opt` installer when editing this deployment.
 
-The HOK configuration directory provides a single configuration entry point. The
-three existing Git-managed YAML/JSON files remain in their original source tree,
-with links from `config/`, so current Git updates retain their behavior. Secrets
-must not be copied into public examples or new source-controlled files. Runtime
-state remains in Redis, PostgreSQL, or `data/`, independently of those defaults.
+The HOK configuration directory only indexes the two Git-managed files from the
+NBot project root. `.env` contains credentials and `config.yaml` contains every
+non-secret setting. Do not add host env files, examples, Redis JSON, or separate
+static/dynamic variable files. Host paths stay in systemd units. Runtime state
+remains in Redis, PostgreSQL, or `data/`, independently of those defaults.
 The existing NBot `apps/NBot/data/` directory also contains tracked seed files;
 `data/nbot` indexes that real directory. Do not reverse this link while the current
 CI uses `git restore`, which would replace a tracked directory's outward link.

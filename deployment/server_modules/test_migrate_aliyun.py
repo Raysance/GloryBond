@@ -49,7 +49,7 @@ class MigrationTransactionTests(unittest.TestCase):
             old = base / "original.env"
             old.write_text("UNCHANGED=original\n")
             old.chmod(0o640)
-            new = base / "modules/config/common.env"
+            new = base / "modules/config/.env"
             transaction = migration.Transaction(base / "journal")
             transaction.relocate(old, new)
             transaction.write(new, "CHANGED=new\n", 0o600)

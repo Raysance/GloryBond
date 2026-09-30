@@ -233,7 +233,7 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
     from . import zfunc
     from .zmemory import instance as memory
     from .zmemory import select_active_dialogue_context
-    from .zstatic import chat_api_config, openrouter_search_config
+    from .zstatic import aliyun_search_config, chat_api_config
 
     started = monotonic_seconds()
     remaining = max(1, int(getattr(dmc, "ChatToolBudget", 16)))
@@ -259,7 +259,7 @@ def chat_process(*, user_text, user_id, nickname, group_id=None, message_id=None
         trace.update(status=status, answer=answer, error=error, duration_ms=elapsed(),
                      summary=trace_summary(trace["rounds"]))
         return public_value(trace, secrets=(chat_api_config.get("api_key"),
-                                            openrouter_search_config.get("api_key")))
+                                            aliyun_search_config.get("api_key")))
 
     def current_schemas():
         if hasattr(tools, "model_schemas"):

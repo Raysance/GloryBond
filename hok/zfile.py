@@ -93,7 +93,7 @@ def read_emoji_reference():
 
 
 def read_dynamic_variables():
-    return readerl(variables_dynamic_path)
+    return dict(dynamic_variables)
 
 
 def news_text_path(target_date):

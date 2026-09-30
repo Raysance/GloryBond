@@ -3,10 +3,8 @@ from .zutil import *
 from .zstatic import *
 import redis
 
-# 引入程序动态变量
-with open(variables_dynamic_path, 'r', encoding='utf-8') as file:
-    varia = json.load(file)
-globals().update(varia)
+# Dynamic defaults are loaded from the sole non-secret config file.
+globals().update(dynamic_variables)
 redis_deamon = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 redis_deamon_liked_btl = redis_deamon
 redis_deamon_share_btl = redis_deamon

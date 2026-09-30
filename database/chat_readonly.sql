@@ -1,6 +1,6 @@
 -- Run as the database owner / PostgreSQL administrator against the HOK database.
 -- Passwords are deliberately absent. Provision the password separately and keep
--- the resulting DSN in private HOK_CHAT_READONLY_DSN, never in this repository.
+-- the resulting DSN in HOK_CHAT_READONLY_DSN inside the repository's private .env.
 -- Re-running this script is safe and does not alter gameplay tables or rows.
 BEGIN;
 

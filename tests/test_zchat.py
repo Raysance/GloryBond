@@ -550,7 +550,7 @@ class HOKChatToolsTests(unittest.TestCase):
             return {"tool_calls": calls, "output_items": [{"type": "function_call", **call} for call in calls]}
         with patch.object(ZFUNC, "chat_check_database_query", return_value={"ok": True, "normalized_sql": "SELECT 1 AS value"}), \
                 patch.object(ZFUNC, "chat_query_database", return_value={"ok": True, "rows": [{"label": "A", "value": 9}]}), \
-                patch.object(ZFUNC, "chat_web_search", side_effect=RuntimeError("OpenRouter unavailable")), \
+                patch.object(ZFUNC, "chat_web_search", side_effect=RuntimeError("Aliyun OpenSearch unavailable")), \
                 patch.object(ZFUNC, "chat_render_plot", return_value={"path": "/tmp/trusted.png", "width": 1456}), \
                 patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[]), \
                 patch.object(ZMEMORY.instance, "save_active_chat") as save:

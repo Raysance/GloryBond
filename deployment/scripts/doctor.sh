@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-config_dir="/etc/hok-qqbot"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+bot_path="$(CDPATH= cd -- "$script_dir/../.." && pwd)"
 while (($#)); do
     case "$1" in
-        --config-dir) config_dir="$2"; shift 2 ;;
+        --bot-path) bot_path="$2"; shift 2 ;;
         -h|--help)
-            printf 'Usage: deployment/scripts/doctor.sh [--config-dir PATH]\n'
+            printf 'Usage: deployment/scripts/doctor.sh [--bot-path PATH]\n'
             exit 0
             ;;
         *) printf 'HOK_DOCTOR_ERROR: unknown option: %s\n' "$1" >&2; exit 64 ;;
@@ -18,23 +19,27 @@ ok() { printf 'OK    %s\n' "$*"; }
 warn() { printf 'WARN  %s\n' "$*"; }
 fail() { printf 'FAIL  %s\n' "$*"; failures=$((failures + 1)); }
 
-common_env="$config_dir/common.env"
-if [[ ! -r "$common_env" ]]; then
-    fail "missing readable $common_env"
+credential_file="$bot_path/.env"
+if [[ ! -r "$credential_file" ]]; then
+    fail "missing readable $credential_file"
     exit 1
 fi
 
 set -a
 # shellcheck disable=SC1090
-. "$common_env"
+. "$credential_file"
 set +a
 
+BOT_PATH="${BOT_PATH:-$bot_path}"
+WEB_PATH="${WEB_PATH:-$(dirname -- "$BOT_PATH")/web}"
+HOK_CONFIG_FILE="${HOK_CONFIG_FILE:-$BOT_PATH/config.yaml}"
+HOK_DATA_DIR="${HOK_DATA_DIR:-$BOT_PATH/data}"
+HOK_FILE_TRANSFER_DIR="${HOK_FILE_TRANSFER_DIR:-$BOT_PATH/file_transfer}"
+HOK_LOG_DIR="${HOK_LOG_DIR:-$BOT_PATH/log}"
+
 required_files=(
-    "$config_dir/nbot.env"
+    "$BOT_PATH/.env"
     "$HOK_CONFIG_FILE"
-    "$HOK_STATIC_VARIABLES_FILE"
-    "$HOK_DYNAMIC_VARIABLES_FILE"
-    "$REDIS_CONF"
 )
 for file in "${required_files[@]}"; do
     if [[ -r "$file" ]]; then
@@ -44,8 +49,8 @@ for file in "${required_files[@]}"; do
     fi
 done
 
-if grep -RqsE 'replace-me|replace-with-a-random' "$HOK_CONFIG_FILE" "$common_env" "$config_dir/nbot.env"; then
-    fail "placeholder secrets remain in $config_dir"
+if grep -RqsE 'replace-me|replace-with-a-random' "$HOK_CONFIG_FILE" "$BOT_PATH/.env"; then
+    fail "configuration placeholders remain"
 else
     ok "configuration placeholders replaced"
 fi
@@ -80,14 +85,14 @@ else
     fail "Web virtualenv is incomplete"
 fi
 
-if [[ -x "$nbot_python" && -r "$REDIS_CONF" ]]; then
-    if "$nbot_python" - "$REDIS_CONF" <<'PY'
-import json
+if [[ -x "$nbot_python" && -r "$HOK_CONFIG_FILE" ]]; then
+    if "$nbot_python" - "$HOK_CONFIG_FILE" <<'PY'
 import sys
 import redis
+import yaml
 
 with open(sys.argv[1], encoding="utf-8") as config_file:
-    config = json.load(config_file)
+    config = (yaml.safe_load(config_file) or {})["Redis"]
 client = redis.Redis(
     host=config["REDIS_HOST"],
     port=int(config["REDIS_PORT"]),

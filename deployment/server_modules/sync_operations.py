@@ -11,16 +11,11 @@ def main():
     source = Path(__file__).resolve().parent
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ-ops')
     transaction = Transaction(BACKUPS / stamp)
-    # The live CLI lives in Conda; this explicit setting also supports the newer
-    # source-controlled launcher after a future CI application release.
-    transaction.write(ROOT / 'hok/config/nbot-host.env',
-                      'HOK_NB_BIN=/root/miniconda3/bin/nb\n'
-                      'HTTP_PROXY=http://127.0.0.1:7890\n'
-                      'HTTPS_PROXY=http://127.0.0.1:7890\n'
-                      'NO_PROXY=localhost,127.0.0.1,::1\n', 0o600)
+    # The live CLI lives in Conda. Keep this host path in systemd instead of
+    # creating a third application configuration file.
     unit = UNIT_DIR / 'hok-nbot.service'
     content = unit.read_text()
-    setting = 'EnvironmentFile=/srv/modules/hok/config/nbot-host.env\n'
+    setting = 'Environment=HOK_NB_BIN=/root/miniconda3/bin/nb\n'
     if setting not in content:
         content = content.replace('[Service]\n', '[Service]\n' + setting, 1)
     transaction.write(unit, content)

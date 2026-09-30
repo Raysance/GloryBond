@@ -61,8 +61,6 @@ def moves():
         ('/QQBot/Web', 'hok/apps/Web'),
         ('/root/Napcat', 'hok/apps/napcat'),
         ('/root/.config/QQ', 'hok/data/qq-profile'),
-        ('/QQBot/.env', 'hok/config/common.env'),
-        ('/QQBot/redis.conf', 'hok/config/redis.json'),
         ('/QQBot/Lagrange', 'hok/legacy/Lagrange'),
         ('/QQBot/BotDemo', 'hok/legacy/BotDemo'),
         ('/QQBot/Napcat', 'hok/legacy/napcat-installer'),
@@ -286,24 +284,10 @@ def apply(source_dir):
         for name in MEMBERS:
             for child in ['systemd', 'nginx', 'ops']:
                 (ROOT / name / child).mkdir(parents=True, exist_ok=True)
-        for filename in ['config.yaml', 'variables_static.json', 'variables_dynamic.json', '.env']:
-            alias = 'nbot.env' if filename == '.env' else filename
-            transaction.link(ROOT / 'hok/config' / alias, '../apps/NBot/' + filename)
+        for filename in ['config.yaml', '.env']:
+            transaction.link(ROOT / 'hok/config' / filename, '../apps/NBot/' + filename)
         # Git-tracked application settings keep their ownership and live paths;
-        # config/ presents a stable catalog without CI replacing an outward link.
-        runtime_env = (
-            'BOT_PATH=/srv/modules/hok/apps/NBot\n'
-            'WEB_PATH=/srv/modules/hok/apps/Web\n'
-            'HOK_NAPCAT_ROOT=/srv/modules/hok/apps/napcat\n'
-            'REDIS_CONF=/srv/modules/hok/config/redis.json\n'
-            'NGINX_HTML=/srv/modules/hok/public\n'
-        )
-        transaction.write(ROOT / 'hok/config/common.env', runtime_env, 0o600)
-        transaction.write(ROOT / 'hok/config/nbot-host.env',
-                          'HOK_NB_BIN=/root/miniconda3/bin/nb\n'
-                          'HTTP_PROXY=http://127.0.0.1:7890\n'
-                          'HTTPS_PROXY=http://127.0.0.1:7890\n'
-                          'NO_PROXY=localhost,127.0.0.1,::1\n', 0o600)
+        # config/ presents a stable two-file catalog without duplicate settings.
         paths = {
             'hok-nbot.service': [('/QQBot/NBot', '/srv/modules/hok/apps/NBot')],
             'hok-web.service': [('/QQBot/Web', '/srv/modules/hok/apps/Web')],
@@ -318,10 +302,20 @@ def apply(source_dir):
             content = insert_partof((UNIT_DIR / unit).read_text(), f'{owner}.target')
             for old, new in replacements:
                 content = content.replace(old, new)
-            if owner == 'hok' and unit in ['hok-web.service', 'hok-nbot.service']:
-                content = content.replace('[Service]\n', '[Service]\nEnvironmentFile=/srv/modules/hok/config/common.env\n', 1)
-            if unit == 'hok-nbot.service':
-                content = content.replace('[Service]\n', '[Service]\nEnvironmentFile=/srv/modules/hok/config/nbot-host.env\n', 1)
+            if owner == 'hok':
+                environment = (
+                    'EnvironmentFile=/srv/modules/hok/apps/NBot/.env\n'
+                    'Environment=BOT_PATH=/srv/modules/hok/apps/NBot\n'
+                    'Environment=HOK_CONFIG_FILE=/srv/modules/hok/apps/NBot/config.yaml\n'
+                    'Environment=HOK_DATA_DIR=/srv/modules/hok/data/nbot\n'
+                    'Environment=HOK_FILE_TRANSFER_DIR=/srv/modules/hok/data/file_transfer\n'
+                    'Environment=HOK_LOG_DIR=/srv/modules/hok/logs/nbot\n'
+                )
+                if unit == 'hok-web.service':
+                    environment += 'Environment=WEB_PATH=/srv/modules/hok/apps/Web\n'
+                if unit == 'hok-nbot.service':
+                    environment += 'Environment=HOK_NB_BIN=/root/miniconda3/bin/nb\n'
+                content = content.replace('[Service]\n', '[Service]\n' + environment, 1)
             if owner == 'personal-site':
                 content = content.replace('[Service]\n', '[Service]\nEnvironment=CONTENT_ROOT=/srv/modules/personal-site/apps/site/src/content\nEnvironment=DEPLOYMENT_STATUS_FILE=/srv/modules/personal-site/state/deployment.json\n', 1)
             transaction.write(ROOT / owner / 'systemd' / unit, content)

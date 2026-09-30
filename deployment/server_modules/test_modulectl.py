@@ -237,8 +237,8 @@ class SnapshotTests(unittest.TestCase):
     def test_rejects_nonzero_redis_database_without_connecting(self):
         with tempfile.TemporaryDirectory() as temporary:
             module = Path(temporary)
-            (module / "config").mkdir()
-            (module / "config/redis.json").write_text(json.dumps({"REDIS_DB": 9}))
+            (module / "apps/NBot").mkdir(parents=True)
+            (module / "apps/NBot/config.yaml").write_text("Redis:\n  REDIS_DB: 9\n")
             with patch.dict(sys.modules, {"redis": types.SimpleNamespace()}), self.assertRaises(ValueError):
                 snapshot_hok.dump_redis(module, module)
 
@@ -283,8 +283,10 @@ class SnapshotTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             module = Path(temporary)
-            (module / "config").mkdir()
-            (module / "config/redis.json").write_text(json.dumps({"REDIS_HOST": "localhost", "REDIS_PORT": 6379, "REDIS_DB": 0}))
+            (module / "apps/NBot").mkdir(parents=True)
+            (module / "apps/NBot/config.yaml").write_text(
+                "Redis:\n  REDIS_HOST: localhost\n  REDIS_PORT: 6379\n  REDIS_DB: 0\n"
+            )
             output = module / "output"
             output.mkdir()
             with patch.dict(sys.modules, {"redis": types.SimpleNamespace(Redis=Redis)}):

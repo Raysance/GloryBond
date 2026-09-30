@@ -7,7 +7,6 @@ Usage: sudo deployment/scripts/install.sh [options]
 
 Options:
   --prefix PATH          Stack code root (default: /opt/hok-qqbot)
-  --config-dir PATH      External configuration root (default: /etc/hok-qqbot)
   --state-dir PATH       Persistent state root (default: /var/lib/hok-qqbot)
   --log-dir PATH         Runtime log root (default: /var/log/hok-qqbot)
   --user NAME            Runtime user (default: hok)
@@ -38,7 +37,6 @@ else
 fi
 
 prefix="/opt/hok-qqbot"
-config_dir="/etc/hok-qqbot"
 state_dir="/var/lib/hok-qqbot"
 log_dir="/var/log/hok-qqbot"
 run_user="hok"
@@ -54,7 +52,6 @@ start_services=false
 while (($#)); do
     case "$1" in
         --prefix) prefix="$2"; shift 2 ;;
-        --config-dir) config_dir="$2"; shift 2 ;;
         --state-dir) state_dir="$2"; shift 2 ;;
         --log-dir) log_dir="$2"; shift 2 ;;
         --user) run_user="$2"; shift 2 ;;
@@ -79,7 +76,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
     exit 77
 fi
 
-for path in "$prefix" "$config_dir" "$state_dir" "$log_dir"; do
+for path in "$prefix" "$state_dir" "$log_dir"; do
     if [[ -z "$path" || "$path" == "/" ]]; then
         printf 'HOK_INSTALL_ERROR: unsafe target path: %s\n' "$path" >&2
         exit 64
@@ -130,7 +127,7 @@ web_root="$prefix/web"
 file_transfer_dir="$state_dir/file_transfer"
 find_bin="$(command -v find)"
 
-install -d -o root -g "$run_group" -m 0750 "$prefix" "$config_dir"
+install -d -o root -g "$run_group" -m 0750 "$prefix"
 install -d -o "$run_user" -g "$run_group" -m 0750 \
     "$state_dir" "$state_dir/data" "$state_dir/data/history" \
     "$state_dir/data/history/battles" "$state_dir/data/history/personal" \
@@ -147,8 +144,8 @@ copy_tree() {
     fi
     install -d -m 0755 "$target_dir"
     tar -C "$source_dir" \
-        --exclude='.git' --exclude='.venv' --exclude='.env' --exclude='.env.local' \
-        --exclude='config.yaml' --exclude='__pycache__' --exclude='*.pyc' \
+        --exclude='.git' --exclude='.venv' \
+        --exclude='__pycache__' --exclude='*.pyc' \
         --exclude='.DS_Store' --exclude='log' --exclude='file_transfer' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
@@ -181,7 +178,6 @@ render_template() {
         -e "s|@STACK_ROOT@|$prefix|g" \
         -e "s|@NBOT_ROOT@|$nbot_root|g" \
         -e "s|@WEB_ROOT@|$web_root|g" \
-        -e "s|@CONFIG_DIR@|$config_dir|g" \
         -e "s|@STATE_DIR@|$state_dir|g" \
         -e "s|@LOG_DIR@|$log_dir|g" \
         -e "s|@RUN_USER@|$run_user|g" \
@@ -194,35 +190,14 @@ render_template() {
         "$source_file" > "$target_file"
 }
 
-install_if_missing() {
-    local source_file="$1"
-    local target_file="$2"
-    local mode="$3"
-    if [[ ! -e "$target_file" ]]; then
-        install -m "$mode" -o root -g "$run_group" "$source_file" "$target_file"
-    fi
-}
-
-if [[ ! -e "$config_dir/common.env" ]]; then
-    temp_common="$(mktemp)"
-    render_template "$deployment_root/config/common.env.example" "$temp_common"
-    install -m 0640 -o root -g "$run_group" "$temp_common" "$config_dir/common.env"
-    rm -f -- "$temp_common"
-fi
-install_if_missing "$deployment_root/config/nbot.env.example" "$config_dir/nbot.env" 0640
-install_if_missing "$deployment_root/config/napcat.env.example" "$config_dir/napcat.env" 0640
-install_if_missing "$deployment_root/config/redis.json.example" "$config_dir/redis.json" 0640
-install_if_missing "$deployment_root/config/config.yaml.example" "$config_dir/config.yaml" 0640
-install_if_missing "$nbot_source/variables_static.json" "$config_dir/variables_static.json" 0660
-install_if_missing "$nbot_source/variables_dynamic.json" "$config_dir/variables_dynamic.json" 0640
+chmod 0600 "$nbot_root/.env"
+chmod 0640 "$nbot_root/config.yaml"
 
 if [[ -d "$nbot_source/data/honor" ]]; then
     install -d -o "$run_user" -g "$run_group" -m 0750 "$state_dir/data/honor"
     cp -a "$nbot_source/data/honor/." "$state_dir/data/honor/"
 fi
 chown -R "$run_user:$run_group" "$state_dir" "$log_dir"
-chown root:"$run_group" "$config_dir"/*
-chmod 0660 "$config_dir/variables_static.json"
 
 # Nginx may traverse the state root and read only public artifacts. Keeping it
 # out of the application group prevents access to private configuration/data.
@@ -317,5 +292,5 @@ if [[ "$start_services" == true ]]; then
     fi
 fi
 
-printf 'HOK install complete. Review %s, then run:\n' "$config_dir"
-printf '  %s/deployment/scripts/doctor.sh --config-dir %s\n' "$nbot_root" "$config_dir"
+printf 'HOK install complete. Review %s/.env and %s/config.yaml, then run:\n' "$nbot_root" "$nbot_root"
+printf '  %s/deployment/scripts/doctor.sh --bot-path %s\n' "$nbot_root" "$nbot_root"

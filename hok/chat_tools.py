@@ -233,7 +233,7 @@ class HOKChatTools:
                     "xlabel": {"type": "string", "maxLength": 100},
                     "ylabel": {"type": "string", "maxLength": 100}},
                     "additionalProperties": False}}, ["dataset_id"]),
-            _schema("web_search", "通过 OpenRouter 的联网搜索工具查询互联网事实和时效信息，强制走 Clash 代理。失败会返回 observation，不能编造已联网结果。", {
+            _schema("web_search", "通过阿里云 OpenSearch 联网搜索直接查询互联网事实和时效信息，不使用代理。失败会返回 observation，不能编造已联网结果。", {
                 "query": {"type": "string", "maxLength": 2000},
                 "max_results": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"]),
         ]

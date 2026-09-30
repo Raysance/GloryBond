@@ -93,25 +93,23 @@ def configuration_check(config: dict) -> dict:
 
 
 def dependency_configuration_check(
-    openrouter_config: dict,
-    clash_proxy_url: str,
+    search_config: dict,
     readonly_dsn: str,
     redis_db,
 ) -> dict:
     """Check configuration presence without returning endpoints or credentials."""
     started = time.perf_counter()
-    search_configured = all(str(openrouter_config.get(key) or "").strip()
-                            for key in ("base_url", "api_key", "model", "engine"))
-    clash_configured = bool(str(clash_proxy_url or "").strip())
+    search_configured = all(str(search_config.get(key) or "").strip()
+                            for key in ("endpoint", "api_key", "workspace", "service_id"))
     readonly_sql_configured = bool(str(readonly_dsn or "").strip())
     redis_db_zero = str(redis_db) == "0"
-    passed = all((search_configured, clash_configured, readonly_sql_configured, redis_db_zero))
+    passed = all((search_configured, readonly_sql_configured, redis_db_zero))
     return _check(
         "dependency_configuration",
         started,
         status="ok" if passed else "failed",
-        openrouter_search_configured=search_configured,
-        clash_proxy_configured=clash_configured,
+        aliyun_search_configured=search_configured,
+        aliyun_search_direct=True,
         readonly_sql_configured=readonly_sql_configured,
         redis_db_zero=redis_db_zero,
     )
@@ -253,7 +251,7 @@ def group_history_check(primary_group_lister: Callable, merged_group_lister: Cal
 
 
 def web_search_check(web_search: Callable, api_key: str = "") -> dict:
-    """Make one real OpenRouter server-tool request through the configured Clash proxy."""
+    """Make one real direct Alibaba Cloud OpenSearch request."""
     started = time.perf_counter()
     try:
         result = web_search("OpenAI 官方网站 ChatGPT 产品页面", max_results=1)
@@ -261,17 +259,17 @@ def web_search_check(web_search: Callable, api_key: str = "") -> dict:
         search_requests = int(result.get("search_requests") or 0)
         passed = bool(str(result.get("answer") or "").strip()) and (search_requests > 0 or bool(sources))
         return _check(
-            "openrouter_web_search",
+            "aliyun_web_search",
             started,
             status="ok" if passed else "failed",
             provider=str(result.get("provider") or ""),
-            model=str(result.get("model") or ""),
+            service_id=str(result.get("service_id") or ""),
             search_requests=search_requests,
             source_count=len(sources),
             answer_received=bool(str(result.get("answer") or "").strip()),
         )
     except Exception as error:
-        return _check("openrouter_web_search", started, status="failed", error=_safe_error(error, api_key))
+        return _check("aliyun_web_search", started, status="failed", error=_safe_error(error, api_key))
 
 
 def text_completion_check(ai_create: Callable, api_key: str = "") -> dict:
@@ -410,8 +408,7 @@ def main() -> int:
         zapi.ai_response_create,
         additional_checks=(
             lambda: dependency_configuration_check(
-                zstatic.openrouter_search_config,
-                zstatic.clash_proxy_url,
+                zstatic.aliyun_search_config,
                 zstatic.chat_readonly_dsn,
                 zstatic.REDIS_DB,
             ),
@@ -437,8 +434,8 @@ def main() -> int:
                 zfunc.search_group_chat_history,
             ),
             lambda: web_search_check(
-                zapi.openrouter_web_search,
-                zstatic.openrouter_search_config.get("api_key", ""),
+                zapi.aliyun_web_search,
+                zstatic.aliyun_search_config.get("api_key", ""),
             ),
         ),
     )

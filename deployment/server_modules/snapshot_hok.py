@@ -67,8 +67,9 @@ def dump_postgres(module: Path, output: Path, executable: str | None) -> dict:
 
 def dump_redis(module: Path, output: Path) -> dict:
     import redis
+    import yaml
 
-    config = json.loads((module / "config/redis.json").read_text(encoding="utf-8"))
+    config = yaml.safe_load((module / "apps/NBot/config.yaml").read_text(encoding="utf-8"))["Redis"]
     if int(config.get("REDIS_DB", 0)) != 0:
         raise ValueError("Only HOK Redis DB0 is allowed")
     kwargs = {

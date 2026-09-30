@@ -8,8 +8,9 @@ Type=simple
 User=@RUN_USER@
 Group=@RUN_GROUP@
 WorkingDirectory=@STACK_ROOT@
-EnvironmentFile=@CONFIG_DIR@/common.env
-EnvironmentFile=@CONFIG_DIR@/napcat.env
+EnvironmentFile=@NBOT_ROOT@/.env
+Environment=BOT_PATH=@NBOT_ROOT@
+Environment=HOK_CONFIG_FILE=@NBOT_ROOT@/config.yaml
 ExecStart=@NAPCAT_RUNNER@
 Restart=always
 RestartSec=10

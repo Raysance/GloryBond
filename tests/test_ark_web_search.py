@@ -102,7 +102,7 @@ class ArkWebSearchTests(unittest.TestCase):
             with self.subTest(query=query, limit=limit), self.assertRaises(ValueError):
                 ZAPI.ark_web_search(query, max_results=limit)
         with patch.dict(AI_ADAPTER.confs, {"QQBot": {}}):
-            with self.assertRaisesRegex(RuntimeError, "configure QQBot"):
+            with self.assertRaisesRegex(RuntimeError, "HOK_ARK_API_KEY"):
                 ZAPI.ark_web_search("query")
         self.openai.assert_not_called()
 
