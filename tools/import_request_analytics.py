@@ -28,6 +28,7 @@ from request_analytics import (  # noqa: E402
     sanitized_query,
     should_track_request,
 )
+from runtime_config import RUNTIME  # noqa: E402
 
 
 IMPORTED_EVENT_IDS_KEY = "hok:web:analytics:imported_event_ids"
@@ -95,14 +96,9 @@ def collect_events(log_paths: list[Path], cutoff: datetime) -> list[tuple[dict, 
 
 
 def connect_redis():
-    from dotenv import load_dotenv
     import redis
 
-    load_dotenv("/QQBot/.env")
-    redis_path = os.environ.get("REDIS_CONF")
-    if not redis_path:
-        raise RuntimeError("REDIS_CONF is unavailable")
-    with open(redis_path, "r", encoding="utf-8") as config_file:
+    with open(RUNTIME.redis_config_file, "r", encoding="utf-8") as config_file:
         config = json.load(config_file)
     return redis.Redis(
         host=config["REDIS_HOST"],

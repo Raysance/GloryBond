@@ -7,6 +7,7 @@
 - `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
+- `runtime_config.py`：Web 运行目录与外置配置的唯一解析入口；负责兼容 `/opt/hok-qqbot/{nbot,web}`、显式环境变量及旧 `/QQBot/{NBot,Web}` 布局，其他模块不得重新硬编码兄弟仓库相对路径。
 - `templates/`：Jinja2 HTML 模板根目录。
 - `templates/CommonPages/`：普通用户侧页面模板，包括全部战绩、单人战绩、周期战绩、战斗详情、查询页、B 站订阅视频详情页等。
 - `templates/CommonPages/BenefitVisualizer/`：受益受害贝叶斯收缩可视化单页面资源目录。
@@ -21,14 +22,16 @@
 ## 部署运行方式
 
 - 部署服务器上的 FastAPI 进程由 `hok-web.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
-- GitHub Actions 完成 `/QQBot/Web` 代码同步后，通过 `systemctl restart hok-web.service` 发布，并以 `systemctl is-active` 验证启动结果。
-- `hok-web.service` 从 `/QQBot/Web` 启动 `app.py`，依赖 Redis、PostgreSQL 与网络就绪，运行日志统一进入 systemd journal。
+- GitHub Actions 在 `/srv/modules/hok/apps/Web` 完成代码同步后，通过 `systemctl restart hok-web.service` 发布，并以 `systemctl is-active` 验证启动结果。
+- Aliyun 的 Web 代码物理目录为 `/srv/modules/hok/apps/Web`，与 `apps/NBot` 保持同级；旧 `/QQBot/Web` 仅在其他尚未迁移的调用方需要时保留兼容链接。`hok-web.service` 属于 `hok.target`，与 NoneBot、NapCat、清理定时器统一启停，仍保留原服务名供 CI 单独重启。
+- 服务器上的个人网站已独立归属 `/srv/modules/personal-site`，不得再把 `/QQBot/Web/raysance-site` 或 `html/raysance` 当作 HOK 内容维护；它们仅是兼容链接。Clash 独立归属 `/srv/modules/clash`；Nginx、Redis、PostgreSQL、证书与 CI runner 为共享基础设施。
+- Aliyun 当前继续使用已验证的主机 Python 运行 Web，日志进入 systemd journal；新主机可以重建专用虚拟环境并调整 unit。独立新装模板仍使用 `/opt/hok-qqbot`、`/etc/hok-qqbot`、`/var/lib/hok-qqbot` 布局，不应与现有服务器路径混用。模块导出及恢复说明在 NBot 仓库的 `deployment/server_modules/README.md`。
 
 ## 数据路径约定
 
 - 临时组合查询结果继续以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
 - 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；仅在数据库未命中时读取 QQBot 数据库写入失败所产生的应急 JSON。
-- 物理文件根路径由 `BOT_PATH` 环境变量拼接：`os.path.join(os.environ["BOT_PATH"], "file_transfer")`。
+- 运行路径统一由 `runtime_config.py` 解析。`BOT_PATH` / `WEB_PATH` 指向两个代码目录，`HOK_CONFIG_FILE` / `HOK_STATIC_VARIABLES_FILE` / `REDIS_CONF` 指向外置配置，`HOK_DATA_DIR` 指向应急数据目录，`HOK_FILE_TRANSFER_DIR` 指向 NBot 与 Web 共享的公开产物目录。
 - 除 PostgreSQL 单局战绩的 `/battle-data/{game_seq}` 适配外，不要为同一份 JSON 数据额外新增 API 代理接口，除非用户明确要求。
 - 不要为历史目录、调试目录或示例数据做冗余 fallback。
 - `key` 表示 `temp_files` 下对应 JSON 文件名；如未带 `.json`，可在后端补齐 `.json`。

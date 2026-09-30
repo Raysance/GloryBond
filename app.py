@@ -16,9 +16,7 @@ import time
 import subprocess
 import shutil
 from urllib.parse import urlencode
-from dotenv import load_dotenv
-
-
+from runtime_config import RUNTIME
 from utils import *
 from request_analytics import (
     analytics_payload,
@@ -29,12 +27,9 @@ from request_analytics import (
     store_request_event,
 )
 
-env_path = "/QQBot/.env"
-load_dotenv(dotenv_path=env_path)
-
 # 引入变量
 variables_to_import = ["userlist", "roleidlist", "qid", "namenick", "nameref", "extra_useridlist", "extra_roleidlist", "extra_namenick"]
-variables_file_path = "../NBot/variables_static.json"
+variables_file_path = str(RUNTIME.static_variables_file)
 
 def reload_variables():
     with open(variables_file_path, 'r', encoding='utf-8') as file:
@@ -47,10 +42,10 @@ def reload_variables():
 
 reload_variables()
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(RUNTIME.app_root / "templates"))
 # 引入Redis变量
-file_path_root=os.path.join(str(os.environ.get('BOT_PATH')),"file_transfer")
-redis_path=str(os.environ.get('REDIS_CONF'))
+file_path_root = str(RUNTIME.file_transfer_dir)
+redis_path = str(RUNTIME.redis_config_file)
 with open(redis_path, 'r', encoding='utf-8') as file:
     varia = json.load(file)
 globals().update(varia)
@@ -84,7 +79,7 @@ def web_artifact_exists(key: str) -> bool:
     return bool(r_com.exists(web_artifact_storage_key(key)))
 
 confs = {}
-with open('../NBot/config.yaml', 'r') as file:
+with open(RUNTIME.config_file, 'r', encoding='utf-8') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
 SECRET_KEY = confs["WebService"]["secret_key"]
 VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])]
@@ -1230,4 +1225,8 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=os.environ.get("HOK_WEB_HOST", "127.0.0.1"),
+        port=int(os.environ.get("HOK_WEB_PORT", "8000")),
+    )

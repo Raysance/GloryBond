@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Pull and restart app
         run: |
-          cd /QQBot/Web/
+          cd /srv/modules/hok/apps/Web/
           
           git fetch
           git reset --hard origin/main

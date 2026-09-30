@@ -10,9 +10,10 @@ import logging
 from database import battle_exists as postgres_battle_exists
 from database import fetch_battle as postgres_fetch_battle
 from database import ping as postgres_ping
+from runtime_config import RUNTIME
 
 confs={}
-with open('../NBot/config.yaml', 'r') as file:
+with open(RUNTIME.config_file, 'r', encoding='utf-8') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
 POSTGRES_DSN = str(
     os.environ.get("HOK_DATABASE_DSN")
@@ -47,7 +48,7 @@ def readerl(filepath):
         return []
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
-    file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
+    file_path = os.path.join(RUNTIME.data_dir, "history", "battles", f"{gameseq}.json")
     try:
         res = postgres_fetch_battle(POSTGRES_DSN, gameseq)
     except Exception as exc:
@@ -86,7 +87,7 @@ def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详
             return True
     except Exception as exc:
         logging.warning("POSTGRES_BATTLE_EXISTS_FALLBACK GameSeq=%s error=%r", gameseq, exc)
-    file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
+    file_path = os.path.join(RUNTIME.data_dir, "history", "battles", f"{gameseq}.json")
     return file_exist(file_path)
 
 @sleep_and_retry    # 当达到限制时自动等待
