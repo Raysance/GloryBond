@@ -1,6 +1,6 @@
 # Chat agent tools
 
-普通聊天当前临时切回 DeepSeek 官方 Chat Completions，使用 `https://api.deepseek.com` 的 `deepseek-flash` 并直连，HTTP 客户端以 `trust_env=False` 禁止继承环境代理。官方接口默认思考模式；当 harness 必须指定具体工具时，仅该请求按官方约束设置 `thinking.disabled`，自动工具调用轮次继续保留思考模式。Steam 与 APIMart 仍使用 Clash `http://127.0.0.1:7890`，可改为 `socks5h://127.0.0.1:7891`。`&` 是普通文本，不再切换聊天 API。
+普通聊天当前临时切回 DeepSeek 官方 Chat Completions，使用 `https://api.deepseek.com` 的 `deepseek-flash` 并直连，HTTP 客户端以 `trust_env=False` 禁止继承环境代理。由于 harness 以命名工具开始链路，而 DeepSeek 不允许思考模式混用缺少 `reasoning_content` 的非思考 tool-call，所有携带 tools 的轮次统一设置 `thinking.disabled`；最终不携带 tools 的回答仍使用官方默认模式。Steam 与 APIMart 仍使用 Clash `http://127.0.0.1:7890`，可改为 `socks5h://127.0.0.1:7891`。`&` 是普通文本，不再切换聊天 API。
 
 ## 数据与 observation
 
@@ -44,4 +44,4 @@
 
 2026-09-29 已在 Aliyun 的现有应用虚拟环境安装并验证依赖，创建专用只读角色并写入私有服务环境文件；隔离临时目录中的真实 PostgreSQL 查询和 bubblewrap 中文图表渲染均已通过。该准备步骤未部署应用代码或重启 `hok-nbot.service`。
 
-切换 DeepSeek 官方接口时已用 `deepseek-flash` 验证直连和命名工具调用；命名工具轮次必须关闭思考模式，否则官方接口会返回 `400 invalid_request_error`。
+切换 DeepSeek 官方接口时已用 `deepseek-flash` 验证直连和多轮工具调用；全部 tool-bearing 轮次必须保持非思考模式，否则命名首轮后的自动工具轮会因上一条 assistant 缺少 `reasoning_content` 返回 `400 invalid_request_error`。

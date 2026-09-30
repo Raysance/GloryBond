@@ -132,6 +132,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
                 key: value for key, value in TOOL_SCHEMA.items() if key != "type"
             }}],
             "tool_choice": "auto",
+            "thinking": {"type": "disabled"},
         })
         self.assertEqual(self.client_options, [{"trust_env": False}])
         self.assertTrue(self.http_clients[0].is_closed)
@@ -206,6 +207,8 @@ class ChatCompletionsApiTests(unittest.TestCase):
 
         self.assertEqual(result, "两名玩家均为 42 分")
         self.assertEqual(calls, [("lookup", {"name": "alpha"}), ("lookup", {"name": "beta"})])
+        self.assertTrue(all(request["body"].get("thinking") == {"type": "disabled"}
+                            for request in self.requests))
         second_messages = self.requests[1]["body"]["messages"]
         self.assertEqual(second_messages[-2], first)
         self.assertEqual(second_messages[-1]["role"], "tool")
@@ -274,7 +277,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
             "trust_env": False, "proxy": "socks5h://127.0.0.1:18080",
         }])
 
-    def test_named_deepseek_tool_choice_disables_thinking_for_that_request(self):
+    def test_deepseek_tool_requests_disable_thinking_consistently(self):
         self.responses.append({"role": "assistant", "content": "", "tool_calls": [
             tool_call("call-1", "alpha"),
         ]})

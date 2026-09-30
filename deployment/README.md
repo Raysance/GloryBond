@@ -143,8 +143,9 @@ official DeepSeek Chat Completions at `https://api.deepseek.com`, with
 `deepseek-flash`. The connection is direct and uses `trust_env=False`, so it does
 not inherit host proxy variables. The adapter preserves tool calls, tool results,
 and `reasoning_content` across the multi-round chat loop. DeepSeek thinking mode
-does not support named or required tool choice, so the adapter disables thinking
-only for forced workflow requests; automatic tool turns retain thinking mode.
+does not support named tool choice and cannot resume from a non-thinking tool
+call without `reasoning_content`, so every tool-bearing request consistently
+disables thinking. Final requests without tools retain the provider default.
 
 New installations should set `HOK_CHAT_API_KEY` in the service's private
 environment file. The current legacy configuration may reuse

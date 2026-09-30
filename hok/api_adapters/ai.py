@@ -64,11 +64,13 @@ def _chat_completion_create(input_items, tools=None, tool_choice="auto", tempera
             for tool in tools
         ]
         request["tool_choice"] = tool_choice
-        if (urlparse(chat_api_config["base_url"]).hostname == "api.deepseek.com"
-                and (isinstance(tool_choice, dict) or tool_choice == "required")):
-            # DeepSeek rejects named/required tool_choice in thinking mode.
-            # Keep thinking enabled for auto turns and disable it only where the
-            # harness must force one concrete workflow step.
+        if urlparse(chat_api_config["base_url"]).hostname == "api.deepseek.com":
+            # The harness starts a tool chain with a named choice.  DeepSeek
+            # rejects that choice in thinking mode, and switching the next auto
+            # turn back to thinking makes it demand reasoning_content from the
+            # preceding non-thinking assistant tool call.  Keep every
+            # tool-bearing turn in the same non-thinking mode instead of
+            # fabricating reasoning content.
             request["extra_body"] = {"thinking": {"type": "disabled"}}
     elif tool_choice == "none":
         request["tool_choice"] = "none"
