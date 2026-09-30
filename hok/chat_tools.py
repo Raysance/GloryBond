@@ -139,18 +139,21 @@ class HOKChatTools:
         """Return the next concrete tool required by an explicitly requested capability."""
         categories = set(categories)
         if "game_data" in categories:
-            if "get_game_database_schema" not in self._tool_results:
+            if ("get_game_database_schema" in self._disclosed
+                    and "get_game_database_schema" not in self._tool_results):
                 return "get_game_database_schema"
-            if "query_game_database" not in self._tool_results:
+            if ("query_game_database" in self._disclosed
+                    and "query_game_database" not in self._tool_results):
                 if self.sql_checks:
                     return "query_game_database"
                 return "check_game_database_query"
         if "plots" in categories:
-            if self.datasets and not self.artifacts:
+            if self.datasets and not self.artifacts and "render_python_plot" in self._disclosed:
                 if "list_plot_templates" not in self._tool_results:
                     return "list_plot_templates"
                 return "render_python_plot"
-            if "game_data" not in categories and "list_plot_templates" not in self._tool_results:
+            if ("game_data" not in categories and "list_plot_templates" in self._disclosed
+                    and "list_plot_templates" not in self._tool_results):
                 return "list_plot_templates"
         entry_tools = {
             "internet": "web_search",
@@ -158,7 +161,8 @@ class HOKChatTools:
             "roleplay": "manage_roleplay",
         }
         for category, tool_name in entry_tools.items():
-            if category in categories and tool_name not in self._tool_results:
+            if (category in categories and tool_name in self._disclosed
+                    and tool_name not in self._tool_results):
                 return tool_name
         return None
 

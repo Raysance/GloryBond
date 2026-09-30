@@ -392,6 +392,15 @@ class HOKChatToolsTests(unittest.TestCase):
         self.assertTrue(registry.require_automatic_history_search())
         self.assertEqual(registry.required_discovery_categories(), [])
 
+    def test_disabled_explicit_category_does_not_force_unknown_tool(self):
+        registry = ZCHAT.HOKChatTools(user_id="100", use_memory=False,
+                                      original_query="调用memory记忆工具")
+        categories = registry.required_discovery_categories()
+        self.assertEqual(categories, ["memory"])
+        result = registry.execute("discover_tools", {"categories": categories})
+        self.assertEqual(result["unavailable_categories"], ["memory"])
+        self.assertIsNone(registry.required_workflow_tool(categories))
+
     def test_empty_response_after_disclosure_retries_with_tools_preserved(self):
         requests = []
         registry = ZCHAT.HOKChatTools(user_id="100", use_memory=False)
