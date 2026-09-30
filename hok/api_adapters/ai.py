@@ -1,6 +1,7 @@
 """OpenAI-compatible text and image API adapters."""
 
 import json
+from urllib.parse import urlparse
 
 from openai import DefaultHttpxClient, OpenAI
 from ratelimit import limits, sleep_and_retry
@@ -31,8 +32,8 @@ class AIRequestError(RuntimeError):
 
 
 def _chat_completion_create(input_items, tools=None, tool_choice="auto", temperature=None, timeout=30):
-    """Call SJTU through its dedicated VPN proxy and retain tool continuation state."""
-    missing = [key for key in ("base_url", "api_key", "model", "proxy_url") if not chat_api_config.get(key)]
+    """Call the configured provider without inheriting ambient proxy settings."""
+    missing = [key for key in ("base_url", "api_key", "model") if not chat_api_config.get(key)]
     if missing:
         raise ValueError(f"ChatAPI configuration missing: {', '.join(missing)}")
 
@@ -63,16 +64,25 @@ def _chat_completion_create(input_items, tools=None, tool_choice="auto", tempera
             for tool in tools
         ]
         request["tool_choice"] = tool_choice
+        if (urlparse(chat_api_config["base_url"]).hostname == "api.deepseek.com"
+                and (isinstance(tool_choice, dict) or tool_choice == "required")):
+            # DeepSeek rejects named/required tool_choice in thinking mode.
+            # Keep thinking enabled for auto turns and disable it only where the
+            # harness must force one concrete workflow step.
+            request["extra_body"] = {"thinking": {"type": "disabled"}}
     elif tool_choice == "none":
         request["tool_choice"] = "none"
 
     request_payload = {key: value for key, value in request.items() if key != "timeout"}
     response_payload = None
     try:
+        http_client_options = {"trust_env": False}
+        if chat_api_config.get("proxy_url"):
+            http_client_options["proxy"] = chat_api_config["proxy_url"]
         with OpenAI(
             api_key=chat_api_config["api_key"],
             base_url=chat_api_config["base_url"],
-            http_client=DefaultHttpxClient(proxy=chat_api_config["proxy_url"], trust_env=False),
+            http_client=DefaultHttpxClient(**http_client_options),
         ) as client:
             raw = client.chat.completions.with_raw_response.create(**request)
             request_payload = json.loads(raw.http_request.content)
@@ -123,12 +133,12 @@ def _chat_completion_result(response, request_payload, response_payload, status_
     }
 
 
-def ai_api(user_query,temperature): # SJTU 普通聊天
+def ai_api(user_query,temperature): # 配置的普通聊天模型
     log_message("VISIT: ai_api_common")
     try:
         return _chat_completion_create(user_query, temperature=temperature, timeout=20)["content"]
     except Exception as e:
-        raise Exception("sjtu_api_error: "+str(e)) from e
+        raise Exception("chat_api_error: "+str(e)) from e
 
 
 def ai_function(user_query):
@@ -136,7 +146,7 @@ def ai_function(user_query):
     try:
         return _chat_completion_create(user_query, temperature=1)["content"]
     except Exception as e:
-        raise Exception("sjtu_api_error: "+str(e)) from e
+        raise Exception("chat_api_error: "+str(e)) from e
 
 
 def _response_item_value(item, key, default=None):
@@ -303,7 +313,7 @@ def openrouter_web_search(query, max_results=5):
 
 
 def ark_web_search(query, max_results=5):
-    """Run Ark's built-in search as one explicit observation for the SJTU agent."""
+    """Run Ark's built-in search as one explicit observation for the chat agent."""
     if not isinstance(query, str) or not query.strip():
         raise ValueError("ark_web_search: query must be non-empty text")
     if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= 10:
@@ -355,7 +365,7 @@ def ark_web_search(query, max_results=5):
 
 
 def ai_response_create(input_items, tools=None, tool_choice="auto", network=False):
-    """Normalize one SJTU Chat Completions or Ark Responses turn for the chat loop."""
+    """Normalize one configured Chat Completions or Ark Responses turn."""
     log_message("VISIT: ai_response_create")
     try:
         if not network:

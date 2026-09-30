@@ -136,21 +136,24 @@ Use `journalctl -u hok-nbot.service -u hok-web.service -f` for process output.
 The bot's searchable HOK exception log remains under
 `/var/log/hok-qqbot/nbot/error.log`.
 
-## SJTU chat API
+## Chat API
 
-Ordinary chat and the shared `ai_api` / `ai_function` helpers use SJTU Chat
-Completions at `https://models.sjtu.edu.cn/api/v1`, with `deepseek-chat` as the
-default model. Set `ChatAPI.model` to `deepseek-reasoner`, `qwen`, or `qwen3.8-27b`
-to switch models. The adapter preserves tool calls, tool results, and
-`reasoning_content` across the existing multi-round chat loop. Chat tools use
-progressive disclosure: the model first selects a capability category and only
-receives concrete tool schemas on the next round.
+Ordinary chat and the shared `ai_api` / `ai_function` helpers temporarily use
+official DeepSeek Chat Completions at `https://api.deepseek.com`, with
+`deepseek-flash`. The connection is direct and uses `trust_env=False`, so it does
+not inherit host proxy variables. The adapter preserves tool calls, tool results,
+and `reasoning_content` across the multi-round chat loop. DeepSeek thinking mode
+does not support named or required tool choice, so the adapter disables thinking
+only for forced workflow requests; automatic tool turns retain thinking mode.
 
-Set `HOK_CHAT_API_KEY` in the service's private environment file. Local debugging
-also loads the Git-ignored `.env.local` beneath `BOT_PATH` when `HOK_ENV_FILE` is
-not set. `ChatAPI.base_url`, `model`, `proxy_url`, and an optional `api_key` are
-read from the active `config.yaml`; `HOK_CHAT_BASE_URL`, `HOK_CHAT_MODEL`,
-`HOK_CHAT_PROXY_URL`, and `HOK_CHAT_API_KEY` override the corresponding values.
+New installations should set `HOK_CHAT_API_KEY` in the service's private
+environment file. The current legacy configuration may reuse
+`QQBot.deepseek_key` only when the endpoint host is exactly `api.deepseek.com`.
+Local debugging also loads the Git-ignored `.env.local` beneath `BOT_PATH` when
+`HOK_ENV_FILE` is not set. `ChatAPI.base_url`, `model`, `proxy_url`, and an
+optional `api_key` are read from the active `config.yaml`; `HOK_CHAT_BASE_URL`,
+`HOK_CHAT_MODEL`, `HOK_CHAT_PROXY_URL`, and `HOK_CHAT_API_KEY` override them.
+An explicitly empty `HOK_CHAT_PROXY_URL` disables a configured proxy.
 
 Chat web search uses OpenRouter's `openrouter:web_search` server tool. Its API
 key defaults to `openrouter_api_key` in `variables_static.json`; optional
@@ -159,10 +162,9 @@ key defaults to `openrouter_api_key` in `variables_static.json`; optional
 use the Clash route configured by `HOK_CLASH_PROXY_URL` and never fall back to a
 direct connection. The old `&` switch is not used by chat.
 
-SJTU requests explicitly use the `sjtu-vpn` proxy
-`socks5h://10.203.0.2:1080`. The deployment host must be able to reach that proxy;
-the adapter does not fall back to a global proxy or a direct connection. Install
-the declared `httpx[socks]` dependency for SOCKS5 with proxy-side DNS resolution.
+OpenRouter web search remains separate and continues to require the configured
+Clash route. Changing ordinary chat to direct DeepSeek does not alter Steam,
+APIMart, or OpenRouter routing.
 
 Steam, APIMart, and OpenRouter search use the separate `Proxy.clash_url` route. The default template
 uses `http://127.0.0.1:7890`; `socks5h://127.0.0.1:7891` is also supported. Set

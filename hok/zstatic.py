@@ -1,6 +1,7 @@
 
 from .zutil import *
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.util import timezone
@@ -50,6 +51,22 @@ def _load_runtime_environment():
     return os.pathsep.join(loaded_paths)
 
 
+def _build_chat_api_config(config, environment):
+    """Resolve chat provider settings while allowing an explicit empty proxy."""
+    values = {}
+    for key, env_name in {
+        "base_url": "HOK_CHAT_BASE_URL",
+        "api_key": "HOK_CHAT_API_KEY",
+        "model": "HOK_CHAT_MODEL",
+        "proxy_url": "HOK_CHAT_PROXY_URL",
+    }.items():
+        raw_value = environment[env_name] if env_name in environment else config.get("ChatAPI", {}).get(key)
+        values[key] = str(raw_value or "").strip()
+    if not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
+        values["api_key"] = str(config.get("QQBot", {}).get("deepseek_key") or "").strip()
+    return values
+
+
 env_path = _load_runtime_environment()
 project_root = _runtime_path("BOT_PATH", os.getcwd())
 data_root = _runtime_path("HOK_DATA_DIR", os.path.join(project_root, "data"))
@@ -83,15 +100,7 @@ globals().update(varia)
 confs={}
 with open(config_path, 'r', encoding='utf-8') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader)
-chat_api_config = {
-    key: str(os.environ.get(env_name) or confs.get("ChatAPI", {}).get(key) or "").strip()
-    for key, env_name in {
-        "base_url": "HOK_CHAT_BASE_URL",
-        "api_key": "HOK_CHAT_API_KEY",
-        "model": "HOK_CHAT_MODEL",
-        "proxy_url": "HOK_CHAT_PROXY_URL",
-    }.items()
-}
+chat_api_config = _build_chat_api_config(confs, os.environ)
 openrouter_search_config = {
     key: str(os.environ.get(env_name) or confs.get("OpenRouterSearch", {}).get(key) or default).strip()
     for key, env_name, default in (

@@ -1,6 +1,6 @@
 # Chat agent tools
 
-普通聊天固定使用配置的 SJTU 模型，默认 `deepseek-chat`，通过 `socks5h://10.203.0.2:1080` 访问。Steam 与 APIMart 使用 Clash `http://127.0.0.1:7890`，可改为 `socks5h://127.0.0.1:7891`。`&` 是普通文本，不再切换聊天 API。
+普通聊天当前临时切回 DeepSeek 官方 Chat Completions，使用 `https://api.deepseek.com` 的 `deepseek-flash` 并直连，HTTP 客户端以 `trust_env=False` 禁止继承环境代理。官方接口默认思考模式；当 harness 必须指定具体工具时，仅该请求按官方约束设置 `thinking.disabled`，自动工具调用轮次继续保留思考模式。Steam 与 APIMart 仍使用 Clash `http://127.0.0.1:7890`，可改为 `socks5h://127.0.0.1:7891`。`&` 是普通文本，不再切换聊天 API。
 
 ## 数据与 observation
 
@@ -34,7 +34,7 @@
 
 群聊历史以 PostgreSQL 为主存储，写库失败时才回退到 DB0 Redis list；读取时合并尚未迁移的 Redis 记录并以 SQL 重复项为准。迁移使用 `scripts/migrate_group_chat_history_to_postgres.py`，验证完成前保留 Redis 原数据。
 
-`web_search` 已接入 Ark 标准 Responses API 的内置搜索和真实来源归一化。配置沿用 `QQBot.ark_key`、`QQBot.ark_responses_model` 和 `zstatic.ark_model_url`；当前服务不可用也会返回明确错误，普通聊天仍使用 SJTU。联网工具不伪造结果，也不静默切换到其他供应商。
+`web_search` 通过 OpenRouter 的 `openrouter:web_search` server tool 和 Clash 代理执行，归一化真实来源；服务不可用时返回明确错误，普通聊天仍保持 DeepSeek 官方直连。联网工具不伪造结果，也不静默切换供应商。
 
 ## 运行准备
 
@@ -44,4 +44,4 @@
 
 2026-09-29 已在 Aliyun 的现有应用虚拟环境安装并验证依赖，创建专用只读角色并写入私有服务环境文件；隔离临时目录中的真实 PostgreSQL 查询和 bubblewrap 中文图表渲染均已通过。该准备步骤未部署应用代码或重启 `hok-nbot.service`。
 
-同日真实 SJTU 模型工具往返测试在建立连接时被 VPN 阻断：指定 SOCKS5 代理返回 `Network unreachable`，无密钥 HTTPS 探测也复现。需要该代理恢复上游连通后再验证完整模型往返；程序不会绕过代理。
+切换 DeepSeek 官方接口时已用 `deepseek-flash` 验证直连和命名工具调用；命名工具轮次必须关闭思考模式，否则官方接口会返回 `400 invalid_request_error`。

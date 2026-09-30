@@ -26,7 +26,7 @@
 - `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
 - `hok/zapi.py`：外部 API 的稳定兼容门面，只负责从 `hok/api_adapters/` 导出业务层可调用的公开接口；不得在门面中新增协议细节或业务编排。AI chat 的单轮协议适配通过该门面对外提供，普通聊天的 Chat Completions 与兼容 Responses 均归一化为 `content`、`tool_calls`、`output_items`；多轮编排留在 `zchat.py`。
-- `hok/api_adapters/`：按外部服务拆分请求封装、签名、响应解析、超时与协议级重试；当前包含王者官方 API、AI/图片、天元之弈、Steam 与 B 站适配器。普通聊天及 `ai_api()` / `ai_function()` 使用 SJTU Chat Completions endpoint，默认模型为 `deepseek-chat`，可配置 `deepseek-reasoner`、`qwen` 或 `qwen3.8-27b`；SJTU 客户端必须显式绑定 `ChatAPI.proxy_url` / `HOK_CHAT_PROXY_URL` 指定的 `sjtu-vpn` SOCKS5 代理并禁用环境代理继承，缺少代理配置时不得直连。Steam、APIMart 与 OpenRouter 搜索必须通过 `api_adapters/proxy.py` 显式绑定 `Proxy.clash_url` / `HOK_CLASH_PROXY_URL` 指定的 Clash 代理，并禁用环境代理继承；缺少代理配置时不得直连。适配器负责工具 schema 与 tool result 的协议转换，并完整保留 assistant 的 `tool_calls`、`reasoning_content` 供后续轮次回传；`web_search` 工具通过 OpenRouter Chat Completions 的 `openrouter:web_search` server tool 执行，密钥默认读取 `variables_static.json` 的 `openrouter_api_key`，可由 `HOK_OPENROUTER_API_KEY` 覆盖，归一化真实引用并在不可用时返回错误 observation；普通聊天模型保持 SJTU，不得回退到应用 Bot 的 Chat Completions endpoint；荣耀战力指定地区 `ranklist` 只在王者适配器组装和发送；B 站 UP 视频的 WBI 签名、用户/视频搜索、用户卡片请求和响应归一化只在 B 站适配器实现。适配器不得读取 Redis 或承担业务队列优先级调度，相关逻辑留在 `zfunc.py`。
+- `hok/api_adapters/`：按外部服务拆分请求封装、签名、响应解析、超时与协议级重试；当前包含王者官方 API、AI/图片、天元之弈、Steam 与 B 站适配器。普通聊天及 `ai_api()` / `ai_function()` 当前临时使用 DeepSeek 官方 Chat Completions endpoint `https://api.deepseek.com` 与 `deepseek-flash`，显式 `trust_env=False` 直连且不使用代理；自动工具轮次保留官方默认思考模式，命名/required 强制工具轮次必须按官方限制仅对该请求设置 `thinking.disabled`。Steam、APIMart 与 OpenRouter 搜索必须通过 `api_adapters/proxy.py` 显式绑定 `Proxy.clash_url` / `HOK_CLASH_PROXY_URL` 指定的 Clash 代理，并禁用环境代理继承；缺少配置时不得直连。适配器负责工具 schema 与 tool result 的协议转换，并完整保留 assistant 的 `tool_calls`、`reasoning_content` 供后续轮次回传；`web_search` 工具通过 OpenRouter Chat Completions 的 `openrouter:web_search` server tool 执行，密钥默认读取 `variables_static.json` 的 `openrouter_api_key`，可由 `HOK_OPENROUTER_API_KEY` 覆盖，归一化真实引用并在不可用时返回错误 observation；普通聊天不得回退到应用 Bot 的 Chat Completions endpoint；荣耀战力指定地区 `ranklist` 只在王者适配器组装和发送；B 站 UP 视频的 WBI 签名、用户/视频搜索、用户卡片请求和响应归一化只在 B 站适配器实现。适配器不得读取 Redis 或承担业务队列优先级调度，相关逻辑留在 `zfunc.py`。
 - `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
 - `hok/zdiy.py`：自定义/临时扩展的业务能力聚合处；当能力稳定后应迁移到职责更明确的模块（`zfunc.py` / `tools/` / `zapi.py` 等），避免长期堆叠。
 
@@ -110,7 +110,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 ### 2.1 配置文件（``）
 
-- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、AI 模型、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。`ChatAPI` 配置 SJTU 普通聊天的 `base_url`、`model`、`proxy_url` 与可选 `api_key`；`Proxy.clash_url` 配置 Steam 与 APIMart 专用 Clash 出口；SJTU 新密钥优先通过私有环境变量 `HOK_CHAT_API_KEY` 注入。
+- `config.yaml`：王者荣耀/Steam/AI 的 API-Key、AI 模型、QQ群号、王者荣耀 request 参数、服务器 IP/域名等配置。`ChatAPI` 当前配置 DeepSeek 官方普通聊天的 `base_url`、`model`、空 `proxy_url` 与可选 `api_key`；官方 endpoint 缺少独立 key 时可临时复用既有 `QQBot.deepseek_key`，新部署仍优先通过私有环境变量 `HOK_CHAT_API_KEY` 注入。`Proxy.clash_url` 只配置 Steam、APIMart 与 OpenRouter 搜索的 Clash 出口。
 - `config.yaml` 的 `OpenRouterSearch`：配置 chat 联网搜索的 `base_url`、`model` 与 `engine`；API key 默认读取 `variables_static.json` 的 `openrouter_api_key`，可由 `HOK_OPENROUTER_API_KEY` 覆盖，网络出口复用 `Proxy.clash_url`。
 - `config.yaml` 的 `PostgreSQL.dsn`：PostgreSQL 本地连接串；部署环境可由 `HOK_DATABASE_DSN` 覆盖。`PostgreSQL.archive_json` 为 `false` 时历史数据数据库单写，写库失败才应急落 JSON。
 - `variables_static.json`：OpenRouter API key、用户 QQ 号、王者荣耀 roleid/userid、用户昵称、SteamID、常见俚语缩写、赛季起止时间、英雄 ID 映射、部分功能 prompt 等稳定数据。
@@ -128,7 +128,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `REDIS_CONF`：Redis 配置文件路径。
 - `BOT_PATH`：Bot 部署目录。
 - `HOK_ENV_FILE`：可选 dotenv 路径；systemd 部署优先用 `EnvironmentFile` 直接注入，不要求存在 dotenv。未指定时，本地调试另加载 `BOT_PATH/.env.local`（Git 忽略），用于保存私有 API 密钥。
-- `HOK_CHAT_BASE_URL`、`HOK_CHAT_API_KEY`、`HOK_CHAT_MODEL`、`HOK_CHAT_PROXY_URL`：覆盖 `config.yaml` 的 `ChatAPI` 对应字段，由 `zstatic.py` 统一导入为 `chat_api_config`；当前专用代理为 `socks5h://10.203.0.2:1080`。
+- `HOK_CHAT_BASE_URL`、`HOK_CHAT_API_KEY`、`HOK_CHAT_MODEL`、`HOK_CHAT_PROXY_URL`：覆盖 `config.yaml` 的 `ChatAPI` 对应字段，由 `zstatic.py` 统一导入为 `chat_api_config`；显式空 `HOK_CHAT_PROXY_URL` 必须覆盖文件中的代理并表示直连，客户端仍禁止继承环境代理。
 - `HOK_OPENROUTER_API_KEY`、`HOK_OPENROUTER_BASE_URL`、`HOK_OPENROUTER_SEARCH_MODEL`、`HOK_OPENROUTER_SEARCH_ENGINE`：覆盖静态变量中的 OpenRouter key 或 `OpenRouterSearch` 对应字段，由 `zstatic.py` 统一导入为 `openrouter_search_config`；实际请求统一走 `HOK_CLASH_PROXY_URL` 指定的 Clash 出口。
 - `HOK_CHAT_READONLY_DSN`：专用 `hok_chat_reader` 连接串，必须通过私有环境文件注入；`ChatSQL` 管理查询限制，`ChatPlot` 管理绘图上限及字体。
 - `HOK_CLASH_PROXY_URL`：覆盖 `config.yaml` 的 `Proxy.clash_url`，由 `zstatic.py` 导入为 `clash_proxy_url`；Steam 与 APIMart 当前默认使用 `http://127.0.0.1:7890`，也支持 `socks5h://127.0.0.1:7891`。

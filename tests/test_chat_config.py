@@ -22,7 +22,56 @@ def load_environment_function():
 ENVIRONMENT_FUNCTION = load_environment_function()
 
 
+def load_chat_config_function():
+    source_path = Path(__file__).resolve().parents[1] / "hok" / "zstatic.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8-sig"))
+    function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_build_chat_api_config"
+    )
+    return compile(ast.Module(body=[function], type_ignores=[]), str(source_path), "exec")
+
+
+CHAT_CONFIG_FUNCTION = load_chat_config_function()
+
+
 class ChatEnvironmentTests(unittest.TestCase):
+    def build_chat_config(self, config, environment):
+        from urllib.parse import urlparse
+
+        namespace = {"urlparse": urlparse}
+        exec(CHAT_CONFIG_FUNCTION, namespace)
+        return namespace["_build_chat_api_config"](config, environment)
+
+    def test_official_deepseek_reuses_legacy_key_and_allows_direct_connection(self):
+        result = self.build_chat_config({
+            "ChatAPI": {
+                "base_url": "https://api.deepseek.com",
+                "model": "deepseek-flash",
+                "proxy_url": "",
+            },
+            "QQBot": {"deepseek_key": "legacy-private-key"},
+        }, {})
+
+        self.assertEqual(result, {
+            "base_url": "https://api.deepseek.com",
+            "api_key": "legacy-private-key",
+            "model": "deepseek-flash",
+            "proxy_url": "",
+        })
+
+    def test_explicit_empty_proxy_overrides_configured_proxy(self):
+        result = self.build_chat_config({
+            "ChatAPI": {
+                "base_url": "https://example.invalid/v1",
+                "api_key": "configured-key",
+                "model": "model",
+                "proxy_url": "socks5h://127.0.0.1:1080",
+            },
+        }, {"HOK_CHAT_PROXY_URL": ""})
+
+        self.assertEqual(result["proxy_url"], "")
+
     def run_environment_loader(self, files, initial_environment=None):
         loaded = []
 

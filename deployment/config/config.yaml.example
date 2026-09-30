@@ -1,9 +1,9 @@
 ChatAPI:
-  base_url: "https://models.sjtu.edu.cn/api/v1"
-  # Also accepts deepseek-reasoner, qwen and qwen3.8-27b.
-  model: "deepseek-chat"
-  proxy_url: "socks5h://10.203.0.2:1080"
-  # Set HOK_CHAT_API_KEY in the private host environment.
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-flash"
+  proxy_url: ""
+  # Set HOK_CHAT_API_KEY in the private host environment. Existing deployments
+  # may temporarily reuse QQBot.deepseek_key when using the official endpoint.
 OpenRouterSearch:
   base_url: "https://openrouter.ai/api/v1/chat/completions"
   model: "openrouter/auto"

@@ -38,10 +38,10 @@ def tool_call(call_id, name):
 class ChatCompletionsApiTests(unittest.TestCase):
     def setUp(self):
         self.config = {
-            "base_url": "https://models.sjtu.edu.cn/api/v1",
-            "api_key": "test-sjtu-key",
-            "model": "deepseek-reasoner",
-            "proxy_url": "socks5h://127.0.0.1:18080",
+            "base_url": "https://api.deepseek.com",
+            "api_key": "test-deepseek-key",
+            "model": "deepseek-flash",
+            "proxy_url": "",
         }
         self.requests = []
         self.responses = []
@@ -106,7 +106,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
             save.assert_called_once()
         return result, calls
 
-    def test_chat_payload_proxy_and_normalized_tool_calls(self):
+    def test_chat_payload_direct_connection_and_normalized_tool_calls(self):
         call = tool_call("call-1", "alpha")
         assistant = {
             "role": "assistant",
@@ -122,10 +122,10 @@ class ChatCompletionsApiTests(unittest.TestCase):
         )
 
         request = self.requests[0]
-        self.assertEqual(request["url"], "https://models.sjtu.edu.cn/api/v1/chat/completions")
-        self.assertEqual(request["authorization"], "Bearer test-sjtu-key")
+        self.assertEqual(request["url"], "https://api.deepseek.com/chat/completions")
+        self.assertEqual(request["authorization"], "Bearer test-deepseek-key")
         self.assertEqual(request["body"], {
-            "model": "deepseek-reasoner",
+            "model": "deepseek-flash",
             "messages": [{"role": "user", "content": "查 alpha"}],
             "stream": False,
             "tools": [{"type": "function", "function": {
@@ -133,12 +133,10 @@ class ChatCompletionsApiTests(unittest.TestCase):
             }}],
             "tool_choice": "auto",
         })
-        self.assertEqual(self.client_options, [{
-            "proxy": self.config["proxy_url"], "trust_env": False,
-        }])
+        self.assertEqual(self.client_options, [{"trust_env": False}])
         self.assertTrue(self.http_clients[0].is_closed)
         self.assertEqual(result["response_id"], "chatcmpl-1")
-        self.assertEqual(result["model"], "deepseek-reasoner")
+        self.assertEqual(result["model"], "deepseek-flash")
         self.assertEqual(result["request_payload"], request["body"])
         self.assertEqual(result["response_payload"]["choices"][0]["message"], assistant)
         self.assertEqual(result["response_meta"]["finish_reason"], "stop")
@@ -174,7 +172,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
         self.assertEqual(turn["request_payload"], self.requests[0]["body"])
         self.assertEqual(turn["response_payload"]["choices"][0]["message"], assistant)
         self.assertTrue(turn["request_payload"]["messages"][-1]["content"].endswith("INPUT_END"))
-        self.assertNotIn("test-sjtu-key", json.dumps(result["trace"]))
+        self.assertNotIn("test-deepseek-key", json.dumps(result["trace"]))
 
     def test_missing_choices_and_invalid_json_still_keep_response_body(self):
         body = {"id": "empty", "model": "deepseek-chat", "choices": [],
@@ -246,7 +244,7 @@ class ChatCompletionsApiTests(unittest.TestCase):
         assistant = next(message for message in final_request["messages"] if message["role"] == "assistant")
         self.assertEqual(assistant["reasoning_content"], "Need both players")
 
-    def test_legacy_text_helpers_use_same_sjtu_client(self):
+    def test_legacy_text_helpers_use_same_configured_client(self):
         self.responses.extend([
             {"role": "assistant", "content": "简单回答"},
             {"role": "assistant", "content": "函数回答"},
@@ -260,19 +258,35 @@ class ChatCompletionsApiTests(unittest.TestCase):
         self.assertEqual(self.requests[1]["body"]["messages"], [{"role": "user", "content": "选一个"}])
         self.assertEqual(self.requests[1]["body"]["temperature"], 1)
         for request in self.requests:
-            self.assertEqual(request["body"]["model"], "deepseek-reasoner")
+            self.assertEqual(request["body"]["model"], "deepseek-flash")
             self.assertNotIn("tools", request["body"])
             self.assertNotIn("input", request["body"])
         self.assertTrue(all(client.is_closed for client in self.http_clients))
 
-    def test_missing_proxy_fails_before_creating_client(self):
-        self.config["proxy_url"] = ""
+    def test_optional_proxy_is_used_only_when_explicitly_configured(self):
+        self.config["proxy_url"] = "socks5h://127.0.0.1:18080"
+        self.responses.append({"role": "assistant", "content": "代理回答"})
 
-        with self.assertRaisesRegex(Exception, "proxy|代理"):
-            ZAPI.ai_response_create([{"role": "user", "content": "你好"}])
+        self.assertEqual(ZAPI.ai_response_create(
+            [{"role": "user", "content": "你好"}])["content"], "代理回答")
 
-        self.assertEqual(self.client_options, [])
-        self.assertEqual(self.requests, [])
+        self.assertEqual(self.client_options, [{
+            "trust_env": False, "proxy": "socks5h://127.0.0.1:18080",
+        }])
+
+    def test_named_deepseek_tool_choice_disables_thinking_for_that_request(self):
+        self.responses.append({"role": "assistant", "content": "", "tool_calls": [
+            tool_call("call-1", "alpha"),
+        ]})
+
+        ZAPI.ai_response_create(
+            [{"role": "user", "content": "查 alpha"}],
+            tools=[TOOL_SCHEMA],
+            tool_choice={"type": "function", "function": {"name": "lookup"}},
+        )
+
+        self.assertEqual(self.requests[0]["body"]["thinking"], {"type": "disabled"})
+        self.assertNotIn("extra_body", self.requests[0]["body"])
 
 
 class ResponsesApiTests(unittest.TestCase):
