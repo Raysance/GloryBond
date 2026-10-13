@@ -2,6 +2,7 @@
 /.venv/
 /local_debugger/.venv/
 /build/
+/agent_runtime/build/
 /dist/
 *.egg-info/
 

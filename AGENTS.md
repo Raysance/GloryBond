@@ -165,6 +165,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 1. 代码变更一律直接在 `main` 完成，禁止新建、切换或推送功能分支，禁止创建 Pull Request。
 2. 开始改动和推送前先执行等价于 `git pull --ff-only origin main` 的快进同步；如本地与远程已分叉，必须停止发布并先查明原因，不得自动创建 merge commit。
 3. 当用户要求“推送远程”或类似发布动作时，必须直接提交并推送 `origin/main`。
+4. 每轮对话产生的代码或文档变更必须独立提交一个 commit，不积攒到后续轮次；只提交本轮授权范围内的变更，不混入用户或其他任务的未提交修改。未要求推送时只提交本地。
 
 #### 3.1.2 Codex Cloud
 
@@ -198,3 +199,23 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 2. 是否所有 IO、时间、消息发送都走了指定模块？
 3. 是否遵守了 NoneBot、Redis、OpenAI/requests、time、IO 相关库的导入边界？
 4. 是否需要同步更新本文件或更深层目录的 `AGENTS.md`？
+
+## 7. 独立 Agent 内核与本地可视化适配层
+
+- `agent_runtime/` 是独立、可安装的 Python 包；只依赖注入的模型、状态、输出、时钟与能力接口，不导入 `hok`、NoneBot 或应用配置，不自行连接数据库、Redis、SSH 或 HTTP，不实现 UI。
+- `agent_runtime/core/` 管理有预算的 ReAct 循环、通用上下文和授权；`tools/` 仅管理注册、参数校验与执行协议；`runtime/` 仅管理结构化事件。内核不得包含具体工具名称、类别、实现、SQL 方言/schema、参考目录或群聊身份字段，也不得识别具体工具结果中的 SQL 行结构。每个工具调用必须有对应 observation。运行记录与模型可见的截断 observation 分别保存。
+- 工具的初始披露、动态描述、结果投影均由外部注册信息注入；通用 `Principal.attributes` 只承载可信适配器提供的扩展属性，其业务含义由适配层解释。`ToolContext.resources` 只管理本次执行的通用资源引用，具体数据集结构由工具维护。独立包只依赖 Pydantic，不依赖 SQL 解析器或业务服务。
+- `RunRequest.metadata` 是调用方提供的通用事件元数据，内核仅透传和快照，不解释任务、渠道或业务字段。适配层用它区分后台输出，避免后台通知占用前台输入/停止状态。
+- `agent_console/` 是外部本地适配器，允许在此封装 FastAPI、SSH、HTTP、时间及 IO；这是独立包接入层，不适用上文针对 `hok/` 的具体模块导入边界。UI 仅消费内核事件，未来 QQ 适配器复用同一 `AgentRuntime`。
+- `examples/independent_agent.py` 演示通用调用方如何提供模型、内存状态、输出和标准时钟，不导入 HOK 或连接外部服务；示例适配器的标准库使用同样不适用 `hok/` 的导入边界。
+- `agent_console/remote_worker.py` 通过 SSH 临时执行，不安装进服务器应用、不修改服务器代码和数据库 schema。读取服务运行进程环境及服务器 `.env` / `config.yaml`，从服务器实际源码提取 API 适配函数。凭据只保留在适配器内存，不写新密钥文件、不返回浏览器。
+- `agent_console/tools/` 定义应用的具体工具、PostgreSQL AST 校验和参考数据查询；应用提示词由 `agent_console/capabilities.py` 组装，持久任务到通用请求的转换由 `agent_console/tasks.py` 完成。聊天和游戏查询使用服务器独立 `hok_chat_reader` PostgreSQL 账号；长期记忆及本地会话运行状态使用 Redis DB0。普通群与跨群范围在可信 `Principal.attributes.chat` 中传入并由适配器绑定，模型不得提供或改变。所有后台任务和运行记录使用 `hok:agent_runtime:console:*`。本地默认玩家由 `LocalAgent.player_key` 指定为 example_user_10，入口从权威参考数据唯一解析其 QQ；长期事实记忆使用该用户已有的 `hok:memory:facts:<QQ>`，跨会话共享。旧匿名 `local-ui:<session>` 记忆保留，不自动认领、迁移或删除。
+- `agent_console/roleplay.py` 编排角色和通用用户偏好；`identity.py` 单独维护本地 HOK 身份映射与权限策略，角色管理器不识别 QQ、游戏玩家键或群范围。`roleplay_models.py` 定义纯数据校验，`roleplay_store.py` 仅供外部 SSH worker 执行 DB0 持久化，`tools/roleplay.py` 注册按需披露的角色工具。角色定义在 `shared/agent/roles/*.json`，与内核及 SQL 独立。用户自建角色、当前选择和回复偏好按可信用户 ID 的摘要隔离，使用 `hok:agent_runtime:console:roleplay:<用户摘要>:*`，不覆盖 QQ 旧角色记录。角色来源来自真实联网搜索，模型生成档案时保留请求、响应和来源事件，生成失败不保存；角色与偏好不能改变工具授权或查询范围。选择在下一次对话生效，后台 agent 任务在执行时重新读取其已绑定用户的当前角色、偏好及近期/相关长期事实，固定消息任务保持原文。旧任务保留原授权与身份，不自动增加角色权限。网页入口和工具共用相同角色服务。
+- 本地聊天的前置工具由适配层设置为历史检索、能力发现，模型不得在未发现任务/记忆等类别时把未披露误报为能力缺失。本人偏好的归属已经由入口绑定，不需要额外 QQ 或玩家身份。业务调用与 Redis 状态/通知使用两条独立 SSH 连接，避免长 SQL、图片或沙箱阻塞发送。
+- 应用任务有 `agent` 和 `message` 两种：前者调用同一 ReAct 内核，后者直接通过通用事件/输出端口发送固定文字且不请求模型。周期最短 1 秒，未指定首次延迟的周期任务等待一个周期；后续时间按原计划递推，错过的时间点跳过，禁止集中补发。调度不等待前台模型空闲。任务的类型、计数、租约与取消规则均留在适配层。
+- `shared/agent/{chat_sql,hok_sql}/` 保存不含密钥的模型语义目录及可信视图定义，可独立修改；目录是模型披露与 AST 校验的共同来源。服务器缺少语义视图时，适配层将仓库语义视图定义编译为只读 CTE；模型仍不允许查询采集层表，不执行 DDL。
+- `shared/agent/reference_data/manifest.json` 声明参考数据源及名称、别名、ID 命名空间与关系；`agent_console/tools/reference_data.py` 是不含 IO 的目录构建/检索器，HOK 字段名只放共享清单。外部适配器读取最新服务器静态配置，常用映射按清单投影进上下文，完整映射经 `references` 工具披露；不得用 SQL 结果后补昵称、群聊推断或长期记忆代替权威参考数据。多对一、同名与同人账号关联保留全部匹配，参考关系不授予身份权限。
+- 一般生成 Python 仅在远程 Linux bubblewrap 沙箱运行，关闭网络、清空凭据环境、限制资源并验证 PNG。隔离依赖缺失时拒绝执行，禁止回退到宿主 `exec`。
+- `shared/agent/plots/catalog.json` 独立定义绘图主题、配色、图型说明与数据规范；`agent_console/tools/plotting.py` 定义参数并生成调用代码，`agent_console/plot_renderer.py` 是不含 IO、配置或业务身份的可信绘图库，由 SSH worker 注入 bubblewrap 内执行。条形、折线、散点、热力图与环形图共用主题、标题层次、标注和数据口径脚注。`render_plot` 与一般 Python 绘图均使用目录默认主题，角色与 ReAct 内核不得包含绘图样式。热力图必须保留轴标签，长表明确数值列，重复格拒绝隐式聚合，缺失值默认留空；补零、聚合只能由调用参数明确指定。趋势图保留真实观测点、不插值平滑；查询截断必须在图中说明。主题和可信绘图代码修改后重启本地适配器。
+- 本地界面只监听 `127.0.0.1`，提供思考字段、工具调用/结果、产物及完整事件轨迹；无真实 `reasoning_content` 时不得伪造思考过程。独立配置统一放在根 `config.yaml` 的 `LocalAgent`，不新增应用配置或密钥文件。
+- `agent_console/static/usage.js` 是外部 UI 的纯用量统计器：只按持久的 `model.response` / `roleplay.model.response` 汇总接口 usage，按事件 ID 去重；流式片段、工具 payload 和缓存/思考子集不得重复加总。按请求、本轮和会话展示输入、输出、总量及可用缓存/思考字段，未知值与零明确区分，中断或失败请求保留未返回状态。会话恢复重放相同事件；思考与工具步骤默认折叠，完整事件轨迹保留。
