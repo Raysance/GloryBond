@@ -19,8 +19,7 @@ REDIS_KEY_BATTLE_EVALUATOR_RECORDS = "hok:evaluator:battle:records"
 REDIS_KEY_DIY_CODES = "hok:diy:codes"
 REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
 REDIS_KEY_CHAT_FACTS_PREFIX = "hok:memory:facts:"
-REDIS_KEY_ACTIVE_CHAT_PREFIX = "hok:memory:active_chat:"
-REDIS_KEY_CHAT_ROLE_PREFIX = "hok:chat:role:"
+REDIS_KEY_EMOJI_PREFIX = "hok:emoji:"
 
 
 def _runtime_path(env_name, default_path):
@@ -59,11 +58,6 @@ def _build_chat_api_config(config, environment):
         values[key] = str(raw_value or "").strip()
     if not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
         values["api_key"] = str(config.get("QQBot", {}).get("deepseek_key") or "").strip()
-    for key, default in (("tool_max_tokens", 4096), ("final_max_tokens", 800)):
-        try:
-            values[key] = max(1, int(config.get("ChatAPI", {}).get(key, default)))
-        except (TypeError, ValueError):
-            values[key] = default
     return values
 
 
@@ -128,11 +122,10 @@ clash_proxy_url = str(
 ).strip()
 chat_readonly_dsn = str(
     os.environ.get("HOK_CHAT_READONLY_DSN")
-    or confs.get("ChatSQL", {}).get("dsn")
+    or confs.get("AgentSQL", {}).get("dsn")
     or ""
 ).strip()
-chat_sql_config = confs.get("ChatSQL", {})
-chat_plot_config = confs.get("ChatPlot", {})
+agent_plot_config = confs.get("AgentPlots", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")

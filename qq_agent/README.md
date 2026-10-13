@@ -16,7 +16,7 @@ OneBot event → event_handlers/chat → zfunc.agent_chat → QQAgentService
                                                        QQ messages
 ```
 
-`zevent` 不实现工具循环、不重复发送最终结果。`zchat.chat_process` 是异步兼容门面。
+`zevent` 不实现工具循环、不重复发送最终结果。正式入口为 `zfunc.agent_chat`，没有旧聊天兼容循环。
 QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响 QQ。群聊只授权当前群；普通私聊
 不提供群聊工具；已验证的 `QQBot.super_qid` 管理员私聊允许跨群。模型不能选择发送
 对象，后台任务继承创建时的用户、会话、权限和目的地。
@@ -92,5 +92,11 @@ Python 模块或函数名。注册新的 scope 时，入口还必须显式授予
 
 ```bash
 local_debugger/.venv/bin/python -m unittest \
-  tests.test_qq_agent tests.test_qq_agent_transport tests.test_zchat
+  tests.test_qq_agent tests.test_qq_agent_transport tests.test_qq_agent_facade
 ```
+
+旧聊天实现与专属配置/诊断/测试已清理。共享算法在 `agent_console/tools/memory.py`，
+QQ 和网页 worker 接收同一份源码。`AgentSQL` 配置只读查询限制，`AgentPlots` 配置
+字体和合图。`forget_me` 通过新服务清除本人长期事实及当前 QQ 会话上下文；归档、
+调试日志和其他会话不会被这个命令删除。表情包从当前群的本人归档读取发言，短期
+去重缓存使用 `hok:emoji:*`，不再写被动聊天或读取历史摘要。

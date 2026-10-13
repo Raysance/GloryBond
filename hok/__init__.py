@@ -9,7 +9,6 @@ from .zstatic import * # 引入静态变量
 from . import zdynamic as dmc # 引入动态变量
 
 from .zapi import * # API处理（王者荣耀、deepseek）
-from .zchat import * # 异步聊天兼容入口；循环由共享 agent_runtime 提供
 from .zevent import * # QQBot事件（接收、发送、戳一戳、定时）
 from .zfile import * # 文件IO
 from .zfunc import * # 辅助函数

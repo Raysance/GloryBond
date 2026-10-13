@@ -61,6 +61,7 @@ class RemoteBridge:
             catalogs=catalogs,
             definitions=definitions,
             validator=validator.read_text(),
+            memory_tools=(Path(__file__).with_name("tools") / "memory.py").read_text(),
             sandbox_runner=Path(__file__).with_name("sandbox_worker.py").read_text(),
             plot_renderer=Path(__file__).with_name("plot_renderer.py").read_text(),
             plot_catalog=json.loads(

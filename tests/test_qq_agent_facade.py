@@ -1,25 +1,14 @@
-"""The compatibility facade delegates to the same asynchronous QQ gateway."""
+"""QQ business facade binds the shared service to the existing IO outlets."""
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 from types import SimpleNamespace
 from local_debugger import import_hok_module
 
-CHAT = import_hok_module("zchat")
 FUNCS = import_hok_module("zfunc")
 
 
 class FacadeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_default_returns_sent_text_and_preserves_input(self):
-        run = AsyncMock(return_value={"text": "实际发送内容", "artifacts": []})
-        with patch.object(FUNCS, "agent_chat", run):
-            text = await CHAT.chat_process(user_text="你好", user_id="100", nickname="A", group_id="200")
-        self.assertEqual(text, "实际发送内容")
-        run.assert_awaited_once_with(user_text="你好", user_id="100", nickname="A", group_id="200")
 
-    async def test_result_retains_artifacts_and_trace(self):
-        packet = {"text": "答案", "artifacts": [{"path": "a.png"}], "trace": {"engine": "agent_runtime"}}
-        with patch.object(FUNCS, "agent_chat", AsyncMock(return_value=packet)):
-            self.assertIs(await CHAT.chat_process_async(return_artifacts=True, user_text="图"), packet)
 
     async def test_service_callbacks_use_real_facade_io_and_message_sender(self):
         files = import_hok_module("zfile")

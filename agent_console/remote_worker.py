@@ -6,14 +6,12 @@ Generated Python is executed only inside bubblewrap, never in this worker.
 
 import ast
 import base64
-from collections import Counter
 import contextlib
 import datetime
 from decimal import Decimal
 import hashlib
 import importlib.util
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -24,7 +22,6 @@ import sys
 import tempfile
 import time
 from types import ModuleType, SimpleNamespace
-from typing import Dict, List, Optional
 from urllib.parse import quote, urlparse
 from uuid import uuid4
 
@@ -152,31 +149,8 @@ def bootstrap(args):
         ["aliyun_web_search", "apimart_images_generate"],
         api_namespace,
     )
-    mem_namespace = {
-        "json": json,
-        "datetime": datetime,
-        "math": math,
-        "re": re,
-        "hashlib": hashlib,
-        "Counter": Counter,
-        "List": List,
-        "Dict": Dict,
-        "Optional": Optional,
-        "_HISTORY_TOKEN_RE": re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]+"),
-    }
-    extracted_functions(
-        root / "hok/zmemory.py",
-        [
-            "_validate_fact_content",
-            "prepare_fact_memory",
-            "parse_fact_memories",
-            "search_fact_memories",
-            "tokenize_history_text",
-            "_bm25_scores",
-            "search_history_records",
-        ],
-        mem_namespace,
-    )
+    mem_namespace = {}
+    exec(compile(args["memory_tools"], "agent_memory_tools", "exec"), mem_namespace)
     CONTEXT.update(
         sandbox_runner=args["sandbox_runner"],
         plot_renderer=args["plot_renderer"],
@@ -228,7 +202,7 @@ def bootstrap(args):
     references = reference_snapshot()
     font_candidates = [
         Path(
-            cfg.get("ChatPlot", {}).get("font_path")
+            cfg.get("AgentPlots", {}).get("font_path")
             or "/usr/share/fonts/chinese/simhei.ttf"
         ),
         Path("/usr/share/fonts/google-noto-emoji/NotoEmoji-Regular.ttf"),
@@ -244,7 +218,7 @@ def bootstrap(args):
             "sandbox": "bubblewrap / Linux",
             "views_mode": "native" if "chat_player_battles" in views else "trusted_cte",
             "season_start": static.get("this_season_start_date"),
-            "sql_limits": cfg.get("ChatSQL", {}),
+            "sql_limits": cfg.get("AgentSQL", {}),
             "references": references,
             "source": "运行进程环境 + 服务器 config.yaml / API 源码",
             "search": bool(search_cfg["api_key"]),
@@ -363,7 +337,7 @@ def analyze(args):
         )
     scope = trusted_scope(args["principal"]) if domain == "chat" else None
     results = []
-    limits = CONTEXT["cfg"].get("ChatSQL", {})
+    limits = CONTEXT["cfg"].get("AgentSQL", {})
     row_limit = min(500, limits.get("max_rows", 200))
     with db_connection(scope) as conn:
         for query, sql in zip(args["queries"], normalized):
@@ -445,6 +419,11 @@ def memory(args):
     key = "hok:memory:facts:" + args["user_id"]
     store = CONTEXT["store"]
     action = args["action"]
+    if action == "clear":
+        session = args["session_id"]
+        if not re.fullmatch(r"qq_(?:g_[0-9]+|p)_" + re.escape(args["user_id"]), session):
+            raise ValueError("QQ memory clear requires the user's trusted conversation")
+        return {"cleared": bool(store.delete(key, STATE_PREFIX + "dialogue:" + session))}
     if action == "recall":
         records = CONTEXT["memory"]["parse_fact_memories"](store.hvals(key))
         return {

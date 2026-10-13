@@ -65,7 +65,7 @@ async def group_poke_reply(event):
 
         try:
             meta = await asyncio.to_thread(
-                generate_user_emoji_image, user_qid=user_qid
+                generate_user_emoji_image, user_qid=user_qid, group_id=getattr(event, "group_id", None)
             )
         except Exception as error:
             return {

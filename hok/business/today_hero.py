@@ -148,7 +148,6 @@ def todayhero_process(realname, ignore_limit=False, ai_comment=True):
                 str(selected_info),
                 hero_statistics,
             ],
-            use_mem=False,
         )
     else:
         play_reason = str(selected_info)

@@ -1,9 +1,7 @@
 import unittest
 
-from local_debugger import import_hok_module
 
-
-ZMEMORY = import_hok_module("zmemory")
+from agent_console.tools import memory as MEMORY
 
 
 class ChatHistoryRetrievalTests(unittest.TestCase):
@@ -16,7 +14,7 @@ class ChatHistoryRetrievalTests(unittest.TestCase):
         ]
 
     def test_multi_query_aliases_fuse_relevant_results(self):
-        results = ZMEMORY.search_history_records(
+        results = MEMORY.search_history_records(
             self.records,
             ["鸡处不适合打野", "基础野区节奏"],
             limit=3,
@@ -26,7 +24,7 @@ class ChatHistoryRetrievalTests(unittest.TestCase):
         self.assertTrue(all(item["matches"] for item in results))
 
     def test_user_filter_and_current_message_exclusion(self):
-        results = ZMEMORY.search_history_records(
+        results = MEMORY.search_history_records(
             self.records,
             ["打野 野区"],
             user_ids=["100"],
@@ -34,16 +32,6 @@ class ChatHistoryRetrievalTests(unittest.TestCase):
         )
 
         self.assertEqual([item["message_id"] for item in results], ["3"])
-
-    def test_context_expansion_respects_neighbors(self):
-        context = ZMEMORY.fetch_history_context(self.records, "3", before=1, after=1)
-
-        self.assertEqual([item["message_id"] for item in context], ["2", "3", "4"])
-
-    def test_reply_thread_follows_parent_and_children(self):
-        thread = ZMEMORY.fetch_history_reply_thread(self.records, "3", max_depth=2)
-
-        self.assertEqual([item["message_id"] for item in thread], ["1", "3", "4"])
 
 
 if __name__ == "__main__":

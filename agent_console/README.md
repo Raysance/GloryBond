@@ -98,3 +98,5 @@ node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 ```
 
 自动测试使用脚本模型，不调用付费服务。真实 SSH/SQL/Python/API 的检查在开发时手动完成，不接入启动或部署诊断。
+
+共享 SQL 限制由根 `config.yaml#AgentSQL` 管理，字体与 QQ 合图布局为 `AgentPlots`。事实校验和 BM25/RRF 在 `agent_console/tools/memory.py`，由适配器传入 worker，与旧 Hok 聊天代码没有依赖。

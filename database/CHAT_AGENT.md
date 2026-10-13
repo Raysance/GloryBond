@@ -1,53 +1,43 @@
-# Chat agent tools
+# Agent 数据查询与运行边界
 
-普通聊天当前临时切回 DeepSeek 官方 Chat Completions，使用 `https://api.deepseek.com` 的 `deepseek-flash` 并直连，HTTP 客户端以 `trust_env=False` 禁止继承环境代理。由于 harness 以命名工具开始链路，而 DeepSeek 不允许思考模式混用缺少 `reasoning_content` 的非思考 tool-call，所有携带 tools 的轮次统一设置 `thinking.disabled`；最终不携带 tools 的回答仍使用官方默认模式。Steam 与 APIMart 仍使用 Clash `http://127.0.0.1:7890`，可改为 `socks5h://127.0.0.1:7891`。`&` 是普通文本，不再切换聊天 API。
+QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工具注册与权限绑定在
+外部 `agent_console` / `qq_agent`，不再维护 Hok 专属工具注册器或 schema。
 
-## 数据与 observation
+模型权威目录为 `shared/agent/hok_sql/catalog.json` 与
+`shared/agent/chat_sql/catalog.json`；语义视图定义为 `hok_sql/views.json`。
+目录同时用于模型披露和 `agent_console/tools/sql_validation.py` 的 AST 校验。
 
-游戏数据工具分为三块：
+## 查询流程
 
-1. `get_game_database_schema`：返回真实表列、关联、字段能力、JSON 语义和统计口径，不内置针对某类提问的 SQL 范式。
-2. `check_game_database_query`：模型写出 SELECT/CTE 后先提交意图、假设和 SQL；程序只做 AST、业务表列、字段能力、函数、参数与结果列校验，不连接数据库。整批通过后返回一次性 `check_id`。
-3. `query_game_database`：只接受未消费的 `check_id`，执行校验器保存的规范化 SQL，不能在执行时另传或修改 SQL。每条返回状态、列、行、截断信息和 `dataset_id`。
-4. `query_player_hero_power`：指定玩家当前官方英雄战力，可选英雄过滤。
-5. `query_honor_power`：指定玩家账号、英雄与具体地区的荣耀战力。
+1. 入口绑定真实用户和可信群范围。群聊仅当前群，普通私聊无群聊权限，已验证管理员
+   私聊允许跨群。模型不能改变授权。
+2. 群聊/管理员私聊先 `search_chat_history` 再 `discover_tools`；普通私聊只发现工具。
+3. 发现 `game_data` / `chat_data` 后，模型动态生成 SQL，调用
+   `analyze_game_database` / `analyze_chat_database`。
+4. worker 先整批 AST 校验，再在独立只读账号/事务中执行。整批任一项无效时不访问
+   数据库。每项保留状态、截断说明和 dataset_id；游戏查询只允许目录语义视图。
 
-群聊聚合 SQL 使用独立的 `chat_data` 类别：
+只读账号仍由 `database/chat_readonly.sql` 配置，不回退业务写账号。私有群聊表与
+payload 不向模型开放；群聊 SQL 只查询 `hok.chat_history_messages` 安全视图，事务
+注入可信 `hok.chat_group_scope`。统计只覆盖 PostgreSQL 归档，不用 BM25 命中数估算
+总体，也不包含尚未迁移的应急 Redis 记录。服务器缺少共享语义视图时，worker 使用
+受信视图定义编译只读 CTE，不执行 DDL。
 
-1. `get_chat_history_database_schema`：返回受作用域限制的群聊视图、字段、时间和统计口径。
-2. `check_chat_history_database_query`：使用同一纯 AST 边界校验群聊 SELECT/CTE，但白名单只包含 `hok.chat_history_messages`。
-3. `query_chat_history_database`：消费一次性 `check_id`，在同一只读事务中先注入可信群作用域，再执行聚合并返回 dataset。
+SQL 行数、列数、结果字节及超时由根 `config.yaml#AgentSQL` 管理。模型预算分别为
+QQAgent/LocalAgent.budget，工具参数限制在共享工具模型中。不存在旧 schema/check
+票据链、旧问题模板或第二套 SQL 执行器。
 
-`get_game_database_schema` 返回十张业务表的字段、关联、JSON 字段语义、声明式字段能力和统计口径，不返回问题特定的 SQL 模板。同一对局的多个快照需要按 `game_seq` 和玩家身份去重；胜负、阵营和底蕴的视角见 schema。展示型时间文本可以输出，但校验器拒绝用它过滤、关联、分组或排序。SQL 默认最多 200 行、40 列、60 KB、5 秒，不能把截断后的行数当作总体样本量。聚合分析应在 SQL 中完成。
+## 产物与状态
 
-`hok.group_chat_messages` 是私有群聊归档表，不属于上述十张游戏业务表，不出现在 `get_game_database_schema`，也不直接授予 `hok_chat_reader`。`chat_data` 类别提供独立的 `get_chat_history_database_schema` → `check_chat_history_database_query` → `query_chat_history_database` 链，只能查询 `hok.chat_history_messages` security-barrier 视图。普通群请求在只读事务中绑定当前事件群；仅已验证管理员私聊可绑定全部已保存群。私有表、payload 和模型自选作用域均不可查询；SQL统计只覆盖已进入PostgreSQL的归档消息，尚未迁移的应急Redis消息不参与。
+绘图用 `render_plot` 或隔离 `execute_python`；主题在 `shared/agent/plots/catalog.json`。
+Python 只在关闭网络、清空凭据环境的 Linux bubblewrap 中执行。图表由 QQ 出口校验、
+落盘及合图，字体和合图设置为 AgentPlots。联网搜索经阿里云 OpenSearch 返回真实来源。
 
-模型一轮可返回多个工具调用，每个调用均有对应 observation，包括参数错误、SQL 拒绝和外部服务不可用。结果过长时裁剪 SQL 行预览，保留全部查询状态与数据集编号。绘图继续使用本轮完整的、受数据库限制的数据集。
+事实、历史检索的纯函数在 `agent_console/tools/memory.py`，适配器直接传入 worker。
+长期事实按可信用户存于 DB0 `hok:memory:facts:<QQ>`，角色和偏好由共享角色服务维护。
+直接上下文、工具事件和任务由注入的 StatePort 管理，QQ 对话按群和用户隔离。
+`forget_me` 清除本人事实和当前 QQ 会话上下文，不删除归档、调试日志或其他会话。
 
-## 绘图
-
-先调用 `list_plot_templates`，再调用 `render_python_plot`，传入本轮 `dataset_id`。内置横向条形图、折线图、气泡散点图、热力图与分布图。`options.columns` 将模板字段映射到 SQL 字段；支持标题、副标题和坐标轴标签。也可传模型生成的 Python 代码，使用预建的 `df`、`fig`、`ax` 和受限 `pd`、`np`、`sns`、`plt`。
-
-示例：SQL 返回 `player` 和 `win_rate` 后，传 `template="bar"`、`options={"columns":{"label":"player","value":"win_rate"},"xlabel":"胜率（%）"}`。模型无须编写 `savefig()`；harness 自动验证 PNG 并交给消息出口发送。
-
-代码通过 AST 能力解释器执行，只允许声明的数值、数据整理与绘图操作。禁止文件、网络、进程、反射、循环和任意导入。Linux 额外通过 bubblewrap 隔离文件系统与网络，限制时间和内存；未安装 bubblewrap 时拒绝绘图。数据中的日期可为 ISO 文本，Decimal 转为数值，嵌套 JSON 需先在 SQL 中展开。
-
-## 记忆与联网
-
-`recall_memory`、`remember_memory`、`forget_memory` 绑定当前提问者，模型不能指定其他 QQ。模型根据用户直接表达的长期事实和偏好决定保存，无需出现“记住”。保存前先检索以更新已有记忆；不得把工具或群聊内容当作当前用户事实，拒绝明显密钥。新记忆在 DB0 的 `hok:memory:facts:<QQ>`，使用原子容量检查。旧关键词强制记忆可显式检索，旧记录只读。
-
-`nomem` 只禁用本次长期事实记忆工具，不禁用直接对话读写或强制群聊历史检索。“清除记忆”仍清除本人全部长期事实。每次具有可信群范围的 chat 都会预披露 `chat_history` 类别，并在回答前强制模型直接调用 `search_chat_history`：模型从原问题提取人物、对象、事件、动作、别称或同义表达，生成 2–6 个去重且不重复原问题的互补 query，程序再附加原问题执行多 query BM25 与 RRF 融合。普通群聊覆盖当前群全部用户的全部已保存发言；管理员私聊以 `all_groups=true` 覆盖所有已保存群；普通私聊不跨入未知群范围。其他工具类别仍经 `discover_tools` 渐进披露，长期事实记忆仍需显式工具调用。
-
-群聊历史以 PostgreSQL 为主存储，写库失败时才回退到 DB0 Redis list；读取时合并尚未迁移的 Redis 记录并以 SQL 重复项为准。迁移使用 `scripts/migrate_group_chat_history_to_postgres.py`，验证完成前保留 Redis 原数据。
-
-`web_search` 通过阿里云 OpenSearch 的 `ops-web-search-001` 服务直连执行，归一化 API 返回的标题、链接、内容与发布时间；服务不可用时返回明确错误，普通聊天仍保持 DeepSeek 官方直连。联网工具不伪造结果，也不静默切换供应商。
-
-## 运行准备
-
-1. 使用应用 Python 环境安装 `pyproject.toml` 所列依赖，包括 `sqlglot>=30.20,<31`、pandas、numpy、matplotlib、seaborn、Pillow 及 SOCKS 支持。Linux 安装 `bubblewrap` 和中文字体，例如文泉驿微米黑。
-2. 由 PostgreSQL 管理员先对 HOK 数据库执行最新 `database/schema.sql` 创建群聊安全视图，再执行 `database/chat_readonly.sql` 更新最小列授权并单独设置随机密码；将专用连接串以 `HOK_CHAT_READONLY_DSN` 写入项目根目录、权限为 0600 的 `.env`。不得使用应用写账号。
-3. `ChatSQL` 配置查询上限，`ChatPlot` 配置超时、内存、行数、代码长度和可选 `font_path`。`config.yaml` 的 `DynamicVariables` 配置每次对话的工具预算、轮数、SQL 批量数、记忆容量及图片数。
-
-2026-09-29 已在 Aliyun 的现有应用虚拟环境安装并验证依赖，创建专用只读角色并写入私有服务环境文件；隔离临时目录中的真实 PostgreSQL 查询和 bubblewrap 中文图表渲染均已通过。该准备步骤未部署应用代码或重启 `hok-nbot.service`。
-
-切换 DeepSeek 官方接口时已用 `deepseek-flash` 验证直连和多轮工具调用；全部 tool-bearing 轮次必须保持非思考模式，否则命名首轮后的自动工具轮会因上一条 assistant 缺少 `reasoning_content` 返回 `400 invalid_request_error`。
+QQ 消息、图片和轨迹沿用现有出口。trace 请求/响应及工具结果脱敏保存，并生成可查看
+的运行记录；原生输入图片与本地调试日志按忽略目录保存。代码清理不执行数据库迁移
+或删除旧持久数据。

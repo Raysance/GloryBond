@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from qq_agent.trace import build_trace
 from PIL import Image
 from local_debugger import import_hok_module
 
@@ -12,7 +13,6 @@ TRACE = import_hok_module("business.chat_trace")
 HANDLER = import_hok_module("event_handlers.chat")
 FILES = import_hok_module("zfile")
 FUNC = import_hok_module("zfunc")
-MEMORY = import_hok_module("zmemory")
 
 
 class TraceTests(unittest.TestCase):
@@ -29,7 +29,11 @@ class TraceTests(unittest.TestCase):
                 "prompt_cache_hit_tokens": 120, "prompt_cache_miss_tokens": 30,
             }}},
         ]
-        usage = TRACE.trace_summary(rounds)["token_usage"]
+        events = []
+        for turn in rounds:
+            events.extend([{ "kind": "model.request", "data": {"messages": [], "tools": []}},
+                           { "kind": "model.response", "data": turn["response_meta"]}])
+        usage = build_trace(events)["summary"]["token_usage"]
         self.assertEqual(usage, {
             "prompt_tokens": 250,
             "completion_tokens": 50,
@@ -69,16 +73,20 @@ class TraceTests(unittest.TestCase):
 
     def test_memory_and_history_arguments_and_results_are_visible_but_credentials_are_hidden(self):
         for name in ("recall_memory", "remember_memory", "forget_memory", "search_chat_history",
-                     "fetch_chat_context", "fetch_chat_reply_thread", "list_chat_groups"):
+                     "analyze_game_database", "roleplay_select", "render_plot"):
             arguments = {"content": "偏好辅助英雄", "queries": ["内卷", "压力"], "group_id": "200",
                          "message_id": "42", "memory_id": "fact-1"}
-            value = TRACE.tool_record({"name": name}, arguments,
-                                      {"ok": True, "data": [{"text": "群聊工具返回原文"}]}, start_ms=0, duration_ms=1, executed=True)
+            def record(result):
+                events = [
+                    {"kind": "model.request", "data": {"messages": [], "tools": []}},
+                    {"kind": "tool.call", "data": {"id": "c", "function": {"name": name, "arguments": json.dumps(arguments)}}},
+                    {"kind": "tool.result", "data": {"call_id": "c", "result": result}},
+                ]
+                return build_trace(events)["rounds"][0]["tools"][0]
+            value = record({"ok": True, "data": [{"text": "群聊工具返回原文"}]})
             self.assertEqual(value["arguments"], arguments)
             self.assertEqual(value["observation"], {"ok": True, "data": [{"text": "群聊工具返回原文"}]})
-            failure = TRACE.tool_record({"name": name}, arguments,
-                                        {"ok": False, "error": "ConnectionError", "detail": "检索服务连接失败"},
-                                        start_ms=0, duration_ms=1, executed=True)
+            failure = record({"ok": False, "error": "ConnectionError", "detail": "检索服务连接失败"})
             self.assertEqual(failure["observation"]["error"], "ConnectionError")
             self.assertEqual(failure["arguments"], arguments)
             self.assertEqual(failure["observation"]["detail"], "检索服务连接失败")

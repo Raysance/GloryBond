@@ -129,14 +129,6 @@ def hero_tier_archive_path(target_date):
     return os.path.join(data_root, "herotier", f"{target_date}.json")
 
 
-def delete_legacy_chat_cache(user_qid):
-    path = os.path.join("chats", f"{user_qid}.json")
-    if not os.path.exists(path):
-        return False
-    os.remove(path)
-    return True
-
-
 def list_history_dates_descending(start_date=None):
     """Return database history dates, with the JSON archive as fallback."""
     try:
@@ -353,67 +345,7 @@ def list_postgres_archive_files(kinds=None):
 def postgres_archive_metadata(filepath):
     stat_result = os.stat(filepath)
     return {"size": stat_result.st_size, "mtime_ns": stat_result.st_mtime_ns}
-def chats_dumper(qid, question, answer): # 输出各自的chat
-    from .ztime import time_r
-    current_time = time_r().strftime("%Y-%m-%d %H:%M:%S")
-    json_file_path=os.path.join("chats",qid+".json")
-    new_item = {
-        "time": current_time,
-        "Q": question,
-        "A": answer
-    }
-    data=readerl(json_file_path)
-    data.append(new_item)
-    writerl(json_file_path,data)
-def mem_dumper(qid, mem): # 不同人的mem分开保存
-    from .ztime import time_r
-    current_time = time_r().strftime("%Y-%m-%d %H:%M:%S")
-    json_file_path=os.path.join("memory",qid+".json")
-    new_item = {
-        "time": current_time,
-        "mem": mem,
-    }
-    data=readerl(json_file_path)
-    data.append(new_item)
-    writerl(json_file_path,data)
-def mem_loader(qid,num_records=None): # 加载所有人的memory 每人最多99条记忆
-    if (num_records==None): num_records=99
-    memory_dir = "memory"
-    result_str = ""
-    if dmc.amnesia:
-        json_files = [f for f in os.listdir(memory_dir) if (f.endswith('.json') and (str(super_id) in f))]
-    else:
-        json_files = [f for f in os.listdir(memory_dir) if f.endswith('.json')]
-    if not json_files:
-        log_message("ERROR: No JSON files found in memory directory")
-        return ""
-    for json_file in json_files:
-        json_file_path = os.path.join(memory_dir, json_file)
-        data=readerl(json_file_path)
-        recent_records = data[-num_records:] if len(data) >= num_records else data
-        for i, qa in enumerate(recent_records, 1):
-            result_str += f" {i}:\n"
-            result_str += f"时间: {qa['time']}\n"
-            result_str += f"内容: {qa['mem']}\n"
 
-    if result_str == "":
-        log_message("ERROR: No valid memory data found.")
-        return ""
-
-    return result_str
-
-def chats_loader(qid,num_records=None): # 只加载自己的chat
-    if(num_records==None): num_records=3
-    json_file_path=os.path.join("chats",qid+".json")
-    data=readerl(json_file_path)
-    recent_records = data[-num_records:] if len(data) >= num_records else data
-    result_str = ""
-    for i, qa in enumerate(recent_records, 1):
-        result_str += f"记录 {i}:\n"
-        result_str += f"时间: {qa['time']}\n"
-        result_str += f"问题: {qa['Q']}\n"
-        result_str += f"回答: {qa['A']}\n\n"
-    return result_str
     
 def copyfile(src_file,dst_file):
     shutil.copy(src_file,dst_file)
@@ -684,55 +616,6 @@ def pil_image_from_bytes(content):
     return image
 
 
-def _chat_plot_worker_command(worker_path, job_dir, config):
-    """Build an isolated worker command; Linux additionally requires bubblewrap."""
-    import sys
-
-    environment = {
-        "PATH": os.defpath,
-        "HOME": job_dir,
-        "TMPDIR": job_dir,
-        "MPLCONFIGDIR": job_dir,
-        "MPLBACKEND": "Agg",
-        "LANG": "C.UTF-8",
-        "LC_ALL": "C.UTF-8",
-        "OPENBLAS_NUM_THREADS": "1",
-        "OMP_NUM_THREADS": "1",
-        "MKL_NUM_THREADS": "1",
-        "NUMEXPR_NUM_THREADS": "1",
-    }
-    if not sys.platform.startswith("linux"):
-        return [sys.executable, "-I", worker_path], environment, config.get("font_path", "")
-    bwrap = shutil.which("bwrap")
-    if not bwrap:
-        raise RuntimeError("chat_plot: Linux 绘图隔离需要 bubblewrap，请先安装 bwrap")
-    command = [bwrap, "--unshare-all", "--die-with-parent", "--new-session"]
-    # These mounts contain the interpreter, dependencies and fonts only. Never
-    # expose the application checkout, its config, SSH credentials or runtime DB.
-    candidates = ["/usr", "/bin", "/lib", "/lib64", "/etc/fonts", "/etc/ld.so.cache", os.path.join(sys.base_prefix, "bin"), os.path.join(sys.base_prefix, "lib")]
-    if sys.prefix != sys.base_prefix:
-        candidates.append(sys.prefix)
-    mounted = []
-    for source in candidates:
-        source = os.path.abspath(source)
-        if not os.path.exists(source) or source in mounted:
-            continue
-        if any(source.startswith(parent + os.sep) for parent in mounted):
-            continue
-        command.extend(["--ro-bind", source, source])
-        mounted.append(source)
-    command.extend(["--ro-bind", worker_path, "/chat_plot_worker.py", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--chdir", "/tmp"])
-    font_path = config.get("font_path", "")
-    if font_path:
-        if not os.path.isfile(font_path):
-            raise ValueError("chat_plot: 配置的中文字体文件不存在")
-        command.extend(["--ro-bind", os.path.abspath(font_path), "/chat_font.ttf"])
-        font_path = "/chat_font.ttf"
-    environment.update(HOME="/tmp", TMPDIR="/tmp", MPLCONFIGDIR="/tmp")
-    command.extend([sys.executable, "-I", "/chat_plot_worker.py"])
-    return command, environment, font_path
-
-
 def combine_chat_plot_images(artifacts):
     """Compose harness charts into one proportional, bounded two-column image."""
     import uuid
@@ -740,11 +623,11 @@ def combine_chat_plot_images(artifacts):
 
     if len(artifacts) < 2:
         return list(artifacts)
-    if len(artifacts) > int(getattr(dmc, "ChatPlotMaxArtifacts", 4)):
+    if len(artifacts) > int(confs.get("QQAgent", {}).get("max_output_images", 4)):
         raise ValueError("chat_plot_collage: too many images")
-    width = max(800, min(3200, int(chat_plot_config.get("collage_width", 2400))))
+    width = max(800, min(3200, int(agent_plot_config.get("collage_width", 2400))))
     gap = 24
-    columns = min(len(artifacts), max(1, min(2, int(chat_plot_config.get("collage_columns", 2)))))
+    columns = min(len(artifacts), max(1, min(2, int(agent_plot_config.get("collage_columns", 2)))))
     cell_width = (width - gap * (columns + 1)) // columns
     images = []
     for item in artifacts:
@@ -782,44 +665,3 @@ def chat_plot_public_path(path):
     if not re.fullmatch(r"chat_plot_[0-9a-f]{32}\.png", name):
         return ""
     return f"/file_transfer/{name}"
-
-
-def render_chat_plot_worker(payload, config=None):
-    """Execute the chart capability interpreter and publish a verified PNG."""
-    import subprocess
-    import tempfile
-    import uuid
-    from PIL import Image
-
-    config = config or {}
-    timeout = min(50, max(3, int(config.get("timeout_seconds", 20))))
-    worker_path = os.path.join(os.path.dirname(__file__), "plot_runtime", "worker.py")
-    ensure_dir(temp_path)
-    with tempfile.TemporaryDirectory(prefix="hok-chat-plot-") as job_dir:
-        command, environment, font_path = _chat_plot_worker_command(worker_path, job_dir, config)
-        request = dict(payload, font_path=font_path, memory_mb=config.get("memory_mb", 1024), cpu_seconds=max(2, timeout - 2))
-        raw_request = json.dumps(request, ensure_ascii=False, allow_nan=False).encode("utf-8")
-        if len(raw_request) > 1024 * 1024:
-            raise ValueError("chat_plot: worker 请求超过 1 MiB")
-        try:
-            result = subprocess.run(
-                command, input=raw_request, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=environment, cwd=job_dir, timeout=timeout, check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(f"chat_plot: 绘图超过 {timeout} 秒，进程已终止") from exc
-    if result.returncode:
-        detail = result.stderr.decode("utf-8", errors="replace")[-1200:]
-        raise RuntimeError(f"chat_plot: worker exit={result.returncode}; {detail}")
-    content = result.stdout
-    if not content.startswith(b"\x89PNG\r\n\x1a\n") or len(content) > 8 * 1024 * 1024:
-        raise ValueError("chat_plot: worker 未返回有效的限长 PNG")
-    with Image.open(io.BytesIO(content)) as preview:
-        width, height = preview.size
-        if preview.format != "PNG" or not (200 <= width <= 2200 and 200 <= height <= 2200):
-            raise ValueError("chat_plot: PNG 尺寸或格式不合法")
-        preview.verify()
-    output_path = os.path.join(temp_path, f"chat_plot_{uuid.uuid4().hex}.png")
-    with open(output_path, "xb") as output:
-        output.write(content)
-    return {"path": output_path, "width": width, "height": height, "bytes": len(content)}

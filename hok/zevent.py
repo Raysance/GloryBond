@@ -60,8 +60,6 @@ _forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
 _dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
 _representative_range_debug=on_keyword({"##rep3"},rule=judge_super,priority=1, block=True)
 _pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
-_super_only = on_keyword({"##amnesia"},rule=judge_super,priority=1, block=True)
-_all_only = on_keyword({"##memory"},rule=judge_super,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
 _bili_video_admin = on_keyword({"##bili"},rule=judge_super,priority=1, block=True)
@@ -70,8 +68,6 @@ _sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, bloc
 _blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
 
 _show_code=on_fullmatch("code",rule=judge_to_me,priority=3, block=True)
-_empty_cache = on_keyword({"empty_cache"},rule=judge_to_me,priority=3, block=True)
-_show_cache = on_keyword({"show_cache"},rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _peak_rank=on_fullmatch(
@@ -387,33 +383,12 @@ async def f_group_poke(bot, event):
         snd_msg = MessageSegment.text(result["text"])
     add_msg(snd_msg, event=event)
                 
-@_empty_cache.handle()
-async def f_empty_cache(event): # 清空全局记录和用户(自己的)记录
-    from .zfile import delete_legacy_chat_cache
 
-    log_message("CMD: EMPTY_CACHE")
-    dmc.ai_memory.clear()
-    userqid=event.get_user_id()
-    try:
-        await asyncio.to_thread(delete_legacy_chat_cache, userqid)
-    except Exception as e:
-        pass
-    add_msg(Message("成功清空缓存"), event=event)
-    await _empty_cache.finish()
-
-@_show_cache.handle()
-async def f_show_cache(event):
-    log_message("CMD: SHOW_CACHE")
-    add_msg(Message("缓存内容："+"".join(dmc.ai_memory)), event=event)
-    await _show_cache.finish()
 
 @_forget_me.handle()
-async def f_forget_me(event): # 清空用户记录和用户(自己的)记忆
-    from .zmemory import instance as zm
-    log_message("CMD: EMPTY_ME")
-    userqid=event.get_user_id()
-    await asyncio.to_thread(zm.clear_user_data, userqid)
-    await asyncio.to_thread(chat_memory_clear, userqid)
+async def f_forget_me(event): # 清除当前会话上下文和本人长期事实
+    from .zfunc import agent_clear_memory
+    await agent_clear_memory(event.get_user_id(), getattr(event, "group_id", None))
     add_msg(Message("成功清除记忆"), event=event)
     await _forget_me.finish()
 
@@ -505,19 +480,6 @@ async def f_manual(event):
     add_msg(Message("Code on Github："), event=event)
     add_msg("https://github.com/Raysance/HOK_QQBot_showcase/", event=event)
 
-@_super_only.handle()
-async def f_super_only(event):
-    log_message("CMD: AMNESIA")
-    dmc.amnesia=True
-    add_msg(Message("AMNESIA success"), event=event)
-    await _super_only.finish()
-
-@_all_only.handle()
-async def f_all_only(event):
-    log_message("CMD: RECOVERY")
-    dmc.amnesia=False
-    add_msg(Message("RECOVERY success"), event=event)
-    await _all_only.finish()
 
 @_atall.handle()
 async def f_atall(bot,event):

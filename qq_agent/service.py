@@ -180,6 +180,13 @@ class QQAgentService:
         if self.runtime:
             await self.scheduler.tick()
 
+    async def clear_memory(self, user_id, group_id=None):
+        await self.start()
+        principal = qq_principal(user_id, group_id, "", admin_id=self.admin_id,
+                                 references=self.public["references"], use_memory=False)
+        session = "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + principal.user_id
+        return await self.state_bridge.call("memory", action="clear", user_id=principal.user_id, session_id=session)
+
     async def close(self):
         if self.runtime:
             await self.scheduler.close()

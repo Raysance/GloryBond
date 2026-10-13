@@ -89,5 +89,6 @@ async def generate_emoji(event):
     return await asyncio.to_thread(
         generate_user_kmoji_image,
         user_qid=event.get_user_id(),
+        group_id=getattr(event, "group_id", None),
         **request,
     )

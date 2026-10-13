@@ -145,3 +145,12 @@ The existing `zscheduler.py` owns startup, shutdown and task polling. Startup
 logs `QQ_AGENT_READY` after worker initialization. PNG outputs and expiring trace
 links continue to use the existing Web service. New direct-dialogue history is
 isolated by user and channel; previous history and saved facts are preserved.
+
+The legacy chat implementation is removed. Shared read-only SQL limits use
+`AgentSQL`; fonts and QQ image collages use `AgentPlots`. Cleanup never drops
+database tables or deletes stored conversations/facts during deployment.
+
+`restore_application.sh` removes only source files deleted between the deployed
+revision and the requested revision, before resetting the index. This prevents
+retired modules from surviving as untracked Python files. It excludes runtime
+`data/history` and delegates the copied-core backup to `sync_agent_runtime.sh`.

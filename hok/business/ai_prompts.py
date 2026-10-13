@@ -1,19 +1,12 @@
-"""Legacy AI prompt assembly and adapter selection."""
+"""Game and notification prompt assembly and adapter selection."""
 
-from .. import zdynamic as dmc
 from .. import zapi, ztime
-from ..chat_roles import build_role_prompt
 from ..zstatic import *
 
 
-def ai_parser(user_query,msg_type,network=False,use_mem=None):
-    if use_mem is None:
-        use_mem = dmc.use_mem
+def ai_parser(user_query,msg_type,network=False):
 
     ai_temperature=1.5
-    style_templates_index=ztime.get_timebased_rand(len(pmpt_style_templates),30)
-    style_template=pmpt_style_templates[style_templates_index]
-    
     whole_query=""
 
     match msg_type:
@@ -28,27 +21,6 @@ def ai_parser(user_query,msg_type,network=False,use_mem=None):
             whole_query += single_pmpt1 + user_query[0] + user_query[1] + single_pmpt2 + user_query[2]
         case "tq":
             whole_query += tq_pmpt + user_query[0]
-        case "chat":
-            role_prompt = build_role_prompt(chat_role)
-            if use_mem:
-                context_msg = f"""
-                【情境信息】
-                - 当前用户: {user_query[2]} (QID: {user_query[3]})
-                
-                - 当前用户与 Bot 的近期直接对话（仅来自 chat event）:
-                {user_query[1]}
-                
-                【重要指令】
-                以上信息仅作为对话背景。
-                只使用当前用户此前直接对 Bot 说过的话和 Bot 对该用户的回复延续语境。
-                不要假设其中包含其他用户的发言、群聊旁观内容、提炼总结或其他来源的记忆。
-                请自然地融合在回复中，不要直接提及“记忆模块”“系统提示”等内部实现。
-                
-                当前请求: {user_query[0]}
-                """
-                whole_query += role_prompt + style_template + context_msg + chat_pmpt
-            else:
-                whole_query += role_prompt + style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
         case "poke":
             whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
         case "battle_lineup":

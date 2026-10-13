@@ -15,9 +15,7 @@ jobs:
           cd /srv/modules/hok/apps/NBot/
           git fetch origin main
 
-          git reset --mixed origin/main
-          git restore --source=origin/main --worktree -- . ':(exclude)data/history' ':(exclude)agent_runtime'
-          bash deployment/scripts/sync_agent_runtime.sh . origin/main
+          git show origin/main:deployment/scripts/restore_application.sh | bash -s -- . origin/main
           .venv/bin/python -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService'
 
       - name: Restart Nonebot
