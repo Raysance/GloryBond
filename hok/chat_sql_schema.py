@@ -155,7 +155,7 @@ CHAT_SQL_SEMANTICS = [
     "battle_power.role_id 是原始视角；battle_power_players.side='my'/'op' 相对这一视角。对任意目标玩家，side='my'时own=my_side_level，否则own=opponent_side_level；对手相反。game_result同样属于原始视角，任意玩家胜负应按其战绩读取。",
     "single_level 为已计算个人底蕴，未授权玩家可能是0，须结合payload->>'isAuth'排除未知。阵营底蕴在生成时按授权人数折算为5人，不可直接把全部single_level相加替代。个人相对底蕴=single_level/本场所有single_level>0的均值*100；阵营差=own_level-rival_level。只覆盖已评估局，必须报告覆盖场次。",
     "battle_power_players.hero_power 是评估时该英雄战力，hero_win_rate 为0到1，hero_average_score 为采集到的历史均分；payload含starNum、peakScore、mvpRate、recentWinRate、heroShowCnt等。需要当前玩家英雄战力时使用独立工具，地区荣耀门槛使用荣耀战力工具。",
-    "团队贡献系数原口径：(5*个人评分/阵营总评分)*POWER(5*个人gold/阵营总gold,-0.5)；穿学识宝石/近卫/极影等辅助装备乘0.9（payload.battleRecords.finalEquips[*].equipName）。分母非正或金钱缺失返回NULL。受益度及代表局指数不是数据库现成字段；自定义比较须解释公式，不能冒称复现完整旧指数。",
+    "团队贡献系数口径：(5*个人评分/阵营总评分)*POWER((5*个人gold/阵营总gold)*辅助经济系数,-0.5)；最终装备名含学识宝石/近卫/极影时辅助经济系数为0.9，否则为1；最终装备读取payload.battleRecords.finalEquips[*].equipName。分母非正或金钱缺失返回NULL。受益度及代表局指数不是数据库现成字段；自定义比较须解释公式，不能冒称复现完整旧指数。",
     "hero_rank_entries 的 ban_rate/show_rate/win_rate 按原API数值存储，写库未统一百分比单位；先检查样本/分布再判断0到1或0到100。不同rank_id对应不同筛选范围，不可混合；与快照用(snapshot_date,rank_id)连接。",
     "JSON路径区分大小写。分类依赖payload中的名称或枚举时，先查询实际值及频数再决定匹配条件，不能猜测固定IN列表；采样后还须执行正式汇总，核对未匹配/其他类比例。需要新增payload字段时先取少量样本/JSON键验证。底蕴players与participant的participant_index来源不同，跨这两表按game_seq+role_id连接。",
 ]

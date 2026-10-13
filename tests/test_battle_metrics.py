@@ -27,7 +27,7 @@ class BattleMetricTests(unittest.TestCase):
         expected = (5 * 10 / 15) * ((5 * 10000 / 15000) ** -0.5)
         self.assertAlmostEqual(factor, expected)
 
-    def test_support_equipment_applies_existing_adjustment(self):
+    def test_support_equipment_discounts_economy_inside_square_root(self):
         detail = {
             "redRoles": [
                 role("1", 1, 10, 10000, [{"equipName": "极影"}]),
@@ -38,7 +38,7 @@ class BattleMetricTests(unittest.TestCase):
         adjusted = ZFUNC.calculate_battle_contribution_factor(detail, roleid="1")
         detail["redRoles"][0]["battleRecords"]["finalEquips"] = []
         plain = ZFUNC.calculate_battle_contribution_factor(detail, roleid="1")
-        self.assertAlmostEqual(adjusted, plain * 0.9)
+        self.assertAlmostEqual(adjusted, plain / (0.9 ** 0.5))
 
     def test_official_average_fetches_details_through_zfunc_facade(self):
         original_fetch = ZFUNC.fetch_battle

@@ -97,10 +97,10 @@ def calculate_battle_contribution_factor(battle_detail, roleid=None, userid=None
     team_total_money = sum(float(item.get("battleStats", {}).get("money", 0)) for item in team_roles)
     if team_total_grade <= 0 or team_total_money <= 0 or my_money <= 0:
         return None
-    factor = (5 * my_grade / team_total_grade) * pow((5 * my_money / team_total_money), -0.5)
+    money_ratio = 5 * my_money / team_total_money
     if _battle_role_has_assist_equip(target_role):
-        factor *= 0.9
-    return factor
+        money_ratio *= 0.9
+    return (5 * my_grade / team_total_grade) * pow(money_ratio, -0.5)
 def calculate_official_battle_contribution_average(details, roleid):
     official_btls_contributes = []
     for btl in details:
