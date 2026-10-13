@@ -1,6 +1,6 @@
 """Role and preference data contracts, independent of the agent kernel."""
 
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -20,6 +20,24 @@ class RoleSource(BaseModel):
         return value
 
 
+class VoiceExample(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: str = Field(min_length=1, max_length=600)
+    reply: str = Field(min_length=1, max_length=1000)
+
+
+class RoleVoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tone: str = Field(default="", max_length=1200)
+    habits: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(
+        default_factory=list, max_length=8
+    )
+    avoid: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(
+        default_factory=list, max_length=8
+    )
+    examples: list[VoiceExample] = Field(default_factory=list, max_length=5)
+
+
 class RoleDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,80}$")
@@ -29,6 +47,7 @@ class RoleDefinition(BaseModel):
     kind: Literal["builtin", "web"] = "builtin"
     sources: list[RoleSource] = Field(default_factory=list, max_length=10)
     created_at: str = ""
+    voice: RoleVoice | None = None
 
 
 class ReplyPreferences(BaseModel):
@@ -44,3 +63,4 @@ class GeneratedProfile(BaseModel):
     personality: str = Field(min_length=1, max_length=2000)
     speech_style: str = Field(min_length=1, max_length=2000)
     uncertainties: str = Field(default="", max_length=1500)
+    voice: RoleVoice | None = None

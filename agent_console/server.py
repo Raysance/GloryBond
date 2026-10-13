@@ -29,6 +29,7 @@ from .provider import DeepSeekModel
 from .image_inputs import ImageLimits, ImageStore
 from .remote import RemoteBridge, RemoteState
 from .roleplay import RoleplayService
+from .replies import ReplyComposer, ReplyPolicy
 from .identity import local_principal
 from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
 
@@ -109,6 +110,14 @@ def create_app(*, config_path=None):
                 default_role=config.get("default_role", "makise_kurisu"),
             )
             register_roleplay_tools(registry, roles)
+            reply_model = DeepSeekModel(
+                api_key=remote["private"]["api_key"],
+                base_url=public["base_url"],
+                model=public["model"],
+                thinking=False,
+                max_tokens=config.get("max_tokens", 4096),
+                response_format={"type": "json_object"},
+            )
             app.state.roles = roles
             app.state.principal = local_principal(
                 public["references"], config.get("player_key", "example_user_10")
@@ -122,6 +131,11 @@ def create_app(*, config_path=None):
                 state=state,
                 output=broker,
                 clock=Clock(),
+                finalizer=ReplyComposer(
+                    model=reply_model,
+                    roles=roles,
+                    policy=ReplyPolicy(**config.get("reply", {})),
+                ),
             )
             app.state.bridge, app.state.runtime, app.state.broker = (
                 bridge,

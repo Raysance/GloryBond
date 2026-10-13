@@ -24,7 +24,7 @@ class AddArgs(Args):
         default="", max_length=120, description="所属作品，避免同名角色混淆"
     )
     select: bool = Field(
-        default=True, description="创建成功后选用该角色；下一次对话生效"
+        default=True, description="创建成功后选用该角色；本次最终回复及后续对话生效"
     )
 
 
@@ -54,7 +54,7 @@ def register_roleplay_tools(registry, service):
             "roleplay.changed",
             {"selected": result["selected"], "preferences": result["preferences"]},
         )
-        return {**result, "applies": "下一次对话及后台agent任务生效"}
+        return {**result, "applies": "本次最终回复、后续对话及后台agent任务生效"}
 
     async def add_role(args, ctx):
         return await service.add_from_web(args, ctx)
@@ -80,7 +80,7 @@ def register_roleplay_tools(registry, service):
         ),
         (
             "select_role",
-            "为当前用户选用已存在的角色，跨会话保存；下一次对话及后台agent任务生效。关闭角色风格请选择assistant。",
+            "为当前用户选用已存在的角色，跨会话保存；本次最终回复、后续对话及后台agent任务生效。关闭角色风格请选择assistant。",
             SelectArgs,
             select_role,
             20,

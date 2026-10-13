@@ -373,6 +373,40 @@ main {
   margin: 16px 0;
   overflow-wrap: anywhere;
 }
+.reply-pair {
+  margin: 16px 0 22px;
+}
+.reply-label {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: #8c97aa;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+.reply-copy {
+  font-size: 10px;
+  color: #8c97aa;
+  padding: 0;
+}
+.reply-copy:hover {
+  color: var(--blue);
+}
+.reply-detail .answer {
+  margin-top: 4px;
+}
+.reply-chat {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #e7ebf2;
+}
+.chat-reply-text {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #304463;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .answer p {
   margin: 8px 0;
 }

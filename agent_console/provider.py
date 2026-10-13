@@ -17,10 +17,12 @@ class DeepSeekModel:
         max_tokens=4096,
         vision_model=None,
         image_store=None,
+        response_format=None,
     ):
         self.api_key, self.base_url, self.model = api_key, base_url.rstrip("/"), model
         self.thinking, self.max_tokens = thinking, max_tokens
         self.vision_model, self.image_store = vision_model or model, image_store
+        self.response_format = response_format
 
     async def complete(self, messages, tools, on_delta):
         has_images = any(
@@ -42,6 +44,8 @@ class DeepSeekModel:
         }
         if tools:
             payload.update(tools=tools, tool_choice="auto")
+        if self.response_format:
+            payload["response_format"] = self.response_format
         text, reasoning, calls, usage, finish = [], [], {}, {}, None
         frames = []
         pending = {"content": "", "reasoning": ""}

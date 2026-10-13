@@ -3,8 +3,16 @@
 // Only provider usage in explicit model responses is counted. Tool payloads
 // and streaming chunks may contain the same data and must not be counted again.
 const AgentUsage = (() => {
-  const requestKinds = new Set(["model.request", "roleplay.model.request"]);
-  const responseKinds = new Set(["model.response", "roleplay.model.response"]);
+  const requestKinds = new Set([
+    "model.request",
+    "roleplay.model.request",
+    "reply.model.request",
+  ]);
+  const responseKinds = new Set([
+    "model.response",
+    "roleplay.model.response",
+    "reply.model.response",
+  ]);
   const fields = [
     "input",
     "output",
@@ -72,8 +80,12 @@ const AgentUsage = (() => {
       else
         run.responses.push({
           ...normalize(event.data?.usage),
-          round: event.data?.round ?? null,
-          source: event.kind.startsWith("roleplay.") ? "角色生成" : "对话",
+          round: event.data?.round ?? event.data?.attempt ?? null,
+          source: event.kind.startsWith("roleplay.")
+            ? "角色生成"
+            : event.kind.startsWith("reply.")
+              ? "组织回复"
+              : "对话",
         });
       return true;
     }

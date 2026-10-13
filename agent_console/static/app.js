@@ -286,13 +286,15 @@ function getRun(event) {
   let run = state.runs.get(event.run_id);
   if (run) return run;
   const root = el("article", "agent-run");
-  const name = el(
-    "div",
-    "agent-name",
+  const name = el("div", "agent-name");
+  const nameLabel = el(
+    "span",
+    null,
     event.metadata?.origin === "background"
       ? "定时任务"
       : event.metadata?.role_name || "Agent",
   );
+  name.append(nameLabel);
   const status = el("span", "run-status", "正在执行");
   name.append(status);
   const usage = usageWidget("本轮", true);
@@ -312,6 +314,8 @@ function getRun(event) {
     root,
     body,
     status,
+    nameLabel,
+    background: event.metadata?.origin === "background",
     usage,
     execution,
     executionSummary,
@@ -471,6 +475,32 @@ function markdown(text) {
   }
   return root;
 }
+function finalReply(data) {
+  if (!data.variants?.detailed || !data.variants?.chat)
+    return markdown(data.text);
+  const root = el("div", "reply-pair");
+  const detail = el("section", "reply-detail");
+  detail.append(
+    el("div", "reply-label", "详细内容"),
+    markdown(data.variants.detailed),
+  );
+  const chat = el("section", "reply-chat");
+  const label = el("div", "reply-label", "群聊回复");
+  const copy = el("button", "reply-copy", "复制");
+  copy.type = "button";
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(data.variants.chat);
+      copy.textContent = "已复制";
+    } catch (e) {
+      error("复制失败，请直接选择群聊回复文字复制。");
+    }
+  };
+  label.append(copy);
+  chat.append(label, el("div", "chat-reply-text", data.variants.chat));
+  root.append(detail, chat);
+  return root;
+}
 function timeline(event) {
   if (event.transient) return;
   const labels = {
@@ -489,6 +519,10 @@ function timeline(event) {
     "roleplay.model.request": "角色档案生成请求",
     "roleplay.model.response": "角色档案生成结果",
     "roleplay.changed": "角色或偏好已更新",
+    "reply.model.request": "组织回复",
+    "reply.model.response": "回复整理结果",
+    "reply.validation": "检查回复格式",
+    "reply.failure": "回复整理失败",
   };
   const row = el("button", "timeline-row");
   const dot = el(
@@ -588,6 +622,20 @@ function consume(event) {
     s.thought.hidden = !d.message.reasoning_content;
     s.summary.textContent = "角色档案生成过程";
     s.draft.textContent = "";
+  } else if (event.kind === "reply.model.request") {
+    const s = step(run, "reply-" + d.attempt);
+    s.summary.textContent = "组织回复 · 第 " + d.attempt + " 次";
+    run.status.textContent = "组织回复";
+    run.draft.textContent = "";
+  } else if (event.kind === "reply.model.delta") {
+    const s = step(run, "reply-" + d.attempt);
+    if (d.channel === "reasoning") s.text.textContent += d.text;
+    else s.draft.textContent += d.text;
+  } else if (event.kind === "reply.model.response") {
+    const s = step(run, "reply-" + d.attempt);
+    s.text.textContent = d.message.reasoning_content || "";
+    s.thought.hidden = !d.message.reasoning_content;
+    s.draft.textContent = "";
   } else if (event.kind === "tool.call") {
     const card = el("details", "tool-card");
     const summary = el("summary");
@@ -621,10 +669,15 @@ function consume(event) {
       jsonBlock(tool.body, "结果", d.result);
     }
   } else if (event.kind === "output.message") {
+    if (d.kind === "final" && d.presentation?.role_name)
+      run.nameLabel.textContent =
+        (run.background ? "定时任务 · " : "") + d.presentation.role_name;
     run.body.append(
       d.kind === "progress"
         ? el("div", "progress-message", d.text)
-        : markdown(d.text),
+        : d.kind === "final"
+          ? finalReply(d)
+          : markdown(d.text),
     );
   } else if (event.kind === "output.artifact") {
     const a = el("a");
@@ -914,7 +967,7 @@ function renderRoles(data) {
           body: JSON.stringify({ role_id: role.role_id }),
         });
         renderRoles({ ...result, identity: data.identity });
-        $("role-save-status").textContent = "已选用，下次对话生效";
+        $("role-save-status").textContent = "已选用，接下来的回复生效";
       } catch (e) {
         error(e.message);
       } finally {

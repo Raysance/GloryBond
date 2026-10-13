@@ -185,3 +185,33 @@ test("malformed usage cannot produce NaN or fictitious zero counts", () => {
   assert.equal(normalize(null).total, null);
   assert.equal(normalize({ prompt_tokens: false, input_tokens: 10 }).input, 10);
 });
+
+test("reply composition and its repair attempts are included once in token usage", () => {
+  const tracker = createTracker();
+  tracker.add(event("main-q", "model.request"));
+  tracker.add(
+    event("main-a", "model.response", {
+      prompt_tokens: 100,
+      completion_tokens: 20,
+      total_tokens: 120,
+    }),
+  );
+  for (const id of ["first", "repair"]) {
+    tracker.add(event(id + "-q", "reply.model.request"));
+    const response = event(id + "-a", "reply.model.response", {
+      prompt_tokens: 200,
+      completion_tokens: 40,
+      total_tokens: 240,
+    });
+    tracker.add(response);
+    tracker.add(response);
+    tracker.add(
+      event(id + "-delta", "reply.model.delta", response.data.usage, "run-a", {
+        transient: true,
+      }),
+    );
+  }
+  assert.equal(tracker.summary().requests, 3);
+  assert.equal(tracker.summary().total, 600);
+  assert.equal(tracker.summary().breakdown[1].source, "组织回复");
+});

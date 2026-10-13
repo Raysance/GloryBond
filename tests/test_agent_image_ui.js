@@ -44,7 +44,8 @@ function setup({ uploadError = false, chatError = false } = {}) {
     [...html.matchAll(/id="([^"]+)"/g)].map((m) => [m[1], new Element()]),
   );
   const requests = [],
-    revoked = [];
+    revoked = [],
+    copied = [];
   let uploaded = 0;
   const context = vm.createContext({
     document: {
@@ -55,6 +56,7 @@ function setup({ uploadError = false, chatError = false } = {}) {
       addEventListener() {},
     },
     localStorage: { getItem: () => null, setItem() {} },
+    navigator: { clipboard: { writeText: async (text) => copied.push(text) } },
     URL: {
       createObjectURL: () => "blob:fixture",
       revokeObjectURL: (url) => revoked.push(url),
@@ -91,7 +93,7 @@ function setup({ uploadError = false, chatError = false } = {}) {
   );
   const file = { name: "fixture.png", type: "image/png", size: 20 };
   context.file = file;
-  return { ids, requests, revoked, context, evaluate, file };
+  return { ids, requests, revoked, copied, context, evaluate, file };
 }
 
 test("upload preview uses a server image ID and image-only send reaches chat", async () => {
@@ -139,19 +141,15 @@ test("paste and drop run the same uploader; file picker is connected", async () 
   let prevented = 0;
   ui.ids.get("attach-images").onclick();
   assert.equal(ui.ids.get("image-input").clicked, true);
-  ui.ids
-    .get("message-input")
-    .listeners.paste({
-      clipboardData: { files: [ui.file], getData: () => "" },
-      preventDefault: () => prevented++,
-    });
+  ui.ids.get("message-input").listeners.paste({
+    clipboardData: { files: [ui.file], getData: () => "" },
+    preventDefault: () => prevented++,
+  });
   await new Promise(setImmediate);
-  ui.ids
-    .get("composer")
-    .listeners.drop({
-      dataTransfer: { files: [ui.file] },
-      preventDefault: () => prevented++,
-    });
+  ui.ids.get("composer").listeners.drop({
+    dataTransfer: { files: [ui.file] },
+    preventDefault: () => prevented++,
+  });
   await new Promise(setImmediate);
   assert.equal(ui.evaluate("state.attachments.length"), 2);
   assert.equal(prevented, 2);
@@ -194,4 +192,71 @@ test("persisted image events rebuild thumbnails and preserve event deduplication
   assert.equal(ui.evaluate("state.events.length"), 1);
   ui.evaluate("clearAttachments();");
   assert.equal(ui.ids.get("image-attachments").hidden, true);
+});
+
+test("final reply shows both versions and copies only the plain group-chat version", async () => {
+  const ui = setup();
+  ui.context.event = {
+    id: "reply",
+    run_id: "run",
+    kind: "output.message",
+    time: "2026-10-13T12:00:00Z",
+    data: {
+      kind: "final",
+      text: "这结论下得太快了吧。先看证据。",
+      variants: {
+        detailed: "## 结论\n样本还少。\n\n先看证据再下结论。",
+        chat: "这结论下得太快了吧。先看证据。",
+      },
+    },
+  };
+  ui.evaluate("consume(event)");
+  const run = ui.evaluate('state.runs.get("run")');
+  const pair = run.body.children[1];
+  assert.equal(pair.className, "reply-pair");
+  assert.equal(pair.children[0].children[0].textContent, "详细内容");
+  assert.equal(
+    pair.children[1].children[1].textContent,
+    ui.context.event.data.variants.chat,
+  );
+  const copy = pair.children[1].children[0].children[0];
+  await copy.onclick();
+  assert.deepEqual(ui.copied, [ui.context.event.data.variants.chat]);
+  assert.equal(copy.textContent, "已复制");
+});
+
+test("reply JSON streaming stays in execution details and has usage tracking", () => {
+  const ui = setup();
+  for (const [id, kind, data] of [
+    ["request", "reply.model.request", { attempt: 1, messages: [], tools: [] }],
+    [
+      "delta",
+      "reply.model.delta",
+      { attempt: 1, channel: "content", text: '{"detailed":"..."' },
+    ],
+    [
+      "response",
+      "reply.model.response",
+      {
+        attempt: 1,
+        message: { content: '{"detailed":"detail","chat":"short"}' },
+        usage: { prompt_tokens: 200, completion_tokens: 40, total_tokens: 240 },
+      },
+    ],
+  ]) {
+    ui.context.event = {
+      id,
+      run_id: "run",
+      kind,
+      data,
+      time: "2026-10-13T12:00:00Z",
+      transient: kind.endsWith("delta"),
+    };
+    ui.evaluate("consume(event)");
+  }
+  const run = ui.evaluate('state.runs.get("run")');
+  assert.equal(run.execution.open, false);
+  assert.equal(run.draft.textContent, "");
+  assert.equal(ui.evaluate("state.usage.summary().total"), 240);
+  assert.equal(ui.evaluate("state.usage.summary().requests"), 1);
 });

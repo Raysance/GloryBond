@@ -130,6 +130,40 @@ class StoreTests(unittest.TestCase):
 
 
 class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_web_role_voice_examples_are_validated_and_persisted(self):
+        service, bridge = self.service(
+            model_output={
+                "background": "有来源的背景",
+                "personality": "活泼",
+                "speech_style": "短句",
+                "uncertainties": "",
+                "voice": {
+                    "tone": "轻快直接",
+                    "habits": ["先接话"],
+                    "avoid": ["报告腔"],
+                    "examples": [
+                        {
+                            "question": "今天有点累",
+                            "reply": "先坐一会儿呀，事情等缓过来再说。",
+                        }
+                    ],
+                },
+            }
+        )
+        principal = Principal("owner", frozenset({"web.read", "roleplay.use"}))
+        ctx = ToolContext(
+            RunRequest("添加角色", "session", principal),
+            lambda *args, **kw: asyncio.sleep(0),
+        )
+        result = await service.add_from_web(AddArgs(character="测试角色"), ctx)
+        snapshot = await service.manage(principal)
+        self.assertEqual(snapshot["selected"]["voice"]["tone"], "轻快直接")
+        self.assertEqual(
+            snapshot["selected"]["voice"]["examples"][0]["reply"],
+            "先坐一会儿呀，事情等缓过来再说。",
+        )
+        self.assertEqual(snapshot["selected"]["role_id"], result["role"]["role_id"])
+
     def service(self, *, sources=True, model_output=None):
         owner = self
 
