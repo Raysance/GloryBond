@@ -99,7 +99,7 @@ def calculate_battle_contribution_factor(battle_detail, roleid=None, userid=None
         return None
     money_ratio = 5 * my_money / team_total_money
     if _battle_role_has_assist_equip(target_role):
-        money_ratio *= 0.9
+        money_ratio /= 0.9
     return (5 * my_grade / team_total_grade) * pow(money_ratio, -0.5)
 def calculate_official_battle_contribution_average(details, roleid):
     official_btls_contributes = []

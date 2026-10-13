@@ -189,7 +189,7 @@
     "chat_battle_power_players已经把原始my/op视角转换为每个参赛者视角：participant_side_level、rival_side_level、participant_side_tier、rival_side_tier和participant_result可直接使用，无需再根据side翻转。",
     "single_level为个人底蕴，未授权玩家可能是0，须结合participant_payload->>'isAuth'排除未知。阵营底蕴已按授权人数折算为5人，不可直接把全部single_level相加替代。只覆盖已评估局，必须报告覆盖场次。",
     "chat_battle_power_players.hero_power是评估时英雄战力，hero_win_rate为0到1，hero_average_score为历史均分；participant_payload含starNum、peakScore、mvpRate、recentWinRate、heroShowCnt等。当前英雄战力和地区荣耀门槛使用独立工具。",
-    "团队贡献系数口径：(5*个人评分/阵营总评分)*POWER((5*个人gold/阵营总gold)*辅助经济系数,-0.5)；最终装备名含学识宝石/近卫/极影时辅助经济系数为0.9，否则为1；辅助装备可直接从chat_player_equipment判断。分母非正或金钱缺失返回NULL。受益度及代表局指数不是现成字段；自定义比较须解释公式。",
+    "团队贡献系数口径：(5*个人评分/阵营总评分)*POWER((5*个人gold/阵营总gold)/辅助经济系数,-0.5)；最终装备名含学识宝石/近卫/极影时辅助经济系数为0.9（对应全队18%的经济基准），否则为1；辅助装备可直接从chat_player_equipment判断。分母非正或金钱缺失返回NULL。受益度及代表局指数不是现成字段；自定义比较须解释公式。",
     "chat_hero_rank_entries的ban_rate、show_rate、win_rate按原API数值存储，未统一百分比单位；先检查样本和分布。不同rank_id对应不同筛选范围，不可混合；榜单元数据已在同一行，无需连接其他关系。",
     "JSON路径区分大小写。分类依赖payload中的名称或枚举时，先查询实际值及频数再决定匹配条件；采样后仍须执行正式汇总并核对未匹配比例。"
   ],
