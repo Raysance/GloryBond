@@ -1,5 +1,6 @@
 """Streaming DeepSeek adapter; credentials are injected, never discovered here."""
 
+import asyncio
 import json
 import time
 
@@ -38,7 +39,7 @@ class DeepSeekModel:
         selected_model = self.vision_model if has_images else self.model
         vision_context = {}
         if self.image_store:
-            messages, vision_context = self.image_store.model_messages(messages)
+            messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
         payload = {
             "model": selected_model,
             "messages": messages,

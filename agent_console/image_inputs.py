@@ -11,7 +11,7 @@ import re
 from uuid import uuid4
 import warnings
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageDraw, UnidentifiedImageError
 
 from agent_runtime import ImageInput
 
@@ -24,6 +24,8 @@ class ImageLimits:
     max_context_bytes: int = 16777216
     max_side: int = 8192
     max_pixels: int = 32000000
+    max_animation_frames: int = 240
+    animation_sample_frames: int = 4
 
     def __post_init__(self):
         if any(
@@ -33,6 +35,8 @@ class ImageLimits:
             raise ValueError("图片限制必须为正整数")
         if self.max_context_bytes < self.max_total_bytes:
             raise ValueError("图片上下文预算不得小于单次输入预算")
+        if self.animation_sample_frames > self.max_animation_frames:
+            raise ValueError("动态图片抽样数量不能超过动画帧数限制")
 
 
 class ImageStore:
@@ -47,6 +51,7 @@ class ImageStore:
         self.directory = Path(directory)
         self.limits = limits or ImageLimits()
         self._wire_references = {}
+        self._model_images = {}
 
     def _path(self, image_id, suffix):
         if not re.fullmatch(r"[a-f0-9]{32}", image_id):
@@ -56,7 +61,7 @@ class ImageStore:
             raise ValueError("无效图片路径")
         return path
 
-    def save(self, data, name=""):
+    def save(self, data, name="", *, projection=None):
         if not data or len(data) > self.limits.max_image_bytes:
             raise ValueError("图片为空或超过单张大小限制")
         try:
@@ -65,6 +70,7 @@ class ImageStore:
                 with Image.open(BytesIO(data)) as image:
                     mime = self.formats.get(image.format)
                     width, height = image.size
+                    frames = getattr(image, "n_frames", 1)
                     if not mime:
                         raise ValueError("仅支持 PNG、JPEG、WebP 和 GIF")
                     if (
@@ -72,6 +78,8 @@ class ImageStore:
                         or width * height > self.limits.max_pixels
                     ):
                         raise ValueError("图片分辨率超过限制")
+                    if frames > self.limits.max_animation_frames or (frames > 1 and width * height * frames > self.limits.max_pixels * 4):
+                        raise ValueError("动态图片帧数或解码像素总量超过限制")
                     image.verify()
                 with Image.open(BytesIO(data)) as decoded:
                     decoded.load()
@@ -93,7 +101,10 @@ class ImageStore:
             "height": height,
             "bytes": len(data),
             "sha256": hashlib.sha256(data).hexdigest(),
+            "frames": frames,
         }
+        if projection is not None:
+            metadata["projection"] = copy.deepcopy(projection)
         self.directory.mkdir(parents=True, exist_ok=True)
         self._path(image_id, ".image").write_bytes(data)
         self._path(image_id, ".json").write_text(
@@ -128,6 +139,54 @@ class ImageStore:
             raise ValueError("本次图片总大小超过限制")
         return tuple(result)
 
+    def _model_image(self, info, data):
+        """Store an ordered contact sheet as the exact model input for animations."""
+        cached = self._model_images.get(info["id"])
+        if cached:
+            return self.load(cached)
+        if info.get("frames") == 1:
+            return info, data
+        with Image.open(BytesIO(data)) as image:
+            count = getattr(image, "n_frames", 1)
+            if count == 1:
+                return info, data
+            if count > self.limits.max_animation_frames or image.width * image.height * count > self.limits.max_pixels * 4:
+                raise ValueError("动态图片帧数或解码像素总量超过限制")
+            sample_count = min(count, self.limits.animation_sample_frames)
+            indices = [round(i * (count - 1) / (sample_count - 1)) for i in range(sample_count)] if sample_count > 1 else [0]
+            frames = []
+            for index in indices:
+                image.seek(index)
+                frame = image.convert("RGBA")
+                frame.thumbnail((768, 768), Image.Resampling.LANCZOS)
+                frames.append(frame)
+        columns = min(2, len(frames))
+        rows = (len(frames) + columns - 1) // columns
+        width, height = max(frame.width for frame in frames), max(frame.height for frame in frames)
+        sheet = Image.new("RGB", (columns * (width + 12) + 12, rows * (height + 36) + 12), "white")
+        draw = ImageDraw.Draw(sheet)
+        for position, (index, frame) in enumerate(zip(indices, frames)):
+            x, y = 12 + position % columns * (width + 12), 12 + position // columns * (height + 36)
+            draw.text((x, y), f"{position + 1}: frame {index + 1}/{count}", fill="#64748b")
+            sheet.paste(frame, (x + (width - frame.width) // 2, y + 24), frame)
+        side = min(self.limits.max_side, int(self.limits.max_pixels ** .5))
+        sheet.thumbnail((side, side), Image.Resampling.LANCZOS)
+        while True:
+            buffer = BytesIO()
+            sheet.save(buffer, "PNG")
+            pixels = buffer.getvalue()
+            if len(pixels) <= self.limits.max_image_bytes:
+                break
+            if sheet.width == 1 and sheet.height == 1:
+                raise ValueError("动画帧拼图超过图片大小限制")
+            sheet = sheet.resize((max(1, sheet.width // 2), max(1, sheet.height // 2)), Image.Resampling.LANCZOS)
+        saved = self.save(pixels, info["name"] + " · 动画帧", projection={
+            "source_image_id":info["id"], "source_frames":count, "sampled_frames":indices,
+            "layout":"chronological_contact_sheet", "background":"white",
+        })
+        self._model_images[info["id"]] = saved["id"]
+        return self.load(saved["id"])
+
     def model_messages(self, messages):
         """Prioritize the newest images; retain explicit notices for omitted history."""
         projected = copy.deepcopy(messages)
@@ -144,6 +203,7 @@ class ImageStore:
                 ):
                     continue
                 info, data = self.load(source.removeprefix("attachment://"))
+                info, data = self._model_image(info, data)
                 if used + len(data) > self.limits.max_context_bytes:
                     content[index] = {
                         "type": "text",
@@ -160,8 +220,14 @@ class ImageStore:
                 )
                 part["image_url"]["url"] = data_url
                 self._wire_references[hashlib.sha256(data_url.encode()).digest()] = (
-                    source
+                    "attachment://" + info["id"]
                 )
+                if info.get("projection"):
+                    projection = info["projection"]
+                    indices = "、".join(str(index + 1) for index in projection["sampled_frames"])
+                    content.insert(index, {"type":"text", "text":
+                        f"[动态图片已转换为按帧顺序排列的 PNG 拼图：原动画 {projection['source_frames']} 帧，"
+                        f"抽取第 {indices} 帧。只依据已提供的帧理解，不推断未提供的动画内容。]"})
         return projected, {"image_bytes": used, "omitted_history_images": omitted}
 
     def project_event(self, event):
@@ -190,6 +256,6 @@ class ImageStore:
         result = visit(event)
         if converted:
             result["data"]["image_payload_storage"] = (
-                "local_attachment_refs; original bytes available at /api/images/{id}"
+                "local_attachment_refs; exact model input bytes available at /api/images/{id}"
             )
         return result

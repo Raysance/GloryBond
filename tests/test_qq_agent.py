@@ -231,6 +231,18 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("QUOTE_ONLY", json.dumps(self.dialogue))
         self.assertNotIn("attachment://", json.dumps(self.dialogue))
 
+    async def test_napcat_dynamic_sticker_download_reaches_vision_as_sampled_png(self):
+        from tests.test_agent_animations import animation
+        raw = animation()
+        real_client = httpx.AsyncClient
+        with patch("qq_agent.service.httpx.AsyncClient", side_effect=lambda **kw: real_client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, content=raw)), **kw)):
+            images = await self.gateway.input_images(["https://gxh.vip.qq.com/club/item/parcel/item/ab/test/raw300.gif"])
+        source_id = images[0].url.removeprefix("attachment://")
+        self.assertEqual(self.gateway.image_store.load(source_id)[0]["frames"], 8)
+        wire, _ = self.gateway.image_store.model_messages([{"role":"user", "content":[images[0].content_part()]}])
+        self.assertTrue(wire[0]["content"][1]["image_url"]["url"].startswith("data:image/png;"))
+
     async def test_fixed_background_messages_emit_once_and_keep_bound_destination(self):
         from agent_console.tasks import task_request
         principal = qq_principal("101", "200", "B", admin_id="999", references=REFERENCES)

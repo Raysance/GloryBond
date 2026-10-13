@@ -35,7 +35,7 @@ def image_urls(message):
     urls = []
     for segment in message_segments(message):
         data = _field(segment, "data", {})
-        if _field(segment, "type") == "image":
+        if _field(segment, "type") in {"image", "mface", "marketface", "face"}:
             source = data.get("url") or data.get("file", "")
             if isinstance(source, str) and source.startswith(("http://", "https://")) and source not in urls:
                 urls.append(source)
@@ -82,6 +82,8 @@ def normalize_quoted_message(event, reply=None):
         elif kind == "at":
             if str(data.get("qq", "")) != str(getattr(event, "self_id", "")):
                 parts.append(f"[提及QQ:{data.get('qq', '')}]")
+        elif kind in {"mface", "marketface", "face"} and image_urls([segment]):
+            parts.append("[动态表情，像素待读取]")
         elif kind != "reply":
             parts.append(f"[{kind}消息，未读取内容]")
     text = "".join(parts).strip().lstrip("#＃").strip()
@@ -118,6 +120,12 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         use_memory = False
         text = text.replace("nomem", "").strip()
 
+    segments = message_segments(getattr(event, "original_message", None) or getattr(event, "message", None))
+    for segment in segments:
+        kind = _field(segment, "type")
+        if kind in {"image", "mface", "marketface", "face"} and not image_urls([segment]):
+            text += f"\n[{kind}消息未提供可读取的图片地址，当前未读取其像素]"
+
     return {
         "user_text": text,
         "user_id": user_id,
@@ -126,5 +134,5 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "message_id": getattr(event, "message_id", None),
         "use_memory": use_memory,
         "quoted_message": normalize_quoted_message(event),
-        "image_urls": image_urls(getattr(event, "original_message", None) or getattr(event, "message", None)),
+        "image_urls": image_urls(segments),
     }

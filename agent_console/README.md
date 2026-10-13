@@ -43,7 +43,7 @@ local_debugger/.venv/bin/python -m agent_console
 
 服务只监听本机 loopback；请求校验 Host、Origin、本地会话 cookie 和写请求头。SSH 密钥、模型 key、DSN 不进入浏览器或新文件。运行记录保留完整输入和工具资料，因此本界面作为受信任的本地管理员控制台使用。
 
-原始输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表；不自动缩放或重编码。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用同一图片，刷新、重启后仍可预览与继续追问。外部适配器在发送模型请求时读取原始像素并转换为 data URL。包含图片的实际请求快照会显式标注 `image_payload_storage`，像素保存在独立原始文件，`GET /api/images/{id}` 可还原其字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。
+原始输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表或修改原图。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用图片，刷新、重启后仍可预览与继续追问。静态图片发送原始像素的 data URL；动画按帧序抽样为最多 4 帧的 PNG 拼图并注明帧号，原 GIF/动态 WebP/APNG 仍保留。拼图单独保存，元数据记录来源和抽样索引；实际模型请求快照引用真正发送的 PNG，默认限制源动画 240 帧及累计解码像素，配置在 `LocalAgent.images`。包含图片的实际请求快照会显式标注 `image_payload_storage`，`GET /api/images/{id}` 可还原对应原图或模型拼图的确切字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。
 
 上传按实际内容检测格式、完整解码并校验文件大小、尺寸和像素数，API 同样执行数量与总大小限制。限制统一在 `LocalAgent.images`。默认每次模型调用最多读取 16 MiB 图片，优先保留当前及较新的图片，较早且超预算的图片替换为明确的缺失提示，`vision_context.omitted_history_images` 记录数量；不会把未提供的像素当作已看过。图片 token 包含在模型返回的输入 token 中，不另外估算叠加。
 
