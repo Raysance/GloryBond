@@ -232,6 +232,7 @@ class ImageAPITests(unittest.TestCase):
             request_holder.append(req) or "accepted-run"
         )
         self.app.state.runtime = runtime
+        self.app.state.local_log = Mock(record=AsyncMock())
         self.app.state.principal = Principal("u")
         self.app.state.current_prompt = AsyncMock(return_value="test prompt")
         self.app.state.roles = Mock(

@@ -478,7 +478,7 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
     ts = now.strftime("%Y%m%d_%H%M%S")
 
     if use_default_template:
-        template_path = _emoji_pick_template_path()
+        template_path = _emoji_pick_template_path(include_extra_dirs=False)
         reference_url, _ = _emoji_template_reference_url(template_path)
     elif template_prefix:
         template_path = _emoji_pick_template_by_prefix(template_prefix)

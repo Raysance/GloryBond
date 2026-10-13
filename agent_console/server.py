@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 import secrets
+import traceback
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
@@ -27,6 +28,7 @@ from .capabilities import (
 )
 from .provider import DeepSeekModel
 from .image_inputs import ImageLimits, ImageStore
+from .local_logs import LocalEventLog
 from .remote import RemoteBridge, RemoteState
 from .roleplay import RoleplayService
 from .replies import ReplyComposer, ReplyPolicy
@@ -35,9 +37,10 @@ from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
 
 
 class EventBroker:
-    def __init__(self, bridge, event_projector=None):
+    def __init__(self, bridge, event_projector=None, local_log=None):
         self.bridge = bridge
         self.event_projector = event_projector
+        self.local_log = local_log
         self.events = {}
         self.condition = asyncio.Condition()
 
@@ -45,6 +48,8 @@ class EventBroker:
         if self.event_projector:
             event = self.event_projector(event)
         clean = self.bridge.redact(event)
+        if self.local_log and not await self.local_log.record(clean):
+            clean["local_log_error"] = self.local_log.last_error
         async with self.condition:
             self.events.setdefault(event["session_id"], []).append(clean)
             self.condition.notify_all()
@@ -123,8 +128,19 @@ def create_app(*, config_path=None):
                 public["references"], config.get("player_key", "example_user_10")
             )
             public["identity"] = app.state.principal.attributes["identity"]
-            state = RemoteState(state_bridge, event_projector=image_store.project_event)
-            broker = EventBroker(bridge, event_projector=image_store.project_event)
+            log_config = config.get("local_logging", {})
+            local_log = LocalEventLog(
+                root / log_config.get("directory", "log/agent_console"),
+                enabled=log_config.get("enabled", True),
+                redactor=bridge.redact,
+            )
+            app.state.local_log = local_log
+            state = RemoteState(
+                state_bridge, event_projector=image_store.project_event, local_log=local_log
+            )
+            broker = EventBroker(
+                bridge, event_projector=image_store.project_event, local_log=local_log
+            )
             runtime = AgentRuntime(
                 model=model,
                 registry=registry,
@@ -237,6 +253,7 @@ def create_app(*, config_path=None):
             "thinking": config.get("thinking", True),
             "vision_model": config.get("vision_model", public.get("model")),
             "image_limits": vars(image_store.limits),
+            "local_logging": app.state.local_log.status,
             "tools": [
                 {"name": t.name, "category": t.category, "description": t.description}
                 for t in app.state.runtime.registry.tools.values()
@@ -284,6 +301,7 @@ def create_app(*, config_path=None):
                 "transient": False,
             }
             await app.state.runtime.state.append_event(session_id, marker)
+            await app.state.local_log.record(marker)
             events.append(marker)
         app.state.broker.events.setdefault(session_id, events)
         return {"events": events, "active_run": active_sessions.get(session_id)}
@@ -321,22 +339,36 @@ def create_app(*, config_path=None):
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         message = body.message.strip() or "请分析这些图片。"
-        prompt = await app.state.current_prompt(query=message)
+        run_id = secrets.token_hex(16)
+        async def log_request(kind, data):
+            await app.state.local_log.record({
+                "id": secrets.token_hex(16), "run_id": run_id,
+                "session_id": body.session_id, "time": Clock().now(),
+                "kind": kind, "data": data, "transient": False,
+            })
+
+        await log_request("request.received", body.model_dump())
+        try:
+            prompt = await app.state.current_prompt(query=message)
+            role_name = (await app.state.roles.manage(app.state.principal))["selected"]["name"]
+            if body.session_id in active_sessions:
+                raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
+        except Exception as exc:
+            await log_request("request.failed", {
+                **body.model_dump(), "error": str(exc),
+                "type": type(exc).__name__, "traceback": traceback.format_exc(),
+            })
+            raise
         principal = app.state.principal
-        if body.session_id in active_sessions:
-            raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
         request = RunRequest(
+            run_id=run_id,
             user_message=message,
             images=images,
             conversation_id=body.session_id,
             principal=principal,
             system_prompt=prompt,
             required_tools=chat_required_tools(),
-            metadata={
-                "role_name": (await app.state.roles.manage(principal))["selected"][
-                    "name"
-                ]
-            },
+            metadata={"role_name": role_name},
         )
         run_id = app.state.runtime.submit(request)
         active_sessions[body.session_id] = run_id

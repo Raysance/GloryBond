@@ -25,7 +25,7 @@ local_debugger/.venv/bin/python -m agent_console
 - 回答旁显示本轮 token 总量，输入框下显示会话总量；点击可查看输入、输出、缓存命中、命中率及各次模型请求，角色生成也计入。多次请求的系统提示、上下文和工具结果分别计入输入；缓存是输入子集，思考是输出子集，不重复相加。用量来自模型接口，未知字段显示“—”，中断、失败或缺失用量标注为部分统计。历史会话按持久事件恢复，重连不会重复计数。
 - 回答作为主要内容，思考与工具调用默认折叠到“执行过程”，右上角仍可查看完整轨迹。
 - 每轮最终回复同时提供“详细内容”和“群聊回复”。详细版保留结论、依据、必要数据和来源；群聊版使用自然短句、角色语气和必要限制，上限 280 字，简短偏好默认最多 100 字，并可一键复制。`output.message.data.text` 和 `run()` 返回值的 `text` 字段默认就是群聊版，两个版本在 `variants.detailed` / `variants.chat`；未来 QQ 出口直接发送 `text`，用户明确要求详情时可选详细版。
-- 会话及完整持久事件保存在服务器 Redis DB0；浏览器保存会话列表，刷新可恢复记录。
+- 会话及完整持久事件保存在服务器 Redis DB0；浏览器保存会话列表，刷新可恢复记录。本地同时保存对话和完整调试日志，见下文。
 - 延迟/周期后台任务保存在服务器，使用同一内核执行。任务仅在本地适配器运行期间调度；停机后租约到期可重新领取。
 - 查询或推理使用 `agent` 任务；固定文字定时发送使用 `message` 任务，直接走同一输出端口，无额外模型调用。支持最短 1 秒周期、限定执行次数和序号模板 `{run}` / `{max_runs}`。省略首次延迟时在一个周期后发送；后续按原计划计时，错过的时间点跳过。调度可与前台聊天同时执行。
 - 支持注册额外同步/异步 Python 函数；无需改核心循环。
@@ -61,6 +61,20 @@ local_debugger/.venv/bin/python -m agent_console
 
 生成的 Python 在远程 bubblewrap 内执行，关闭网络、不挂载服务器应用与凭据，限制 CPU、内存、执行时间、输出文件及产物类型。依赖缺失时拒绝执行，不回退宿主解释器。
 
+## 本地对话与调试日志
+
+默认启用 `LocalAgent.local_logging`，目录为仓库根目录的 `log/agent_console/`：
+
+```text
+log/agent_console/<session_id>/
+  dialogue.jsonl           # 用户输入、各条回复、产物引用、警告与运行状态
+  runs/<run_id>.jsonl      # 该次请求与完整事件轨迹
+```
+
+每行一个 UTF-8 JSON 对象。运行日志包括接收请求、模型实际上下文与请求/响应 payload、真实思考及流式片段、工具参数和 observation、详细/群聊两版答案、token 用量、错误与取消状态；上下文生成失败时也记录原问题和错误栈。后台任务使用相同日志出口。输入图片继续引用 `file_transfer/agent_inputs/` 中的原始文件，产物保留其引用，不重复嵌入已外置的图片字节。
+
+`agent_console/local_logs.py` 只属于外部适配器，通过事件出口写盘，不影响独立内核。日志按事件 ID 去重，重启后读取已有 ID；页面加载旧会话时会补存服务器仍保留的历史事件。流式片段从本功能启用后记录，旧服务器历史中没有保存的片段无法补回。凭据沿用 SSH 适配器的脱敏规则，日志文件默认权限为 0600；目录已被 Git 忽略，不随 commit 上传，也不按 Redis 的七天 TTL 清理。日志写入失败只记录警告并继续发送，可从 `/api/status` 的 `local_logging.last_error` 或事件 `local_log_error` 检查。配置修改后重启本地服务。
+
 ## 复用内核
 
 安装独立包：`pip install ./agent_runtime`。独立包仅依赖 Pydantic。外部提供 `ModelPort`、`StatePort`、`OutputPort` 和 `ClockPort`，然后构造 `AgentRuntime`。任意业务函数通过 `ToolRegistry.register(...)` 注入，默认按权限向模型披露；需要渐进披露时声明 `initially_visible=False`，再由应用自己的发现工具选择披露。
@@ -79,6 +93,7 @@ QQ 接入时以可信事件构造 `Principal`，把群号及经过验证的跨�
 local_debugger/.venv/bin/python -m unittest tests.test_agent_runtime tests.test_agent_console tests.test_agent_tasks_memory tests.test_reference_data tests.test_agent_roleplay tests.test_agent_plotting
 local_debugger/.venv/bin/python -m unittest tests.test_agent_images
 local_debugger/.venv/bin/python -m unittest tests.test_agent_finalization tests.test_agent_replies
+local_debugger/.venv/bin/python -m unittest tests.test_agent_local_logs
 node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 ```
 

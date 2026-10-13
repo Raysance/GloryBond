@@ -152,9 +152,10 @@ class RemoteBridge:
 
 
 class RemoteState:
-    def __init__(self, bridge, event_projector=None):
+    def __init__(self, bridge, event_projector=None, local_log=None):
         self.bridge = bridge
         self.event_projector = event_projector
+        self.local_log = local_log
 
     async def append_event(self, session_id, event):
         if self.event_projector:
@@ -164,7 +165,10 @@ class RemoteState:
         )
 
     async def load_events(self, session_id):
-        return await self.bridge.call("state_events", session_id=session_id)
+        events = await self.bridge.call("state_events", session_id=session_id)
+        if self.local_log:
+            await self.local_log.record_many(events)
+        return events
 
     async def load_dialogue(self, session_id):
         return await self.bridge.call("dialogue_load", session_id=session_id)
