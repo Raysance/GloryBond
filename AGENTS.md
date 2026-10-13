@@ -53,7 +53,7 @@
 ## Chat 运行记录页
 
 - `/chat-trace?key=<48位hex>` 从 `hok:web:artifact:<token>` 读取 NBot 发布的 `kind=chat_trace, version=1` 载荷；非法 token 在读取 Redis 前拒绝，缺失/过期/错误类型返回 410，Redis 暂不可用返回 503。
-- `templates/CommonPages/ChatTrace/` 遵循 DeepSeek Harness 轨迹查看器的 UI 逻辑：对话/轨迹切换，输入/模型/工具三条时间带，左侧按轮次排列步骤，点击后在右侧概述/参数/结果/Schema/计时标签页查看详情；支持搜索、轮次折叠、耗时/调用摘要开关、脱敏 JSON 导出和图表原图预览；CSS/JS 使用 Jinja include，禁止增加全局静态路由或重复 JSON 代理接口。
+- `templates/CommonPages/ChatTrace/` 在宽屏并列显示左侧对话和右侧 DeepSeek Harness 轨迹查看器，1050px 及以下使用对话/轨迹切换。右侧保留输入/模型/工具三条时间带、轮次步骤和概述/参数/结果/Schema/计时详情，以及搜索、折叠、耗时/摘要开关、JSON 导出和原图预览。`conversation.css/js` 单独维护本地 agent studio 风格的浅色气泡、助手正文、折叠执行过程、真实思考、token 明细和双版本回复；样式限定在 `#chat-view`，不得改动轨迹内部样式。回复从持久化 `output.message` 事件读取，按事件 ID 去重并保留阶段性发送，旧记录回退到 question/answer；角色名和详细/群聊版本仅展示实际保存的字段。用量以各轮 API usage 为准，未采集不能显示成零，缓存不重复计入合计。左侧执行步骤只导航到原轨迹详情，不另造工具结果。CSS/JS 使用 Jinja include，禁止增加全局静态路由或重复 JSON 代理接口。
 - 页面展示每轮实际发送给业务模型和模型返回的完整 JSON payload，包含消息、系统提示、工具定义、工具结果及模型 API 返回字段；并按 DeepSeek Harness 的模型可见事件方式，在每一轮模型步骤前独立列出 `System Prompt`、`Context Injection` 和全部 `Tool Definitions`。优先从实际 provider request payload 提取，缺失时才读取 NBot 调用适配器前保存的 `context_injection` 快照；上下文步骤不得只显示空统计。所有工具参数和 observation 同样完整展示。每轮参数/结果面板不截断正文，左侧仅作摘要；支持结束原因、token 用量、空正文补试、失败阶段和异常链。凭据由 NBot 发布前脱敏，不采集 HTTP headers；删除旧 2 MiB 载荷限制。旧记录没有采集 payload 时明确标注，禁止伪造补全。
 - 分享页使用不可猜测的随机链接和 Redis TTL，响应 `no-store`、`no-referrer`、`noindex`；无第三方脚本。载荷嵌入必须使用 `tojson`，前端对不可信文本使用 `textContent`，禁止拼接 `innerHTML`。图片只允许 `/file_transfer/chat_plot_<uuid>.png`。
 - 访问分析纳入 `/chat-trace`，沿用 key 脱敏，不记录问题、答案和工具正文。

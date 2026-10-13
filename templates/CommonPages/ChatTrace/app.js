@@ -24,8 +24,6 @@
   $('round-toggle').textContent = `⊟ 轮次 ${summary.model_calls || 0}`;
   $('call-toggle').textContent = `⊟ 调用 ${summary.tool_calls || 0}`;
   $('footer').textContent = `${trace.started_at || ''} · ${trace.model || ''} · 完整请求 / 响应 payload，凭据脱敏，不含 headers · 链接保留 ${Number(trace.expires_in_seconds || 604800) / 86400} 天`;
-  $('question').textContent = trace.question || '';
-  $('answer').textContent = trace.answer || `未完成回答：${trace.error || '未知错误'}`;
 
   function charts(parent) {
     for (const [index, artifact] of (trace.artifacts || []).entries()) {
@@ -39,8 +37,6 @@
       parent.append(button);
     }
   }
-  charts($('charts'));
-  if (trace.delivery?.merged) $('answer').after(el('p', 'note', `QQ 回复已将 ${trace.delivery.source_images} 张图表合为一张；此处保留原图。`));
   $('close-image').addEventListener('click', () => $('image-dialog').close());
   $('image-dialog').addEventListener('click', event => { if (event.target === $('image-dialog')) $('image-dialog').close(); });
 
@@ -244,14 +240,22 @@
   $('duration-toggle').addEventListener('click',()=>{const hidden=$('events').classList.toggle('hide-durations');$('duration-toggle').setAttribute('aria-pressed',String(!hidden));});
   $('call-toggle').addEventListener('click',()=>{const hidden=$('events').classList.toggle('hide-previews');$('call-toggle').setAttribute('aria-pressed',String(!hidden));});
   $('round-toggle').addEventListener('click',()=>{collapsed=!collapsed;groups.forEach(group=>{group.body.hidden=collapsed;group.button.setAttribute('aria-expanded',String(!collapsed));});$('round-toggle').setAttribute('aria-pressed',String(!collapsed));});
-  document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{
-    document.querySelectorAll('[data-view]').forEach(tab=>{tab.classList.toggle('active',tab===button);tab.setAttribute('aria-pressed',String(tab===button));});
-    $('chat-view').hidden=button.dataset.view!=='chat';$('trace-view').hidden=button.dataset.view!=='trace';
-  }));
+  function setView(view) {
+    document.querySelector('.record-layout').dataset.view=view;
+    document.querySelectorAll('button[data-view]').forEach(tab=>{const active=tab.dataset.view===view;tab.classList.toggle('active',active);tab.setAttribute('aria-pressed',String(active));});
+  }
+  document.querySelectorAll('button[data-view]').forEach(button=>button.addEventListener('click',()=>setView(button.dataset.view)));
   $('export').addEventListener('click',()=>{
     const url=URL.createObjectURL(new Blob([json(trace)],{type:'application/json'}));
     const link=el('a');link.href=url;link.download='hok-execution-trace.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   });
+  const gallery = ChatTraceConversation.render(trace, $('conversation'), records, item => {
+    setView('trace'); select(item);
+    const group = groups.find(group => group.items.includes(item));
+    group.body.hidden=false; group.button.setAttribute('aria-expanded','true');
+    item.row.scrollIntoView({block:'nearest'});
+  });
+  charts(gallery);
   select(records.find(item=>item.kind==='tool') || records[records.length-1]);
   if (window.matchMedia('(max-width:650px)').matches) $('inspector').hidden=true;
 })();

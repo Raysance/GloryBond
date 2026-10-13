@@ -7,12 +7,18 @@
   <meta name="referrer" content="no-referrer">
   <title>运行轨迹 · HOK</title>
   <style>{% include 'CommonPages/ChatTrace/styles.css' %}</style>
+  <style>{% include 'CommonPages/ChatTrace/conversation.css' %}</style>
 </head>
 <body>
   <header>
     <div class="title-line"><strong id="title">HOK 运行记录</strong><span id="model"></span><span id="run-status"></span></div>
-    <nav class="view-tabs" aria-label="记录视图"><button data-view="chat" aria-pressed="false">对话</button><button data-view="trace" class="active" aria-pressed="true">轨迹</button></nav>
+    <nav class="view-tabs" aria-label="记录视图"><button data-view="chat" class="active" aria-pressed="true">对话</button><button data-view="trace" aria-pressed="false">轨迹</button></nav>
   </header>
+  <main class="record-layout" data-view="chat">
+  <section id="chat-view" aria-label="对话">
+    <div class="conversation-heading"><strong><span class="studio-mark" aria-hidden="true">✳</span> agent studio</strong><span>对话</span></div>
+    <div class="chat-scroll"><div id="conversation" class="conversation"></div></div>
+  </section>
   <section id="trace-view">
     <div class="toolbar">
       <button id="duration-toggle" aria-pressed="true" title="显示或隐藏每步耗时"></button>
@@ -37,10 +43,11 @@
       </aside>
     </div>
   </section>
-  <section id="chat-view" hidden><div class="conversation"><div id="question" class="question"></div><div id="answer" class="answer"></div><div id="charts" class="charts"></div></div></section>
+  </main>
   <footer id="footer"></footer>
   <dialog id="image-dialog"><button id="close-image" aria-label="关闭大图">关闭 ×</button><img id="full-image" alt="图表原图"></dialog>
   <script type="application/json" id="trace-data">{{ trace | tojson }}</script>
+  <script>{% include 'CommonPages/ChatTrace/conversation.js' %}</script>
   <script>{% include 'CommonPages/ChatTrace/app.js' %}</script>
 </body>
 </html>
