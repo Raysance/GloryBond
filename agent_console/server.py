@@ -103,7 +103,7 @@ def create_app(*, config_path=None):
                 image_store=image_store,
             )
             registry = ToolRegistry()
-            catalogs = load_catalogs(shared)
+            catalogs = load_catalogs(shared, recent_limits=public.get("recent_history_limits"))
             catalogs["references"] = public["references"]["directory"]
             register_application_tools(
                 registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs
