@@ -12,7 +12,8 @@ TRACE_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
 
 
 def valid_trace_key(key):
-    return isinstance(key, str) and re.fullmatch(r"[0-9a-f]{48}", key) is not None
+    # New artifacts share the 16-character key format; old links retain their TTL.
+    return isinstance(key, str) and re.fullmatch(r"(?:[0-9a-f]{16}|[0-9a-f]{48})", key) is not None
 
 
 def parse_chat_trace(raw):

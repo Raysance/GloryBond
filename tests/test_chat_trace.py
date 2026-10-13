@@ -12,7 +12,7 @@ from chat_trace import chat_trace_response, parse_chat_trace
 
 class TracePageTests(unittest.TestCase):
     def setUp(self):
-        self.key = "a" * 48
+        self.key = "a" * 16
         self.payload = {"kind": "chat_trace", "version": 1, "rounds": [],
                         "question": '</script><img src=x onerror="alert(1)">', "status": "ok"}
         self.loader = Mock(side_effect=lambda key: json.dumps(self.payload))
@@ -35,9 +35,13 @@ class TracePageTests(unittest.TestCase):
         self.assertNotIn("innerHTML", response.text)
 
     def test_invalid_token_does_not_access_redis(self):
-        for key in ["", "../secret", "a" * 16, "a" * 49]:
+        for key in ["", "../secret", "a" * 15, "a" * 17, "a" * 47, "a" * 49, "z" * 16]:
             self.assertEqual(self.client.get("/chat-trace", params={"key": key}).status_code, 400)
         self.loader.assert_not_called()
+
+    def test_existing_48_character_links_remain_readable_until_expiry(self):
+        self.assertEqual(self.client.get("/chat-trace", params={"key": "b" * 48}).status_code, 200)
+        self.loader.assert_called_once_with("b" * 48)
 
     def test_missing_or_wrong_kind_is_expired(self):
         for raw in [None, b"bad", b'{"kind":"bili_video"}', b'[]']:
