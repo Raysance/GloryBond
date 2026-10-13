@@ -21,7 +21,7 @@ def is_bot_request_message(event):
 
 
 async def judge_qid_blocked(event):
-    if not is_bot_request_message(event):
+    if not (is_bot_request_message(event) or is_direct_bot_mention(event)):
         return False
     return (not is_registered_qid(event.get_user_id())) or (
         not is_battle_visible_qid_enabled(event.get_user_id())
@@ -29,7 +29,31 @@ async def judge_qid_blocked(event):
 
 
 async def judge_to_me(event):
-    return event.get_plaintext().startswith(("#", "＃"))
+    return is_bot_request_message(event)
+
+
+def is_direct_bot_mention(event):
+    """Inspect this message's own segments, not inferred to_me or quoted content."""
+    bot_id = str(getattr(event, "self_id", "") or "")
+    if not bot_id:
+        return False
+    segments = getattr(event, "original_message", None)
+    if segments is None:
+        segments = getattr(event, "message", ())
+    for segment in segments or ():
+        kind = segment.get("type") if isinstance(segment, dict) else getattr(segment, "type", None)
+        data = segment.get("data", {}) if isinstance(segment, dict) else getattr(segment, "data", {})
+        if kind == "at" and str(data.get("qq", "")) == bot_id:
+            return True
+    return False
+
+
+async def judge_direct_ai_request(event):
+    return is_direct_bot_mention(event) and not is_bot_request_message(event)
+
+
+async def judge_bot_addressed(event):
+    return is_bot_request_message(event) or is_direct_bot_mention(event)
 
 
 def bili_video_plain_command(event):
@@ -108,7 +132,8 @@ async def judge_herostatistics_query(event):
 async def judge_honor_power_query(event):
     raw = event.get_plaintext()
     return (
-        "战力" in raw
+        is_bot_request_message(event)
+        and "战力" in raw
         and "查询" in raw
         and is_registered_qid(event.get_user_id())
         and is_battle_visible_qid_enabled(event.get_user_id())
@@ -124,6 +149,10 @@ def get_validated_name(event):
 
 async def judge_super(event):
     return str(confs["QQBot"]["super_qid"]) == str(event.get_user_id())
+
+
+async def judge_super_command(event):
+    return is_bot_request_message(event) and await judge_super(event)
 
 
 async def judge_unsuper(event):

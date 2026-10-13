@@ -27,12 +27,14 @@ from .event_rules import (
     judge_bili_video_mine,
     judge_bili_video_subscribe,
     judge_bili_video_unsubscribe,
+    judge_bot_addressed,
+    judge_direct_ai_request,
     judge_herostatistics_query,
     judge_honor_power_query,
     judge_not_duration_rank,
     judge_qid_blocked,
     judge_representative_battle_query,
-    judge_super,
+    judge_super_command,
     judge_to_me,
     judge_unsuper,
 )
@@ -52,20 +54,22 @@ async def handle_all_messages(event: MessageEvent):
 # EVENT
 _group_poke = on_notice()
 _qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
-_repair=on_fullmatch("##r",rule=judge_super,priority=1, block=True)
-_execute=on_keyword({"##e"},rule=judge_super,priority=1, block=True)
-_test=on_keyword({"##t"},rule=judge_super,priority=1, block=True)
-_update_local=on_keyword({"##u"},rule=judge_super,priority=1, block=True)
-_forward=on_keyword({"##f"},rule=judge_super,priority=1, block=True)
-_dailyrepbattle=on_keyword({"##srep"},rule=judge_super,priority=1, block=True)
-_representative_range_debug=on_keyword({"##rep3"},rule=judge_super,priority=1, block=True)
-_pure_chat=on_keyword({"##c"},rule=judge_super,priority=1, block=True)
-_emoji_gen = on_keyword({"##emoji"},rule=judge_super,priority=1, block=True)
-_kpl_push = on_keyword({"##kpl"},rule=judge_super,priority=1, block=True)
-_bili_video_admin = on_keyword({"##bili"},rule=judge_super,priority=1, block=True)
+_repair=on_fullmatch("##r",rule=judge_super_command,priority=1, block=True)
+_execute=on_keyword({"##e"},rule=judge_super_command,priority=1, block=True)
+_test=on_keyword({"##t"},rule=judge_super_command,priority=1, block=True)
+_update_local=on_keyword({"##u"},rule=judge_super_command,priority=1, block=True)
+_forward=on_keyword({"##f"},rule=judge_super_command,priority=1, block=True)
+_dailyrepbattle=on_keyword({"##srep"},rule=judge_super_command,priority=1, block=True)
+_representative_range_debug=on_keyword({"##rep3"},rule=judge_super_command,priority=1, block=True)
+_pure_chat=on_keyword({"##c"},rule=judge_super_command,priority=1, block=True)
+_emoji_gen = on_keyword({"##emoji"},rule=judge_super_command,priority=1, block=True)
+_kpl_push = on_keyword({"##kpl"},rule=judge_super_command,priority=1, block=True)
+_bili_video_admin = on_keyword({"##bili"},rule=judge_super_command,priority=1, block=True)
 
-_sleep_blocked = on_message(rule=Rule(judge_to_me,check_sleep), priority=2, block=True)
-_blocked=on_message(rule=Rule(judge_to_me,check_repair,judge_unsuper),priority=2, block=True)
+_sleep_blocked = on_message(rule=Rule(judge_bot_addressed,check_sleep), priority=2, block=True)
+_blocked=on_message(rule=Rule(judge_bot_addressed,check_repair,judge_unsuper),priority=2, block=True)
+
+_direct_chat=on_message(rule=judge_direct_ai_request,priority=3,block=True)
 
 _show_code=on_fullmatch("code",rule=judge_to_me,priority=3, block=True)
 _forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
@@ -760,6 +764,7 @@ async def f_history_query(event: Event):
         add_msg(f"查询错误: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
+@_direct_chat.handle()
 @_chat.handle()
 async def f_chat(bot,event):
     from .event_handlers.chat import prepare_chat_request, quoted_message_id, normalize_quoted_message
