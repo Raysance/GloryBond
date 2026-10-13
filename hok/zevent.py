@@ -767,17 +767,11 @@ async def f_history_query(event: Event):
 @_direct_chat.handle()
 @_chat.handle()
 async def f_chat(bot,event):
-    from .event_handlers.chat import prepare_chat_request, quoted_message_id, normalize_quoted_message
+    from .event_handlers.chat import prepare_chat_request, read_quoted_message
     from .zfunc import agent_chat
 
     request = prepare_chat_request(event, common_expr, dmc.use_mem)
-    quote_id = quoted_message_id(event)
-    if quote_id is not None and not (request["quoted_message"] or {}).get("available"):
-        try:
-            reply = await bot.get_msg(message_id=int(quote_id))
-            request["quoted_message"] = normalize_quoted_message(event, reply)
-        except Exception:
-            request["quoted_message"] = {"message_id": str(quote_id), "available": False}
+    request["quoted_message"] = await read_quoted_message(event, bot.get_msg)
     if request["group_id"]:
         add_group_poke_task(
             request["user_id"],

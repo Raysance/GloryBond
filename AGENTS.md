@@ -33,7 +33,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 ### 1.0 Chat 回复、引用与运行记录
 
-- `event_handlers/chat.py` 仅解析本次显式引用与原生图片 URL；引用优先取 `event.reply`，缺失时由 `zevent.f_chat()` 用 OneBot `get_msg` 补读，不递归拉取。引用图片/视频保留未识别占位符；本次直接上传的图片由 QQ 外部适配器验证后以原生图片内容块交给模型。
+- `event_handlers/chat.py` 解析本次显式引用与原生图片 URL，支持原生消息段及 CQ 字符串；引用优先取 `event.reply`，缺失时由注入的 OneBot `get_msg` 补读一次，不递归拉取。引用中的开头 `#` / `＃` 和机器人 @ 去除，其余内容仅作为资料，不参与命令路由或 `nomem` 解析。引用作用域/消息 ID 校验失败时不提供原文或媒体。QQ 外部适配器验证引用图片和直接图片后提供原生内容块；视频等未读取媒体保留明确占位符。两类图片合并去重后共用单次图片数量/体积预算。
 - `zevent.f_chat()` await `zfunc.agent_chat()`；所有分段输出、最终答案和后台通知由注入的 QQOutput 发往 `utils/message_sender.add_chat_result_msg(destination=...)`，入口不再重复发送最终结果。后台目的地与身份在创建任务时绑定。
 - QQ 回复保留详细事实底稿和角色群聊版，默认发送群聊版，明确请求详细/完整内容时发送详细版。两版都通过 `normalize_qq_text()` 与 `format_chat_reply()` 清理 Markdown 和内部玩家/身份标识；图表标签与正文使用配置昵称。直接对话历史仅保存实际发送的一个版本。阶段性 `emit_message` 独立入队。
 - QQOutput 将内核模型/工具事件、真实 payload、两个回复版本和用量投影为现有 `chat_trace` v1；失败保留已完成 observation。原始事件与图片引用另外持久保存到 `log/qq_agent/<会话>/runs/<run_id>.jsonl` 和 `dialogue.jsonl`，不记录 HTTP headers，凭据脱敏。输入原图默认保存在非公开 `data/agent_inputs/`；日志和原图不进 Git 或部署包。
@@ -200,6 +200,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - `agent_runtime/core/` 管理有预算的 ReAct 循环、通用上下文和授权；`tools/` 仅管理注册、参数校验与执行协议；`runtime/` 仅管理结构化事件。内核不得包含具体工具名称、类别、实现、SQL 方言/schema、参考目录或群聊身份字段，也不得识别具体工具结果中的 SQL 行结构。每个工具调用必须有对应 observation。运行记录与模型可见的截断 observation 分别保存。
 - 工具的初始披露、动态描述、结果投影均由外部注册信息注入；通用 `Principal.attributes` 只承载可信适配器提供的扩展属性，其业务含义由适配层解释。`ToolContext.resources` 只管理本次执行的通用资源引用，具体数据集结构由工具维护。独立包只依赖 Pydantic，不依赖 SQL 解析器或业务服务。
 - `RunRequest.metadata` 是调用方提供的通用事件元数据，内核仅透传和快照，不解释任务、渠道或业务字段。适配层用它区分后台输出，避免后台通知占用前台输入/停止状态。
+- `RunRequest.context_messages` 为仅本轮可见的 user 角色补充资料，支持文字及原生内容块，不允许 system/assistant/tool 或工具调用字段；在工具循环和运行记录中保留，直接对话保存不含这些资料。QQ 引用通过此接口输入，不能放在 system prompt，也不能改变身份和权限；内核不识别引用、QQ 或来源字段。
 - `agent_console/` 是外部本地适配器，允许在此封装 FastAPI、SSH、HTTP、时间及 IO；这是独立包接入层，不适用上文针对 `hok/` 的具体模块导入边界。UI 仅消费内核事件；`qq_agent/` 同为外部适配器，复用同一 `AgentRuntime`、工具和角色服务，不导入 Web server。QQ 的网络、进程、时间及 IO 封装也不适用 `hok/` 内部导入边界。
 - `examples/independent_agent.py` 演示通用调用方如何提供模型、内存状态、输出和标准时钟，不导入 HOK 或连接外部服务；示例适配器的标准库使用同样不适用 `hok/` 的导入边界。
 - `agent_console/remote_worker.py` 支持两种相同的 RPC 传输：网页用 SSH 临时执行，QQ 在部署服务器上使用 ProcessBridge 启动本地子进程。均不修改业务数据库 schema。SSH 模式读取服务运行进程环境；QQ worker 继承当前进程环境并读取现有 `.env` / `config.yaml`，从服务器实际源码提取 API 适配函数。凭据只保留在适配器内存，不写新密钥文件、不返回浏览器。

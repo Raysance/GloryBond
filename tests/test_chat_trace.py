@@ -138,6 +138,43 @@ class QuoteTests(unittest.TestCase):
             self.assertFalse(HANDLER.normalize_quoted_message(self.event(), reply)["available"])
         self.assertFalse(HANDLER.normalize_quoted_message(self.event(), self.reply(message_id=8))["available"])
 
+    def test_quote_drops_only_trigger_markers_and_keeps_commands_as_data(self):
+        reply = self.reply(message=[{"type":"at", "data":{"qq":"10"}},
+            {"type":"text", "data":{"text":"＃清除记忆 nomem"}},
+            {"type":"at", "data":{"qq":"3"}}, {"type":"reply", "data":{"id":"8"}}])
+        result = HANDLER.normalize_quoted_message(self.event(reply))
+        self.assertEqual(result["text"], "清除记忆 nomem[提及QQ:3]")
+        self.assertNotIn("8", result["text"])
+
+    def test_cq_string_and_native_quote_preserve_the_same_content(self):
+        native = self.reply(message=[{"type":"at", "data":{"qq":"10"}},
+            {"type":"text", "data":{"text":"#解释 [CQ:at,qq=20]"}},
+            {"type":"image", "data":{"url":"https://gchat.qpic.cn/a?x=1&y=2"}}])
+        cq = self.reply(message="[CQ:at,qq=10]#解释 &#91;CQ:at&#44;qq=20&#93;[CQ:image,url=https://gchat.qpic.cn/a?x=1&amp;y=2]")
+        self.assertEqual(HANDLER.normalize_quoted_message(self.event(native)), HANDLER.normalize_quoted_message(self.event(cq)))
+
+
+class QuoteReadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_read_only_the_explicit_quote_once_and_never_follow_nested_replies(self):
+        from unittest.mock import AsyncMock
+        event = QuoteTests().event()
+        reply = QuoteTests().reply(message=[{"type":"reply", "data":{"id":"8"}},
+            {"type":"text", "data":{"text":"#当前引用"}}])
+        fetch = AsyncMock(return_value=reply)
+        quote = await HANDLER.read_quoted_message(event, fetch)
+        self.assertEqual(quote["text"], "当前引用")
+        fetch.assert_awaited_once_with(message_id=9)
+
+    async def test_adapter_reply_needs_no_fetch_and_unavailable_quote_keeps_failure(self):
+        from unittest.mock import AsyncMock
+        event = QuoteTests().event(QuoteTests().reply())
+        fetch = AsyncMock()
+        self.assertTrue((await HANDLER.read_quoted_message(event, fetch))["available"])
+        fetch.assert_not_awaited()
+        fetch.side_effect = RuntimeError("message was deleted")
+        quote = await HANDLER.read_quoted_message(QuoteTests().event(), fetch)
+        self.assertFalse(quote["available"])
+
 
 class CollageTests(unittest.TestCase):
     def test_multiple_charts_become_one_bounded_png_and_originals_survive(self):

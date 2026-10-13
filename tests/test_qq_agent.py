@@ -187,6 +187,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         await self.gateway.chat(user_text="看引用", user_id="101", nickname="B", use_memory=False,
                                 quoted_message={"text": "QUOTE_ONLY", "available": True})
         self.assertIn("QUOTE_ONLY", json.dumps(self.gateway.model.requests[0].messages))
+        self.assertNotIn("QUOTE_ONLY", json.dumps([m for m in self.gateway.model.requests[0].messages if m["role"] == "system"]))
         self.assertNotIn("QUOTE_ONLY", json.dumps(self.dialogue))
         await self.gateway.chat(user_text="接着说", user_id="101", nickname="B", use_memory=False)
         followup = self.gateway.model.requests[2].messages
@@ -206,6 +207,29 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(images[0].content_part()["type"], "image_url")
         wire, _ = self.gateway.image_store.model_messages([{"role": "user", "content": [images[0].content_part()]}])
         self.assertTrue(wire[0]["content"][0]["image_url"]["url"].startswith("data:image/png;base64,"))
+
+    async def test_quoted_pixels_are_transient_native_context_without_history_or_system_injection(self):
+        self.script = [
+            {"role":"assistant", "content":"", "tool_calls":[call("discover_tools", {"categories":["references"]}, "d")]},
+            {"role":"assistant", "content":"读到了引用图片。"},
+        ]
+        buffer = BytesIO()
+        Image.new("RGB", (16,16), "red").save(buffer, "PNG")
+        saved = self.gateway.image_store.save(buffer.getvalue(), "引用图片")
+        from unittest.mock import AsyncMock
+        image = self.gateway.image_store.inputs([saved["id"]])[0]
+        with patch.object(self.gateway, "input_images", AsyncMock(return_value=(image,))) as download:
+            await self.gateway.chat(user_text="这张图是什么意思", user_id="101", nickname="B",
+                quoted_message={"available":True, "text":"QUOTE_ONLY[image消息，未读取内容]",
+                                "image_urls":["https://gchat.qpic.cn/reference"]})
+        download.assert_awaited_once_with(["https://gchat.qpic.cn/reference"])
+        messages = self.gateway.model.requests[0].messages
+        context = next(m for m in messages if "QUOTE_ONLY" in json.dumps(m))
+        self.assertEqual(context["role"], "user")
+        self.assertEqual(context["content"][1], image.content_part())
+        self.assertNotIn("QUOTE_ONLY", json.dumps([m for m in messages if m["role"] == "system"]))
+        self.assertNotIn("QUOTE_ONLY", json.dumps(self.dialogue))
+        self.assertNotIn("attachment://", json.dumps(self.dialogue))
 
     async def test_fixed_background_messages_emit_once_and_keep_bound_destination(self):
         from agent_console.tasks import task_request
