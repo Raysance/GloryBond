@@ -8,7 +8,6 @@ from local_debugger import import_hok_module
 
 ZFUNC = import_hok_module("zfunc")
 ZDB = import_hok_module("zdb")
-CHAT = import_hok_module("zchat")
 TOOLS = import_hok_module("chat_tools")
 IDENTITY = import_hok_module("business.user_helpers")
 MEMORY = import_hok_module("zmemory")
@@ -182,37 +181,6 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
 
         self.assertEqual({item["group_id"] for item in result}, {"200", "300"})
 
-    def test_every_group_chat_forces_model_generated_queries_through_search_tool(self):
-        ZFUNC.record_group_chat_message("200", "100", "AUTO_HISTORY 辅助英雄保护射手", message_id="1")
-        ZFUNC.record_group_chat_message("200", "101", "完全无关的话题", message_id="2")
-        ZFUNC.record_group_chat_message("200", "102", "辅助英雄推荐", message_id="3")
-        requests = []
-
-        def model(messages, tools=None, **kwargs):
-            requests.append({"messages": list(messages), "tools": tools, **kwargs})
-            if len(requests) == 1:
-                self.assertEqual(kwargs["tool_choice"]["function"]["name"], "search_chat_history")
-                self.assertIn("search_chat_history", {schema["name"] for schema in tools})
-                return {"tool_calls": [{"call_id": "history", "name": "search_chat_history",
-                                        "arguments": '{"queries":["辅助英雄 射手","保护 后排"]}'}]}
-            output = json.loads(next(item["output"] for item in reversed(messages)
-                                     if item.get("type") == "function_call_output"))
-            self.assertIn("AUTO_HISTORY", json.dumps(output, ensure_ascii=False))
-            return {"content": "已结合历史回答"}
-
-        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat"), \
-                patch.object(ZFUNC, "chat_roleplay_get", return_value=None):
-            result = CHAT.chat_process(
-                user_text="辅助英雄推荐", user_id="102", nickname="C", group_id="200", message_id="3",
-                use_memory=False, model_caller=model, return_artifacts=True)
-
-        self.assertEqual(len(requests), 2)
-        self.assertEqual(requests[1]["tool_choice"], "auto")
-        self.assertEqual(result["trace"]["context"]["automatic_history_scope"], "current_group_all_users")
-        self.assertTrue(result["trace"]["context"]["automatic_history_completed"])
-        self.assertEqual(result["trace"]["context"]["automatic_history_queries"], ["辅助英雄 射手", "保护 后排"])
-        self.assertEqual(result["trace"]["context"]["automatic_history_matches"], 1)
 
     def test_mandatory_history_search_cannot_narrow_users_or_saved_time(self):
         ZFUNC.record_group_chat_message("200", "100", "辅助英雄保护射手", message_id="1")
@@ -325,38 +293,6 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
                     tools.execute("search_chat_history", {"queries": ["内卷 讨论", "竞争 压力"],
                                                           "group_id": "200", "user_id": "999"})
                 load.assert_not_called()
-
-    def test_admin_private_loop_automatically_searches_all_groups_and_shares_results(self):
-        ZFUNC.record_group_chat_message("200", "100", "PRIVATE_HISTORY 内卷", message_id="42")
-        stages = []
-
-        def model(messages, tools=None, **kwargs):
-            stage = len(stages)
-            stages.append(stage)
-            if stage == 0:
-                self.assertIn("search_chat_history", {schema["name"] for schema in tools})
-                self.assertEqual(kwargs["tool_choice"]["function"]["name"], "search_chat_history")
-                name, arguments = "search_chat_history", {
-                    "all_groups": True, "queries": ["内卷 讨论", "竞争 压力"]}
-            elif stage == 1:
-                hit = json.loads(next(item["output"] for item in reversed(messages)
-                                      if item.get("type") == "function_call_output"))["data"][0]
-                name, arguments = "fetch_chat_context", {"group_id": hit["group_id"], "message_id": hit["message_id"]}
-            else:
-                output = next(item["output"] for item in reversed(messages)
-                              if item.get("type") == "function_call_output")
-                self.assertIn("PRIVATE_HISTORY", output)
-                return {"content": "已找到并展开群内对话。"}
-            return {"tool_calls": [{"call_id": str(stage), "name": name, "arguments": json.dumps(arguments)}]}
-
-        with patch.dict(ZFUNC.confs["QQBot"], {"super_qid": 999}):
-            result = CHAT.chat_process(user_text="查看内卷的对话上下文", user_id="999", nickname="管理员",
-                                       use_memory=False, model_caller=model, return_artifacts=True)
-        self.assertEqual(result["trace"]["summary"]["tool_errors"], 0)
-        self.assertEqual(len(stages), 3)
-        self.assertTrue(result["trace"]["context"]["cross_group_history_enabled"])
-        self.assertTrue(result["trace"]["context"]["automatic_history_completed"])
-        self.assertIn("PRIVATE_HISTORY", json.dumps(result["trace"]))
 
 
 if __name__ == "__main__":

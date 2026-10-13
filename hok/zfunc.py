@@ -733,6 +733,73 @@ def chat_prepare_reply(result):
     return result
 
 
+async def agent_runtime_start():
+    """Bind QQ IO to the shared, externally maintained ReAct runtime."""
+    from qq_agent import QQAgentService
+    from .zfile import store_agent_artifact
+    from .tools.chat_text import normalize_qq_text, format_chat_reply
+    from .utils.message_sender import add_chat_result_msg
+
+    if dmc.qq_agent_service is not None:
+        await dmc.qq_agent_service.start()
+        return dmc.qq_agent_service
+    config = dict(confs.get("QQAgent", {}))
+    if not config.get("enabled", True):
+        raise RuntimeError("QQ Agent is disabled in config.yaml")
+    if config.get("log_directory", "log/qq_agent") == "log/qq_agent":
+        config["log_directory"] = os.path.join(log_root, "qq_agent")
+    if config.get("image_directory", "data/agent_inputs") == "data/agent_inputs":
+        config["image_directory"] = os.path.join(data_root, "agent_inputs")
+
+    async def send(packet, delivery):
+        return add_chat_result_msg({**packet, "text": format_text(packet["text"])}, destination=delivery)
+
+    async def prepare(packet):
+        return await asyncio.to_thread(chat_prepare_reply, packet)
+
+    async def store(identifier, raw):
+        return await asyncio.to_thread(store_agent_artifact, identifier, raw)
+
+    def format_text(text):
+        names = {player: namenick.get(player) or "该玩家" for player in dict.fromkeys([*namenick, *qid, *userlist, *roleidlist])}
+        identities = {str(identity): names[player] for mapping in (qid, userlist, roleidlist)
+                      for player, identity in mapping.items() if identity}
+        return format_chat_reply(normalize_qq_text(text), player_names=names,
+                                 identity_names=identities, aliases=[a for values in nameref.values() for a in values])
+
+    service = QQAgentService(root=project_root, config=config, admin_id=confs["QQBot"]["super_qid"],
+                             sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text)
+    dmc.qq_agent_service = service
+    try:
+        await service.start()
+    except BaseException:
+        dmc.qq_agent_service = None
+        raise
+    return service
+
+
+async def agent_chat(**request):
+    service = await agent_runtime_start()
+    return await service.chat(**request)
+
+
+async def agent_task_tick():
+    if dmc.qq_agent_service is not None:
+        await dmc.qq_agent_service.tick()
+
+
+async def agent_runtime_stop():
+    if dmc.qq_agent_service is not None:
+        await dmc.qq_agent_service.close()
+        dmc.qq_agent_service = None
+
+
+def agent_register_tool(**spec):
+    if dmc.qq_agent_service is None:
+        raise RuntimeError("Register agent tools after runtime startup")
+    dmc.qq_agent_service.runtime.registry.register(**spec)
+
+
 def chat_publish_trace(trace, artifacts=()):
     """Publish the sanitized execution record with a random, expiring bearer link."""
     import secrets

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+export COPYFILE_DISABLE=1
 
 usage() {
     cat <<'EOF'
@@ -38,6 +39,10 @@ if [[ -z "$web_source" || ! -f "$web_source/app.py" ]]; then
     exit 66
 fi
 
+if [[ ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" ]]; then
+    printf 'HOK_BUNDLE_ERROR: run git submodule update --init --recursive first\n' >&2
+    exit 66
+fi
 version="$(git -C "$nbot_source" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)"
 if [[ -z "$output_path" ]]; then
     output_path="$nbot_source/dist/hok-qqbot-$version.tar.gz"
@@ -56,10 +61,11 @@ copy_source() {
     tar -C "$source_dir" \
         --exclude='.git' --exclude='.venv' \
         --exclude='__pycache__' --exclude='*.pyc' \
-        --exclude='.DS_Store' --exclude='log' --exclude='file_transfer' \
+        --exclude='.DS_Store' --exclude='._*' --exclude='log' --exclude='file_transfer' \
         --exclude='dist' --exclude='deployment' --exclude='local_debugger/.venv' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
+        --exclude='data/agent_inputs' \
         --exclude='resources/wzry_images/hero_avatars/*' \
         --exclude='resources/wzry_images/generated/*' \
         --exclude='resources/wzry_images/kpl/*' \

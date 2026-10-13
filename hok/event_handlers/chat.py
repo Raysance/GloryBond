@@ -81,4 +81,7 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "message_id": getattr(event, "message_id", None),
         "use_memory": use_memory,
         "quoted_message": normalize_quoted_message(event),
+        "image_urls": [str(_field(segment, "data", {}).get("url"))
+                       for segment in getattr(event, "original_message", None) or getattr(event, "message", None) or []
+                       if _field(segment, "type") == "image" and _field(segment, "data", {}).get("url")],
     }

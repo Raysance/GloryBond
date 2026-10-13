@@ -1,6 +1,6 @@
 # Local Agent Studio
 
-可直接运行的本地聊天 UI，使用 Python 3.11 或更新版本。`agent_console` 仅作为 `agent_runtime` 的外部适配层，QQ 接入时复用同一内核与工具协议，替换输入和输出适配器。
+可直接运行的本地聊天 UI，使用 Python 3.11 或更新版本。`agent_console` 仅作为 `agent_runtime` 的外部适配层，QQ 通过 `qq_agent/` 复用同一内核、工具与角色服务，以 QQ 输入和输出适配器接入。
 
 ## 启动
 
@@ -12,11 +12,11 @@ local_debugger/.venv/bin/python -m agent_console
 
 然后打开 http://127.0.0.1:8765/ 。首次缺少环境时，先执行 `python3 local_debugger/setup_env.py`。端口可用 `--port` 覆盖，其他非密钥设置在根 `config.yaml` 的 `LocalAgent`。
 
-需要已配置并能免交互连接的 `ssh Aliyun`。启动时通过 SSH 读取运行中的服务器配置和 API 源码，不上传项目、不部署 HTTP 服务、不修改数据库 schema。模型在本地直连 DeepSeek；查询、记忆、搜索、图片及 Python 执行通过外部 SSH 适配器调用。
+首次克隆先运行 `git submodule update --init --recursive`。需要已配置并能免交互连接的 `ssh Aliyun`。启动时通过 SSH 读取运行中的服务器配置和 API 源码，不上传项目、不部署 HTTP 服务、不修改数据库 schema。模型在本地直连 DeepSeek；查询、记忆、搜索、图片及 Python 执行通过外部 SSH 适配器调用。
 
 ## 功能
 
-- 真实 DeepSeek 流式正文和 `reasoning_content`，同一工具链保持思考模式并续传原始思考字段。
+- 真实 DeepSeek 流式正文及接口返回的 `reasoning_content`。所有工具链统一关闭 thinking；无工具独立请求可开启思考，界面不伪造思考过程。
 - 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时使用 `LocalAgent.vision_model: deepseek-v4-flash`，同一 ReAct 循环继续调用工具并支持图片追问；纯文本继续使用服务器模型配置。官方将该旧名称路由到当前 Flash 模型，见 [官方模型说明](https://api-docs.deepseek.com/) 和 [图片输入文档](https://api-docs.deepseek.com/guides/vision/)。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。
 - 当前适配器强制先检索历史、再发现所需能力，避免模型把未披露工具误报为不可用。记忆由入口绑定当前会话调用者，保存本人偏好无需提供 QQ 或玩家名。
@@ -24,7 +24,7 @@ local_debugger/.venv/bin/python -m agent_console
 - 一次输入可有多条阶段性回复、图片和最终回复。工具输入、结果、模型上下文和执行时间线可以展开。
 - 回答旁显示本轮 token 总量，输入框下显示会话总量；点击可查看输入、输出、缓存命中、命中率及各次模型请求，角色生成也计入。多次请求的系统提示、上下文和工具结果分别计入输入；缓存是输入子集，思考是输出子集，不重复相加。用量来自模型接口，未知字段显示“—”，中断、失败或缺失用量标注为部分统计。历史会话按持久事件恢复，重连不会重复计数。
 - 回答作为主要内容，思考与工具调用默认折叠到“执行过程”，右上角仍可查看完整轨迹。
-- 每轮最终回复同时提供“详细内容”和“群聊回复”。详细版保留结论、依据、必要数据和来源；群聊版使用自然短句、角色语气和必要限制，上限 280 字，简短偏好默认最多 100 字，并可一键复制。`output.message.data.text` 和 `run()` 返回值的 `text` 字段默认就是群聊版，两个版本在 `variants.detailed` / `variants.chat`；未来 QQ 出口直接发送 `text`，用户明确要求详情时可选详细版。
+- 每轮最终回复同时提供“详细内容”和“群聊回复”。详细版保留结论、依据、必要数据和来源；群聊版使用自然短句、角色语气和必要限制，上限 280 字，简短偏好默认最多 100 字，并可一键复制。`output.message.data.text` 和 `run()` 返回值的 `text` 字段默认就是群聊版，两个版本在 `variants.detailed` / `variants.chat`；QQ 出口默认发送群聊版，用户明确要求详情时选择详细版。
 - 会话及完整持久事件保存在服务器 Redis DB0；浏览器保存会话列表，刷新可恢复记录。本地同时保存对话和完整调试日志，见下文。
 - 延迟/周期后台任务保存在服务器，使用同一内核执行。任务仅在本地适配器运行期间调度；停机后租约到期可重新领取。
 - 查询或推理使用 `agent` 任务；固定文字定时发送使用 `message` 任务，直接走同一输出端口，无额外模型调用。支持最短 1 秒周期、限定执行次数和序号模板 `{run}` / `{max_runs}`。省略首次延迟时在一个周期后发送；后续按原计划计时，错过的时间点跳过。调度可与前台聊天同时执行。
@@ -77,7 +77,7 @@ log/agent_console/<session_id>/
 
 ## 复用内核
 
-安装独立包：`pip install ./agent_runtime`。独立包仅依赖 Pydantic。外部提供 `ModelPort`、`StatePort`、`OutputPort` 和 `ClockPort`，然后构造 `AgentRuntime`。任意业务函数通过 `ToolRegistry.register(...)` 注入，默认按权限向模型披露；需要渐进披露时声明 `initially_visible=False`，再由应用自己的发现工具选择披露。
+安装独立包：`pip install ./vendor/react-agent-runtime`。独立包仅依赖 Pydantic。外部提供 `ModelPort`、`StatePort`、`OutputPort` 和 `ClockPort`，然后构造 `AgentRuntime`。任意业务函数通过 `ToolRegistry.register(...)` 注入，默认按权限向模型披露；需要渐进披露时声明 `initially_visible=False`，再由应用自己的发现工具选择披露。
 
 本应用的工具定义在 `agent_console/tools/application.py`，由 `register_application_tools(..., service=..., catalogs=...)` 接入。SQL 方言/校验器、参考查询、数据集投影和持久任务转换也都在 `agent_console/`；数据库 schema 从共享目录的 `schema` 字段显式传入。应用提示词、工具名称和群聊规则不进入内核。`description_provider` 和 `result_projector` 是工具可选的动态描述/结果投影回调；内核只执行回调和通用预算约束，不识别返回值的业务结构。
 

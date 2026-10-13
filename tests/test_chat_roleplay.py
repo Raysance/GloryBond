@@ -7,7 +7,6 @@ from local_debugger import import_hok_module
 
 ROLES = import_hok_module("chat_roles")
 TOOLS = import_hok_module("chat_tools")
-ZCHAT = import_hok_module("zchat")
 ZFUNC = import_hok_module("zfunc")
 ZMEMORY = import_hok_module("zmemory")
 
@@ -76,28 +75,6 @@ class CustomRoleplayTests(unittest.TestCase):
                 "action": "set", "character": "测试角色", "preferences": "自然一点",
             })
         save.assert_called_once_with("100", "测试角色", "自然一点")
-
-    def test_saved_custom_role_is_injected_into_later_chat(self):
-        role = {
-            "character": "测试角色",
-            "profile": "这是持久化的自定义角色背景。",
-            "preferences": "保持克制",
-            "sources": [],
-        }
-        seen = []
-
-        def model(messages, **kwargs):
-            seen.extend(messages)
-            return {"content": "角色化回答"}
-
-        with patch.object(ZFUNC, "chat_roleplay_get", return_value=role), \
-                patch.object(ZMEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(ZMEMORY.instance, "save_active_chat"):
-            ZCHAT.chat_process(user_text="你好", user_id="100", nickname="A", model_caller=model)
-
-        system_text = "\n".join(item["content"] for item in seen if item.get("role") == "system")
-        self.assertIn("这是持久化的自定义角色背景", system_text)
-        self.assertNotIn("角色信息：牧濑红莉栖", system_text)
 
 
 if __name__ == "__main__":

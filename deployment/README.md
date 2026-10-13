@@ -51,7 +51,14 @@ backups or migrations.
 
 ## Build a transport bundle
 
-From the NBot repository:
+From the NBot repository, initialize the pinned private agent dependency first.
+The cloning/deployment account needs SSH read access to
+`git@github.com:Raysance/react-agent-runtime.git`:
+
+```bash
+git submodule update --init --recursive
+```
+
 
 ```bash
 deployment/scripts/build_bundle.sh \
@@ -60,12 +67,14 @@ deployment/scripts/build_bundle.sh \
 ```
 
 The bundle includes both `.env` and `config.yaml`, excludes generated/runtime
-files, and is written with mode `0600`. Database and Redis contents are not put
+files, and is written with mode `0600`. Native QQ input images (`data/agent_inputs`) and conversation logs are excluded.
+The initialized submodule source and the `agent_runtime` symlink are bundled,
+so an extracted bundle does not need GitHub access. Database and Redis contents are not put
 in the source bundle. Back them up separately before moving an existing server.
 
 ## Install on another Linux server
 
-Install Python 3.10+, Redis 6+, PostgreSQL 16 (or compatible remote services),
+Install Python 3.11+, Redis 6+, PostgreSQL 16 (or compatible remote services),
 Nginx, `git`, `tar`, and `findutils`. Extract the bundle, then run:
 
 ```bash
@@ -114,3 +123,25 @@ Build and copy a new private bundle, back up PostgreSQL, Redis, and persistent
 state, rerun `install.sh` without `--start`, then run `doctor.sh` before
 restarting. Restore the previous application tree and virtualenvs together when
 rolling back.
+
+## Shared QQ agent
+
+QQ chat now uses the independent runtime pinned in `vendor/react-agent-runtime`.
+See [QQ adapter](../qq_agent/README.md) for input/output, memory, roles and tasks.
+`QQAgent` in the existing `config.yaml` controls budgets, image limits and default
+role. Credentials still come from the existing environment and `.env`; SQL
+catalogs and tools are defined under `shared/agent` and `agent_console`.
+
+The main-branch deployment workflow restores application code, backs up the old
+copied `agent_runtime` directory under ignored `log/deployment-backups`, restores
+the new symlink and runs `git submodule update --init --recursive`. It then checks
+imports before restarting NoneBot. `data/history` remains excluded from restores.
+The submodule uses SSH because the current Aliyun account has SSH read access to
+the private repository. Deployments check out the committed version, never the
+latest remote branch. No paid model/tool diagnostics are run during deployment.
+
+QQ runs two local workers, separating business calls from state and task claims.
+The existing `zscheduler.py` owns startup, shutdown and task polling. Startup
+logs `QQ_AGENT_READY` after worker initialization. PNG outputs and expiring trace
+links continue to use the existing Web service. New direct-dialogue history is
+isolated by user and channel; previous history and saved facts are preserved.

@@ -178,7 +178,7 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
     return add_msg(message, event=event, msg_type=msg_type, to_id=to_id)
 
 
-def add_chat_result_msg(result, *, event=None):
+def add_chat_result_msg(result, *, event=None, destination=None):
     """Queue one QQ message; only trusted artifacts can create image segments."""
     message = Message(MessageSegment.text(str(result["text"])))
     for artifact in result.get("artifacts", []):
@@ -187,6 +187,10 @@ def add_chat_result_msg(result, *, event=None):
         message += MessageSegment.text("\n\n运行记录：" + result["trace_url"])
     elif result.get("trace_error"):
         message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
+    if destination is not None:
+        if destination.get("platform") != "qq" or destination.get("channel") not in {"group", "private"}:
+            raise ValueError("Invalid trusted QQ destination")
+        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"])
     return add_msg(message, event=event)
 
 

@@ -26,7 +26,8 @@ def task_request(task, *, system_prompt=""):
         required_tools=tuple(
             dict.fromkeys([*task.get("required_tools", ()), "discover_tools"])
         ),
-        metadata={"origin": "background", "task_id": task["task_id"]}
+        metadata={"origin": "background", "task_id": task["task_id"],
+                  **({"delivery": attributes["delivery"]} if "delivery" in attributes else {})}
         if "task_id" in task
         else {},
     )
@@ -35,25 +36,27 @@ def task_request(task, *, system_prompt=""):
 class TaskScheduler:
     """Application scheduler; fixed deliveries use the same event/output ports."""
 
-    def __init__(self, *, runtime, bridge, state, output, clock, prompt_factory):
+    def __init__(self, *, runtime, bridge, state, output, clock, prompt_factory, channel=None):
         self.runtime, self.bridge = runtime, bridge
         self.state, self.output, self.clock = state, output, clock
         self.prompt_factory = prompt_factory
         self.active = {}
         self.active_run_ids = set()
+        self.channel = channel
+
+    async def tick(self):
+        for task in await self.bridge.call("task_due", channel=self.channel):
+            if task["task_id"] not in self.active:
+                job = asyncio.create_task(self.perform(task))
+                self.active[task["task_id"]] = job
+                job.add_done_callback(
+                    lambda done, task_id=task["task_id"]: self.active.pop(task_id, None)
+                )
 
     async def run(self):
         while True:
             try:
-                for task in await self.bridge.call("task_due"):
-                    if task["task_id"] not in self.active:
-                        job = asyncio.create_task(self.perform(task))
-                        self.active[task["task_id"]] = job
-                        job.add_done_callback(
-                            lambda done, task_id=task["task_id"]: self.active.pop(
-                                task_id, None
-                            )
-                        )
+                await self.tick()
             except asyncio.CancelledError:
                 raise
             except Exception:

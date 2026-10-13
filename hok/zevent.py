@@ -801,9 +801,7 @@ async def f_history_query(event: Event):
 @_chat.handle()
 async def f_chat(bot,event):
     from .event_handlers.chat import prepare_chat_request, quoted_message_id, normalize_quoted_message
-    from .zchat import chat_process, ChatRunError
-    from .zfunc import chat_prepare_reply
-    from .utils.message_sender import add_chat_result_msg
+    from .zfunc import agent_chat
 
     request = prepare_chat_request(event, common_expr, dmc.use_mem)
     quote_id = quoted_message_id(event)
@@ -820,13 +818,7 @@ async def f_chat(bot,event):
             source="chat",
         )
     try:
-        result = await asyncio.to_thread(chat_process, **request, return_artifacts=True)
-    except ChatRunError as error:
-        result = {"text": "AI对话失败：location=zevent.f_chat "
-                          f"params={{'user_id': {request['user_id']!r}, 'group_id': {request['group_id']!r}}} "
-                          f"error={error!r}",
-                  "artifacts": error.artifacts, "trace": error.trace}
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        await agent_chat(**request)
     except Exception as e:
         add_msg(
             "AI对话失败：location=zevent.f_chat "
@@ -836,6 +828,3 @@ async def f_chat(bot,event):
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
-
-    result = await asyncio.to_thread(chat_prepare_reply, result)
-    add_chat_result_msg(result, event=event)

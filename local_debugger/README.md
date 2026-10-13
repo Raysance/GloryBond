@@ -49,3 +49,5 @@ result = zfunc.Analyses.get_benefit_data()
 ```powershell
 local_debugger/.venv/bin/python -m local_debugger hok/debug_tools/history_map_export_cli/export_official_grade_summary.py 2026-06-01 --end-date 2026-06-09
 ```
+
+独立 agent 依赖使用 Git submodule；首次克隆后先执行 `git submodule update --init --recursive`，再启动本地工具。QQ 接入与本地界面共用该固定版本内核。

@@ -26,6 +26,7 @@ class Capabilities:
             queries=queries,
             original_query=ctx.request.user_message,
             principal=remote_chat_identity(ctx.principal),
+            exclude_message_id=ctx.request.metadata.get("message_id"),
         )
 
     async def analyze(self, domain, queries, ctx):
@@ -107,9 +108,9 @@ def remote_chat_identity(principal):
 def application_prompt():
     return (
         "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
-        "本地用户身份已由入口绑定，长期记忆归属于同一调用者并跨会话共享，"
+        "当前用户身份已由入口绑定，长期记忆归属于同一调用者并跨会话共享，"
         "本次‘我’指入口提供的identity；游戏查询使用其player_key，回复称呼使用配置昵称。"
-        "保存本人偏好不需要其QQ、玩家名或游戏ID。不得从群聊发言推断本地调用者是谁。"
+        "保存本人偏好不需要其QQ、玩家名或游戏ID。不得从群聊发言推断调用者是谁。"
         "询问本人已保存偏好时调用recall_memory，不得用群里他人的发言代替本人记忆。"
         "用户明确要求记住或安排任务时，必须调用对应工具，成功observation后才能确认完成；"
         "所有后台通知都有当前会话的输出通道。固定文字定时发送使用message任务。"

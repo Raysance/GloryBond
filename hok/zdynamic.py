@@ -1,6 +1,8 @@
 
 from .zutil import *
 from .zstatic import *
+
+qq_agent_service = None
 import redis
 
 # Dynamic defaults are loaded from the sole non-secret config file.

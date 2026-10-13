@@ -129,7 +129,7 @@ find_bin="$(command -v find)"
 
 install -d -o root -g "$run_group" -m 0750 "$prefix"
 install -d -o "$run_user" -g "$run_group" -m 0750 \
-    "$state_dir" "$state_dir/data" "$state_dir/data/history" \
+    "$state_dir" "$state_dir/data" "$state_dir/data/agent_inputs" "$state_dir/data/history" \
     "$state_dir/data/history/battles" "$state_dir/data/history/personal" \
     "$state_dir/data/history/power" "$state_dir/data/history/power_failed" \
     "$state_dir/data/herorank" "$state_dir/data/herotier" "$state_dir/data/news" \
@@ -146,9 +146,10 @@ copy_tree() {
     tar -C "$source_dir" \
         --exclude='.git' --exclude='.venv' \
         --exclude='__pycache__' --exclude='*.pyc' \
-        --exclude='.DS_Store' --exclude='log' --exclude='file_transfer' \
+        --exclude='.DS_Store' --exclude='._*' --exclude='log' --exclude='file_transfer' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
+        --exclude='data/agent_inputs' \
         --exclude='resources/wzry_images/hero_avatars/*' \
         --exclude='resources/wzry_images/generated/*' \
         --exclude='resources/wzry_images/kpl/*' \
@@ -157,6 +158,14 @@ copy_tree() {
 }
 
 if has_module nbot || has_module cleanup || has_module napcat; then
+    if [[ ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" ]]; then
+        printf 'HOK_INSTALL_ERROR: agent submodule source is missing\n' >&2
+        exit 66
+    fi
+    if [[ -d "$nbot_root/agent_runtime" && ! -L "$nbot_root/agent_runtime" ]]; then
+        backup_dir="$(mktemp -d "$state_dir/backups/agent-runtime.XXXXXX")"
+        mv "$nbot_root/agent_runtime" "$backup_dir/agent_runtime"
+    fi
     copy_tree "$nbot_source" "$nbot_root"
     copy_tree "$deployment_root" "$nbot_root/deployment"
     chmod 0755 "$nbot_root/deploy_runner.sh" "$nbot_root/deployment/bin/run-napcat.sh"
@@ -216,6 +225,7 @@ if [[ "$skip_python" == false ]]; then
         "$python_bin" -m venv "$nbot_root/.venv"
         "$nbot_root/.venv/bin/python" -m pip install --upgrade pip
         "$nbot_root/.venv/bin/python" -m pip install "$nbot_root"
+        "$nbot_root/.venv/bin/python" -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService'
         if [[ ! -x "$nbot_root/.venv/bin/nb" ]]; then
             printf 'HOK_INSTALL_ERROR: nb-cli did not install %s/.venv/bin/nb\n' "$nbot_root" >&2
             exit 69

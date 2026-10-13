@@ -118,38 +118,6 @@ class ChatMemoryStoreTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def test_consecutive_requests_restore_native_roles_and_save_plain_answers(self):
-        chat = import_hok_module("zchat")
-        memory = import_hok_module("zmemory")
-        requests = []
-        def model(messages, **kwargs):
-            requests.append(messages)
-            return {"content": "**第一组**很有看头，要我查共同胜率吗？" if len(requests) == 1 else "接着查第一组的共同胜率。"}
-        for question in ["哪组最有看头？", "好的"]:
-            result = chat.chat_process(user_text=question, user_id="100", nickname="A", model_caller=model,
-                                       use_memory=True, return_artifacts=True)
-        self.assertEqual(requests[1][-3:], [
-            {"role": "user", "content": "哪组最有看头？"},
-            {"role": "assistant", "content": "第一组很有看头，要我查共同胜率吗？"},
-            {"role": "user", "content": "好的"}])
-        self.assertEqual(result["trace"]["context"]["recent_dialogue_turns"], 1)
-        self.assertEqual(result["trace"]["context"]["recent_dialogue_messages"], 2)
-        self.assertEqual(memory.instance.load_active_chat_records("100")[-1]["A"], result["text"])
-        self.assertEqual(memory.instance.load_active_chat_records("200"), [])
-
-    def test_nomem_still_reads_and_saves_direct_dialogue(self):
-        chat = import_hok_module("zchat")
-        ZFUNC.chat_active_dialogue_save("100", "上轮问题", "历史回答")
-        before = list(self.redis.lists["hok:memory:active_chat:100"])
-        def model(messages, **kwargs):
-            self.assertTrue(any(message.get("role") == "assistant" and message.get("content") == "历史回答"
-                                for message in messages))
-            return {"content": "新的回答"}
-        with patch.object(ZFUNC, "chat_active_dialogue_load") as load:
-            load.return_value = [{"time": "2026-09-29 10:00:00", "Q": "上轮问题", "A": "历史回答"}]
-            chat.chat_process(user_text="当前问题", user_id="100", nickname="A", model_caller=model, use_memory=False)
-        load.assert_called_once_with("100", 10)
-        self.assertEqual(len(self.redis.lists["hok:memory:active_chat:100"]), len(before) + 1)
 
     def test_direct_memory_limits_legacy_shape_and_malformed_records(self):
         for index in range(12):
@@ -173,26 +141,6 @@ class ChatMemoryStoreTests(unittest.TestCase):
             records, "按我的辅助偏好推荐英雄", recent_limit=2, relevant_limit=1)
         self.assertEqual([item["time"] for item in selected], ["1", "3", "4"])
 
-    def test_quote_stays_current_and_passive_memory_is_not_loaded(self):
-        chat = import_hok_module("zchat")
-        memory = import_hok_module("zmemory")
-        ZFUNC.chat_active_dialogue_save("100", "自己的问题", "自己的回答")
-        ZFUNC.chat_active_dialogue_save("200", "其他用户的问题", "OTHER_USER")
-        self.redis.lists['hok:memory:passive_chat:100'] = [json.dumps({'text': 'PASSIVE'})]
-        messages = []
-        def model(items, **kwargs):
-            messages.extend(items)
-            return {"content": "回答引用"}
-        chat.chat_process(user_text="看引用", user_id="100", nickname="A", model_caller=model,
-                          quoted_message={"available": True, "text": "QUOTED_TEXT"})
-        self.assertEqual([item["role"] for item in messages[-4:]], ["user", "assistant", "user", "user"])
-        payload = json.dumps(messages)
-        self.assertNotIn('OTHER_USER', payload)
-        self.assertNotIn('PASSIVE', payload)
-        self.assertIn('QUOTED_TEXT', payload)
-        saved = memory.instance.load_active_chat_records("100")[-1]
-        self.assertEqual(saved['Q'], '看引用')
-        self.assertNotIn('QUOTED_TEXT', json.dumps(saved))
 
     def test_list_update_delete_and_clear_are_scoped_to_the_current_user(self):
         alpha = ZFUNC.chat_memory_save("100", "I play support")["memory"]

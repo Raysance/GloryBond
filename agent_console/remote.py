@@ -18,7 +18,7 @@ class RemoteBridge:
         self.config = {}
         self.secrets = []
 
-    async def start(self):
+    async def _spawn_worker(self):
         source = Path(__file__).with_name("remote_worker.py").read_text()
         command = (
             "exec(__import__('base64').b64decode("
@@ -46,6 +46,9 @@ class RemoteBridge:
             stderr=asyncio.subprocess.PIPE,
             limit=16 * 1024 * 1024,
         )
+
+    async def start(self):
+        await self._spawn_worker()
         catalogs = {
             domain: json.loads((self.shared_path / domain / "catalog.json").read_text())
             for domain in ("hok_sql", "chat_sql")
@@ -69,6 +72,7 @@ class RemoteBridge:
             roles=[
                 json.loads(path.read_text())
                 for path in sorted((self.shared_path / "roles").glob("*.json"))
+                if not path.name.startswith(".")
             ],
             reference_manifest=json.loads(
                 (self.shared_path / "reference_data/manifest.json").read_text()
@@ -76,6 +80,7 @@ class RemoteBridge:
             reference_builder=(
                 Path(__file__).with_name("tools") / "reference_data.py"
             ).read_text(),
+            use_process_environment=getattr(self, "use_process_environment", False),
         )
         self.secrets = [
             value
@@ -149,6 +154,22 @@ class RemoteBridge:
         if self.process and self.process.returncode is None:
             self.process.terminate()
             await self.process.wait()
+
+
+class ProcessBridge(RemoteBridge):
+    """The same worker protocol on the QQ host, without an SSH connection."""
+
+    use_process_environment = True
+
+    def __init__(self, root, python, shared_path):
+        super().__init__("local", root, python, shared_path)
+
+    async def _spawn_worker(self):
+        self.process = await asyncio.create_subprocess_exec(
+            self.python, "-u", str(Path(__file__).with_name("remote_worker.py")),
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE, limit=16 * 1024 * 1024,
+        )
 
 
 class RemoteState:

@@ -1,5 +1,26 @@
 
 from .zutil import *
+
+
+def store_agent_artifact(identifier, raw):
+    """Save validated agent output as a trace-compatible PNG in file_transfer."""
+    import io
+    import re
+    from pathlib import Path
+    from PIL import Image
+
+    if not re.fullmatch(r"[a-f0-9]{32}", identifier) or len(raw) > 32 * 1024**2:
+        raise ValueError("Invalid agent artifact")
+    with Image.open(io.BytesIO(raw)) as source:
+        if source.format not in {"PNG", "JPEG", "WEBP"} or source.width * source.height > 16_000_000:
+            raise ValueError("Unsupported agent output image")
+        source.load()
+        image = source.convert("RGBA" if "A" in source.getbands() else "RGB")
+        directory = Path(temp_path)
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / ("chat_plot_" + identifier + ".png")
+        image.save(path, "PNG")
+        return {"artifact_id": identifier, "path": str(path), "width": image.width, "height": image.height}
 from .zstatic import *
 from . import zdynamic as dmc
 import shutil

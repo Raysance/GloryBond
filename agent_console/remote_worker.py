@@ -1,4 +1,4 @@
-"""Trusted external adapter sent over SSH; never installed in the remote app.
+"""Trusted external worker: SSH for the console, local subprocess for QQ.
 
 It reads deployed configuration/code and uses the existing isolated SQL role.
 Generated Python is executed only inside bubblewrap, never in this worker.
@@ -66,22 +66,26 @@ def extracted_functions(path, names, namespace):
 
 def bootstrap(args):
     root = Path(args["root"])
-    cfg = yaml.safe_load((root / "config.yaml").read_text())
-    env = dict(dotenv_values(root / ".env"))
-    pid = subprocess.check_output(
-        ["systemctl", "show", "hok-nbot.service", "-p", "MainPID", "--value"], text=True
-    ).strip()
-    if pid != "0":
-        env.update(
-            dict(
-                part.split("=", 1)
-                for part in Path(f"/proc/{pid}/environ")
-                .read_bytes()
-                .decode()
-                .split("\0")
-                if "=" in part
+    process_env = dict(os.environ) if args.get("use_process_environment") else {}
+    if not args.get("use_process_environment"):
+        pid = subprocess.check_output(
+            ["systemctl", "show", "hok-nbot.service", "-p", "MainPID", "--value"], text=True
+        ).strip()
+        if pid != "0":
+            process_env.update(
+                dict(
+                    part.split("=", 1)
+                    for part in Path(f"/proc/{pid}/environ")
+                    .read_bytes()
+                    .decode()
+                    .split("\0")
+                    if "=" in part
+                )
             )
-        )
+    cfg_path = Path(process_env.get("HOK_CONFIG_FILE") or root / "config.yaml")
+    cfg = yaml.safe_load(cfg_path.read_text())
+    env = dict(dotenv_values(process_env.get("HOK_ENV_FILE") or root / ".env"))
+    env.update(process_env)
     namespace = {"urlparse": urlparse}
     extracted_functions(
         root / "hok/zstatic.py",
@@ -178,6 +182,7 @@ def bootstrap(args):
         plot_renderer=args["plot_renderer"],
         plot_catalog=args["plot_catalog"],
         root=root,
+        cfg_path=cfg_path,
         cfg=cfg,
         env=env,
         model=model,
@@ -255,7 +260,7 @@ def reference_data():
     if path.is_absolute() or ".." in path.parts:
         raise ValueError("参考数据源必须位于项目根目录内")
     root = CONTEXT["root"]
-    content = (root / path).read_text()
+    content = (CONTEXT.get("cfg_path", root / path) if source["path"] == "config.yaml" else root / path).read_text()
     document = (
         yaml.safe_load(content) if source["format"] == "yaml" else json.loads(content)
     )
@@ -418,6 +423,12 @@ def search_history(args):
                 "SELECT group_id,message_id,user_id,reply_to_message_id,source_timestamp AS timestamp,message_text AS text FROM hok.chat_history_messages ORDER BY source_timestamp"
             )
             rows = cur.fetchall()
+    group = args["principal"].get("group_id")
+    exclude = args.get("exclude_message_id")
+    if group and exclude is not None:
+        rows = [row for row in rows if not (
+            str(row["group_id"]) == str(group) and str(row["message_id"]) == str(exclude)
+        )]
     queries = list(dict.fromkeys([args["original_query"], *args.get("queries", [])]))
     hits = CONTEXT["memory"]["search_history_records"](rows, queries, limit=8)
     return {
@@ -612,6 +623,11 @@ def sandbox(args):
         }
 
 
+def task_index(task):
+    delivery = task.get("principal", {}).get("attributes", {}).get("delivery", {})
+    return STATE_PREFIX + ("tasks:qq" if delivery.get("platform") == "qq" else "tasks")
+
+
 def dispatch(args):
     op = args["op"]
     if op == "bootstrap":
@@ -691,7 +707,7 @@ def dispatch(args):
         }
         with store.pipeline(transaction=True) as pipe:
             pipe.set(STATE_PREFIX + "task:" + task_id, json.dumps(task))
-            pipe.zadd(STATE_PREFIX + "tasks", {task_id: task["next_run_at"]})
+            pipe.zadd(task_index(task), {task_id: task["next_run_at"]})
             pipe.execute()
         return task
     if op == "task_list":
@@ -711,7 +727,7 @@ def dispatch(args):
             task.update(status="cancelled", revision=task["revision"] + 1)
             pipe.multi()
             pipe.set(key, json.dumps(task))
-            pipe.zrem(STATE_PREFIX + "tasks", args["task_id"])
+            pipe.zrem(task_index(task), args["task_id"])
             pipe.execute()
         return {"cancelled": True}
     if op == "task_active":
@@ -723,13 +739,16 @@ def dispatch(args):
     if op == "task_due":
         tasks = []
         for task_id in store.zrangebyscore(
-            STATE_PREFIX + "tasks", 0, time.time(), start=0, num=4
+            STATE_PREFIX + ("tasks:qq" if args.get("channel") == "qq" else "tasks"), 0, time.time(), start=0, num=4
         ):
             key = STATE_PREFIX + "task:" + task_id
             with store.pipeline() as pipe:
                 try:
                     pipe.watch(key)
                     task = json.loads(pipe.get(key) or "{}")
+                    delivery = task.get("principal", {}).get("attributes", {}).get("delivery", {})
+                    if (delivery.get("platform") == "qq") != (args.get("channel") == "qq"):
+                        continue
                     if task.get("status") not in ["scheduled", "running"]:
                         continue
                     if task.get("lease_until", 0) > time.time():
@@ -775,10 +794,10 @@ def dispatch(args):
                 )
                 pipe.set(key, json.dumps(task))
                 pipe.zadd(
-                    STATE_PREFIX + "tasks", {args["task_id"]: task["next_run_at"]}
+                    task_index(task), {args["task_id"]: task["next_run_at"]}
                 )
             else:
-                pipe.zrem(STATE_PREFIX + "tasks", args["task_id"])
+                pipe.zrem(task_index(task), args["task_id"])
             pipe.execute()
         return True
     if op == "state_append":

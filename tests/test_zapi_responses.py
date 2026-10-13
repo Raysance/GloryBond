@@ -10,7 +10,6 @@ from local_debugger import import_hok_module
 
 ZAPI = import_hok_module("zapi")
 AI_ADAPTER = import_hok_module("api_adapters.ai")
-ZCHAT = import_hok_module("zchat")
 ZMEMORY = import_hok_module("zmemory")
 
 
@@ -84,29 +83,6 @@ class ChatCompletionsApiTests(unittest.TestCase):
             }],
         })
 
-    def run_chat(self, *, budget=8):
-        calls = []
-
-        class FakeTools:
-            def schemas(self):
-                return [TOOL_SCHEMA]
-
-            def execute(self, name, arguments):
-                calls.append((name, arguments))
-                return {"player": arguments["name"], "score": 42}
-
-        with patch.object(ZMEMORY.instance, "save_active_chat") as save, \
-                patch.object(ZCHAT.dmc, "ChatToolBudget", budget), \
-                patch.object(ZCHAT.dmc, "ChatMaxRounds", 8):
-            result = ZCHAT.chat_process(
-                user_text="查一下 alpha 和 beta",
-                user_id="100",
-                nickname="Tester",
-                use_memory=False,
-                tool_registry=FakeTools(),
-            )
-            save.assert_called_once()
-        return result, calls
 
     def test_chat_payload_direct_connection_and_normalized_tool_calls(self):
         call = tool_call("call-1", "alpha")
@@ -184,16 +160,6 @@ class ChatCompletionsApiTests(unittest.TestCase):
         self.assertTrue(any(item.get("status_code") == 400 for item in diagnostics["causes"]))
         self.assertNotIn("Authorization", json.dumps(payloads))
 
-    def test_trace_contains_complete_wire_bodies_and_no_headers(self):
-        assistant = {"role": "assistant", "content": "完整答案", "reasoning_content": "PROVIDER_FIELD"}
-        self.responses.append(assistant)
-        result = ZCHAT.chat_process(user_text="输入" * 20000 + "INPUT_END", user_id="1", nickname="A",
-                                    use_memory=False, return_artifacts=True)
-        turn = result["trace"]["rounds"][0]
-        self.assertEqual(turn["request_payload"], self.requests[0]["body"])
-        self.assertEqual(turn["response_payload"]["choices"][0]["message"], assistant)
-        self.assertTrue(turn["request_payload"]["messages"][-1]["content"].endswith("INPUT_END"))
-        self.assertNotIn("test-deepseek-key", json.dumps(result["trace"]))
 
     def test_missing_choices_and_invalid_json_still_keep_response_body(self):
         body = {"id": "empty", "model": "deepseek-chat", "choices": [],
@@ -210,63 +176,6 @@ class ChatCompletionsApiTests(unittest.TestCase):
         trace_helpers = import_hok_module("business.chat_trace")
         self.assertEqual(trace_helpers.failed_request_payloads(raised.exception)["response_payload"], "INVALID_BODY")
 
-    def test_two_tool_rounds_preserve_reasoning_and_tool_results_on_wire(self):
-        first = {
-            "role": "assistant", "content": "", "reasoning_content": "First lookup",
-            "tool_calls": [tool_call("call-alpha", "alpha")],
-        }
-        second = {
-            "role": "assistant", "content": "", "reasoning_content": "Second lookup",
-            "tool_calls": [tool_call("call-beta", "beta")],
-        }
-        self.responses.extend([
-            first, second, {"role": "assistant", "content": "两名玩家均为 42 分"},
-        ])
-
-        result, calls = self.run_chat()
-
-        self.assertEqual(result, "两名玩家均为 42 分")
-        self.assertEqual(calls, [("lookup", {"name": "alpha"}), ("lookup", {"name": "beta"})])
-        self.assertTrue(all(request["body"].get("thinking") == {"type": "disabled"}
-                            for request in self.requests))
-        second_messages = self.requests[1]["body"]["messages"]
-        self.assertEqual(second_messages[-2], first)
-        self.assertEqual(second_messages[-1]["role"], "tool")
-        self.assertEqual(second_messages[-1]["tool_call_id"], "call-alpha")
-        self.assertEqual(json.loads(second_messages[-1]["content"]), {
-            "ok": True, "data": {"player": "alpha", "score": 42},
-        })
-        final_messages = self.requests[2]["body"]["messages"]
-        self.assertEqual(final_messages[-4:-2], second_messages[-2:])
-        self.assertEqual(final_messages[-2], second)
-        self.assertEqual(final_messages[-1]["tool_call_id"], "call-beta")
-        self.assertEqual(json.loads(final_messages[-1]["content"])["data"]["player"], "beta")
-        self.assertTrue(all(client.is_closed for client in self.http_clients))
-
-    def test_budget_exhaustion_returns_every_tool_result_and_finishes_without_tools(self):
-        self.responses.extend([
-            {
-                "role": "assistant", "content": "", "reasoning_content": "Need both players",
-                "tool_calls": [tool_call("call-alpha", "alpha"), tool_call("call-beta", "beta")],
-            },
-            {"role": "assistant", "content": "alpha 为 42 分，beta 未查询"},
-        ])
-
-        result, calls = self.run_chat(budget=1)
-
-        self.assertEqual(result, "alpha 为 42 分，beta 未查询")
-        self.assertEqual(calls, [("lookup", {"name": "alpha"})])
-        final_request = self.requests[1]["body"]
-        self.assertNotIn("tools", final_request)
-        self.assertEqual(final_request["tool_choice"], "none")
-        self.assertEqual(final_request["thinking"], {"type": "disabled"})
-        results = [message for message in final_request["messages"] if message["role"] == "tool"]
-        self.assertEqual([message["tool_call_id"] for message in results], ["call-alpha", "call-beta"])
-        self.assertEqual(json.loads(results[1]["content"]), {
-            "ok": False, "error": "tool_budget_exhausted",
-        })
-        assistant = next(message for message in final_request["messages"] if message["role"] == "assistant")
-        self.assertEqual(assistant["reasoning_content"], "Need both players")
 
     def test_legacy_text_helpers_use_same_configured_client(self):
         self.responses.extend([

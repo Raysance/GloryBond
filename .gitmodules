@@ -1,0 +1,3 @@
+[submodule "vendor/react-agent-runtime"]
+	path = vendor/react-agent-runtime
+	url = git@github.com:Raysance/react-agent-runtime.git

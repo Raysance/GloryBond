@@ -24,7 +24,12 @@ class DeepSeekModel:
         self.vision_model, self.image_store = vision_model or model, image_store
         self.response_format = response_format
 
-    async def complete(self, messages, tools, on_delta):
+    async def complete_request(self, request, on_delta):
+        return await self.complete(
+            request.messages, request.tools, on_delta, tool_choice=request.tool_choice
+        )
+
+    async def complete(self, messages, tools, on_delta, *, tool_choice="auto"):
         has_images = any(
             isinstance(message.get("content"), list)
             and any(part.get("type") == "image_url" for part in message["content"])
@@ -40,10 +45,11 @@ class DeepSeekModel:
             "stream": True,
             "stream_options": {"include_usage": True},
             "max_tokens": self.max_tokens,
-            "thinking": {"type": "enabled" if self.thinking else "disabled"},
+            "thinking": {"type": "enabled" if self.thinking and not tools
+                         and not any(m.get("tool_calls") for m in messages) else "disabled"},
         }
         if tools:
-            payload.update(tools=tools, tool_choice="auto")
+            payload.update(tools=tools, tool_choice=tool_choice)
         if self.response_format:
             payload["response_format"] = self.response_format
         text, reasoning, calls, usage, finish = [], [], {}, {}, None

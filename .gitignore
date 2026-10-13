@@ -32,6 +32,7 @@ __MACOSX/
 /resources/wzry_images/kpl/
 /resources/wzry_images/tmp/
 /file_transfer/
+/data/agent_inputs/
 /redis-migration-backups/
 /hok/debug_tools/*/
 !/hok/debug_tools/AGENTS.md

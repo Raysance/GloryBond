@@ -20,6 +20,27 @@ from nonebot_plugin_apscheduler import scheduler
 from nonebot.adapters.onebot.v11 import MessageSegment
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 
+
+@nonebot.get_driver().on_startup
+async def _start_qq_agent():
+    from .zfunc import agent_runtime_start
+    if confs.get("QQAgent", {}).get("enabled", True):
+        await agent_runtime_start()
+        log_message("QQ_AGENT_READY shared agent_runtime initialized")
+
+
+@nonebot.get_driver().on_shutdown
+async def _stop_qq_agent():
+    from .zfunc import agent_runtime_stop
+    await agent_runtime_stop()
+
+
+@scheduler.scheduled_job("interval", seconds=confs.get("QQAgent", {}).get("task_poll_seconds", 1),
+                         id="qq_agent_tasks", max_instances=1, coalesce=True)
+async def qq_agent_tasks():
+    from .zfunc import agent_task_tick
+    await agent_task_tick()
+
 # 配置执行器和作业默认值，确保在任务运行时间不可控时不轻易跳过任务
 # - 使用线程池以支持并发执行
 # - 提高 max_instances 以允许多个并发实例

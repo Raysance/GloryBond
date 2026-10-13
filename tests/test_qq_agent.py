@@ -1,0 +1,231 @@
+"""The QQ adapter runs the shared engine with bounded, trusted destinations."""
+
+import asyncio
+import copy
+import json
+from io import BytesIO
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+import httpx
+from PIL import Image
+
+from agent_runtime import AgentRuntime
+from qq_agent.service import QQAgentService, qq_principal
+from agent_console.remote import RemoteBridge
+
+
+ROOT = Path(__file__).parents[1]
+ROLE = json.loads((ROOT / "shared/agent/roles/makise_kurisu.json").read_text())
+REFERENCES = {"directory": {}, "context": {"catalogs": {"players": [
+    {"player_key": "example_user_10", "name": "示例玩家65", "qq": ["100"]}
+]}}}
+
+
+def call(name, args, identifier):
+    return {"id": identifier, "type": "function", "function": {"name": name, "arguments": json.dumps(args)}}
+
+
+class IdentityTests(unittest.TestCase):
+    def test_group_never_gets_cross_group_authority_even_for_admin(self):
+        group = qq_principal("999", "200", "admin", admin_id="999", references=REFERENCES)
+        self.assertIn("chat.read", group.scopes)
+        self.assertNotIn("chat.cross_group", group.scopes)
+        self.assertFalse(group.attributes["chat"]["all_groups"])
+        private = qq_principal("999", None, "admin", admin_id="999", references=REFERENCES)
+        self.assertIn("chat.cross_group", private.scopes)
+        ordinary = qq_principal("101", None, "user", admin_id="999", references=REFERENCES, use_memory=False)
+        self.assertNotIn("chat.read", ordinary.scopes)
+        self.assertNotIn("memory.use", ordinary.scopes)
+        self.assertIn("roleplay.use", ordinary.scopes)
+
+    def test_real_sender_resolves_independently_of_local_lry_default(self):
+        user = qq_principal("101", "200", "第二个用户", admin_id="999", references=REFERENCES)
+        self.assertEqual(user.user_id, "101")
+        self.assertEqual(user.attributes["identity"], {"name": "第二个用户"})
+        known = qq_principal("100", "200", "old nickname", admin_id="999", references=REFERENCES)
+        self.assertEqual(known.attributes["identity"], {"name": "示例玩家65", "player_key": "example_user_10"})
+        with self.assertRaises(ValueError):
+            qq_principal("example_user_10", "200", "name", admin_id="999", references=REFERENCES)
+
+
+class GatewayTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.events, self.dialogue, self.calls, self.sent = {}, {}, [], []
+        self.script = []
+        test = self
+
+        class Bridge:
+            secrets = ["test-key"]
+            redact = RemoteBridge.redact
+
+            def __init__(self, *args):
+                pass
+
+            async def start(self):
+                return {"private": {"api_key": "test-key"}, "public": {
+                    "model": "test-model", "base_url": "https://example.invalid",
+                    "references": REFERENCES, "season_start": "2026-01-01",
+                }}
+
+            async def call(self, op, **args):
+                test.calls.append((op, copy.deepcopy(args)))
+                session = args.get("session_id")
+                if op == "state_append":
+                    test.events.setdefault(session, []).append(args["event"])
+                    return True
+                if op == "dialogue_load":
+                    return test.dialogue.get(session, [])
+                if op == "dialogue_save":
+                    test.dialogue.setdefault(session, []).extend([
+                        {"role": "user", "content": args["question"]},
+                        {"role": "assistant", "content": args["answer"]},
+                    ])
+                    return True
+                if op == "reference_snapshot":
+                    return REFERENCES
+                if op == "roleplay":
+                    return {"selected": ROLE, "preferences": {"length": "concise", "address": "", "style": ""}, "roles": [ROLE]}
+                if op == "memory":
+                    return {"memories": []} if args["action"] == "recall" else {"saved": True}
+                if op == "search_history":
+                    return {"messages": []}
+                if op == "task_create":
+                    return {"task_id": "t", "created": True, "max_runs": args["max_runs"]}
+                if op == "task_due":
+                    return []
+                if op in {"task_active", "task_finish"}:
+                    return True
+                raise AssertionError(op)
+
+            async def close(self):
+                pass
+
+        class Model:
+            def __init__(self, **options):
+                self.reply = bool(options.get("response_format"))
+                self.requests = []
+
+            async def complete(self, messages, tools, delta):
+                return {"message": {"role": "assistant", "content": json.dumps({"chat": "记住了。10秒一条，发3次。"}, ensure_ascii=False)}}
+
+            async def complete_request(self, request, delta):
+                self.requests.append(request)
+                message = test.script.pop(0)
+                return {"message": message, "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                        "request_payload": {"messages": copy.deepcopy(request.messages), "tool_choice": request.tool_choice},
+                        "response_payload": message}
+
+        async def send(packet, delivery):
+            test.sent.append((packet, delivery))
+
+        async def prepare(packet):
+            return {**packet, "trace_url": "https://example.invalid/chat-trace"}
+
+        async def artifact(identifier, raw):
+            return {"artifact_id": identifier, "path": "/tmp/test.png"}
+
+        self.gateway = QQAgentService(root=ROOT, config={"log_directory": self.tmp.name, "image_directory": self.tmp.name},
+                                      admin_id="999", sender=send, prepare_reply=prepare, store_artifact=artifact,
+                                      formatter=lambda text: text, bridge_factory=Bridge, model_factory=Model)
+        await self.gateway.start()
+        self.addAsyncCleanup(self.gateway.close)
+
+    async def test_real_engine_binds_memory_tasks_and_multiple_messages_to_sender(self):
+        self.assertIsInstance(self.gateway.runtime, AgentRuntime)
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("search_chat_history", {"queries": ["偏好", "提醒"]}, "h")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["memory", "tasks"]}, "d")]},
+            {"role": "assistant", "content": "", "tool_calls": [
+                call("remember_memory", {"content": "喜欢玩安琪拉"}, "m"),
+                call("emit_message", {"text": "记忆已保存，正在设置提醒。"}, "e"),
+                call("create_task", {"kind": "message", "message": "提醒 {run}", "interval_seconds": 10, "max_runs": 3}, "t"),
+            ]},
+            {"role": "assistant", "content": "记忆已保存。之后每10秒发一条提醒，共3次。"},
+        ]
+        result = await self.gateway.chat(user_text="记住我喜欢安琪拉，每10秒发一条消息，共3次。", user_id="101", nickname="B", group_id="200", message_id=300)
+        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(result["text"], "记住了。10秒一条，发3次。")
+        self.assertTrue(all(delivery == {"platform": "qq", "channel": "group", "recipient_id": "200"} for _, delivery in self.sent))
+        self.assertTrue(all(args["user_id"] == "101" for op, args in self.calls if op == "memory"))
+        task = next(args for op, args in self.calls if op == "task_create")
+        self.assertEqual(task["principal"]["user_id"], "101")
+        self.assertEqual(task["principal"]["attributes"]["delivery"]["recipient_id"], "200")
+        self.assertEqual(task["session_id"], "qq_g_200_101")
+        self.assertEqual(next(args for op, args in self.calls if op == "search_history")["exclude_message_id"], 300)
+        self.assertEqual(self.gateway.model.requests[0].tool_choice["function"]["name"], "search_chat_history")
+        self.assertEqual(self.gateway.model.requests[1].tool_choice["function"]["name"], "discover_tools")
+        self.assertEqual(self.dialogue["qq_g_200_101"][-1]["content"], result["text"])
+        self.assertGreater(result["trace"]["summary"]["token_usage"]["total_tokens"], 0)
+
+    async def test_private_has_no_group_tool_and_qq_runner_is_separate(self):
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["memory"]}, "d")]},
+            {"role": "assistant", "content": "说明已有事实，共3次，间隔10秒。"},
+        ]
+        await self.gateway.chat(user_text="查询本人偏好", user_id="101", nickname="B", use_memory=False)
+        self.assertFalse(any(op == "search_history" for op, args in self.calls))
+        self.assertEqual(self.gateway.model.requests[0].tool_choice["function"]["name"], "discover_tools")
+        self.assertEqual(self.sent[-1][1]["recipient_id"], "101")
+        self.assertEqual(self.sent[-1][1]["channel"], "private")
+        await self.gateway.tick()
+        self.assertEqual([args["channel"] for op, args in self.calls if op == "task_due"], ["qq"])
+
+    async def test_untrusted_image_source_is_rejected_without_a_request(self):
+        for url in ("http://127.0.0.1/secret", "file:///etc/passwd", "https://qq.com.evil.test/a.png"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                await self.gateway.input_images([url])
+
+    async def test_quote_is_current_only_and_dialogue_restores_native_roles(self):
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["references"]}, "d")]},
+            {"role": "assistant", "content": "记忆已保存。10秒一条，共3次。"},
+        ] * 2
+        await self.gateway.chat(user_text="看引用", user_id="101", nickname="B", use_memory=False,
+                                quoted_message={"text": "QUOTE_ONLY", "available": True})
+        self.assertIn("QUOTE_ONLY", json.dumps(self.gateway.model.requests[0].messages))
+        self.assertNotIn("QUOTE_ONLY", json.dumps(self.dialogue))
+        await self.gateway.chat(user_text="接着说", user_id="101", nickname="B", use_memory=False)
+        followup = self.gateway.model.requests[2].messages
+        self.assertNotIn("QUOTE_ONLY", json.dumps(followup))
+        self.assertTrue(any(m["role"] == "user" and m["content"] == "看引用" for m in followup))
+        self.assertTrue(any(m["role"] == "assistant" and m["content"] == self.sent[0][0]["text"] for m in followup))
+
+    async def test_qq_image_download_becomes_native_input_and_is_saved(self):
+        buffer = BytesIO()
+        Image.new("RGB", (16, 16), "red").save(buffer, "PNG")
+        raw = buffer.getvalue()
+        real_client = httpx.AsyncClient
+        with patch("qq_agent.service.httpx.AsyncClient", side_effect=lambda **kw: real_client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, content=raw)), **kw)):
+            images = await self.gateway.input_images(["https://gchat.qpic.cn/test"])
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0].content_part()["type"], "image_url")
+        wire, _ = self.gateway.image_store.model_messages([{"role": "user", "content": [images[0].content_part()]}])
+        self.assertTrue(wire[0]["content"][0]["image_url"]["url"].startswith("data:image/png;base64,"))
+
+    async def test_fixed_background_messages_emit_once_and_keep_bound_destination(self):
+        from agent_console.tasks import task_request
+        principal = qq_principal("101", "200", "B", admin_id="999", references=REFERENCES)
+        from dataclasses import asdict
+        for count in range(3):
+            task = {"task_id": "t", "session_id": "qq_g_200_101", "principal": asdict(principal),
+                    "kind": "message", "message": "第{run}/{max_runs}次", "runs": count, "max_runs": 3, "lease_token": "lease"}
+            self.assertEqual(task_request(task).metadata["delivery"]["recipient_id"], "200")
+            await self.gateway.scheduler.perform(task)
+        self.assertEqual([p["text"] for p, _ in self.sent], ["第1/3次", "第2/3次", "第3/3次"])
+        self.assertFalse(self.gateway.model.requests)
+        self.assertFalse(self.gateway.output.events)
+        self.assertFalse(self.gateway.output.results)
+
+    async def test_model_failure_keeps_observations_and_sends_trace(self):
+        self.script = [{"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["references"]}, "d")]}]
+        result = await self.gateway.chat(user_text="失败测试", user_id="101", nickname="B", use_memory=False)
+        self.assertEqual(result["trace"]["status"], "error")
+        self.assertEqual(result["trace"]["rounds"][0]["tools"][0]["name"], "discover_tools")
+        self.assertIn("未完成", self.sent[-1][0]["text"])
+        self.assertEqual(len(self.sent), 1)
+        self.assertFalse(self.dialogue)

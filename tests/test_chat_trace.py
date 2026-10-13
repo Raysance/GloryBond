@@ -8,7 +8,6 @@ from unittest.mock import patch
 from PIL import Image
 from local_debugger import import_hok_module
 
-CHAT = import_hok_module("zchat")
 TRACE = import_hok_module("business.chat_trace")
 HANDLER = import_hok_module("event_handlers.chat")
 FILES = import_hok_module("zfile")
@@ -16,66 +15,8 @@ FUNC = import_hok_module("zfunc")
 MEMORY = import_hok_module("zmemory")
 
 
-class Registry:
-    artifacts = []
-
-    def schemas(self):
-        return []
-
-    def execute(self, name, arguments):
-        if name == "fail":
-            raise ValueError("query failed")
-        return {"observations": [{"ok": True, "rows": [{"score": 9}]}, {"ok": False, "error": "bad SQL"}]}
-
-
-class SchemaRegistry(Registry):
-    def schemas(self):
-        return [{"type": "function", "name": "lookup", "description": "读取资料",
-                 "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}}]
-
-
 class TraceTests(unittest.TestCase):
-    def run_chat(self, model, **kwargs):
-        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat"), \
-                patch.object(FUNC, "chat_roleplay_get", return_value=None):
-            return CHAT.chat_process(user_text="对比战绩", user_id="1", nickname="A", use_memory=False,
-                                     model_caller=model, tool_registry=Registry(), return_artifacts=True, **kwargs)
 
-    def test_batch_errors_private_reasoning_and_budget_are_recorded(self):
-        requests = []
-        def model(messages, **kwargs):
-            requests.append(list(messages))
-            if len(requests) > 1:
-                self.assertEqual(kwargs["tool_choice"], "none")
-                self.assertEqual(len([item for item in messages if item.get("type") == "function_call_output"]), 3)
-                return {"content": "已比较", "tool_calls": []}
-            calls = [{"call_id": str(n), "name": name, "arguments": '{}'}
-                     for n, name in enumerate(["query_game_database", "fail", "skipped"])]
-            return {"tool_calls": calls, "reasoning_content": "PRIVATE_REASONING",
-                    "output_items": [{"role": "assistant", "reasoning_content": "PRIVATE_REASONING"}]}
-        with patch.object(CHAT.dmc, "ChatToolBudget", 2):
-            trace = self.run_chat(model)["trace"]
-        self.assertEqual(trace["summary"]["model_calls"], 2)
-        self.assertEqual(trace["summary"]["tool_calls"], 2)
-        self.assertEqual(trace["summary"]["skipped_calls"], 1)
-        self.assertEqual(trace["summary"]["tool_errors"], 2)
-        self.assertEqual(trace["summary"]["token_usage"]["total_tokens"], 0)
-        self.assertEqual([call["status"] for call in trace["rounds"][0]["tools"]], ["partial", "error", "skipped"])
-        self.assertEqual(trace["rounds"][0]["tools"][0]["observation"]["data"]["observations"][0]["rows"][0]["score"], 9)
-        self.assertNotIn("PRIVATE_REASONING", json.dumps(trace))
-        self.assertIn("PRIVATE_REASONING", json.dumps(requests[-1]))
-
-    def test_round_limit_adds_one_final_request(self):
-        calls = []
-        def model(messages, **kwargs):
-            calls.append(kwargs)
-            return {"content": "结束", "tool_calls": [] if kwargs["tool_choice"] == "none" else
-                    [{"call_id": str(len(calls)), "name": "lookup", "arguments": '{}'}]}
-        with patch.object(CHAT.dmc, "ChatMaxRounds", 2):
-            trace = self.run_chat(model)["trace"]
-        self.assertEqual(len(calls), 3)
-        self.assertEqual(trace["stop_reason"], "round_limit")
 
     def test_summary_aggregates_deepseek_cache_and_token_usage(self):
         rounds = [
@@ -97,58 +38,6 @@ class TraceTests(unittest.TestCase):
             "prompt_cache_miss_tokens": 50,
         })
 
-    def test_empty_final_retries_once_without_reexecuting_tools(self):
-        requests = []
-        def model(messages, **kwargs):
-            requests.append(kwargs)
-            if len(requests) == 1:
-                return {"tool_calls": [{"call_id": "1", "name": "lookup", "arguments": "{}"}]}
-            if len(requests) == 2:
-                return {"content": "", "response_meta": {"finish_reason": "length", "usage": {"total_tokens": 99}}}
-            return {"content": "恢复后的回答"}
-        with patch.object(CHAT.dmc, "ChatMaxRounds", 1):
-            result = self.run_chat(model)
-        trace = result["trace"]
-        self.assertEqual(result["text"], "恢复后的回答")
-        self.assertEqual(trace["recovery"]["outcome"], "recovered")
-        self.assertEqual(trace["summary"]["tool_calls"], 1)
-        self.assertEqual([request["tool_choice"] for request in requests], ["auto", "none", "none"])
-        self.assertEqual(trace["rounds"][1]["status"], "error")
-        self.assertEqual(trace["rounds"][1]["response_meta"]["finish_reason"], "length")
-
-    def test_repeated_empty_answer_returns_partial_and_is_not_saved(self):
-        calls = []
-        def model(messages, **kwargs):
-            calls.append(kwargs)
-            return {"content": "", "reasoning_content": "NOT_AN_ANSWER"}
-        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat") as save:
-            result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", model_caller=model,
-                                       tool_registry=Registry(), return_artifacts=True)
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(result["trace"]["status"], "partial")
-        self.assertEqual(result["trace"]["recovery"]["outcome"], "fallback")
-        self.assertNotIn("NOT_AN_ANSWER", result["text"])
-        save.assert_not_called()
-
-    def test_recovery_transport_error_keeps_causes_and_payload(self):
-        adapter = import_hok_module("api_adapters.ai")
-        calls = []
-        def model(messages, **kwargs):
-            calls.append(kwargs)
-            if len(calls) == 1:
-                return {"content": ""}
-            try:
-                raise ValueError("upstream unavailable sk-testsecret111")
-            except ValueError as error:
-                raise adapter.AIRequestError(error, {"messages": [{"content": "RETRY_INPUT"}]},
-                                             {"error": "UPSTREAM_BODY"}) from error
-        result = self.run_chat(model)
-        turn = result["trace"]["rounds"][-1]
-        self.assertEqual(turn["response_payload"], {"error": "UPSTREAM_BODY"})
-        self.assertEqual(turn["diagnostics"]["stage"], "model_request")
-        self.assertEqual(len(turn["diagnostics"]["causes"]), 2)
-        self.assertNotIn("sk-testsecret111", json.dumps(result))
 
     def test_payload_survives_publication_without_preview_limits(self):
         payload = {"messages": [{"role": "system", "content": "x" * 25000 + "TAIL"}] * 201,
@@ -163,20 +52,6 @@ class TraceTests(unittest.TestCase):
         stored = json.loads(save.call_args.args[1])
         self.assertEqual(stored["rounds"], trace["rounds"])
 
-    def test_every_round_records_model_visible_context_and_tool_definitions(self):
-        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat"), \
-                patch.object(FUNC, "chat_roleplay_get", return_value=None):
-            result = CHAT.chat_process(
-                user_text="查一下资料", user_id="1", nickname="A", use_memory=False,
-                model_caller=lambda *args, **kwargs: {"content": "完成"},
-                tool_registry=SchemaRegistry(), return_artifacts=True)
-        injected = result["trace"]["rounds"][0]["context_injection"]
-        self.assertGreater(len(injected["system_messages"]), 0)
-        self.assertEqual(injected["context_messages"][-1], {"role": "user", "content": "查一下资料"})
-        self.assertEqual(injected["tool_definitions"][0]["name"], "lookup")
-        self.assertEqual(result["trace"]["schemas"]["lookup"], injected["tool_definitions"][0])
-        self.assertIn("只能调用本次提供的工具", json.dumps(injected, ensure_ascii=False))
 
     def test_public_trace_keeps_system_prompt_but_still_removes_credentials(self):
         data = TRACE.public_value({
@@ -191,35 +66,6 @@ class TraceTests(unittest.TestCase):
         properties = data["context_injection"]["tool_definitions"][0]["parameters"]["properties"]
         self.assertEqual(set(properties), {"path", "token"})
 
-    def test_pre_model_failure_and_memory_save_warning_keep_stage(self):
-        with patch.object(MEMORY.instance, "load_active_chat_records", side_effect=RuntimeError("redis load failed")):
-            with self.assertRaises(CHAT.ChatRunError) as raised:
-                CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True)
-        self.assertEqual(raised.exception.trace["failure"]["stage"], "memory_load")
-        self.assertEqual(raised.exception.trace["rounds"], [])
-        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat", side_effect=RuntimeError("redis save failed")), \
-                patch.object(FUNC, "chat_roleplay_get", return_value=None):
-            result = CHAT.chat_process(user_text="你好", user_id="1", nickname="A", return_artifacts=True,
-                                       model_caller=lambda *args, **kwargs: {"content": "正常答案"})
-        self.assertEqual(result["text"], "正常答案")
-        self.assertEqual(result["trace"]["status"], "partial")
-        self.assertTrue(any(warning["stage"] == "memory_save" for warning in result["trace"]["warnings"]))
-
-    def test_model_error_keeps_previous_observation(self):
-        def model(messages, **kwargs):
-            if any(item.get("type") == "function_call_output" for item in messages):
-                raise RuntimeError("private server /srv/config sk-testsecret11111")
-            return {"tool_calls": [{"call_id": "one", "name": "fail", "arguments": 'not JSON'}]}
-        with self.assertRaises(CHAT.ChatRunError) as raised:
-            self.run_chat(model)
-        trace = raised.exception.trace
-        self.assertEqual(trace["status"], "error")
-        self.assertEqual(trace["rounds"][0]["tools"][0]["observation"]["error"], "JSONDecodeError")
-        self.assertEqual(trace["rounds"][1]["status"], "error")
-        self.assertEqual(trace["failure"]["stage"], "model_request")
-        self.assertIn("private server", trace["failure"]["causes"][0]["detail"])
-        self.assertNotIn("sk-testsecret", json.dumps(trace))
 
     def test_memory_and_history_arguments_and_results_are_visible_but_credentials_are_hidden(self):
         for name in ("recall_memory", "remember_memory", "forget_memory", "search_chat_history",
@@ -282,21 +128,6 @@ class QuoteTests(unittest.TestCase):
         for reply in [None, self.reply(group_id=88), self.reply(message_type="private")]:
             self.assertFalse(HANDLER.normalize_quoted_message(self.event(), reply)["available"])
         self.assertFalse(HANDLER.normalize_quoted_message(self.event(), self.reply(message_id=8))["available"])
-
-    def test_quote_is_visible_in_context_trace_but_not_saved_as_memory(self):
-        seen = []
-        quote = HANDLER.normalize_quoted_message(self.event(self.reply()))
-        def model(messages, **kwargs):
-            seen.extend(messages)
-            return {"content": "结论"}
-        with patch.object(MEMORY.instance, "load_active_chat_records", return_value=[]), \
-                patch.object(MEMORY.instance, "save_active_chat") as save:
-            result = CHAT.chat_process(user_text="分析引用", user_id="1", nickname="A", quoted_message=quote,
-                                       model_caller=model, tool_registry=Registry(), return_artifacts=True)
-        self.assertIn("这局表现如何", json.dumps(seen, ensure_ascii=False))
-        save.assert_called_once_with("1", "分析引用", "结论")
-        injected = result["trace"]["rounds"][0]["context_injection"]["context_messages"]
-        self.assertIn("这局表现如何", json.dumps(injected, ensure_ascii=False))
 
 
 class CollageTests(unittest.TestCase):
