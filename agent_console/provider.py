@@ -7,13 +7,33 @@ import httpx
 
 
 class DeepSeekModel:
-    def __init__(self, *, api_key, base_url, model, thinking=True, max_tokens=4096):
+    def __init__(
+        self,
+        *,
+        api_key,
+        base_url,
+        model,
+        thinking=True,
+        max_tokens=4096,
+        vision_model=None,
+        image_store=None,
+    ):
         self.api_key, self.base_url, self.model = api_key, base_url.rstrip("/"), model
         self.thinking, self.max_tokens = thinking, max_tokens
+        self.vision_model, self.image_store = vision_model or model, image_store
 
     async def complete(self, messages, tools, on_delta):
+        has_images = any(
+            isinstance(message.get("content"), list)
+            and any(part.get("type") == "image_url" for part in message["content"])
+            for message in messages
+        )
+        selected_model = self.vision_model if has_images else self.model
+        vision_context = {}
+        if self.image_store:
+            messages, vision_context = self.image_store.model_messages(messages)
         payload = {
-            "model": self.model,
+            "model": selected_model,
             "messages": messages,
             "stream": True,
             "stream_options": {"include_usage": True},
@@ -101,7 +121,8 @@ class DeepSeekModel:
             "message": message,
             "usage": usage,
             "finish_reason": finish,
-            "model": self.model,
+            "model": selected_model,
+            "vision_context": vision_context,
             "request_payload": payload,
             "response_payload": {"stream": True, "frames": frames},
         }

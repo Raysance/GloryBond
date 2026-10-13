@@ -17,6 +17,7 @@ local_debugger/.venv/bin/python -m agent_console
 ## 功能
 
 - 真实 DeepSeek 流式正文和 `reasoning_content`，同一工具链保持思考模式并续传原始思考字段。
+- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时使用 `LocalAgent.vision_model: deepseek-v4-flash`，同一 ReAct 循环继续调用工具并支持图片追问；纯文本继续使用服务器模型配置。官方将该旧名称路由到当前 Flash 模型，见 [官方模型说明](https://api-docs.deepseek.com/) 和 [图片输入文档](https://api-docs.deepseek.com/guides/vision/)。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。
 - 当前适配器强制先检索历史、再发现所需能力，避免模型把未披露工具误报为不可用。记忆由入口绑定当前会话调用者，保存本人偏好无需提供 QQ 或玩家名。
 - 统一参考数据能力：`references` 类别下的 `list_reference_catalogs` 和 `lookup_reference_data` 提供玩家多种 ID、昵称/别名、英雄名称、榜单参数、段位与表达映射；重复 QQ、同名和多账号关联保留全部关系。
@@ -40,6 +41,10 @@ local_debugger/.venv/bin/python -m agent_console
 `shared/agent/reference_data/manifest.json` 声明参考目录的源字段、ID 命名空间、用途和上下文投影。当前源为服务器 `config.yaml#StaticVariables`；也支持通过清单改为独立 `static_variable.json`。每次新请求、后台执行和参考工具调用均读取最新源，返回版本摘要。常用玩家昵称、别名与 QQ 映射进入上下文，完整营地/角色/Steam ID 通过工具查询。此目录与 SQL、记忆分别提供各自的数据，参考查询的 `dataset_id` 可在 Python 中与 SQL 数据集关联并绘图。
 
 服务只监听本机 loopback；请求校验 Host、Origin、本地会话 cookie 和写请求头。SSH 密钥、模型 key、DSN 不进入浏览器或新文件。运行记录保留完整输入和工具资料，因此本界面作为受信任的本地管理员控制台使用。
+
+原始输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表；不自动缩放或重编码。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用同一图片，刷新、重启后仍可预览与继续追问。外部适配器在发送模型请求时读取原始像素并转换为 data URL。包含图片的实际请求快照会显式标注 `image_payload_storage`，像素保存在独立原始文件，`GET /api/images/{id}` 可还原其字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。
+
+上传按实际内容检测格式、完整解码并校验文件大小、尺寸和像素数，API 同样执行数量与总大小限制。限制统一在 `LocalAgent.images`。默认每次模型调用最多读取 16 MiB 图片，优先保留当前及较新的图片，较早且超预算的图片替换为明确的缺失提示，`vision_context.omitted_history_images` 记录数量；不会把未提供的像素当作已看过。图片 token 包含在模型返回的输入 token 中，不另外估算叠加。
 
 外部适配器分别维护业务连接和状态连接：数据库/搜索/图片/沙箱走业务连接，对话、运行事件、记忆和任务走状态连接，避免慢业务调用阻塞定时通知。事件通过通用 `metadata` 标记后台来源；后台通知不覆盖正在输入或执行的前台聊天状态。
 
@@ -65,7 +70,8 @@ QQ 接入时以可信事件构造 `Principal`，把群号及经过验证的跨�
 
 ```bash
 local_debugger/.venv/bin/python -m unittest tests.test_agent_runtime tests.test_agent_console tests.test_agent_tasks_memory tests.test_reference_data tests.test_agent_roleplay tests.test_agent_plotting
-node --test tests/test_agent_usage.js
+local_debugger/.venv/bin/python -m unittest tests.test_agent_images
+node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 ```
 
 自动测试使用脚本模型，不调用付费服务。真实 SSH/SQL/Python/API 的检查在开发时手动完成，不接入启动或部署诊断。

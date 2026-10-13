@@ -68,6 +68,14 @@
       </div>
       <div class="composer-area">
         <form id="composer" class="composer">
+          <div id="image-attachments" class="image-attachments" hidden></div>
+          <input
+            id="image-input"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            hidden
+          />
           <textarea
             id="message-input"
             rows="2"
@@ -75,10 +83,21 @@
             aria-label="聊天消息"
           ></textarea>
           <div class="composer-bottom">
-            <div class="model-select">
-              <span class="model-dot"></span
-              ><span id="model-name">DeepSeek</span
-              ><span class="thinking-tag" id="thinking-tag">思考</span>
+            <div class="composer-controls">
+              <button
+                id="attach-images"
+                type="button"
+                class="attach-button"
+                disabled
+                aria-label="添加图片，也可粘贴或拖入"
+              >
+                ＋ 图片
+              </button>
+              <div class="model-select">
+                <span class="model-dot"></span
+                ><span id="model-name">DeepSeek</span
+                ><span class="thinking-tag" id="thinking-tag">思考</span>
+              </div>
             </div>
             <button id="send-button" type="submit" aria-label="发送消息">
               ↑</button

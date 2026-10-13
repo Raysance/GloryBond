@@ -474,6 +474,80 @@ textarea::placeholder {
   align-items: center;
   margin-top: 8px;
 }
+.composer-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.attach-button {
+  color: #7a879d;
+  font-size: 11px;
+  padding: 5px 0;
+}
+.attach-button:hover {
+  color: var(--blue);
+}
+.attach-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.composer.drop-target {
+  border-color: var(--blue);
+  background: #f7f9ff;
+}
+.image-attachments {
+  display: flex;
+  gap: 10px;
+  overflow: auto;
+  padding: 2px 0 13px;
+}
+.image-attachment {
+  position: relative;
+  flex: 0 0 82px;
+  width: 82px;
+}
+.image-attachment > img {
+  width: 82px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f2f4f8;
+}
+.attachment-caption {
+  display: block;
+  font-size: 9px;
+  color: #98a1b1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.remove-attachment {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border-radius: 50%;
+  color: white;
+  background: #263449a6;
+}
+.user-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.user-images img {
+  display: block;
+  width: min(220px, 44vw);
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+}
 .model-select {
   display: flex;
   gap: 7px;

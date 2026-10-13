@@ -152,10 +152,13 @@ class RemoteBridge:
 
 
 class RemoteState:
-    def __init__(self, bridge):
+    def __init__(self, bridge, event_projector=None):
         self.bridge = bridge
+        self.event_projector = event_projector
 
     async def append_event(self, session_id, event):
+        if self.event_projector:
+            event = self.event_projector(event)
         await self.bridge.call(
             "state_append", session_id=session_id, event=self.bridge.redact(event)
         )

@@ -450,7 +450,10 @@ def register_application_tools(registry, *, service, catalogs):
                 if spec.category != "core"
             }
         )
-        return "按任务需要披露能力。当前注册的能力类别：" + ", ".join(categories)
+        return (
+            "按任务需要披露工具。图片输入是模型的原生视觉能力，不需要额外读图工具；"
+            "images 类别提供图片生成。当前注册的工具类别：" + ", ".join(categories)
+        )
 
     for name, description, args, handler, category, scopes, timeout, effect in specs:
         registry.register(

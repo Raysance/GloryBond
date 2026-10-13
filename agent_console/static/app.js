@@ -9,6 +9,14 @@ const state = {
   seen: new Set(),
   ready: false,
   usage: AgentUsage.createTracker(),
+  attachments: [],
+  uploading: 0,
+  sending: false,
+  imageLimits: {
+    max_images: 4,
+    max_image_bytes: 4194304,
+    max_total_bytes: 8388608,
+  },
 };
 const toolNames = {
   discover_tools: "发现能力",
@@ -215,11 +223,13 @@ function sessions() {
 function running(value) {
   $("send-button").hidden = value;
   $("stop-button").hidden = !value;
-  $("send-button").disabled = !state.ready;
+  $("send-button").disabled = !state.ready || Boolean(state.uploading);
+  $("attach-images").disabled = !state.ready;
 }
 async function selectSession(id) {
   if (state.stream) state.stream.close();
   state.session = id;
+  clearAttachments();
   state.run = null;
   state.runs.clear();
   state.events = [];
@@ -328,9 +338,34 @@ function step(run, round) {
   run.steps.set(round, s);
   return s;
 }
-function userMessage(text) {
+function inputImageURL(image) {
+  const id =
+    image.id || image.url?.match(/^attachment:\/\/([a-f0-9]{32})$/)?.[1];
+  return id && /^[a-f0-9]{32}$/.test(id) ? "/api/images/" + id : null;
+}
+function userMessage(text, images = []) {
   const row = el("div", "user-message");
-  row.append(el("div", "user-bubble", text));
+  const bubble = el("div", "user-bubble");
+  if (text) bubble.append(el("div", "user-text", text));
+  if (images.length) {
+    const gallery = el("div", "user-images");
+    for (const image of images) {
+      const source = inputImageURL(image);
+      if (!source) continue;
+      const a = el("a");
+      a.href = source;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      const img = el("img");
+      img.src = source;
+      img.alt = image.name || "输入图片";
+      img.loading = "lazy";
+      a.append(img);
+      gallery.append(a);
+    }
+    bubble.append(gallery);
+  }
+  row.append(bubble);
   $("messages").append(row);
 }
 function jsonBlock(container, label, data) {
@@ -502,7 +537,7 @@ function consume(event) {
     refreshRoles().catch((e) => error(e.message));
   if (event.kind === "run.start") {
     const background = event.metadata?.origin === "background";
-    if (!background) userMessage(d.message);
+    if (!background) userMessage(d.message, d.images || []);
     $("welcome").hidden = true;
     if (!background) {
       state.run = event.run_id;
@@ -524,6 +559,8 @@ function consume(event) {
       run.draft.textContent += d.text;
     }
   } else if (event.kind === "model.response") {
+    if (state.run === event.run_id && d.model)
+      $("model-name").textContent = d.model;
     const s = step(run, d.round);
     s.text.textContent = d.message.reasoning_content || "";
     s.thought.hidden = !d.message.reasoning_content;
@@ -635,11 +672,21 @@ function switchTab(tab) {
 }
 async function send() {
   const message = $("message-input").value.trim();
-  if (!message || state.run || !state.ready) return;
+  if (
+    (!message && !state.attachments.length) ||
+    state.run ||
+    state.sending ||
+    state.uploading ||
+    !state.ready
+  )
+    return;
+  const sentImages = state.attachments.slice();
+  const session = state.session;
+  state.sending = true;
   $("error-banner").hidden = true;
   const current = state.sessions.find((x) => x.id === state.session);
   if (current.title === "新会话") {
-    current.title = message.slice(0, 22);
+    current.title = message.slice(0, 22) || "图片对话";
     save();
     sessions();
     $("session-title").textContent = current.title;
@@ -649,15 +696,153 @@ async function send() {
   try {
     const r = await api("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ session_id: state.session, message }),
+      body: JSON.stringify({
+        session_id: session,
+        message,
+        image_ids: sentImages.map((image) => image.id),
+      }),
     });
-    state.run = r.run_id;
+    if (state.session === session) {
+      state.run = state.runs.get(r.run_id)?.ended ? null : r.run_id;
+      for (const image of sentImages) removeAttachment(image);
+      running(Boolean(state.run));
+    }
   } catch (e) {
     error(e.message);
-    running(false);
-    $("message-input").value = message;
+    if (state.session === session) {
+      running(false);
+      if (!$("message-input").value) $("message-input").value = message;
+    }
+  } finally {
+    state.sending = false;
   }
 }
+function renderAttachments() {
+  const container = $("image-attachments");
+  container.replaceChildren();
+  container.hidden = !state.attachments.length;
+  for (const image of state.attachments) {
+    const card = el("div", "image-attachment");
+    const img = el("img");
+    img.src = image.preview || inputImageURL(image);
+    img.alt = image.name;
+    const caption = el(
+      "span",
+      "attachment-caption",
+      image.uploading ? "上传中" : image.name,
+    );
+    const remove = el("button", "remove-attachment", "×");
+    remove.type = "button";
+    remove.setAttribute("aria-label", "移除图片 " + image.name);
+    remove.onclick = () => removeAttachment(image);
+    card.append(img, caption, remove);
+    container.append(card);
+  }
+  $("send-button").disabled = !state.ready || Boolean(state.uploading);
+  if (state.textModel)
+    $("model-name").textContent = state.attachments.length
+      ? state.visionModel
+      : state.textModel;
+}
+function removeAttachment(image) {
+  state.attachments = state.attachments.filter((item) => item !== image);
+  if (image.preview) {
+    URL.revokeObjectURL(image.preview);
+    image.preview = null;
+  }
+  renderAttachments();
+}
+function clearAttachments() {
+  for (const image of state.attachments)
+    if (image.preview) URL.revokeObjectURL(image.preview);
+  state.attachments = [];
+  renderAttachments();
+}
+async function uploadImages(files) {
+  if (!state.ready) return;
+  for (const file of files) {
+    try {
+      if (state.attachments.length >= state.imageLimits.max_images)
+        throw Error("最多附加 " + state.imageLimits.max_images + " 张图片");
+      if (
+        !/^image\/(png|jpeg|webp|gif)$/i.test(file.type) &&
+        !(file.type === "" && /\.(png|jpe?g|webp|gif)$/i.test(file.name))
+      )
+        throw Error("仅支持 PNG、JPEG、WebP 和 GIF");
+      if (file.size > state.imageLimits.max_image_bytes)
+        throw Error(
+          "单张图片不能超过 " +
+            (state.imageLimits.max_image_bytes / 1048576).toFixed(0) +
+            " MB",
+        );
+      const total =
+        state.attachments.reduce((n, image) => n + image.bytes, 0) + file.size;
+      if (total > state.imageLimits.max_total_bytes)
+        throw Error("本次图片总大小超过限制");
+      const image = {
+        name: file.name,
+        bytes: file.size,
+        preview: URL.createObjectURL(file),
+        uploading: true,
+      };
+      state.attachments.push(image);
+      state.uploading++;
+      renderAttachments();
+      try {
+        const result = await api(
+          "/api/images?name=" + encodeURIComponent(file.name),
+          {
+            method: "POST",
+            body: file,
+            headers: {
+              "Content-Type": file.type || "application/octet-stream",
+            },
+          },
+        );
+        Object.assign(image, result, { uploading: false });
+      } catch (e) {
+        removeAttachment(image);
+        throw e;
+      } finally {
+        state.uploading--;
+        renderAttachments();
+      }
+    } catch (e) {
+      error(e.message);
+    }
+  }
+}
+$("attach-images").onclick = () => $("image-input").click();
+$("image-input").onchange = (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  uploadImages(files);
+};
+$("message-input").addEventListener("paste", (e) => {
+  const files = [...e.clipboardData.files].filter((file) =>
+    file.type.startsWith("image/"),
+  );
+  if (files.length) {
+    if (!e.clipboardData.getData("text/plain")) e.preventDefault();
+    uploadImages(files);
+  }
+});
+$("composer").addEventListener("dragover", (e) => {
+  if ([...e.dataTransfer.types].includes("Files")) {
+    e.preventDefault();
+    $("composer").classList.add("drop-target");
+  }
+});
+$("composer").addEventListener("dragleave", () =>
+  $("composer").classList.remove("drop-target"),
+);
+$("composer").addEventListener("drop", (e) => {
+  $("composer").classList.remove("drop-target");
+  if (e.dataTransfer.files.length) {
+    e.preventDefault();
+    uploadImages([...e.dataTransfer.files]);
+  }
+});
 $("composer").onsubmit = (e) => {
   e.preventDefault();
   send();
@@ -814,6 +999,11 @@ async function init() {
   try {
     const s = await api("/api/status");
     state.ready = true;
+    state.textModel = s.model;
+    state.visionModel = s.vision_model || s.model;
+    state.imageLimits = s.image_limits || state.imageLimits;
+    $("attach-images").title =
+      "选择、粘贴或拖入图片 · 最多 " + state.imageLimits.max_images + " 张";
     document.body.classList.add("connected");
     $("model-name").textContent = s.model;
     $("thinking-tag").textContent = s.thinking ? "思考" : "";

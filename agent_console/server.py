@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import yaml
 
 from agent_runtime import AgentRuntime, RunRequest, ToolRegistry
@@ -26,6 +26,7 @@ from .capabilities import (
     reference_prompt,
 )
 from .provider import DeepSeekModel
+from .image_inputs import ImageLimits, ImageStore
 from .remote import RemoteBridge, RemoteState
 from .roleplay import RoleplayService
 from .identity import local_principal
@@ -33,12 +34,15 @@ from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
 
 
 class EventBroker:
-    def __init__(self, bridge):
+    def __init__(self, bridge, event_projector=None):
         self.bridge = bridge
+        self.event_projector = event_projector
         self.events = {}
         self.condition = asyncio.Condition()
 
     async def publish(self, event):
+        if self.event_projector:
+            event = self.event_projector(event)
         clean = self.bridge.redact(event)
         async with self.condition:
             self.events.setdefault(event["session_id"], []).append(clean)
@@ -47,7 +51,14 @@ class EventBroker:
 
 class ChatInput(BaseModel):
     session_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,80}$")
-    message: str = Field(min_length=1, max_length=12000)
+    message: str = Field(default="", max_length=12000)
+    image_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def nonempty(self):
+        if not self.message.strip() and not self.image_ids:
+            raise ValueError("请提供文字或图片")
+        return self
 
 
 def create_app(*, config_path=None):
@@ -59,6 +70,9 @@ def create_app(*, config_path=None):
     shared = root / "shared/agent"
     public = {}
     active_sessions = {}
+    image_store = ImageStore(
+        root / "file_transfer/agent_inputs", ImageLimits(**config.get("images", {}))
+    )
 
     @asynccontextmanager
     async def lifespan(app):
@@ -79,6 +93,8 @@ def create_app(*, config_path=None):
                 model=public["model"],
                 thinking=config.get("thinking", True),
                 max_tokens=config.get("max_tokens", 4096),
+                vision_model=config.get("vision_model", public["model"]),
+                image_store=image_store,
             )
             registry = ToolRegistry()
             catalogs = load_catalogs(shared)
@@ -98,8 +114,8 @@ def create_app(*, config_path=None):
                 public["references"], config.get("player_key", "example_user_10")
             )
             public["identity"] = app.state.principal.attributes["identity"]
-            state = RemoteState(state_bridge)
-            broker = EventBroker(bridge)
+            state = RemoteState(state_bridge, event_projector=image_store.project_event)
+            broker = EventBroker(bridge, event_projector=image_store.project_event)
             runtime = AgentRuntime(
                 model=model,
                 registry=registry,
@@ -205,11 +221,33 @@ def create_app(*, config_path=None):
         return {
             **public,
             "thinking": config.get("thinking", True),
+            "vision_model": config.get("vision_model", public.get("model")),
+            "image_limits": vars(image_store.limits),
             "tools": [
                 {"name": t.name, "category": t.category, "description": t.description}
                 for t in app.state.runtime.registry.tools.values()
             ],
         }
+
+    @app.post("/api/images")
+    async def upload_image(request: Request, name: str = "图片"):
+        data = bytearray()
+        async for chunk in request.stream():
+            if len(data) + len(chunk) > image_store.limits.max_image_bytes:
+                raise HTTPException(413, "图片超过单张大小限制")
+            data.extend(chunk)
+        try:
+            return image_store.save(bytes(data), name)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.get("/api/images/{image_id}")
+    async def input_image(image_id: str):
+        try:
+            info, data = image_store.load(image_id)
+            return Response(data, media_type=info["mime"])
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
     @app.get("/api/sessions/{session_id}")
     async def session(session_id: str):
@@ -264,12 +302,18 @@ def create_app(*, config_path=None):
     async def chat(body: ChatInput):
         if body.session_id in active_sessions:
             raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
-        prompt = await app.state.current_prompt(query=body.message)
+        try:
+            images = image_store.inputs(body.image_ids)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        message = body.message.strip() or "请分析这些图片。"
+        prompt = await app.state.current_prompt(query=message)
         principal = app.state.principal
         if body.session_id in active_sessions:
             raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
         request = RunRequest(
-            user_message=body.message,
+            user_message=message,
+            images=images,
             conversation_id=body.session_id,
             principal=principal,
             system_prompt=prompt,
