@@ -104,7 +104,8 @@ class TraceTests(unittest.TestCase):
         with patch.object(FUNC.dmc.redis_deamon, "set", return_value=True) as save:
             url = FUNC.chat_publish_trace(trace)
         token = url.rsplit("=", 1)[1]
-        self.assertRegex(token, r"^[a-f0-9]{48}$")
+        self.assertRegex(token, r"^[a-f0-9]{16}$")
+        self.assertEqual(save.call_args.args[0], FUNC.REDIS_KEY_WEB_ARTIFACT_PREFIX + token)
         self.assertIn("/chat-trace?key=", url)
         self.assertEqual(save.call_args.kwargs["ex"], 604800)
         with patch.object(FUNC.dmc.redis_deamon, "set", return_value=False):

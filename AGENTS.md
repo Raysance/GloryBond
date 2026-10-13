@@ -36,7 +36,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `zevent.f_chat()` await `zfunc.agent_chat()`；所有分段输出、最终答案和后台通知由注入的 QQOutput 发往 `utils/message_sender.add_chat_result_msg(destination=...)`，入口不再重复发送最终结果。后台目的地与身份在创建任务时绑定。
 - QQ 回复保留详细事实底稿和角色群聊版，默认发送群聊版，明确请求详细/完整内容时发送详细版。两版都通过 `normalize_qq_text()` 与 `format_chat_reply()` 清理 Markdown 和内部玩家/身份标识；图表标签与正文使用配置昵称。直接对话历史仅保存实际发送的一个版本。阶段性 `emit_message` 独立入队。
 - QQOutput 将内核模型/工具事件、真实 payload、两个回复版本和用量投影为现有 `chat_trace` v1；失败保留已完成 observation。原始事件与图片引用另外持久保存到 `log/qq_agent/<会话>/runs/<run_id>.jsonl` 和 `dialogue.jsonl`，不记录 HTTP headers，凭据脱敏。输入原图默认保存在非公开 `data/agent_inputs/`；日志和原图不进 Git 或部署包。
-- `zfunc.chat_prepare_reply()` 合并图表并发布运行记录；合图失败保留原图，发布失败保留正常回答。`zfile.combine_chat_plot_images()` 默认两列合图。`chat_publish_trace()` 继续写 DB0 `hok:web:artifact:<48位随机hex>`，TTL 默认 7 天，网页 `/chat-trace?key=...` 使用原有契约；输出 PNG 为 `chat_plot_<32位hex>.png`，遵守现有产物清理周期。
+- `zfunc.chat_prepare_reply()` 合并图表并发布运行记录；合图失败保留原图，发布失败保留正常回答。`zfile.combine_chat_plot_images()` 默认两列合图。`chat_publish_trace()` 使用共享 `WebArtifacts.make_hash()` 生成 16 位随机 hex，写 DB0 `hok:web:artifact:<token>`，TTL 默认 7 天；网页 `/chat-trace?key=...` 接受新 16 位 key，已有 48 位链接保留至自然过期。输出 PNG 为 `chat_plot_<32位hex>.png`，遵守现有产物清理周期。
 - QQAgent 预算与输入/输出规则统一来自 `config.yaml#QQAgent`；默认 10 轮、16 次工具、300 秒、4 张输入图片。工具执行仍要求每个调用产生 observation，渐进披露与授权由共享注册表控制。
 
 ### 1.1 Tools（`hok/tools/`）

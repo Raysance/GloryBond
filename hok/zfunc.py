@@ -561,11 +561,10 @@ def agent_register_tool(**spec):
 
 def chat_publish_trace(trace, artifacts=()):
     """Publish the sanitized execution record with a random, expiring bearer link."""
-    import secrets
     from .business.chat_trace import public_value
     from .zfile import chat_plot_public_path
 
-    token = secrets.token_hex(24)
+    token = WebArtifacts.make_hash()
     payload = public_value(trace, secrets=(chat_api_config.get("api_key"), chat_readonly_dsn))
     payload["artifacts"] = [
         {"artifact_id": str(item.get("artifact_id", "")), "url": url}
