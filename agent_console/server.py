@@ -17,7 +17,9 @@ from pydantic import BaseModel, Field, model_validator
 import yaml
 from dotenv import dotenv_values
 
-from agent_runtime import AgentRuntime, RunRequest, ToolRegistry
+from agent_runtime import AgentRuntime, RunRequest
+from .tools.diagnostics import DiagnosticToolRegistry
+from .tool_errors import redact_error
 from .tasks import TaskScheduler
 from .tools.application import register_application_tools
 from .capabilities import (
@@ -136,7 +138,7 @@ def create_app(*, config_path=None):
                 max_tokens=config.get("max_tokens", 4096),
                 image_store=image_store,
             )
-            registry = ToolRegistry()
+            registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(state_bridge.redact(bridge.redact(value))))
             catalogs = load_catalogs(shared, recent_limits=public.get("recent_history_limits"),
                                      kpl_config=public.get("kpl_config"))
             catalogs["references"] = public["references"]["directory"]

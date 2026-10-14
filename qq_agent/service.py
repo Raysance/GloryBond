@@ -7,7 +7,9 @@ import re
 import sys
 import httpx
 
-from agent_runtime import AgentRuntime, Budget, FinalAnswer, Principal, RunRequest, ToolRegistry
+from agent_runtime import AgentRuntime, Budget, FinalAnswer, Principal, RunRequest
+from agent_console.tools.diagnostics import DiagnosticToolRegistry
+from agent_console.tool_errors import redact_error
 from agent_console.capabilities import Capabilities, Clock, application_prompt, load_catalogs, reference_prompt
 from agent_console.identity import LOCAL_SCOPES
 from agent_console.image_inputs import ImageLimits, ImageStore
@@ -107,7 +109,7 @@ class QQAgentService:
                 self.catalogs["references"] = self.public["references"]["directory"]
                 self.local_log = LocalEventLog(self.root / self.config.get("log_directory", "log/qq_agent"), redactor=self.bridge.redact)
                 service = Capabilities(self.bridge, self.state_bridge)
-                registry = ToolRegistry()
+                registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(self.state_bridge.redact(self.bridge.redact(value))))
                 register_application_tools(registry, service=service, catalogs=self.catalogs)
                 if self.member_profile_reader is not None:
                     register_member_profile_tool(registry, reader=self.member_profile_reader,

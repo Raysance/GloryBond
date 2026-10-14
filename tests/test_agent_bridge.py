@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from fastapi.testclient import TestClient
 
 from agent_console.remote import BridgeUnavailable, RemoteBridge
+from agent_console.tool_errors import RemoteToolError
 from agent_console.server import create_app
 
 
@@ -33,7 +34,13 @@ for line in sys.stdin:
         print('invalid JSON', flush=True)
         continue
     elif op == 'reject':
-        print(json.dumps({'ok': False, 'error': 'rejected test-secret'}), flush=True)
+        print(json.dumps({'ok': False, 'error': 'rejected test-secret', 'type': 'ValueError',
+            'error_details': {'phase': 'worker_dispatch', 'operation': op, 'error_type': 'ValueError',
+                              'message': 'rejected test-secret',
+                              'causes': [{'error_type': 'KeyError', 'message': 'cause test-secret'}]}}), flush=True)
+        continue
+    elif op == 'reject_legacy':
+        print(json.dumps({'ok': False, 'error': 'old rejection', 'type': 'ValueError'}), flush=True)
         continue
     elif op == 'health':
         data = {'connected': True}
@@ -109,14 +116,22 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.bridge.spawns, 1)
 
     async def test_bad_protocol_resets_but_application_rejection_does_not(self):
-        with self.assertRaisesRegex(RuntimeError, r'rejected \[redacted\]'):
+        with self.assertRaisesRegex(RemoteToolError, r'rejected \[redacted\]') as failure:
             await self.bridge.call('reject')
+        self.assertEqual(failure.exception.error_details['error_type'], 'ValueError')
+        self.assertEqual(failure.exception.error_details['causes'][0]['message'], 'cause [redacted]')
         self.assertEqual((await self.bridge.call('read'))['pid'], self.bridge.process.pid)
         self.assertEqual(self.bridge.spawns, 1)
         with self.assertRaises(BridgeUnavailable):
             await self.bridge.call('invalid_reply')
         await self.bridge.call('read')
         self.assertEqual(self.bridge.spawns, 2)
+
+    async def test_old_worker_failures_keep_type_and_operation(self):
+        with self.assertRaises(RemoteToolError) as failure:
+            await self.bridge.call('reject_legacy')
+        self.assertEqual(failure.exception.error_details['error_type'], 'ValueError')
+        self.assertEqual(failure.exception.error_details['operation'], 'reject_legacy')
 
     async def test_closed_bridge_does_not_restart_until_explicit_start(self):
         await self.bridge.close()

@@ -62,6 +62,9 @@ def extracted_functions(path, names, namespace):
 
 
 def bootstrap(args):
+    reporting = {}
+    exec(compile(args["error_reporting"], "portable_tool_errors", "exec"), reporting)
+    CONTEXT["error_reporting"] = reporting
     root = Path(args["root"])
     process_env = dict(os.environ) if args.get("use_process_environment") else {}
     if not args.get("use_process_environment"):
@@ -83,6 +86,7 @@ def bootstrap(args):
     cfg = yaml.safe_load(cfg_path.read_text())
     env = dict(dotenv_values(process_env.get("HOK_ENV_FILE") or root / ".env"))
     env.update(process_env)
+    CONTEXT["env"] = env
     namespace = {"urlparse": urlparse}
     extracted_functions(
         root / "hok/zstatic.py",
@@ -360,7 +364,7 @@ def analyze(args):
     limits = CONTEXT["cfg"].get("AgentSQL", {})
     row_limit = min(500, limits.get("max_rows", 200))
     with db_connection(scope) as conn:
-        for query, sql in zip(args["queries"], normalized):
+        for query_index, (query, sql) in enumerate(zip(args["queries"], normalized)):
             try:
                 with conn.transaction():
                     with conn.cursor(name="agent_" + uuid4().hex) as cur:
@@ -400,11 +404,14 @@ def analyze(args):
                             }
                         )
             except Exception as exc:
+                details = worker_error_details(exc, phase="sql_execute", operation="sql")
+                details["query_index"] = query_index
                 results.append(
                     {
                         "ok": False,
                         "intent": query.get("intent"),
-                        "error": str(exc)[:1500],
+                        "error": details["message"],
+                        "error_details": details,
                     }
                 )
     return {"observations": results, "catalog_version": catalog["version"]}
@@ -652,9 +659,10 @@ def sandbox(args):
             stderr.seek(0)
             out, err = stdout.read(5000), stderr.read(8000)
         if proc.returncode:
-            raise RuntimeError(
-                "隔离 Python 失败：" + err.decode(errors="replace")[-1800:]
-            )
+            error = RuntimeError("隔离 Python 失败，请根据 stderr 的异常和行号修正代码")
+            error.stderr = err.decode(errors="replace")[-4000:]
+            error.exit_code = proc.returncode
+            raise error
         result_path = Path(work) / "result.json"
         value = (
             json.loads(result_path.read_text())
@@ -909,20 +917,33 @@ def dispatch(args):
     raise ValueError("未知适配器操作")
 
 
+def worker_error_details(exc, *, phase, operation=None):
+    reporting = CONTEXT.get("error_reporting")
+    secrets = [v for v in CONTEXT.get("env", {}).values() if isinstance(v, str) and len(v) > 12]
+    if reporting:
+        return reporting["exception_details"](exc, phase=phase, operation=operation,
+            redactor=lambda value: reporting["redact_error"](value, secrets))
+    # Invalid initial RPCs can fail before diagnostic code is bootstrapped.
+    message = str(exc)
+    for secret in secrets:
+        message = message.replace(secret, "[redacted]")
+    return {"phase": phase, "operation": operation, "error_type": type(exc).__name__,
+            "message": message[:1200], "retryable": False}
+
+
 def main():
     wire = sys.stdout
     for line in sys.stdin:
+        args = {}
         try:
             args = json.loads(line)
             with contextlib.redirect_stdout(sys.stderr):
                 result = dispatch(args)
             response = {"ok": True, "data": result}
         except Exception as exc:
-            error = str(exc)
-            for value in CONTEXT.get("env", {}).values():
-                if isinstance(value, str) and len(value) > 12:
-                    error = error.replace(value, "[redacted]")
-            response = {"ok": False, "error": error[:1800], "type": type(exc).__name__}
+            details = worker_error_details(exc, phase="worker_dispatch", operation=args.get("op") if isinstance(args, dict) else None)
+            response = {"ok": False, "error": details["message"], "type": type(exc).__name__,
+                        "error_details": details}
         wire.write(
             json.dumps(response, ensure_ascii=False, default=json_default) + "\n"
         )

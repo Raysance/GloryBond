@@ -197,6 +197,7 @@ def register_application_tools(registry, *, service, catalogs):
             error=None
             if all(item.get("ok") for item in data["observations"])
             else "部分查询执行失败",
+            code=None if all(item.get("ok") for item in data["observations"]) else "PARTIAL_TOOL_ERROR",
         )
 
     async def game_sql(args, ctx):

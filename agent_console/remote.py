@@ -7,9 +7,15 @@ from pathlib import Path
 import shlex
 import yaml
 
+from .tool_errors import RemoteToolError, exception_details, redact_error
+
 
 class BridgeUnavailable(ConnectionError):
     """Transport or health failure suitable for an HTTP 503 response."""
+
+    def __init__(self, message, *, error_details=None):
+        super().__init__(message)
+        self.error_details = error_details
 
 
 class RemoteBridge:
@@ -67,6 +73,7 @@ class RemoteBridge:
             root=self.root, catalogs=catalogs, definitions=definitions,
             validator=validator.read_text(),
             memory_tools=(Path(__file__).with_name("tools") / "memory.py").read_text(),
+            error_reporting=Path(__file__).with_name("tool_errors.py").read_text(),
             kpl_catalog=json.loads((self.shared_path / "kpl/catalog.json").read_text()),
             kpl_client=Path(__file__).with_name("kpl_client.py").read_text(),
             kpl_config=self.kpl_config if self.kpl_config is not None else yaml.safe_load(
@@ -119,7 +126,10 @@ class RemoteBridge:
             self.config = await self._request_locked("bootstrap", **self._bootstrap_args)
         except Exception as exc:
             await self._stop_worker_locked()
-            raise BridgeUnavailable("远程数据连接暂不可用，请稍后重试。") from exc
+            details = exception_details(exc, phase="rpc_connect", operation="bootstrap",
+                                        redactor=lambda v: redact_error(v, self.secrets))
+            details["outcome_unknown"] = False
+            raise BridgeUnavailable("远程数据连接暂不可用，请稍后重试。", error_details=details) from exc
         private_values = [
             value
             for value in self.config.get("private", {}).values()
@@ -191,11 +201,22 @@ class RemoteBridge:
         except (OSError, EOFError, TimeoutError, ValueError) as exc:
             # Discard the stream: a late reply must never become the next result.
             await self._stop_worker_locked()
+            details = exception_details(exc, phase="rpc_transport", operation=op,
+                                        redactor=lambda v: redact_error(v, self.secrets))
+            details.update(outcome_unknown=True, retryable=False,
+                           recovery="请求可能已执行，未自动重放；先检查记录或状态再决定是否重试。")
             raise BridgeUnavailable(
-                "远程连接中断，本次操作结果未确认，未自动重试；请刷新查看记录后再决定是否重试。"
+                "远程连接中断，本次操作结果未确认，未自动重试；请刷新查看记录后再决定是否重试。",
+                error_details=details,
             ) from exc
         if not payload["ok"]:
-            raise RuntimeError(self.redact(payload.get("error", "远程操作失败")))
+            message = redact_error(payload.get("error", "远程操作失败"), self.secrets)
+            details = payload.get("error_details")
+            if not isinstance(details, dict):
+                details = {"phase": "worker_dispatch", "operation": op,
+                           "error_type": payload.get("type", "RemoteError"), "message": message,
+                           "retryable": False, "recovery": "检查工具参数和远程服务状态后再调用。"}
+            raise RemoteToolError(message, redact_error(details, self.secrets))
         return payload.get("data")
 
     async def _stop_worker_locked(self):

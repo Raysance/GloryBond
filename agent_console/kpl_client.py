@@ -7,6 +7,12 @@ from urllib.parse import urlencode, urlsplit
 import requests
 
 
+class KPLHTTPError(ValueError):
+    def __init__(self, status):
+        super().__init__(f"KPL 网站返回 HTTP {status}，未取得数据")
+        self.status_code = status
+
+
 def validate_kpl_config(config):
     keys = {"enabled", "api_base_url", "site_url", "timeout_seconds", "max_response_bytes",
             "max_rows", "max_nested_items", "max_observation_chars"}
@@ -142,7 +148,7 @@ def query_kpl_data(catalog, config, args, *, transport=None):
             with request(url, params=query, timeout=config["timeout_seconds"], stream=True,
                          allow_redirects=False, headers={"Accept": "application/json", "Accept-Encoding": "identity"}) as response:
                 if response.status_code != 200:
-                    raise ValueError(f"KPL 网站返回 HTTP {response.status_code}，未取得数据")
+                    raise KPLHTTPError(response.status_code)
                 if "json" not in response.headers.get("Content-Type", "").lower():
                     raise ValueError("KPL 网站返回非 JSON 内容，未取得数据")
                 raw = bytearray()
@@ -200,7 +206,8 @@ def query_kpl_data(catalog, config, args, *, transport=None):
         rows = data if isinstance(data, list) else [data]
         available = {key for row in rows if isinstance(row, dict) for key in row}
         if any(not isinstance(row, dict) for row in rows) or (rows and set(fields) - available):
-            raise ValueError("KPL fields 包含不存在的字段，请采用返回数据中的字段名")
+            unknown = sorted(set(fields) - available)
+            raise ValueError(f"KPL fields 包含不存在的字段 {unknown}；本次可用字段：{sorted(available)}")
         projected = [{name: row.get(name) for name in fields} for row in rows]
         data = projected if isinstance(data, list) else projected[0]
     if len(json.dumps(data, ensure_ascii=False)) > config["max_observation_chars"]:

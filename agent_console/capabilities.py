@@ -125,6 +125,9 @@ def remote_chat_identity(principal):
 def application_prompt():
     return (
         "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
+        "工具失败时读取error、code和data.error_details，以及批量查询各observation的error_details；"
+        "依据错误类型、失败阶段、底层原因和诊断字段有限修复，不能原样反复重试。"
+        "retryable仅说明读取故障是否可重试；OUTCOME_UNKNOWN或写操作必须先核对状态，禁止自动重放。"
         "用户询问机器人自身的功能、特性或命令用法时，发现bot_info并调用read_bot_manual，优先少量相关章节；"
         "KPL职业联赛、赛事赛程、比赛/BP、队伍/选手/英雄统计与积分榜优先发现kpl，使用query_kpl读取kplll.online数据；"
         "先从赛事/对象目录确认本网站ID和年份范围，不把个人游戏SQL、营地ID或B站cid当作KPL小助手标识。"
