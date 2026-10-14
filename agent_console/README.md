@@ -12,6 +12,8 @@ local_debugger/.venv/bin/python -m agent_console
 
 然后打开 http://127.0.0.1:8765/ 。首次缺少环境时，先执行 `python3 local_debugger/setup_env.py`。端口可用 `--port` 覆盖，其他非密钥设置在根 `config.yaml` 的 `LocalAgent`。
 
+本地 Web 当前通过 `LocalAgent.llm` 使用 `https://zenmux.ai/api/v1`，文字使用 `deepseek/deepseek-v4-flash`，图片使用支持视觉输入的 `deepseek/deepseek-v4.1-flash`。密钥只放在现有 `.env` 的 `LLM_API_KEY`；`api_key_env` 保存该变量名，进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。ReAct、回复整理和联网角色生成使用相同本地端点，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接，QQ 的 ChatAPI 配置不变。未提供本地密钥时拒绝启动，不回退发送服务器密钥。删除 `LocalAgent.llm` 并重启即可恢复原服务器模型配置。
+
 首次克隆先运行 `git submodule update --init --recursive`。需要已配置并能免交互连接的 `ssh Aliyun`。启动时通过 SSH 读取运行中的服务器配置和 API 源码，不上传项目、不部署 HTTP 服务、不修改数据库 schema。模型在本地直连 DeepSeek；查询、记忆、搜索、图片及 Python 执行通过外部 SSH 适配器调用。
 
 ## 功能
@@ -98,6 +100,7 @@ local_debugger/.venv/bin/python -m unittest tests.test_agent_images
 local_debugger/.venv/bin/python -m unittest tests.test_agent_finalization tests.test_agent_replies
 local_debugger/.venv/bin/python -m unittest tests.test_agent_local_logs
 local_debugger/.venv/bin/python -m unittest tests.test_agent_bridge
+local_debugger/.venv/bin/python -m unittest tests.test_agent_local_model
 node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 ```
 

@@ -4,6 +4,7 @@ import asyncio
 import base64
 from contextlib import asynccontextmanager
 import json
+import os
 from pathlib import Path
 import secrets
 import traceback
@@ -14,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, model_validator
 import yaml
+from dotenv import dotenv_values
 
 from agent_runtime import AgentRuntime, RunRequest, ToolRegistry
 from .tasks import TaskScheduler
@@ -67,6 +69,29 @@ class ChatInput(BaseModel):
         return self
 
 
+def local_model_settings(config, remote, *, environment):
+    """Resolve only Web credentials; an endpoint override never reuses a remote key."""
+    overrides = config.get("llm")
+    if not overrides:
+        return {
+            "api_key": remote["private"]["api_key"],
+            "base_url": remote["public"]["base_url"],
+            "model": remote["public"]["model"],
+            "vision_model": config.get("vision_model", remote["public"]["model"]),
+        }
+    base_url, key_name = overrides.get("base_url"), overrides.get("api_key_env")
+    if not base_url or not key_name:
+        raise ValueError("LocalAgent.llm 必须同时配置 base_url 和 api_key_env")
+    key = environment.get(key_name)
+    if not key:
+        raise ValueError(f"本地模型密钥未配置：{key_name}")
+    model = overrides.get("model", remote["public"]["model"])
+    return {
+        "api_key": key, "base_url": base_url, "model": model,
+        "vision_model": overrides.get("vision_model", model),
+    }
+
+
 def create_app(*, config_path=None):
     root = Path(__file__).resolve().parents[1]
     config = yaml.safe_load(Path(config_path or root / "config.yaml").read_text()).get(
@@ -93,13 +118,18 @@ def create_app(*, config_path=None):
             remote = await bridge.start()
             await state_bridge.start()
             public.update(remote["public"])
+            model_settings = local_model_settings(config, remote, environment={
+                **dotenv_values(os.environ.get("HOK_ENV_FILE") or root / ".env"),
+                **os.environ,
+            })
+            for connection in (bridge, state_bridge):
+                if model_settings["api_key"] not in connection.secrets:
+                    connection.secrets.append(model_settings["api_key"])
+            public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model")})
             model = DeepSeekModel(
-                api_key=remote["private"]["api_key"],
-                base_url=public["base_url"],
-                model=public["model"],
+                **model_settings,
                 thinking=config.get("thinking", True),
                 max_tokens=config.get("max_tokens", 4096),
-                vision_model=config.get("vision_model", public["model"]),
                 image_store=image_store,
             )
             registry = ToolRegistry()
@@ -116,9 +146,7 @@ def create_app(*, config_path=None):
             )
             register_roleplay_tools(registry, roles)
             reply_model = DeepSeekModel(
-                api_key=remote["private"]["api_key"],
-                base_url=public["base_url"],
-                model=public["model"],
+                **model_settings,
                 thinking=False,
                 max_tokens=config.get("max_tokens", 4096),
                 response_format={"type": "json_object"},
@@ -259,7 +287,7 @@ def create_app(*, config_path=None):
             **public,
             "connections": {"business": connections[0], "state": connections[1]},
             "thinking": config.get("thinking", True),
-            "vision_model": config.get("vision_model", public.get("model")),
+            "vision_model": public.get("vision_model", config.get("vision_model", public.get("model"))),
             "image_limits": vars(image_store.limits),
             "local_logging": app.state.local_log.status,
             "tools": [
