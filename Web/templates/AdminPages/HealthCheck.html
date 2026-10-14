@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统健康诊断</title>
+    <style>
+        :root { color-scheme: light; --bg:#f8fafc; --card:#fff; --text:#172033; --muted:#64748b; --line:#dbe3ee; --blue:#3578e5; --green:#16835f; --red:#c43d4b; --amber:#ad6a00; }
+        * { box-sizing: border-box; }
+        body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        main { width:min(920px,calc(100% - 32px)); margin:40px auto; }
+        header { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:22px; }
+        h1 { margin:0 0 8px; font-size:28px; }
+        p { color:var(--muted); line-height:1.65; margin:0; }
+        a { color:var(--blue); text-decoration:none; }
+        .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:0 8px 28px rgba(30,50,80,.06); }
+        .actions { display:flex; gap:12px; align-items:center; margin:20px 0; }
+        button { border:0; border-radius:10px; padding:11px 18px; background:var(--blue); color:white; font-size:15px; font-weight:650; cursor:pointer; }
+        button:disabled { opacity:.55; cursor:wait; }
+        .hint { font-size:13px; color:var(--muted); }
+        .summary { display:none; border-radius:12px; padding:14px 16px; margin-bottom:16px; font-weight:650; }
+        .summary.ok { display:block; background:#eaf8f2; color:var(--green); }
+        .summary.failed { display:block; background:#fff0f1; color:var(--red); }
+        .summary.degraded { display:block; background:#fff7e7; color:var(--amber); }
+        .checks { display:grid; gap:12px; }
+        .check { border:1px solid var(--line); border-radius:12px; padding:16px; }
+        .check-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; }
+        .check-name { font-weight:700; }
+        .badge { font-size:12px; border-radius:999px; padding:4px 9px; background:#eef2f7; }
+        .badge.ok { color:var(--green); background:#eaf8f2; }
+        .badge.failed { color:var(--red); background:#fff0f1; }
+        .badge.skipped { color:var(--amber); background:#fff7e7; }
+        dl { display:grid; grid-template-columns:minmax(150px,220px) 1fr; gap:7px 14px; margin:0; font-size:14px; }
+        dt { color:var(--muted); }
+        dd { margin:0; overflow-wrap:anywhere; }
+        @media(max-width:620px) { header { display:block; } header a { display:inline-block; margin-top:12px; } dl { grid-template-columns:1fr; gap:3px; } dd { margin-bottom:8px; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>系统健康诊断</h1>
+            <p>公开健康检查保持轻量。这里的深度诊断仅在手动点击后运行，覆盖部署进程、存储、检索、工具披露、DeepSeek 与联网搜索链路。</p>
+        </div>
+        <a href="/admin/dashboard">返回控制台</a>
+    </header>
+    <section class="card">
+        <div class="actions">
+            <button id="run" type="button">运行深度诊断</button>
+            <span class="hint">约 4 次小型外部请求，最长等待 180 秒；不会重启服务或修改数据。</span>
+        </div>
+        <div id="summary" class="summary"></div>
+        <div id="checks" class="checks"></div>
+    </section>
+</main>
+<script>
+const runButton = document.getElementById('run');
+const summary = document.getElementById('summary');
+const checks = document.getElementById('checks');
+
+function addField(list, name, value) {
+    if (value === undefined || value === null || name === 'name' || name === 'status') return;
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = name;
+    dd.textContent = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    list.append(dt, dd);
+}
+
+function renderCheck(item) {
+    const card = document.createElement('article');
+    card.className = 'check';
+    const head = document.createElement('div');
+    head.className = 'check-head';
+    const name = document.createElement('span');
+    name.className = 'check-name';
+    name.textContent = item.name || 'unknown';
+    const badge = document.createElement('span');
+    badge.className = `badge ${item.status || ''}`;
+    badge.textContent = item.status || 'unknown';
+    head.append(name, badge);
+    const list = document.createElement('dl');
+    Object.entries(item).forEach(([key, value]) => addField(list, key, value));
+    card.append(head, list);
+    checks.append(card);
+}
+
+runButton.addEventListener('click', async () => {
+    runButton.disabled = true;
+    runButton.textContent = '诊断运行中…';
+    summary.className = 'summary';
+    summary.textContent = '';
+    checks.replaceChildren();
+    try {
+        const response = await fetch('/admin/funcs/health-check/run', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
+        summary.className = `summary ${data.status}`;
+        summary.textContent = `总体状态：${data.status}；基础服务：${data.platform_status}；总耗时：${data.chat?.runner_duration_ms ?? data.chat?.duration_ms ?? 0} ms`;
+        renderCheck({ name: 'platform_services', status: data.platform_status, services: data.services });
+        (data.chat?.checks || []).forEach(renderCheck);
+        if (data.chat?.error) renderCheck({ name: 'diagnostic_runner', status: 'failed', error: data.chat.error });
+    } catch (error) {
+        summary.className = 'summary failed';
+        summary.textContent = `诊断失败：${error.message}`;
+    } finally {
+        runButton.disabled = false;
+        runButton.textContent = '再次运行深度诊断';
+    }
+});
+</script>
+</body>
+</html>

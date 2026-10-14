@@ -39,8 +39,24 @@ __pycache__/
 **/variables_static.json
 **/variables_dynamic.json
 **/emojiref.json
-NBot/data/
+NBot/data/*
+!NBot/data/honor/
+NBot/data/honor/*
+!NBot/data/honor/districts.json
 NBot/file_transfer/
+NBot/log/
+Web/log/
+**/.venv/
+**/build/
+**/dist/
+**/*.egg-info/
+.DS_Store
+**/.DS_Store
+**/redis-migration-backups/
+NBot/deployment/
+NBot/deploy_runner.sh
+NBot/.github/
+Web/.github/
 
 # Logs may contain private identifiers or request details
 *.log

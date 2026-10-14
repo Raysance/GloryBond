@@ -3,6 +3,8 @@ import json
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = PROJECT_ROOT / "hok" / "tools" / "representative_battle.py"
@@ -10,8 +12,8 @@ SPEC = importlib.util.spec_from_file_location("representative_battle", MODULE_PA
 REPRESENTATIVE_BATTLE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(REPRESENTATIVE_BATTLE)
 
-with (PROJECT_ROOT / "variables_static.json").open(encoding="utf-8") as file:
-    RULES = json.load(file)["representative_battle_rules"]
+with (PROJECT_ROOT / "config.yaml").open(encoding="utf-8") as file:
+    RULES = yaml.safe_load(file)["StaticVariables"]["representative_battle_rules"]
 
 
 def make_battle(**overrides):

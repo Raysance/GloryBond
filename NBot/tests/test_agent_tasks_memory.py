@@ -1,0 +1,184 @@
+"""Regression coverage for undiscovered personal tools and scheduled delivery."""
+
+import dataclasses
+import json
+import unittest
+
+from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
+from agent_console.capabilities import Capabilities, chat_required_tools
+from agent_console.task_timing import normalized_task_action, next_task_time
+from agent_console.tasks import TaskScheduler
+from agent_console.tools.application import TaskArgs, register_application_tools
+from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
+
+
+class TimingTests(unittest.TestCase):
+    def test_ten_second_three_delivery_request_is_supported(self):
+        args = TaskArgs(
+            kind="message", message="第{run}条消息", interval_seconds=10, max_runs=3
+        )
+        record = normalized_task_action(args.model_dump(), 100)
+        self.assertEqual(record["next_run_at"], 110)
+        self.assertEqual(next_task_time(record, 111.5), 120)
+        self.assertEqual(record["max_runs"], 3)
+
+    def test_slow_execution_skips_missed_ticks_without_changing_cadence(self):
+        record = {"interval_seconds": 10, "next_run_at": 110}
+        self.assertEqual(next_task_time(record, 135), 140)
+
+    def test_invalid_actions_do_not_reach_storage(self):
+        for args in [
+            {"kind": "message"},
+            {"kind": "agent"},
+            {"kind": "message", "message": "x", "interval_seconds": 0},
+            {"kind": "message", "message": "x", "max_runs": 3},
+        ]:
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                normalized_task_action(args, 100)
+
+
+class PersonalCapabilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_early_refusal_cannot_skip_discovery_and_bound_memory_write(self):
+        class Bridge:
+            def __init__(self):
+                self.memories = {}
+
+            async def call(self, op, **args):
+                if op == "search_history":
+                    return {"messages": []}
+                if op == "memory":
+                    self.memories[args["user_id"]] = args["content"]
+                    return {"saved": True, "memory": {"content": args["content"]}}
+                raise AssertionError(op)
+
+        data_bridge, state_bridge = Bridge(), Bridge()
+        registry = ToolRegistry()
+        register_application_tools(
+            registry, service=Capabilities(data_bridge, state_bridge), catalogs={}
+        )
+        model = ScriptedModel(
+            [
+                {"role": "assistant", "content": "没有记忆能力"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        call("search_chat_history", {"queries": ["偏好", "英雄"]}, "h")
+                    ],
+                },
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        call("discover_tools", {"categories": ["memory"]}, "d")
+                    ],
+                },
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        call("remember_memory", {"content": "喜欢玩安琪拉"}, "m")
+                    ],
+                },
+                {"role": "assistant", "content": "已记住"},
+            ]
+        )
+        state = State()
+        runtime = AgentRuntime(
+            model=model, registry=registry, state=state, output=Sink(), clock=Clock()
+        )
+        principal = Principal("local-ui:caller", frozenset({"chat.read", "memory.use"}))
+        await runtime.run(
+            RunRequest(
+                "你需要记住我喜欢玩安琪拉",
+                "s",
+                principal,
+                required_tools=chat_required_tools(),
+            )
+        )
+        self.assertEqual(state_bridge.memories, {"local-ui:caller": "喜欢玩安琪拉"})
+        self.assertEqual(data_bridge.memories, {})
+        replies = [
+            e["data"]["text"] for e in state.events if e["kind"] == "output.message"
+        ]
+        self.assertEqual(replies, ["已记住"])
+        self.assertIn(
+            "remember_memory", [item["function"]["name"] for item in model.schemas[-1]]
+        )
+
+    async def test_fixed_delivery_runs_while_foreground_model_is_busy(self):
+        class BusyRuntime:
+            active = {"foreground": object()}
+
+            def submit(self, request):
+                raise AssertionError("Fixed deliveries must not request a model")
+
+        class Bridge:
+            def __init__(self):
+                self.finished = []
+
+            async def call(self, op, **args):
+                if op == "task_active":
+                    return True
+                if op == "task_finish":
+                    self.finished.append(args)
+                    return True
+                raise AssertionError(op)
+
+        async def prompt():
+            raise AssertionError("Fixed deliveries need no model context")
+
+        bridge, state, output = Bridge(), State(), Sink()
+        scheduler = TaskScheduler(
+            runtime=BusyRuntime(),
+            bridge=bridge,
+            state=state,
+            output=output,
+            clock=Clock(),
+            prompt_factory=prompt,
+        )
+        principal = dataclasses.asdict(Principal("caller"))
+        for index in range(3):
+            await scheduler.perform(
+                {
+                    "task_id": "task",
+                    "lease_token": str(index),
+                    "kind": "message",
+                    "message": "第{run}/{max_runs}条",
+                    "runs": index,
+                    "max_runs": 3,
+                    "principal": principal,
+                    "session_id": "s",
+                }
+            )
+        messages = [e for e in output.events if e["kind"] == "output.message"]
+        self.assertEqual(
+            [e["data"]["text"] for e in messages], ["第1/3条", "第2/3条", "第3/3条"]
+        )
+        self.assertTrue(all(e["metadata"]["origin"] == "background" for e in messages))
+        self.assertEqual(len(bridge.finished), 3)
+        self.assertFalse(scheduler.active_run_ids)
+        self.assertFalse(any(e["kind"] == "model.request" for e in output.events))
+
+    async def test_cancelled_task_publishes_no_message(self):
+        class Bridge:
+            async def call(self, op, **args):
+                self_case.assertEqual(op, "task_active")
+                return False
+
+        self_case = self
+        output = Sink()
+        scheduler = TaskScheduler(
+            runtime=None,
+            bridge=Bridge(),
+            state=State(),
+            output=output,
+            clock=Clock(),
+            prompt_factory=None,
+        )
+        await scheduler.perform({"task_id": "cancelled", "lease_token": "lease"})
+        self.assertEqual(output.events, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

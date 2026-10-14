@@ -20,6 +20,27 @@ from nonebot_plugin_apscheduler import scheduler
 from nonebot.adapters.onebot.v11 import MessageSegment
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 
+
+@nonebot.get_driver().on_startup
+async def _start_qq_agent():
+    from .zfunc import agent_runtime_start
+    if confs.get("QQAgent", {}).get("enabled", True):
+        await agent_runtime_start()
+        log_message("QQ_AGENT_READY shared agent_runtime initialized")
+
+
+@nonebot.get_driver().on_shutdown
+async def _stop_qq_agent():
+    from .zfunc import agent_runtime_stop
+    await agent_runtime_stop()
+
+
+@scheduler.scheduled_job("interval", seconds=confs.get("QQAgent", {}).get("task_poll_seconds", 1),
+                         id="qq_agent_tasks", max_instances=1, coalesce=True)
+async def qq_agent_tasks():
+    from .zfunc import agent_task_tick
+    await agent_task_tick()
+
 # 配置执行器和作业默认值，确保在任务运行时间不可控时不轻易跳过任务
 # - 使用线程池以支持并发执行
 # - 提高 max_instances 以允许多个并发实例
@@ -42,13 +63,12 @@ from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 @scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute+10, second=00, id="load_yesterday")
 def load_yesterday(imple_type=0):
     from .ztime import time_sul
-    from .zfile import readerl
+    from .zfile import read_history_date
 
     yesterday_date=(time_sul()-datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     log_message("LOADLIST "+yesterday_date+".json")
     try:
-        filename=os.path.join("data","history",yesterday_date+".json")
-        gameinfo=readerl(filename)
+        gameinfo=read_history_date(yesterday_date)
         for item in gameinfo:
             dmc.infolast[item['key']]={}
             for key,value in item.items():
@@ -77,7 +97,7 @@ async def dump_today():
 def _dump_today_impl():
     from .ztime import time_sul
     from .zfunc import wzry_data
-    from .zfile import writerl
+    from .zfile import daily_history_path, personal_history_path, writerl
 
     dump_date=time_sul().strftime("%Y-%m-%d")
     log_message("DUMPBEGIN "+dump_date+".json")
@@ -88,7 +108,12 @@ def _dump_today_impl():
         else: visitfield=dmc.DumpTodayFailedList
         for key in visitfield:
             try:
-                gameinfo.append(wzry_data(realname=key,savepath=os.path.join("data","history", "personal", dump_date, str(userlist[key]) + ".json")))
+                gameinfo.append(
+                    wzry_data(
+                        realname=key,
+                        savepath=personal_history_path(dump_date, userlist[key]),
+                    )
+                )
                 time.sleep(0.3)
             except Exception:
                 if (key not in dmc.DumpTodayFailedList):
@@ -97,60 +122,13 @@ def _dump_today_impl():
             break
         time.sleep(10)
         retry_time-=1
-    if (not retry_time): 
+    if (not retry_time):
         add_msg("Dump failed for "+str(dmc.DumpTodayFailedList), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         dmc.DumpTodayFailedList=[]
-    filename=os.path.join("data","history",dump_date+".json")
+    filename = daily_history_path(dump_date)
     writerl(filename,gameinfo)
     log_message("DUMPEND "+dump_date+".json")
     return
-
-@scheduler.scheduled_job("cron", hour=bound_hour, minute=bound_minute, second=00, id="daily_user_summary")
-def daily_user_summary():
-    """每天深夜总结每个人的发言并存入长期记忆 (支持并行并行处理)"""
-    from .zmemory import instance as zm
-    from .zfunc import ai_parser, qid2nick
-    from .zstatic import qid as qid_list
-    import concurrent.futures
-    import datetime
-
-    log_message("DAILY_SUMMARY: Starting daily user chat summary...")
-    
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    def process_single_user(realname, user_qid):
-        user_qid = str(user_qid)
-        raw_logs = zm.get_passive_logs(user_qid)
-        
-        if not raw_logs:
-            return
-            
-        logs_text = "\n".join(raw_logs)
-        nick = qid2nick(user_qid)
-        
-        # 构造总结请求
-        prompt = f"以下是用户 {nick} (QID: {user_qid}) 在过去 24 小时内的聊天记录片段：\n\n{logs_text}\n\n请用一两句话总结该用户的今日状态、提到的重要事项或表现出的偏好特点。直接返回总结内容，不要包含‘本段记录显示’等废话。"
-        
-        try:
-            # 使用 ai_parser 进行总结
-            summary = ai_parser([prompt], "summary", network=False)
-            if summary and "Error" not in summary:
-                # 记录内容包含时间、用户名和总结内容
-                memory_content = f"[{now_str}] 整理自{nick}发言: {summary}"
-                # 存入提炼记忆 (Summary memory)
-                zm.save_summary_memory(user_qid, memory_content)
-                log_message(f"DAILY_SUMMARY: Saved summary for {nick}")
-                # 清除原始日志 (被动记忆)
-                zm.clear_passive_logs(user_qid)
-        except Exception as e:
-            log_message(f"DAILY_SUMMARY_ERROR: {str(e)} for user {nick}")
-
-    # 使用线程池并行处理
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(process_single_user, name, qid) for name, qid in qid_list.items()]
-        concurrent.futures.wait(futures)
-    
-    log_message("DAILY_SUMMARY: All summaries completed.")
 
 @scheduler.scheduled_job(
     "cron",
@@ -193,7 +171,7 @@ async def notify_msg():
                 final_msg += MessageSegment.image(f"file://{image_path}")
             if commentary:
                 final_msg += MessageSegment.text(f"\n{commentary}")
-            
+
         log_message(f"SEND_NOTIFY_{i}: {str(final_msg)[:100]}...")
         add_msg(final_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
 
@@ -259,15 +237,12 @@ async def bili_video_push():
 def _fetch_news_impl():
     from .zapi import ark_api
     from .ztime import date_r
-    from .zfile import file_exist
-    from .zfile import readera
-    from .zfile import writera
+    from .zfile import file_exist, news_text_path, readera, writera
 
     log_message("FETCH_NEWS")
 
     current_date = date_r()
-    news_dir = os.path.join("data","news")
-    file_path = os.path.join(news_dir, f"{current_date}.txt")
+    file_path = news_text_path(current_date)
 
     if file_exist(file_path):
         dmc.today_news = readera(file_path)
@@ -280,15 +255,14 @@ def _fetch_news_impl():
 def _fetch_herorank_impl():
     from .zapi import wzry_get_official
     from .ztime import date_r
-    from .zfile import file_exist
-    from .zfile import readerl
-    from .zfile import writerl
+    from .zfile import hero_rank_archive_path, read_hero_rank, writerl
 
     current_date = date_r()
-    file_path = os.path.join("data","herorank", f"{current_date}.json")
+    file_path = hero_rank_archive_path(current_date)
 
-    if file_exist(file_path):
-        dmc.herorank = readerl(file_path)
+    stored_rank = read_hero_rank(current_date)
+    if stored_rank:
+        dmc.herorank = stored_rank
     else:
         for _, rankId in hero_ranklist_rankids.items():
             dmc.herorank[rankId] = wzry_get_official(reqtype="heroranklist", rankId=rankId, rankSegment=4)
@@ -299,16 +273,14 @@ def _fetch_herorank_impl():
 def _fetch_hero_tier_impl():
     from .zapi import tianyuanzhiyi_tier_api
     from .ztime import date_r
-    from .zfile import file_exist
-    from .zfile import readerl
-    from .zfile import writerl
+    from .zfile import hero_tier_archive_path, read_hero_tier, writerl
 
     current_date = date_r()
-    herotier_dir = "herotier"
-    file_path = os.path.join("data",herotier_dir, f"{current_date}.json")
+    file_path = hero_tier_archive_path(current_date)
 
-    if file_exist(file_path):
-        dmc.herotier = readerl(file_path)
+    stored_tier = read_hero_tier(current_date)
+    if stored_tier:
+        dmc.herotier = stored_tier
     else:
         tierinfo=tianyuanzhiyi_tier_api()
         for heroinfo in tierinfo["tiers"]:
@@ -321,7 +293,7 @@ def _fetch_hero_tier_impl():
 async def run_web_shared_btls_processor():
     from .zfunc import btldetail_process
 
-    result=dmc.redis_deamon_share_btl.rpop("Shared_queue")
+    result=dmc.redis_deamon_share_btl.rpop(REDIS_KEY_BATTLE_SHARE_QUEUE)
     if (not result): return
     params_json=result
     params=json.loads(params_json)
@@ -337,7 +309,7 @@ async def run_web_shared_btls_processor():
         add_msg(f"Shared Processor Error: {str(e)}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
-    return 
+    return
 
 
 @scheduler.scheduled_job("interval", seconds=3, id="web_analyze_processor")
@@ -346,8 +318,8 @@ async def run_web_analyze_btls_processor():
     from .zfunc import btldetail_process
     from .ztime import wait
 
-    result = dmc.redis_deamon_analyze_btl.rpop("Analyze_queue")
-    
+    result = dmc.redis_deamon_analyze_btl.rpop(REDIS_KEY_BATTLE_ANALYZE_QUEUE)
+
     if (not result): return
     result=json.loads(result)
     game_params=result["game_params"]
@@ -362,12 +334,21 @@ async def run_web_analyze_btls_processor():
 
         snd_msg += "\n\n"
 
-        btl_msg, pic_path,_,_ = await asyncio.to_thread(battle_power_process, **game_params,spoiler_info={},from_web=True)
+        with_ai_analysis = False
+        btl_msg, pic_path,_,power_data = await asyncio.to_thread(
+            battle_power_process,
+            **game_params,
+            spoiler_info={},
+            from_web=True,
+            with_ai_analysis=with_ai_analysis,
+        )
         snd_msg += MessageSegment.text(btl_msg)
         if pic_path:
             snd_msg += MessageSegment.image(pic_path)
+        if with_ai_analysis and power_data.get("aiAnalysis"):
+            snd_msg += MessageSegment.text("\n" + power_data["aiAnalysis"])
         snd_msg += "\n\n───来自网页分享───"
-        
+
         if (Special):
             snd_msg = "Private Message\n" + snd_msg
             add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
@@ -398,7 +379,10 @@ async def run_history_power_idle_processor():
         if active_until and time.time() < active_until:
             return True
         try:
-            return bool(dmc.redis_deamon_share_btl.llen("Shared_queue") or dmc.redis_deamon_analyze_btl.llen("Analyze_queue"))
+            return bool(
+                dmc.redis_deamon_share_btl.llen(REDIS_KEY_BATTLE_SHARE_QUEUE)
+                or dmc.redis_deamon_analyze_btl.llen(REDIS_KEY_BATTLE_ANALYZE_QUEUE)
+            )
         except Exception as e:
             log_message(f"HISTORY_POWER_QUEUE_CHECK_ERROR: {str(e)}")
             return False

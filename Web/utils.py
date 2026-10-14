@@ -2,13 +2,30 @@ from openai import OpenAI
 import requests
 from ratelimit import limits, sleep_and_retry
 import json
-import yaml
 import time
 import os
+import logging
 
-confs={}
-with open('../NBot/config.yaml', 'r') as file:
-    confs = yaml.load(file, Loader=yaml.FullLoader)
+from database import battle_exists as postgres_battle_exists
+from database import fetch_battle as postgres_fetch_battle
+from database import ping as postgres_ping
+from runtime_config import RUNTIME, load_shared_config
+
+confs = load_shared_config()
+POSTGRES_DSN = str(
+    os.environ.get("HOK_DATABASE_DSN")
+    or confs.get("PostgreSQL", {}).get("dsn")
+    or ""
+)
+
+
+def check_postgres_health():
+    started = time.time()
+    try:
+        postgres_ping(POSTGRES_DSN)
+        return {"status": "ok", "latency_ms": round((time.time() - started) * 1000, 2)}
+    except Exception as exc:
+        return {"status": "down", "error": repr(exc)}
 
 def writerl(filepath,data):
     try:
@@ -28,8 +45,14 @@ def readerl(filepath):
         return []
 
 def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
-    file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
-    res=readerl(file_path)
+    file_path = os.path.join(RUNTIME.data_dir, "history", "battles", f"{gameseq}.json")
+    try:
+        res = postgres_fetch_battle(POSTGRES_DSN, gameseq)
+    except Exception as exc:
+        logging.warning("POSTGRES_BATTLE_READ_FALLBACK GameSeq=%s error=%r", gameseq, exc)
+        res = None
+    if not res:
+        res=readerl(file_path)
     if (res and roleid):
         # 找到对应的玩家信息并更新head
         target_role = None
@@ -37,7 +60,7 @@ def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
             if int(role['basicInfo']['roleId']) == int(roleid):
                 target_role = role
                 break
-        
+
         if target_role:
             # 更新head信息以适应当前的查询目标
             res['head'] = {
@@ -56,8 +79,14 @@ def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
             }
     return res
 def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详情
-    file_path = os.path.join(f"../NBot/data/history/battles/{gameseq}.json")
+    try:
+        if postgres_battle_exists(POSTGRES_DSN, gameseq):
+            return True
+    except Exception as exc:
+        logging.warning("POSTGRES_BATTLE_EXISTS_FALLBACK GameSeq=%s error=%r", gameseq, exc)
+    file_path = os.path.join(RUNTIME.data_dir, "history", "battles", f"{gameseq}.json")
     return file_exist(file_path)
+
 @sleep_and_retry    # 当达到限制时自动等待
 @limits(calls=3, period=1)
 def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1):
@@ -216,9 +245,9 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         "type": 1,
         "userID": userid
     }
-    # watchbattle_data = {'recommendPrivacy': 0, 'battleID': '177399_1742766640_1774529852', 'roleID': '132540538', 'type': 1, 'userID': '226798579'}
+    # watchbattle_data = {'recommendPrivacy': 0, 'battleID': '177399_1742766640_1774529852', 'roleID': '2000000005', 'type': 1, 'userID': '2000000044'}
     print(watchbattle_data,reqtype)
-    
+
     match reqtype:
         case "btldetail":
             url=btldetail_url
@@ -278,12 +307,12 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         if attempt < max_retries:
             time.sleep(2)
     if not res: raise Exception(str("HOK Exception: "+error_msg))
-    
+
     # # [T调试语句] 将结果输出到文件，使用精确到毫秒的时间命名
     # import os
     # import json
     # import datetime
-    
+
     # debug_dir = os.path.join("wzry_data_format", "debug_output")
     # os.makedirs(debug_dir, exist_ok=True)
     # time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
@@ -308,12 +337,12 @@ def retry_until_true(func, timeout=1, *args, **kwargs):
     :return: 最终结果
     """
     start_time = time.time()
-    
+
     while time.time() - start_time < timeout:
         result = func(*args, **kwargs)
         if result:
             return result
         time.sleep(0.01)  # 短暂休眠，避免CPU占用过高
-    
+
     # 超时后最后尝试一次
     return func(*args, **kwargs)

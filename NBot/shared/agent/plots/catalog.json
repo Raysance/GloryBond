@@ -1,0 +1,106 @@
+{
+  "default_theme": "aurora",
+  "themes": {
+    "aurora": {
+      "name": "极光",
+      "description": "浅色卡片、紫色与青绿主色、暖金强调",
+      "background": "#F2F4FA",
+      "card": "#FFFFFF",
+      "text": "#29334D",
+      "muted": "#8690A7",
+      "grid": "#E8ECF5",
+      "palette": [
+        "#7563DC",
+        "#25ADA5",
+        "#E6AC4A",
+        "#DB7899",
+        "#549AD0",
+        "#8EB575",
+        "#AF89BE",
+        "#718EAC",
+        "#C59068",
+        "#7FAAA2"
+      ],
+      "accent": "#25ADA5",
+      "heatmap": [
+        "#F3F1FC",
+        "#C2B5EE",
+        "#7563DC",
+        "#297D9A",
+        "#174F64"
+      ]
+    },
+    "midnight": {
+      "name": "霓虹夜色",
+      "description": "深色卡片、青蓝与粉紫高亮",
+      "background": "#101525",
+      "card": "#192137",
+      "text": "#EDF2FF",
+      "muted": "#A1AEC8",
+      "grid": "#303C55",
+      "palette": [
+        "#55D4CD",
+        "#A49CFF",
+        "#F3ADCC",
+        "#F1CA7A",
+        "#80B7FF",
+        "#B5D998",
+        "#FFAA82",
+        "#83D7AB",
+        "#D496D4",
+        "#C3CAD8"
+      ],
+      "accent": "#F3ADCC",
+      "heatmap": [
+        "#202B45",
+        "#44477C",
+        "#827AE0",
+        "#6ABBC9",
+        "#ADF2E6"
+      ]
+    },
+    "sunset": {
+      "name": "落日",
+      "description": "奶油背景、珊瑚橙与莓紫、温暖杂志风格",
+      "background": "#F8F1EA",
+      "card": "#FFFCF8",
+      "text": "#473B46",
+      "muted": "#998894",
+      "grid": "#EEE3DF",
+      "palette": [
+        "#E48A65",
+        "#A978B4",
+        "#DAAF58",
+        "#8DB8AA",
+        "#D97592",
+        "#8899C5",
+        "#719FB8",
+        "#B19F72",
+        "#9CB47A",
+        "#BE9D9E"
+      ],
+      "accent": "#A978B4",
+      "heatmap": [
+        "#FFF5EC",
+        "#F4C4A1",
+        "#E48A65",
+        "#AA647E",
+        "#704E85"
+      ]
+    }
+  },
+  "kinds": {
+    "bar": "横向排名/比较：渐变圆角条形、多色分配、真实数值标注，保留输入顺序。最多30条。",
+    "line": "连续趋势：细网格、渐变面积、关键点标注；group可分系列，日期按时间排序。",
+    "scatter": "二维关系：x/y为数值，group分颜色，label标注对象，value可控制气泡面积。",
+    "heatmap": "长表必须传value：x为列轴、y为行轴、value为数值；缺失格留空，确认缺失代表零时传fill_value=0。宽表不传value，x为行标签、y为一列数值，同时绘制全部数值列。重复组合必须在SQL聚合或显式指定aggregation。",
+    "donut": "组成占比：x为类别、y为非负数值，最多10类，中心显示返回数据的合计。"
+  },
+  "guidance": [
+    "默认使用aurora，可按用户要求选择midnight或sunset。主题只改变外观，不改变数据。",
+    "先取得真实dataset_id，再绘图。姓名/昵称使用权威参考映射；不得凭空构造数据或擅自扩写昵称。",
+    "title写清问题；subtitle说明时期/口径；unit只在明确知道单位时填写，百分比数值必须在SQL中转换为百分数。",
+    "热力图不得隐藏轴标签、把不存在的数据伪装为零或擅自合并重复格。SQL截断时图表自动注明只显示返回数据。",
+    "常规图优先render_plot。特殊复合图可用execute_python，预置render_chart、apply_plot_style和plot_themes；datasets[id]是原始行列表，先用pd.DataFrame转换。保留真实数据点，不平滑或插值伪造趋势。"
+  ]
+}

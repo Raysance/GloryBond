@@ -99,7 +99,7 @@ def get_user_key_from_encode_res(encode_res_b64, public_key_b64):
         c = bytes_to_long(base64.b64decode(encode_res_b64))
         m = pow(c, e, n)
         db = long_to_bytes(m)
-        
+
         # 兼容不同版本的定位逻辑
         json_start = db.find(b'{')
         if json_start == -1:

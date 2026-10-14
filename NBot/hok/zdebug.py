@@ -3,7 +3,7 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 
-    
+
 def manual_dump():
     from .ztime import time_sul
     from .zfunc import wzry_data
@@ -35,4 +35,3 @@ def recover_last():
     writerl(filename,gameinfo)
     log_message("DUMPEND "+dump_date+".json")
     return None
-

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访问分析 · 管理控制台</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --card: rgba(255, 255, 255, .92);
+            --ink: #172033;
+            --muted: #6b7690;
+            --line: #e4e9f2;
+            --blue: #3977f6;
+            --cyan: #16b5d6;
+            --green: #20a979;
+            --orange: #ed8b2c;
+            --red: #e65757;
+            --shadow: 0 18px 50px rgba(34, 58, 100, .09);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 10% 0%, rgba(57, 119, 246, .12), transparent 32%),
+                radial-gradient(circle at 90% 12%, rgba(22, 181, 214, .10), transparent 30%),
+                var(--bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+        }
+
+        .shell { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 56px; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+        .heading h1 { margin: 0 0 7px; font-size: clamp(1.7rem, 4vw, 2.35rem); letter-spacing: -.04em; }
+        .heading p { margin: 0; color: var(--muted); font-size: .94rem; }
+        .actions { display: flex; align-items: center; gap: 10px; }
+        button, select, .back {
+            height: 40px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            background: rgba(255, 255, 255, .9);
+            color: var(--ink);
+            padding: 0 14px;
+            font: inherit;
+            text-decoration: none;
+        }
+        button { cursor: pointer; font-weight: 650; }
+        button:hover, .back:hover { border-color: #b9c7df; transform: translateY(-1px); }
+        .back { display: inline-flex; align-items: center; }
+
+        .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+        .metric, .panel {
+            background: var(--card);
+            border: 1px solid rgba(222, 229, 241, .9);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+        }
+        .metric { border-radius: 17px; padding: 19px 20px; }
+        .metric-label { color: var(--muted); font-size: .82rem; margin-bottom: 8px; }
+        .metric-value { font-size: 1.8rem; font-weight: 760; letter-spacing: -.04em; }
+        .metric-note { color: var(--muted); font-size: .76rem; margin-top: 4px; }
+
+        .charts { display: grid; grid-template-columns: 1.35fr .9fr; gap: 14px; margin-bottom: 14px; }
+        .panel { border-radius: 20px; padding: 22px; min-width: 0; }
+        .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+        .panel h2 { margin: 0; font-size: 1.05rem; }
+        .panel-meta { color: var(--muted); font-size: .76rem; }
+
+        .bar-list { display: grid; gap: 13px; }
+        .bar-row { display: grid; grid-template-columns: minmax(100px, 1.1fr) 2fr 46px; align-items: center; gap: 12px; }
+        .bar-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .86rem; }
+        .bar-track { height: 9px; overflow: hidden; border-radius: 99px; background: #edf1f7; }
+        .bar-fill { height: 100%; min-width: 3px; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--cyan)); transition: width .35s ease; }
+        .route-list .bar-fill { background: linear-gradient(90deg, #735af6, #b36ff1); }
+        .bar-value { color: var(--muted); text-align: right; font-size: .78rem; font-variant-numeric: tabular-nums; }
+        .empty { color: var(--muted); padding: 28px 0; text-align: center; font-size: .9rem; }
+
+        .table-panel { padding: 0; overflow: hidden; }
+        .table-panel .panel-head { padding: 22px 22px 0; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th, td { border-top: 1px solid var(--line); padding: 13px 16px; text-align: left; vertical-align: top; }
+        th { color: var(--muted); background: rgba(247, 249, 253, .86); font-size: .74rem; font-weight: 650; white-space: nowrap; }
+        td { font-size: .82rem; }
+        tr:hover td { background: rgba(247, 249, 253, .68); }
+        .request-main { font-weight: 670; margin-bottom: 3px; }
+        .request-path, .secondary { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
+        .location { max-width: 230px; }
+        .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-weight: 680; font-size: .71rem; }
+        .ok { color: #087653; background: #e5f8f1; }
+        .redirect { color: #9b5c0c; background: #fff3dc; }
+        .error { color: #b83232; background: #fdeaea; }
+        .loading { opacity: .62; pointer-events: none; }
+        #message { display: none; color: var(--red); padding: 16px 22px; border-top: 1px solid var(--line); }
+
+        @media (max-width: 900px) {
+            .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .charts { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 620px) {
+            .shell { width: min(100% - 20px, 1280px); padding-top: 18px; }
+            .topbar { align-items: flex-start; flex-direction: column; }
+            .actions { width: 100%; flex-wrap: wrap; }
+            .actions select { flex: 1; }
+            .summary { gap: 9px; }
+            .metric { padding: 15px; }
+            .metric-value { font-size: 1.45rem; }
+            .panel { padding: 17px; border-radius: 16px; }
+            .bar-row { grid-template-columns: minmax(86px, 1fr) 1.45fr 42px; gap: 8px; }
+            .table-panel { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell" id="page">
+        <header class="topbar">
+            <div class="heading">
+                <h1>访问分析</h1>
+                <p>只统计公开业务入口与用户操作，自动忽略资源加载、battle-data、健康检查和后台请求。</p>
+            </div>
+            <div class="actions">
+                <a class="back" href="/admin/dashboard">返回控制台</a>
+                <select id="limit" aria-label="统计样本数">
+                    <option value="100">最近 100 条</option>
+                    <option value="200" selected>最近 200 条</option>
+                    <option value="500">最近 500 条</option>
+                </select>
+                <button id="refresh" type="button">刷新</button>
+            </div>
+        </header>
+
+        <section class="summary" aria-label="访问摘要">
+            <article class="metric"><div class="metric-label">有效请求</div><div class="metric-value" id="requests">—</div><div class="metric-note">当前样本内</div></article>
+            <article class="metric"><div class="metric-label">独立访客</div><div class="metric-value" id="visitors">—</div><div class="metric-note">按脱敏 IP 去重</div></article>
+            <article class="metric"><div class="metric-label">已定位</div><div class="metric-value" id="located">—</div><div class="metric-note">地域缓存命中</div></article>
+            <article class="metric"><div class="metric-label">待定位</div><div class="metric-value" id="pending">—</div><div class="metric-note">异步解析中或暂不可用</div></article>
+        </section>
+
+        <section class="charts">
+            <article class="panel">
+                <div class="panel-head"><h2>地域分布</h2><span class="panel-meta">按已定位请求占比</span></div>
+                <div class="bar-list" id="locations"></div>
+            </article>
+            <article class="panel">
+                <div class="panel-head"><h2>入口分布</h2><span class="panel-meta" id="generated">—</span></div>
+                <div class="bar-list route-list" id="routes"></div>
+            </article>
+        </section>
+
+        <section class="panel table-panel">
+            <div class="panel-head"><h2>最近请求内容</h2><span class="panel-meta">凭据字段不会被记录</span></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>时间</th><th>地域</th><th>请求内容</th><th>访客</th><th>状态</th><th>耗时</th></tr></thead>
+                    <tbody id="events"></tbody>
+                </table>
+            </div>
+            <div id="message"></div>
+        </section>
+    </main>
+
+    <script>
+        const page = document.getElementById('page');
+        const message = document.getElementById('message');
+
+        function node(tag, className, text) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = text;
+            return element;
+        }
+
+        function renderBars(containerId, items, labelKey) {
+            const container = document.getElementById(containerId);
+            container.replaceChildren();
+            if (!items.length) {
+                container.append(node('div', 'empty', '暂无可展示的数据'));
+                return;
+            }
+            items.forEach(item => {
+                const row = node('div', 'bar-row');
+                const label = node('div', 'bar-label', item[labelKey]);
+                label.title = item[labelKey];
+                const track = node('div', 'bar-track');
+                const fill = node('div', 'bar-fill');
+                fill.style.width = `${Math.max(item.percent, 1)}%`;
+                track.append(fill);
+                row.append(label, track, node('div', 'bar-value', `${item.count} · ${item.percent}%`));
+                container.append(row);
+            });
+        }
+
+        function statusBadge(status) {
+            const type = status >= 400 ? 'error' : (status >= 300 ? 'redirect' : 'ok');
+            return node('span', `badge ${type}`, String(status));
+        }
+
+        function renderEvents(events) {
+            const tbody = document.getElementById('events');
+            tbody.replaceChildren();
+            if (!events.length) {
+                const row = node('tr');
+                const cell = node('td', 'empty', '还没有符合条件的人类请求');
+                cell.colSpan = 6;
+                row.append(cell);
+                tbody.append(row);
+                return;
+            }
+            events.forEach(event => {
+                const row = node('tr');
+                row.append(node('td', '', event.time));
+
+                const location = node('td', 'location');
+                location.append(node('div', '', event.location), node('div', 'secondary', event.masked_ip));
+                row.append(location);
+
+                const request = node('td');
+                request.append(
+                    node('div', 'request-main', event.content || event.route_label),
+                    node('div', 'request-path', `${event.method} ${event.path}`)
+                );
+                row.append(request);
+
+                row.append(node('td', 'secondary', event.visitor_id));
+                const status = node('td');
+                status.append(statusBadge(event.status));
+                row.append(status, node('td', 'secondary', `${event.duration_ms} ms`));
+                tbody.append(row);
+            });
+        }
+
+        async function loadAnalytics() {
+            page.classList.add('loading');
+            message.style.display = 'none';
+            try {
+                const limit = document.getElementById('limit').value;
+                const response = await fetch(`/admin/funcs/request-analytics/data?limit=${encodeURIComponent(limit)}`, {
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || '访问统计读取失败');
+                document.getElementById('requests').textContent = data.summary.requests;
+                document.getElementById('visitors').textContent = data.summary.unique_visitors;
+                document.getElementById('located').textContent = data.summary.located;
+                document.getElementById('pending').textContent = data.summary.pending;
+                document.getElementById('generated').textContent = `更新于 ${data.generated_at}`;
+                renderBars('locations', data.distribution, 'location');
+                renderBars('routes', data.route_distribution, 'route');
+                renderEvents(data.events);
+            } catch (error) {
+                message.textContent = error.message || '访问统计读取失败';
+                message.style.display = 'block';
+            } finally {
+                page.classList.remove('loading');
+            }
+        }
+
+        document.getElementById('refresh').addEventListener('click', loadAnalytics);
+        document.getElementById('limit').addEventListener('change', loadAnalytics);
+        loadAnalytics();
+        window.setInterval(loadAnalytics, 30000);
+    </script>
+</body>
+</html>

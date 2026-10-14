@@ -1,4 +1,4 @@
-from ..zstatic import confs
+from ..zstatic import REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, confs
 from .. import zdynamic as dmc
 import nonebot
 import asyncio
@@ -16,6 +16,7 @@ BATTLE_INVISIBLE_MUTE_SECONDS = 24 * 60 * 60
 @driver.on_startup
 async def _start_message_sender_loop() -> None:
     asyncio.create_task(message_sender_loop())
+    add_msg("HOK_QQBot 已启动成功", msg_type="private", to_id=confs["QQBot"]["super_qid"])
 
 
 def _stringify_message_content(content):
@@ -58,7 +59,7 @@ def _resolve_destination(event=None, msg_type=None, to_id=None):
 
 
 def _enqueue_payload(payload):
-    return dmc.MessageQueue.lpush("MessageQueue", json.dumps(payload, ensure_ascii=False))
+    return dmc.MessageQueue.lpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, json.dumps(payload, ensure_ascii=False))
 
 
 def _format_group_ban_action(duration):
@@ -126,7 +127,7 @@ async def message_sender_loop():
         if time.time() - last_ts < MESSAGE_SEND_INTERVAL:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
-        result = dmc.MessageQueue.rpop("MessageQueue")
+        result = dmc.MessageQueue.rpop(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE)
         if not result:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
@@ -134,7 +135,7 @@ async def message_sender_loop():
             bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
         except KeyError:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
-            dmc.MessageQueue.lpush("MessageQueue", result)
+            dmc.MessageQueue.rpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, result)
             continue
         msg_json = json.loads(result)
         if msg_json.get("kind") == "group_ban":
@@ -168,6 +169,46 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
         "content": _stringify_message_content(content),
     }
     return _enqueue_payload(payload)
+
+
+def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=None):
+    message = MessageSegment.text(str(text)) + MessageSegment.image(
+        f"file:///{image_path}"
+    )
+    return add_msg(message, event=event, msg_type=msg_type, to_id=to_id)
+
+
+def add_chat_result_msg(result, *, event=None, destination=None):
+    """Queue an AI reply with a native mention bound by the trusted QQ entry."""
+    mention_id = None
+    if destination is not None:
+        if destination.get("platform") != "qq" or destination.get("channel") not in {"group", "private"}:
+            raise ValueError("Invalid trusted QQ destination")
+        if destination["channel"] == "group":
+            mention_id = destination.get("mention_user_id")
+    elif event is not None and getattr(event, "group_id", None):
+        mention_id = getattr(event, "user_id", None)
+        if mention_id is None and hasattr(event, "get_user_id"):
+            mention_id = event.get_user_id()
+    message = Message()
+    if mention_id is not None:
+        if isinstance(mention_id, bool) or not isinstance(mention_id, (str, int)):
+            raise ValueError("Invalid trusted QQ mention target")
+        mention_id = _normalize_target_id(mention_id)
+        if type(mention_id) is not int or mention_id <= 0:
+            raise ValueError("Invalid trusted QQ mention target")
+        message += MessageSegment.at(str(mention_id))
+        message += MessageSegment.text(" ")
+    message += MessageSegment.text(str(result["text"]))
+    for artifact in result.get("artifacts", []):
+        message += MessageSegment.image(artifact["path"])
+    if result.get("trace_url"):
+        message += MessageSegment.text("\n\n运行记录：" + result["trace_url"])
+    elif result.get("trace_error"):
+        message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
+    if destination is not None:
+        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"])
+    return add_msg(message, event=event)
 
 
 def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):

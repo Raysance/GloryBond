@@ -1,182 +1,231 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API不可用</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#eaf2ff">
+    <title>页面未找到</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
-        
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
         }
-        
+
+        :root {
+            color-scheme: light;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Segoe UI", sans-serif;
+            color: #1c1c1e;
+            background: #eef4fb;
+        }
+
         body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f8f9fa;
-            color: #333;
-            line-height: 1.6;
-            height: 100vh;
+            min-height: 100vh;
+            min-height: 100dvh;
+            margin: 0;
+            padding: max(24px, env(safe-area-inset-top)) 20px max(18px, env(safe-area-inset-bottom));
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            padding: 20px;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            overflow-x: hidden;
+            background:
+                radial-gradient(circle at 14% 8%, rgba(118, 183, 255, .44), transparent 34%),
+                radial-gradient(circle at 92% 80%, rgba(184, 154, 255, .34), transparent 35%),
+                linear-gradient(145deg, #f8fbff 0%, #e9f3ff 48%, #f4efff 100%);
         }
-        
-        .container {
-            max-width: 600px;
-            width: 100%;
-        }
-        
-        .error-container {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .error-container::before {
+
+        body::before,
+        body::after {
             content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 5px;
-            background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+            position: fixed;
+            z-index: 0;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            filter: blur(8px);
+            pointer-events: none;
         }
-        
-        h1 {
-            font-size: 6rem;
+
+        body::before {
+            top: -110px;
+            right: -70px;
+            background: rgba(78, 147, 255, .22);
+        }
+
+        body::after {
+            bottom: -130px;
+            left: -80px;
+            background: rgba(176, 116, 255, .18);
+        }
+
+        main {
+            position: relative;
+            z-index: 1;
+            width: min(100%, 520px);
+        }
+
+        .error-card {
+            padding: clamp(32px, 8vw, 54px) clamp(24px, 7vw, 48px) 34px;
+            text-align: center;
+            border-radius: 34px;
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .42)),
+                radial-gradient(circle at 22% 5%, rgba(255, 255, 255, .98), transparent 48%);
+            box-shadow:
+                0 30px 70px rgba(58, 85, 125, .18),
+                inset 0 1px 2px rgba(255, 255, 255, .92),
+                inset 0 -2px 3px rgba(102, 132, 170, .08);
+            backdrop-filter: blur(28px) saturate(175%);
+            -webkit-backdrop-filter: blur(28px) saturate(175%);
+        }
+
+        .status-icon {
+            width: 88px;
+            height: 88px;
+            margin: 0 auto 24px;
+            display: grid;
+            place-items: center;
+            border-radius: 26px;
+            color: #fff;
+            background: linear-gradient(145deg, #65a9ff, #6d72f6 55%, #9b6cf1);
+            box-shadow: 0 16px 30px rgba(83, 112, 226, .32), inset 0 2px 2px rgba(255, 255, 255, .4);
+            animation: float 4s ease-in-out infinite;
+        }
+
+        .status-icon svg {
+            width: 43px;
+            height: 43px;
+        }
+
+        .error-code {
             margin: 0;
-            color: #6a11cb;
-            background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+            font-size: clamp(4.6rem, 19vw, 7rem);
+            font-weight: 760;
+            line-height: .9;
+            letter-spacing: -.07em;
+            background: linear-gradient(125deg, #297fff, #735ee8 68%, #a456d7);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
-            line-height: 1;
         }
-        
-        h2 {
-            font-size: 1.8rem;
-            margin: 20px 0 10px;
-            color: #2c3e50;
+
+        h1 {
+            margin: 22px 0 10px;
+            font-size: clamp(1.45rem, 5vw, 1.9rem);
+            line-height: 1.25;
+            letter-spacing: -.025em;
         }
-        
-        p {
-            font-size: 1.1rem;
-            margin-bottom: 30px;
-            color: #7f8c8d;
+
+        .description {
+            margin: 0 auto;
+            max-width: 350px;
+            color: rgba(44, 44, 46, .64);
+            font-size: .98rem;
+            line-height: 1.7;
         }
-        
-        .btn {
-            display: inline-block;
-            padding: 12px 30px;
-            background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
-            color: white;
+
+        .reason {
+            margin: 20px 0 0;
+            padding: 13px 16px;
+            border-radius: 16px;
+            color: rgba(44, 44, 46, .72);
+            background: rgba(255, 255, 255, .48);
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, .82), 0 8px 20px rgba(69, 91, 126, .07);
+            font-size: .86rem;
+            overflow-wrap: anywhere;
+        }
+
+        .back-button {
+            width: 100%;
+            margin-top: 26px;
+            padding: 15px 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 0;
+            border-radius: 17px;
+            color: #fff;
+            background: linear-gradient(135deg, #1687ff, #566ee9);
+            box-shadow: 0 13px 26px rgba(36, 111, 232, .28), inset 0 1px 1px rgba(255, 255, 255, .32);
+            font: inherit;
+            font-weight: 650;
             text-decoration: none;
-            border-radius: 50px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            border: none;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(106, 17, 203, 0.3);
+            transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
         }
-        
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(106, 17, 203, 0.4);
+
+        .back-button svg {
+            width: 18px;
+            height: 18px;
         }
-        
-        .animation {
-            margin: 40px auto;
-            width: 150px;
-            height: 150px;
+
+        .back-button:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.04);
+            box-shadow: 0 17px 32px rgba(36, 111, 232, .34), inset 0 1px 1px rgba(255, 255, 255, .35);
+        }
+
+        .back-button:active {
+            transform: scale(.98);
+        }
+
+        .back-button:focus-visible {
+            outline: 4px solid rgba(22, 135, 255, .24);
+            outline-offset: 4px;
+        }
+
+        .github-global-footer {
             position: relative;
+            z-index: 1;
         }
-        
-        .box {
-            position: absolute;
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
-            background: linear-gradient(45deg, #6a11cb, #2575fc);
-            animation: move 2.5s infinite ease-in-out;
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-7px) rotate(2deg); }
         }
-        
-        .box:nth-child(1) {
-            animation-delay: 0s;
+
+        @media (max-width: 480px) {
+            body { justify-content: flex-start; padding-top: max(44px, env(safe-area-inset-top)); }
+            .error-card { border-radius: 28px; }
+            .status-icon { width: 76px; height: 76px; border-radius: 23px; }
         }
-        
-        .box:nth-child(2) {
-            animation-delay: 0.5s;
-        }
-        
-        .box:nth-child(3) {
-            animation-delay: 1s;
-        }
-        
-        @keyframes move {
-            0%, 100% {
-                transform: translate(0, 0);
-            }
-            25% {
-                transform: translate(100px, 0);
-            }
-            50% {
-                transform: translate(100px, 100px);
-            }
-            75% {
-                transform: translate(0, 100px);
-            }
-        }
-        
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 4rem;
-            }
-            
-            h2 {
-                font-size: 1.4rem;
-            }
-            
-            .error-container {
-                padding: 30px 20px;
-            }
+
+        @media (prefers-reduced-motion: reduce) {
+            .status-icon { animation: none; }
+            .back-button { transition: none; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="error-container">
-            <div class="animation">
-                <div class="box"></div>
-                <div class="box"></div>
-                <div class="box"></div>
+    <main>
+        <section class="error-card" aria-labelledby="error-title">
+            <div class="status-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M9.6 9.6a3.4 3.4 0 0 1 4.8 4.8M7.05 16.95l-1.6 1.6m11.5-11.5 1.6-1.6M8.25 5.75l-2.5-2.5m12.5 17.5-2.5-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M14.15 6.1a6 6 0 0 0-8.05 8.05l3.75 3.75a6 6 0 0 0 8.05-8.05L14.15 6.1Z" stroke="currentColor" stroke-width="2"/>
+                </svg>
             </div>
-            <h1></h1>
-            <h2>Oops! Page not found</h2>
-            <h3>该API链接不可用</h3><p><br>请从 <b>笙煎守味🤖</b> 发出的 <b>链接</b> 中进入页面。 </p>
-            <p>Why? {{message}}</p>
-            <a href="javascript:void(0);" onclick="closeWindow();" class="btn">Go back</a>
-            <script>
-            function closeWindow() {
-                // 尝试关闭窗口
-                if(window.history.length > 1) {
-                    window.history.back(); // 先尝试返回
-                } else {
-                    window.close(); // 如果无法返回则尝试关闭
-                }
+            <p class="error-code" aria-label="错误代码 404">404</p>
+            <h1 id="error-title">页面走丢了</h1>
+            <p class="description">这个链接不可用或页面已经离开。请从 <strong>笙煎守味🤖</strong> 发出的最新链接重新进入。</p>
+            {% if message %}<p class="reason">{{ message }}</p>{% endif %}
+            <button type="button" class="back-button" onclick="goBack()">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                返回上一页
+            </button>
+        </section>
+    </main>
+    {% include 'footer_github.html' %}
+    <script>
+        function goBack() {
+            if (window.history.length > 1) {
+                window.history.back();
+                return;
             }
-            </script>
-        </div>
-    </div>
+            window.close();
+        }
+    </script>
 </body>
-{% include 'footer_github.html' %}
 </html>

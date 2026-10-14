@@ -15,7 +15,7 @@ from .zfunc import * # 辅助函数
 from .zscheduler import * # 定时事件
 from .ztime import * # 时间获取
 
-# NONEBOT配置 
+# NONEBOT配置
 __plugin_meta__ = PluginMetadata(
     name="Qbot",
     description="QQ Bot for Honor of Kings: Track Stats & Interactive Engagement.",
