@@ -7,6 +7,10 @@ from pathlib import Path
 import shlex
 
 
+class BridgeUnavailable(ConnectionError):
+    """Transport or health failure suitable for an HTTP 503 response."""
+
+
 class RemoteBridge:
     """One authenticated SSH connection; no database port or remote web server."""
 
@@ -17,6 +21,9 @@ class RemoteBridge:
         self.lock = asyncio.Lock()
         self.config = {}
         self.secrets = []
+        self._bootstrap_args = None
+        self._closed = False
+        self.response_timeout = 190
 
     async def _spawn_worker(self):
         source = Path(__file__).with_name("remote_worker.py").read_text()
@@ -47,19 +54,15 @@ class RemoteBridge:
             limit=16 * 1024 * 1024,
         )
 
-    async def start(self):
-        await self._spawn_worker()
+    def _bootstrap_arguments(self):
         catalogs = {
             domain: json.loads((self.shared_path / domain / "catalog.json").read_text())
             for domain in ("hok_sql", "chat_sql")
         }
         definitions = json.loads((self.shared_path / "hok_sql/views.json").read_text())
         validator = Path(__file__).with_name("tools") / "sql_validation.py"
-        self.config = await self.call(
-            "bootstrap",
-            root=self.root,
-            catalogs=catalogs,
-            definitions=definitions,
+        return dict(
+            root=self.root, catalogs=catalogs, definitions=definitions,
             validator=validator.read_text(),
             memory_tools=(Path(__file__).with_name("tools") / "memory.py").read_text(),
             sandbox_runner=Path(__file__).with_name("sandbox_worker.py").read_text(),
@@ -83,12 +86,43 @@ class RemoteBridge:
             ).read_text(),
             use_process_environment=getattr(self, "use_process_environment", False),
         )
-        self.secrets = [
+
+    def _connected(self):
+        return bool(
+            self.process and self.process.returncode is None
+            and not self.process.stdin.is_closing()
+            and not self.process.stdout.at_eof()
+        )
+
+    async def start(self):
+        async with self.lock:
+            self._closed = False
+            if self._bootstrap_args is None:
+                self._bootstrap_args = self._bootstrap_arguments()
+            if not self._connected():
+                await self._connect_locked()
+            return self.config
+
+    async def _connect_locked(self):
+        await self._stop_worker_locked()
+        try:
+            await self._spawn_worker()
+            self.config = await self._request_locked("bootstrap", **self._bootstrap_args)
+        except Exception as exc:
+            await self._stop_worker_locked()
+            raise BridgeUnavailable("远程数据连接暂不可用，请稍后重试。") from exc
+        private_values = [
             value
             for value in self.config.get("private", {}).values()
             if isinstance(value, str) and value
         ]
-        return self.config
+        self.secrets = list(dict.fromkeys([*self.secrets, *private_values]))
+
+    async def health(self):
+        try:
+            return await self.call("health")
+        except RuntimeError as exc:
+            raise BridgeUnavailable("远程数据服务暂不可用，请稍后重试。") from exc
 
     def redact(self, value):
         if isinstance(value, dict):
@@ -123,38 +157,58 @@ class RemoteBridge:
 
     async def _exchange(self, op, **args):
         async with self.lock:
-            if not self.process or self.process.returncode is not None:
-                raise RuntimeError("SSH 连接未启动或已断开，请重启本地界面")
+            if self._closed or self._bootstrap_args is None:
+                raise BridgeUnavailable("远程数据连接尚未启动或已关闭。")
+            if not self._connected():
+                # Restore before sending a new request, never replay an operation
+                # whose remote execution may already have completed.
+                await self._connect_locked()
+            return await self._request_locked(op, **args)
 
-            def encode(value):
-                return (
-                    sorted(value) if isinstance(value, (set, frozenset)) else str(value)
-                )
+    async def _request_locked(self, op, **args):
+        def encode(value):
+            return sorted(value) if isinstance(value, (set, frozenset)) else str(value)
 
-            self.process.stdin.write(
-                (
-                    json.dumps({"op": op, **args}, ensure_ascii=False, default=encode)
-                    + "\n"
-                ).encode()
-            )
+        request = (json.dumps({"op": op, **args}, ensure_ascii=False, default=encode) + "\n").encode()
+        try:
+            self.process.stdin.write(request)
             await self.process.stdin.drain()
-            try:
-                line = await asyncio.wait_for(self.process.stdout.readline(), 190)
-            except TimeoutError:
-                # A late response must not be mistaken for the next RPC's result.
-                self.process.terminate()
-                raise
+            line = await asyncio.wait_for(self.process.stdout.readline(), self.response_timeout)
             if not line:
-                raise RuntimeError("SSH 适配器连接已断开")
+                raise EOFError("worker closed stdout")
             payload = json.loads(line)
-            if not payload.get("ok"):
-                raise RuntimeError(self.redact(payload.get("error", "远程操作失败")))
-            return payload.get("data")
+            if not isinstance(payload, dict) or type(payload.get("ok")) is not bool:
+                raise ValueError("invalid worker response")
+        except (OSError, EOFError, TimeoutError, ValueError) as exc:
+            # Discard the stream: a late reply must never become the next result.
+            await self._stop_worker_locked()
+            raise BridgeUnavailable(
+                "远程连接中断，本次操作结果未确认，未自动重试；请刷新查看记录后再决定是否重试。"
+            ) from exc
+        if not payload["ok"]:
+            raise RuntimeError(self.redact(payload.get("error", "远程操作失败")))
+        return payload.get("data")
+
+    async def _stop_worker_locked(self):
+        process, self.process = self.process, None
+        if process and process.returncode is None:
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(process.wait(), 5)
+            except TimeoutError:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                await process.wait()
 
     async def close(self):
-        if self.process and self.process.returncode is None:
-            self.process.terminate()
-            await self.process.wait()
+        self._closed = True
+        async with self.lock:
+            await self._stop_worker_locked()
 
 
 class ProcessBridge(RemoteBridge):

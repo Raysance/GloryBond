@@ -672,6 +672,8 @@ def dispatch(args):
     if op == "bootstrap":
         return bootstrap(args)
     store = CONTEXT["store"]
+    if op == "health":
+        return {"connected": bool(store.ping())}
     session = str(args.get("session_id", ""))
     if op.startswith(("state_", "dialogue_")) and not re.fullmatch(
         r"[a-zA-Z0-9_-]{1,80}", session

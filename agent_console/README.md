@@ -50,6 +50,8 @@ local_debugger/.venv/bin/python -m agent_console
 
 外部适配器分别维护业务连接和状态连接：数据库/搜索/图片/沙箱走业务连接，对话、运行事件、记忆和任务走状态连接，避免慢业务调用阻塞定时通知。事件通过通用 `metadata` 标记后台来源；后台通知不覆盖正在输入或执行的前台聊天状态。
 
+SSH 断开后，新请求在发送前会串行重建连接和 worker，重新加载启动资料；无需重启页面服务。若请求已经发送却未收到有效响应，适配器关闭该连接并报告结果未确认，不自动重放写入、任务或收费操作。下一次请求可恢复连接；是否重新执行应先查看运行记录。调用取消不会遗留响应污染后续请求。`/api/status` 实际检查两条连接及 Redis PING，连接故障返回中文 HTTP 503，不再把缓存配置当作服务健康。
+
 本地 UI 通过 `LocalAgent.player_key: example_user_10` 从服务器权威映射唯一解析 QQ，作为稳定的 `Principal.user_id`；“我”默认指示例玩家65，游戏查询使用 `player_key`。本人长期事实与 QQ 共用 `hok:memory:facts:<QQ>`，每次对话自动读取用于个性化；回复偏好和角色选择单独存储于 `hok:agent_runtime:console:roleplay:<用户摘要>:*`。旧匿名会话的 `local-ui:<session>` 事实保留，未自动归入 example_user_10。会话对话记录仍按会话隔离，状态、任务和产物使用 `hok:agent_runtime:console:*`。独立模块无 QQ 类型、角色、配置、数据库和界面依赖。
 
 内置角色可独立修改 `shared/agent/roles/*.json`（修改后重启本地适配器）；默认角色设置在 `LocalAgent.default_role`。角色包的可选 `voice` 包含 tone、habits、avoid 和原创表达样例 examples，旧角色记录仍兼容；联网新增角色也生成这些信息。`agent_console/roleplay.py` 负责角色上下文与用户事实快照，`identity.py` 单独负责本地 HOK 身份与权限策略，`roleplay_models.py` 负责数据校验，`roleplay_store.py` 负责隔离持久化，`tools/roleplay.py` 负责工具注册。最终送入内核的仍是通用 `RunRequest.system_prompt` 和 `ToolRegistry`，QQ 适配器接入时可复用角色服务并传入可信用户身份。
@@ -95,6 +97,7 @@ local_debugger/.venv/bin/python -m unittest tests.test_agent_runtime tests.test_
 local_debugger/.venv/bin/python -m unittest tests.test_agent_images
 local_debugger/.venv/bin/python -m unittest tests.test_agent_finalization tests.test_agent_replies
 local_debugger/.venv/bin/python -m unittest tests.test_agent_local_logs
+local_debugger/.venv/bin/python -m unittest tests.test_agent_bridge
 node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 ```
 

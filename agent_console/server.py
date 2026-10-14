@@ -9,7 +9,7 @@ import secrets
 import traceback
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, model_validator
@@ -29,7 +29,7 @@ from .capabilities import (
 from .provider import DeepSeekModel
 from .image_inputs import ImageLimits, ImageStore
 from .local_logs import LocalEventLog
-from .remote import RemoteBridge, RemoteState
+from .remote import BridgeUnavailable, RemoteBridge, RemoteState
 from .roleplay import RoleplayService
 from .replies import ReplyComposer, ReplyPolicy
 from .identity import local_principal
@@ -158,6 +158,7 @@ def create_app(*, config_path=None):
                 runtime,
                 broker,
             )
+            app.state.state_bridge = state_bridge
             system_prompt = (
                 application_prompt()
                 + "当前是通过已认证SSH连接的本地管理员控制台，群聊查询允许全归档。"
@@ -210,6 +211,11 @@ def create_app(*, config_path=None):
             await bridge.close()
 
     app = FastAPI(title="Agent Studio", lifespan=lifespan)
+
+    @app.exception_handler(BridgeUnavailable)
+    async def bridge_unavailable(request, exc):
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+
     app.add_middleware(
         TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"]
     )
@@ -248,8 +254,10 @@ def create_app(*, config_path=None):
 
     @app.get("/api/status")
     async def status():
+        connections = await asyncio.gather(app.state.bridge.health(), app.state.state_bridge.health())
         return {
             **public,
+            "connections": {"business": connections[0], "state": connections[1]},
             "thinking": config.get("thinking", True),
             "vision_model": config.get("vision_model", public.get("model")),
             "image_limits": vars(image_store.limits),
