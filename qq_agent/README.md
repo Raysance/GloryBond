@@ -43,6 +43,15 @@ QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响
 `search_chat_history`，再 `discover_tools`；普通私聊只强制发现工具。未披露或未授权
 工具不能执行。DeepSeek 工具链统一关闭 thinking，原生图片使用配置中的 vision_model。
 
+询问机器人的功能、特性、命令或实现时，可发现 `bot_info` 并调用 `read_bot_manual`。
+它按问题检索 `shared/agent/manual/handbook.md` 的少量相关章节；`section_id` 可精确
+追问，`include_code=true` 可读取目录声明的关联函数摘录。结果含来源行号、版本和
+截断/缺失状态，以及当前渠道相关工具的注册和授权信息。手册和实现有差异时需说明，
+工具已注册不代表外部服务始终可用，传统 QQ 命令也不等于 agent 工具。
+代码从目标服务器当前文件按 AST 定位，缓存随文件变化刷新，不导入执行源码。
+不接受任意文件路径，不读取密钥、配置或日志；源码凭据脱敏。手册与代码映射位于
+独立共享目录，修改后重启外部适配器；内核没有机器人说明或业务代码依赖。
+
 `references` 类别还提供 `read_group_member_profile`，一次读取一个群成员的 QQ 昵称、
 群名片、角色、头衔、群等级、展示的地区/性别/年龄、入群和最后发言时间，以及可选
 头像。默认 `target="user"` 且省略 `user_id` 查询提问者本人；`target="bot"` 查询机器人

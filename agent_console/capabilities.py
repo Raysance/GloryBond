@@ -92,6 +92,9 @@ class Capabilities:
             "reference_lookup", query=args, principal=dataclasses.asdict(ctx.principal)
         )
 
+    async def read_bot_manual(self, args):
+        return await self.bridge.call("bot_manual", **args)
+
 
 def reference_prompt(snapshot):
     return (
@@ -119,6 +122,8 @@ def remote_chat_identity(principal):
 def application_prompt():
     return (
         "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
+        "用户询问机器人自身的功能、特性、命令或实现时，发现bot_info并调用read_bot_manual，优先少量相关章节；"
+        "手册不够明确时才读取关联代码，不以历史对话、角色设定或通用模型常识代替机器人手册。"
         "当前用户身份已由入口绑定，长期记忆归属于同一调用者并跨会话共享，"
         "本次‘我’指入口提供的identity；游戏查询使用其player_key，回复称呼使用配置昵称。"
         "保存本人偏好不需要其QQ、玩家名或游戏ID。不得从群聊发言推断调用者是谁。"
@@ -143,9 +148,12 @@ def chat_required_tools():
 
 def load_catalogs(shared_path, *, recent_limits=None):
     root = Path(shared_path)
+    manual = json.loads((root / "manual/catalog.json").read_text())
     return {
         "chat_history": {"recent_limits": recent_history_limits(recent_limits)},
         "game_data": json.loads((root / "hok_sql/catalog.json").read_text()),
         "chat_data": json.loads((root / "chat_sql/catalog.json").read_text()),
         "plots": json.loads((root / "plots/catalog.json").read_text()),
+        "bot_info": {"limits": manual["limits"],
+                     "topics": [{"section_id": topic["id"], "title": topic["title"]} for topic in manual["topics"]]},
     }

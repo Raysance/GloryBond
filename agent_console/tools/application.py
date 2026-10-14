@@ -8,6 +8,7 @@ from agent_runtime.models import ToolResult
 from .observations import project_sql_result
 from .plotting import PlotArgs, build_plot_code
 from .memory import recent_history_limits
+from .bot_manual import register_bot_manual_tool
 
 
 class Args(BaseModel):
@@ -138,6 +139,8 @@ class CancelTaskArgs(Args):
 
 
 def register_application_tools(registry, *, service, catalogs):
+    if "bot_info" in catalogs:
+        register_bot_manual_tool(registry, service=service, catalog=catalogs["bot_info"])
     history_limits = recent_history_limits(catalogs.get("chat_history", {}).get("recent_limits"))
     recent_args = create_model(
         "RecentChatHistoryArgs", __base__=Args,

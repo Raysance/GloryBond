@@ -200,6 +200,13 @@ def bootstrap(args):
     CONTEXT["reference_class"] = reference_namespace["ReferenceData"]
     CONTEXT["reference_manifest"] = args["reference_manifest"]
     references = reference_snapshot()
+    manual_namespace = {}
+    exec(compile(args["bot_manual_reader"], "portable_bot_manual", "exec"), manual_namespace)
+    CONTEXT["bot_manual"] = manual_namespace["BotManual"](
+        root, args["bot_manual_catalog"], args["bot_manual_handbook"],
+        secrets=[model["api_key"], *(value for name, value in env.items()
+                  if any(word in name.upper() for word in ("KEY", "TOKEN", "PASSWORD", "SECRET", "DSN")))],
+    )
     font_candidates = [
         Path(
             cfg.get("AgentPlots", {}).get("font_path")
@@ -681,6 +688,8 @@ def dispatch(args):
         return search_history(args)
     if op == "recent_history":
         return recent_history(args)
+    if op == "bot_manual":
+        return CONTEXT["bot_manual"].read(**{key: value for key, value in args.items() if key != "op"})
     if op == "reference_snapshot":
         return reference_snapshot()
     if op in {"reference_catalogs", "reference_lookup"}:

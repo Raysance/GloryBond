@@ -84,6 +84,9 @@ class RemoteBridge:
             reference_builder=(
                 Path(__file__).with_name("tools") / "reference_data.py"
             ).read_text(),
+            bot_manual_catalog=json.loads((self.shared_path / "manual/catalog.json").read_text()),
+            bot_manual_handbook=(self.shared_path / "manual/handbook.md").read_text(),
+            bot_manual_reader=Path(__file__).with_name("bot_manual.py").read_text(),
             use_process_environment=getattr(self, "use_process_environment", False),
         )
 
