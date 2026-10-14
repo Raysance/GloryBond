@@ -24,6 +24,7 @@
 - `hok/ztime.py`：时间工具与日期处理统一入口；任何时间计算、格式化、时间窗口判断都应调用这里的接口；代表局查询中的自然语言日期及区间统一由 `parse_representative_battle_date()`、`parse_representative_battle_date_range()` 解析，群聊历史检索时间边界统一由 `parse_chat_time_bound()` 解析。
 - `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
+- `hok/utils/qq_profiles.py`：只读 QQ 适配器边界，通过真实 bot 校验群成员列表并读取指定成员的新资料，不发送消息。`business/qq_profiles.py` 只对白名单字段、身份一致性和未知值做归一化；头像 HTTP 下载经 `zapi.qq_avatar_bytes()` 转发给 `api_adapters/qq_profiles.py`，不在业务层请求网络。配置来自 `QQProfiles`，由 `zstatic.qq_profile_config` 暴露。
 - `hok/zapi.py`：外部 API 的兼容门面，从 api_adapters 导出业务函数。业务文案只使用单轮文本/图片接口；不提供第二套 agent 的工具或 Responses 编排入口。QQ 与网页模型协议由 `agent_console/provider.py` 适配，多轮编排由独立内核负责。
 - `hok/api_adapters/`：按外部服务封装协议、签名、响应解析与重试；不读取 Redis。业务 AI 文案使用已配置 ChatAPI 单轮文本接口，图片与原有 Ark 文案接口继续保留。agent 的 DeepSeek 工具链与原生图片在外部 provider 处理，统一关闭工具链 thinking。阿里云 OpenSearch 与官方游戏请求显式禁用环境代理直连，Steam/APIMart 经配置的 Clash 代理，缺少代理时不回退直连。
 - `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
@@ -167,7 +168,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 ### 3.2 库导入边界（严格）
 
-1. **NoneBot 与机器人适配器**：与 NoneBot、机器人事件、消息段、适配器、bot 实例操作相关的库，只能在 `zevent.py`、`utils/message_sender.py` 等顶层消息入口/出口脚本中导入和使用；业务层不得直接导入。
+1. **NoneBot 与机器人适配器**：与 NoneBot、机器人事件、消息段、适配器、bot 实例操作相关的库，只能在 `zevent.py`、`utils/message_sender.py`、只读边界 `utils/qq_profiles.py` 等顶层适配器脚本中导入和使用；业务层不得直接导入。
 2. **Redis 交互**：与 Redis 连接、读写、缓存交互相关的库，只能在 `zfunc.py` 中导入和使用；其他模块需要 Redis 数据时必须通过 `zfunc.py` 暴露的业务接口获取。
 3. **AI 与 HTTP API**：与 OpenAI、AI API、`requests` 等外部 HTTP/API 请求相关的库，只能在 `hok/api_adapters/` 中导入和使用；`zapi.py` 只做兼容导出，业务流程只调用 `zapi.py` 的公开接口。协议适配器不得访问 Redis、文件系统或消息发送接口；API 错误日志如需落盘，仅通过 `zfile.py` 的明确接口完成。
 4. **时间处理**：`time`、`datetime`、时区、日期解析与时间窗口判断相关库，只能在 `ztime.py` 中导入和使用；其他模块必须调用 `ztime.py` 的时间工具接口。
@@ -203,6 +204,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - `RunRequest.context_messages` 为仅本轮可见的 user 角色补充资料，支持文字及原生内容块，不允许 system/assistant/tool 或工具调用字段；在工具循环和运行记录中保留，直接对话保存不含这些资料。QQ 引用通过此接口输入，不能放在 system prompt，也不能改变身份和权限；内核不识别引用、QQ 或来源字段。
 - `agent_console/` 是外部本地适配器，允许在此封装 FastAPI、SSH、HTTP、时间及 IO；这是独立包接入层，不适用上文针对 `hok/` 的具体模块导入边界。UI 仅消费内核事件；`qq_agent/` 同为外部适配器，复用同一 `AgentRuntime`、工具和角色服务，不导入 Web server。QQ 的网络、进程、时间及 IO 封装也不适用 `hok/` 内部导入边界。
 - `examples/independent_agent.py` 演示通用调用方如何提供模型、内存状态、输出和标准时钟，不导入 HOK 或连接外部服务；示例适配器的标准库使用同样不适用 `hok/` 的导入边界。
+- `zfunc.agent_read_group_member_profile()` 是 QQBot 的实时资料门面，通过注入的 `QQAgentService.member_profile_reader` 提供给 `qq_agent/member_profiles.py` 注册的 `read_group_member_profile`（references 类别）。普通群只能读取当前群的成员；配置管理员私聊需指定目标群，普通私聊不披露。成员身份必须经 QQBot 验证，模型只能选择目标 QQ，不能提供原始 URL、原始资料或授权。头像失败、无效或超过共享输入预算时保留文字资料，缺失字段为 null；当前本地 Web 未注入此 QQBot 读取端口，不以历史数据库冒充实时资料。内核和独立包不导入 QQ 读取器。
 - `agent_console/remote_worker.py` 支持两种相同的 RPC 传输：网页用 SSH 临时执行，QQ 在部署服务器上使用 ProcessBridge 启动本地子进程。均不修改业务数据库 schema。SSH 模式读取服务运行进程环境；QQ worker 继承当前进程环境并读取现有 `.env` / `config.yaml`，从服务器实际源码提取 API 适配函数。凭据只保留在适配器内存，不写新密钥文件、不返回浏览器。
 - `agent_console/remote.py` 串行管理 RPC 与连接恢复：新请求发送前若 worker 已退出或流已关闭，在同一锁内重新启动并 bootstrap；已发送请求遇到 EOF、超时或坏响应时关闭旧流并明确报告结果未确认，禁止自动重放可能已经生效的操作。取消调用者仍等待原 RPC 消费响应，关闭后不自动重连。`/api/status` 必须实测业务与状态两条连接及其 Redis PING，不以缓存配置判定健康；连接故障通过 `BridgeUnavailable` 返回带中文说明的 HTTP 503，内核不参与 SSH 恢复。
 - `agent_console/tools/` 定义应用的具体工具、PostgreSQL AST 校验和参考数据查询；应用提示词由 `agent_console/capabilities.py` 组装，持久任务到通用请求的转换由 `agent_console/tasks.py` 完成。聊天和游戏查询使用服务器独立 `hok_chat_reader` PostgreSQL 账号；长期记忆及本地会话运行状态使用 Redis DB0。普通群与跨群范围在可信 `Principal.attributes.chat` 中传入并由适配器绑定，模型不得提供或改变。所有后台任务和运行记录使用 `hok:agent_runtime:console:*`。QQ 对话会话使用 `qq_g_<群>_<QQ>` / `qq_p_<QQ>`，与网页隔离；QQ 与网页任务分别使用 `tasks:qq` / `tasks` due 索引，避免相互领取或阻塞。本地默认玩家由 `LocalAgent.player_key` 指定为 example_user_10，入口从权威参考数据唯一解析其 QQ；长期事实记忆使用该用户已有的 `hok:memory:facts:<QQ>`，跨会话共享。旧匿名 `local-ui:<session>` 记忆保留，不自动认领、迁移或删除。
@@ -220,6 +222,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - `ImageInput` / `RunRequest.images` 是内核的通用图片输入协议，源为 URL、data URL 或外部模型适配器解析的引用，内核不做图片 IO、不包含供应商与文件策略。用户文字与图片作为原生内容块进入每轮 ReAct 请求；`StatePort.save_dialogue.question` 接受字符串或内容块列表并原样恢复，纯文本调用兼容。图片、图片中的指令不得改变身份或工具授权。
 - `agent_console/image_inputs.py` 负责本地图片校验、原始像素存储、上下文预算和事件引用投影。输入图片及元数据存于忽略目录 `file_transfer/agent_inputs/`；网页选择、粘贴、拖入均走认证 `/api/images`，`/api/chat` 只接受已上传图片 ID。格式依实际像素检测，拒绝损坏文件、超大图片、无效 ID 和重复附件。原图保持不变；GIF、动态 WebP/APNG 等动画在外部适配器按帧序抽样成带帧号的 PNG 拼图，默认最多 4 帧、源动画最多 240 帧且限制累计解码像素，配置在 `LocalAgent.images` / `QQAgent.images`。原图与实际模型输入拼图各自保存，拼图元数据记录原图 ID、总帧数和抽样帧索引；静态图直接转换为原始 data URL，动画转换为拼图 data URL。Redis/SSE/事件快照使用 `attachment://<id>`，实际 request payload 必须引用真正发送的像素文件，不能把拼图冒充原 GIF；provider 在线程中做投影，不阻塞任务发送。默认 4 张、单张 4 MiB、每次 8 MiB；模型图片预算 16 MiB 以实际发送字节计算，优先近期图片，被省略的历史图片必须有明确提示和记录。QQ 入口支持带真实 URL 的 image/mface/marketface/face，缺少 URL 的表情明确标记未读取像素，不猜测素材地址。
 - 图片模型名称分别在根 `config.yaml#LocalAgent.vision_model` / `QQAgent.vision_model` 设置，本地 `LocalAgent.llm.vision_model` 覆盖优先；QQ 继续使用 `deepseek-v4-flash` 官方兼容路由，本地 ZenMux 文字使用 V4 Flash、图片使用支持视觉输入的 V4.1 Flash。无本地覆盖时模型 key 与 endpoint 从服务器读取，有覆盖时遵守上文的本地密钥规则。带当前或历史图片时在 `agent_console/provider.py` 选择视觉模型，角色、工具与同一 ReAct 内核继续工作；纯文本使用对应渠道的文字模型。图片输入的 token 已包含在 API 输入用量中，不重复统计。
+- 外部工具可在成功 observation 的 `data.model_images` 中返回原生 `image_url` 内容块，仅接受适配器拥有的 `attachment://` 引用。ImageStore 在完整 tool 回复批次之后补充原生 user 图片资料，保持工具调用顺序并标明来源调用；provider 在投影后选择视觉模型，实际 payload 与图片引用继续入日志。该协议不按工具名称分支，不把工具图片写入直接对话或长期事实。QQ 成员头像先由 QQBot 下载，再经 QQ 适配器校验、私有保存并计入原消息、引用和本轮工具共用的图片数量/体积预算；内核仍只处理通用 JSON observation。
 - 内核的可选 `FinalizerPort` 接收 `FinalizationContext` 中的请求、任务草稿和模型上下文副本，返回通用 `FinalAnswer`。内核不识别角色、QQ、版本名称或排版；只发布默认 text、透传 variants/metadata，并保存 history_text（缺省为 text）。原模型响应及草稿保持完整。处理器失败保留草稿并警告，取消与总体预算仍生效；同步阶段性输出不受最终整理器影响。
 - `agent_console/replies.py` 是外部双版本展示器：ReAct 答案作为唯一事实底稿，detailed 原样保留；JSON 模型仅生成 chat，不带工具、不重新分析或计算。表达输入只有当前问题、底稿、最新角色表达卡和用户表达偏好，不再次注入原始工具结果、目录、检索发言、旧对话、长期记忆与角色生平；有 voice 的角色只投影其表达卡，旧档案兼容提取 personality / speech_style。数字沿用底稿的对象、标签、单位与分母，不拆开重组。默认最多两次、总阶段 60 秒，检查结构、长度、纯文本和新增数值/链接；字面量检查不代表语义验证，不增加事实复核模型。超出输入预算不截断事实；失败保留底稿并显式 degraded。预算统一在 config.yaml 的 LocalAgent.reply。
 - `output.message.data.text` 和本地 run 结果 text 默认使用群聊版，variants 另存详细版与群聊版，网页分别展示并允许复制群聊纯文本；QQ 出口按当次需求选择版本。reply.model.* 完整记录请求、输入字段长度、响应、原始JSON、修复与失败，并与 ReAct/角色生成统一统计 token。当前本地 history_variant=detailed 只保存一份底稿供后续追问，避免重复答案膨胀上下文；QQ 适配器可选择 chat，只保存实际发送内容。两个版本均保留在事件中；固定文字定时任务保持原文且不新增模型请求。

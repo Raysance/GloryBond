@@ -37,6 +37,23 @@ QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响
 `search_chat_history`，再 `discover_tools`；普通私聊只强制发现工具。未披露或未授权
 工具不能执行。DeepSeek 工具链统一关闭 thinking，原生图片使用配置中的 vision_model。
 
+`references` 类别还提供 `read_group_member_profile`，一次读取一个群成员的 QQ 昵称、
+群名片、角色、头衔、群等级、展示的地区/性别/年龄、入群和最后发言时间，以及可选
+头像。省略 `user_id` 查询本人；名称需先通过参考映射确定 QQ。普通群只读取当前群，
+管理员私聊须指定 `group_id`，普通私聊没有该工具权限。未返回的字段为 null，不推断
+现实身份、年龄或在线状态。群等级不是游戏段位。
+
+读取链为 `zfunc.agent_read_group_member_profile → utils/qq_profiles → OneBot`，
+头像 HTTP 通过 `zapi → api_adapters/qq_profiles` 获取，字段归一化在
+`business/qq_profiles.py`。QQBot 将该读取器注入外部 `QQAgentService`，工具和内核
+不直接操作 bot。先验证群成员身份再读取，头像失败时仍提供文字资料。
+
+头像校验后保存在非公开输入目录，与本次直接图片、引用图片及其他头像共用数量和
+体积预算。工具 observation 返回 `model_images` 的私有附件引用；外部 provider 将
+像素作为原生图片加入下一轮模型调用，保持完整工具批次的顺序，头像及其中的文字
+只作为资料。内核仍只处理 JSON observation，直接对话历史不保存这些工具图片。
+配置位于 `config.yaml#QQProfiles`。本地 Web 当前未注入 QQBot 的实时资料读取器。
+
 当前问题指代不清或相关性检索仍不足以判断时，agent 可发现 `chat_history` 类别并调用
 `read_recent_chat_history`。默认读取当前群最近 15 分钟的最多 20 条已归档发言，取
 窗口内最新消息后按时间顺序返回所有发言者的文字摘录，排除当前群的本次消息；

@@ -35,6 +35,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
                 patch.object(files, "store_agent_artifact", store), \
                 patch.object(sender, "add_chat_result_msg", send):
             await FUNCS.agent_runtime_start()
+            self.assertIs(received["member_profile_reader"], FUNCS.agent_read_group_member_profile)
             packet = {"text": "回复", "artifacts": []}
             self.assertEqual(await received["prepare_reply"](packet), packet)
             self.assertEqual(await received["store_artifact"]("a" * 32, b"pixels"), {"path": "trusted.png"})

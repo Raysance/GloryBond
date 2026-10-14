@@ -126,6 +126,7 @@ chat_readonly_dsn = str(
     or ""
 ).strip()
 agent_plot_config = confs.get("AgentPlots", {})
+qq_profile_config = confs.get("QQProfiles", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")

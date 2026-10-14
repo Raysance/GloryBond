@@ -24,6 +24,7 @@ from .api_adapters.bilibili import (
     bilibili_search_videos_by_mid,
 )
 from .api_adapters.steam import steam_api_recent_games, steam_api_user_status
+from .api_adapters.qq_profiles import qq_avatar_bytes
 from .api_adapters.tianyuanzhiyi import (
     tianyuanzhiyi_hero_avatars_api,
     tianyuanzhiyi_matchup_api,
@@ -49,6 +50,7 @@ __all__ = [
     "bilibili_search_videos_by_mid",
     "steam_api_recent_games",
     "steam_api_user_status",
+    "qq_avatar_bytes",
     "tianyuanzhiyi_hero_avatars_api",
     "tianyuanzhiyi_matchup_api",
     "tianyuanzhiyi_tier_api",

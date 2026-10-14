@@ -487,6 +487,23 @@ def chat_prepare_reply(result):
     return result
 
 
+async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=True):
+    """QQBot owns live member lookup and avatar retrieval; the agent receives a snapshot."""
+    from .utils.qq_profiles import load_group_member_profile
+    from .business.qq_profiles import normalize_group_member_profile
+    from .zapi import qq_avatar_bytes
+
+    record = await load_group_member_profile(group_id, user_id)
+    profile = normalize_group_member_profile(record, group_id, user_id)
+    result = {"profile": profile, "avatar_bytes": None, "avatar_error": None}
+    if include_avatar:
+        try:
+            result["avatar_bytes"] = await asyncio.to_thread(qq_avatar_bytes, user_id, config=qq_profile_config)
+        except Exception as exc:
+            result["avatar_error"] = f"头像读取失败（{type(exc).__name__}），文字资料仍可用"
+    return result
+
+
 async def agent_runtime_start():
     """Bind QQ IO to the shared, externally maintained ReAct runtime."""
     from qq_agent import QQAgentService
@@ -522,7 +539,8 @@ async def agent_runtime_start():
                                  identity_names=identities, aliases=[a for values in nameref.values() for a in values])
 
     service = QQAgentService(root=project_root, config=config, admin_id=confs["QQBot"]["super_qid"],
-                             sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text)
+                             sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
+                             member_profile_reader=agent_read_group_member_profile)
     dmc.qq_agent_service = service
     try:
         await service.start()

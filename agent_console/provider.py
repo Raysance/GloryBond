@@ -31,15 +31,15 @@ class DeepSeekModel:
         )
 
     async def complete(self, messages, tools, on_delta, *, tool_choice="auto"):
+        vision_context = {}
+        if self.image_store:
+            messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
         has_images = any(
             isinstance(message.get("content"), list)
             and any(part.get("type") == "image_url" for part in message["content"])
             for message in messages
         )
         selected_model = self.vision_model if has_images else self.model
-        vision_context = {}
-        if self.image_store:
-            messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
         payload = {
             "model": selected_model,
             "messages": messages,
