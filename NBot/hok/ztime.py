@@ -10,9 +10,80 @@ from dateutil import parser
 def time_r(): # time_real
     time_real=datetime.datetime.now()
     return time_real
+def current_datetime_text():
+    return time_r().strftime("%Y-%m-%d %H:%M:%S")
+def current_epoch_seconds():
+    return int(time_r().timestamp())
+
+
+def current_epoch_microseconds():
+    return round(time_r().timestamp() * 1000000)
+
+
+def current_timestamp():
+    """Return the current local Unix timestamp with sub-second precision."""
+    return time_r().timestamp()
+
+
+def monotonic_seconds():
+    """Measure elapsed work without depending on changes to the system clock."""
+    return time.monotonic()
+
+
+def sleep_seconds(seconds):
+    """Sleep for a caller-provided duration through the time boundary module."""
+    time.sleep(max(0, float(seconds)))
+
+
+def datetime_from_parts(year, month, day, hour=0, minute=0, second=0):
+    """Build a naive deployment-local datetime from numeric parts."""
+    return datetime.datetime(
+        int(year), int(month), int(day), int(hour), int(minute), int(second)
+    )
+
+
+def is_within_daily_time_window(hour, minute, window_seconds=600):
+    """Return whether local time is within a wrapping daily time window."""
+    now = time_r()
+    target = now.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+    delta = abs((now - target).total_seconds())
+    return min(delta, 86400 - delta) <= int(window_seconds)
+
+
+def minutes_until_daily_window_end(hour, minute, window_minutes=10):
+    """Return rounded-up minutes until the nearest daily window ends."""
+    now = time_r()
+    target = now.replace(
+        hour=int(hour),
+        minute=int(minute),
+        second=0,
+        microsecond=0,
+    )
+    difference = now - target
+    if difference.total_seconds() > 43200:
+        target += timedelta(days=1)
+    elif difference.total_seconds() < -43200:
+        target -= timedelta(days=1)
+    end_time = target + timedelta(minutes=int(window_minutes))
+    return int((end_time - now).total_seconds() / 60) + 1
+def parse_chat_time_bound(value, is_end=False):
+    """Parse a chat-history time bound in the deployment host timezone."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip()
+    if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        return int(float(text))
+    parsed = parser.parse(text)
+    if is_end and re.fullmatch(r"\d{4}-\d{1,2}-\d{1,2}", text):
+        parsed = parsed.replace(hour=23, minute=59, second=59)
+    return int(parsed.timestamp())
 def date_r():
     date_real = datetime.datetime.now().strftime("%Y-%m-%d")
     return date_real
+def epoch_ms():
+    return int(time_r().timestamp() * 1000)
 def time_r_delta(delta=0):
     time_real=time_r()
     time_back=time_real-timedelta(days=delta)
@@ -78,6 +149,21 @@ def epoch_to_text(timestamp, format_str="%Y-%m-%d %H:%M:%S"):
     if timestamp in (None, ""):
         return None
     return datetime.datetime.fromtimestamp(int(timestamp)).strftime(format_str)
+
+
+def iso_text_without_timezone(value):
+    """Format an ISO timestamp as deployment-local-looking text without timezone."""
+    if not value:
+        return "-"
+    text = str(value).strip()
+    try:
+        parsed = datetime.datetime.fromisoformat(text)
+        return parsed.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        matched = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", text)
+        if matched:
+            return matched.group(1).replace("T", " ")
+        return text
 
 
 def _chinese_day_count(text):
@@ -191,7 +277,7 @@ def parse_fuzzy_time(fuzzy_str):
     now = time_r()
     target_date_start = now.date()
     target_date_end = now.date()
-    
+
     # 解析日期
     if "大前天" in fuzzy_str:
         target_date_start = target_date_end = (now - timedelta(days=3)).date()
@@ -221,10 +307,10 @@ def parse_fuzzy_time(fuzzy_str):
         if day_match:
             days = int(day_match.group(1))
             target_date_start = target_date_end = (now - timedelta(days=days)).date()
-    
+
     start_time = datetime.datetime.combine(target_date_start, datetime.time(0, 0))
     end_time = datetime.datetime.combine(target_date_end, datetime.time(23, 59, 59))
-    
+
     # 解析时段
     if "凌晨" in fuzzy_str or "深夜" in fuzzy_str or "半夜" in fuzzy_str:
         start_time = start_time.replace(hour=0, minute=0)
@@ -247,5 +333,5 @@ def parse_fuzzy_time(fuzzy_str):
     elif "晚上" in fuzzy_str:
         start_time = start_time.replace(hour=18, minute=0)
         end_time = end_time.replace(hour=23, minute=59)
-        
+
     return start_time, end_time

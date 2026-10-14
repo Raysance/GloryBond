@@ -1,0 +1,328 @@
+{
+  "dialect": "postgresql",
+  "schema": "hok",
+  "timezone": "Asia/Shanghai",
+  "tables": {
+    "chat_player_snapshots": {
+      "description": "玩家每日资料快照；每个(snapshot_date,player_key)通常一行。用于段位、可见性和当天汇总，不可累加累计字段total_num。",
+      "columns": {
+        "snapshot_date": "date",
+        "player_key": "text",
+        "nickname": "text",
+        "rank_name": "text",
+        "rank_star": "integer",
+        "star": "integer",
+        "star_up": "integer",
+        "today_num": "integer",
+        "total_num": "integer",
+        "visible": "boolean",
+        "map_count": "jsonb",
+        "peak_up": "jsonb",
+        "gaming_info": "jsonb",
+        "payload": "jsonb",
+        "updated_at": "timestamptz"
+      }
+    },
+    "chat_player_battles": {
+      "description": "已记录玩家的去重对局语义视图；严格一行代表一个(player_key,game_seq)。已自动选取最新快照，并把参赛者字段精确绑定到该玩家本人；game_seq缺失的原始行不进入此视图。",
+      "columns": {
+        "snapshot_date": "date",
+        "player_key": "text",
+        "game_seq": "bigint",
+        "game_time_label": "text",
+        "game_time_epoch": "bigint",
+        "hero_name": "text",
+        "map_name": "text",
+        "map_type": "integer",
+        "is_official": "boolean",
+        "star_after_game": "integer",
+        "peak_grade_after": "integer",
+        "peak_grade_before": "integer",
+        "kill_count": "integer",
+        "death_count": "integer",
+        "assist_count": "integer",
+        "result": "text",
+        "game_grade": "numeric",
+        "duration_seconds": "integer",
+        "player_camp": "text",
+        "player_hero_id": "bigint",
+        "player_gold": "integer",
+        "participant_payload": "jsonb",
+        "game_type": "integer"
+      }
+    },
+    "chat_player_equipment": {
+      "description": "已记录玩家本人的最终装备明细；严格一行代表一个玩家在一局中的一件装备。英雄、装备和player_key已经在视图内部按目标本人绑定，统计出装不需要也不得再连接参赛者表。",
+      "columns": {
+        "snapshot_date": "date",
+        "player_key": "text",
+        "game_seq": "bigint",
+        "game_time_epoch": "bigint",
+        "hero_name": "text",
+        "map_name": "text",
+        "map_type": "integer",
+        "is_official": "boolean",
+        "result": "text",
+        "game_grade": "numeric",
+        "player_camp": "text",
+        "equipment_index": "integer",
+        "equipment_name": "text",
+        "equipment_payload": "jsonb"
+      }
+    },
+    "chat_player_battle_roster": {
+      "description": "以每个已记录玩家为锚点的对局阵容；一行代表该玩家某局中的一名参赛者。relation已确定self、teammate或opponent，已配置参赛者同时给出participant_player_key，无需推断阵营、猜测昵称或使用身份ID连接。",
+      "columns": {
+        "snapshot_date": "date",
+        "player_key": "text",
+        "game_seq": "bigint",
+        "game_time_epoch": "bigint",
+        "player_hero_name": "text",
+        "map_name": "text",
+        "map_type": "integer",
+        "is_official": "boolean",
+        "player_result": "text",
+        "player_game_grade": "numeric",
+        "player_camp": "text",
+        "relation": "text",
+        "participant_player_key": "text",
+        "participant_index": "integer",
+        "role_name": "text",
+        "hero_id": "bigint",
+        "hero_name": "text",
+        "kill_count": "integer",
+        "death_count": "integer",
+        "assist_count": "integer",
+        "game_grade": "numeric",
+        "gold": "integer",
+        "position": "text",
+        "skill": "jsonb",
+        "battle_stats": "jsonb"
+      }
+    },
+    "chat_personal_snapshots": {
+      "description": "营地个人采集快照；按snapshot_date与player_key关联，是采集时状态而非实时在线状态。",
+      "columns": {
+        "snapshot_date": "date",
+        "player_key": "text",
+        "invisible": "boolean",
+        "is_gaming": "boolean",
+        "battle_count": "integer",
+        "payload": "jsonb",
+        "updated_at": "timestamptz"
+      }
+    },
+    "chat_battle_power_players": {
+      "description": "已评估对局的参赛者语义视图；每个(game_seq,participant_index)一行。阵营底蕴、对手底蕴和胜负均已转换为该参赛者视角；已关联玩家才有player_key。",
+      "columns": {
+        "game_seq": "bigint",
+        "player_key": "text",
+        "map_name": "text",
+        "evaluated_at": "text",
+        "participant_index": "integer",
+        "nickname": "text",
+        "side": "text",
+        "hero_name": "text",
+        "hero_power": "integer",
+        "hero_win_rate": "numeric",
+        "hero_average_score": "numeric",
+        "single_level": "numeric",
+        "participant_payload": "jsonb",
+        "participant_side_level": "numeric",
+        "rival_side_level": "numeric",
+        "participant_side_tier": "numeric",
+        "rival_side_tier": "numeric",
+        "participant_result": "text"
+      }
+    },
+    "hero_tier_scores": {
+      "description": "历史英雄梯度数值；主键(snapshot_date, hero_name)，与个人英雄战力不同。",
+      "columns": {
+        "snapshot_date": "date",
+        "hero_name": "text",
+        "score": "numeric",
+        "updated_at": "timestamptz"
+      }
+    },
+    "chat_hero_rank_entries": {
+      "description": "官方英雄榜条目语义视图；每个(snapshot_date,rank_id,rank_index)一行，已经附带所属榜单的title、排序和filter_data，不需要连接榜单快照。",
+      "columns": {
+        "snapshot_date": "date",
+        "rank_id": "integer",
+        "title": "text",
+        "update_time": "text",
+        "sort_field": "text",
+        "sort_type": "text",
+        "filter_data": "jsonb",
+        "rank_index": "integer",
+        "hero_id": "bigint",
+        "hero_name": "text",
+        "hero_career": "text",
+        "tier_rank": "text",
+        "ban_rate": "numeric",
+        "show_rate": "numeric",
+        "win_rate": "numeric",
+        "pick_count": "bigint",
+        "ban_count": "bigint",
+        "payload": "jsonb"
+      }
+    }
+  },
+  "query_contract": {
+    "one_relation_per_query": true,
+    "rule": "每条查询只选择一个语义关系；需要多类数据时在同一次analyze调用中提交多条查询。"
+  },
+  "semantics": [
+    "SQL 方言PostgreSQL。仅单条SELECT或非递归WITH ... SELECT，可JOIN、聚合、窗口和JSON。必须显式列名，COUNT(*)可用。模型无权访问采集层战绩表、身份ID、文件路径、系统目录或导入清单。",
+    "先按所需粒度选择语义视图：玩家每局用chat_player_battles，玩家本人装备用chat_player_equipment，以玩家为视角的阵容关系用chat_player_battle_roster，底蕴参赛者用chat_battle_power_players。每条查询只使用一个语义关系；多类数据在同一次analyze调用中拆成多条查询，不得跨视图重建已有关系。",
+    "chat_player_battles已按(player_key,game_seq)选择最新快照并精确绑定该玩家本人的参赛者数据，一行就是一名已记录玩家的一局，无需DISTINCT去重。game_seq缺失的采集行不进入模型语义层。玩家场次用COUNT(*)，全局物理比赛数用COUNT(DISTINCT game_seq)。",
+    "chat_player_equipment一行就是chat_player_battles中目标玩家本人的一件最终装备；hero_name与equipment_name天然属于同一个人和同一局。查询出装直接过滤hero_name并聚合equipment_name，不连接阵容视图。",
+    "chat_player_battle_roster一行是某个player_key在某局视角下的一名参赛者；relation固定为self、teammate或opponent。participant_player_key是视图内已解析的已配置玩家，未关联时为NULL；不得用role_name猜测玩家身份。分析队友或对手直接过滤relation；同一物理对局若有多个已记录玩家，会按每个player_key分别产生视角行。",
+    "chat_player_snapshots是每日资料快照。最新资料使用DISTINCT ON (player_key)并按snapshot_date DESC；total_num是采集时累计值，不能跨天求和。visible表示采集时可见性，缺数据不代表零。",
+    "用户给出配置昵称或别名时，从本次身份表取player_key过滤，不能用游戏内nickname或role_name等于用户叫法来定位。输出已关联玩家时保留player_key供最终回答映射配置昵称。",
+    "result、player_result与participant_result使用中文'胜利'或'失败'。map_type=1排位、-1巅峰、0其他。star_after_game是折算总星数；rank_star是当前段位内星数，star是折算星数。",
+    "语义视图已提供is_official，默认正式5v5直接过滤is_official IS TRUE。用户明确要求匹配、娱乐或全部时另选过滤并说明。英雄统计未给时期时默认当前赛季；组排、互动、共玩、总场次等一般历史统计未给时期时覆盖全部可用数据并返回最早/最晚时间。",
+    "日期以Asia/Shanghai为准。业务日用snapshot_date，精确时间用game_time_epoch秒值及to_timestamp(game_time_epoch)。game_time_label仅供展示，不得作为跨年过滤、分组或排序依据。",
+    "game_grade是个人评分。胜率=胜局/有效场次（0到1）；KDA=(kill_count+assist_count)/GREATEST(death_count,1)，需说明按单局平均或汇总KDA。缺失评分用NULL排除，不强行填0；比较需返回样本数和时间范围。",
+    "chat_player_battles.participant_payload中的battleRecords.position是本人分路，battleStats含本人伤害、承伤和参团等字段；阵容成员使用chat_player_battle_roster.position、skill和battle_stats。阵营关系只使用relation，不从camp、participant_index或red/blue顺序重新推断。",
+    "已关联玩家胜负使用chat_player_battles.result，阵容分析使用chat_player_battle_roster.player_result；模型语义层不暴露带采集视角的完整战局payload。",
+    "chat_battle_power_players已经把原始my/op视角转换为每个参赛者视角：participant_side_level、rival_side_level、participant_side_tier、rival_side_tier和participant_result可直接使用，无需再根据side翻转。",
+    "single_level为个人底蕴，未授权玩家可能是0，须结合participant_payload->>'isAuth'排除未知。阵营底蕴已按授权人数折算为5人，不可直接把全部single_level相加替代。只覆盖已评估局，必须报告覆盖场次。",
+    "chat_battle_power_players.hero_power是评估时英雄战力，hero_win_rate为0到1，hero_average_score为历史均分；participant_payload含starNum、peakScore、mvpRate、recentWinRate、heroShowCnt等。当前英雄战力和地区荣耀门槛使用独立工具。",
+    "团队贡献系数口径：(5*个人评分/阵营总评分)*POWER((5*个人gold/阵营总gold)/辅助经济系数,-0.5)；最终装备名含学识宝石/近卫/极影时辅助经济系数为0.9（对应全队18%的经济基准），否则为1；辅助装备可直接从chat_player_equipment判断。分母非正或金钱缺失返回NULL。受益度及代表局指数不是现成字段；自定义比较须解释公式。",
+    "chat_hero_rank_entries的ban_rate、show_rate、win_rate按原API数值存储，未统一百分比单位；先检查样本和分布。不同rank_id对应不同筛选范围，不可混合；榜单元数据已在同一行，无需连接其他关系。",
+    "JSON路径区分大小写。分类依赖payload中的名称或枚举时，先查询实际值及频数再决定匹配条件；采样后仍须执行正式汇总并核对未匹配比例。"
+  ],
+  "guidance": {
+    "authoritative_schema": "tables.columns 是可查询列的完整白名单。不得查询 information_schema/pg_catalog，不得猜测目录中不存在的列；需要JSON子字段时先查询少量业务样本。",
+    "identity": {
+      "rule": "只用player_key定位已记录玩家；模型目录不提供营地user_id或role_id。",
+      "tracked_players": "chat_player_battles.player_key是已关联玩家的稳定标识。",
+      "participant_relation": "队友与对手直接使用chat_player_battle_roster.relation；已配置参赛者用participant_player_key，不自行连接或从role_name猜测身份。"
+    },
+    "time": {
+      "chat_player_battles": {
+        "business_day": "snapshot_date",
+        "exact_epoch": "game_time_epoch",
+        "display_only": "game_time_label"
+      },
+      "chat_player_equipment": {
+        "business_day": "snapshot_date",
+        "exact_epoch": "game_time_epoch"
+      },
+      "chat_player_battle_roster": {
+        "business_day": "snapshot_date",
+        "exact_epoch": "game_time_epoch"
+      }
+    },
+    "period_defaults": {
+      "hero_statistics": "用户未指定时期时使用当前赛季。",
+      "general_history": "组排、互动、共玩、总场次等未指定时期时使用全部可用记录，并返回MIN/MAX时间说明覆盖范围。"
+    },
+    "scope_defaults": {
+      "battle_mode": "未指定模式时，主统计仅含正式5v5排位、巅峰、战队，排除1v1/2v2/3v3；其他模式若作对照须分开标注。",
+      "answer_source": "最终排名必须取符合用户时间与模式要求的主查询；不能把用于诊断的更宽范围查询冒充主查询。"
+    },
+    "query_shape": "先按结果粒度选择一个主语义视图，再在单条SQL中完成时间过滤和最终聚合。不要跨语义视图重建已有的玩家、装备或阵容关系，不要访问系统目录。"
+  },
+  "column_usage": {
+    "chat_player_battles.game_time_label": {
+      "usage": "display_only",
+      "allow_predicate": false,
+      "allow_grouping": false,
+      "allow_ordering": false,
+      "rule": "精确时间、过滤和排序使用game_time_epoch；业务日使用snapshot_date。"
+    }
+  },
+  "json_fields": {
+    "chat_player_battles.participant_payload.battleStats": {
+      "totalHeroHurtCnt": "对英雄伤害",
+      "totalHurtCnt": "总伤害",
+      "totalBeheroHurtCnt": "承受英雄伤害",
+      "totalBehurtCnt": "总承伤",
+      "buildingDamage": "对建筑伤害",
+      "healCnt": "治疗量",
+      "ctrlTime": "控制时长，来源单位需按样本核对",
+      "joinGamePercent": "参团率，实库样本为0到1的字符串，取文本后转numeric",
+      "hurtTransRate": "伤害转化率，实库样本含0.5、1、1.9；不是固定0到1",
+      "money": "金钱，对应规范列gold",
+      "fightPower": "当局英雄战力",
+      "addFightPower": "当局战力变化",
+      "kda": "来源KDA；比较时可由规范K/D/A列自定义聚合口径",
+      "mvp": "来源MVP标记，先检查值域再判断",
+      "towerCnt": "推塔数",
+      "killSoldier": "补兵数",
+      "monsterCoin": "野怪经济",
+      "tripleKillCnt": "三杀次数",
+      "UltraKillCnt": "四杀次数（U大写）",
+      "rampageCnt": "五杀次数",
+      "godLikeCnt": "超神次数"
+    },
+    "chat_player_battles.participant_payload.battleRecords": {
+      "position": "项目映射0对抗路、1中路、2发育路、3打野、4游走；其他值未知",
+      "finalEquips": "装备对象数组；equipName为装备名，实库含带中点及后缀的组合名（如极影·救赎、近卫·救赎）。分类前查实际装备名及频数，不可只精确匹配基础名。",
+      "usedHero": "英雄对象（heroId、heroName、heroIcon）",
+      "skill": "召唤师技能对象，需查看少量样本确定子字段"
+    },
+    "chat_player_snapshots.payload": {
+      "btl_aver": "当天正式对局评分均值",
+      "btl_contribute_aver": "当天正式对局贡献系数均值",
+      "up_tourna": "当天排位变化汇总，来源口径",
+      "up_peak": "当天巅峰分变化汇总",
+      "unaccessible_battles": "采集未覆盖场次信息；不能把缺失等同于未玩"
+    },
+    "chat_battle_power_players.participant_payload": {
+      "isAuth": "营地授权布尔值",
+      "starNum": "折算总星数",
+      "peakScore": "评估时巅峰分",
+      "equivStar": "用于底蕴公式的折算星级",
+      "powerNum": "评估时总战斗力",
+      "mvpRate": "历史MVP率（0到1）",
+      "recentWinRate": "评估时近期正式场次胜率（0到1）",
+      "recentAvgScore": "评估时近期正式场次评分均值",
+      "heroShowCnt": "该英雄历史总场次",
+      "winNum": "该英雄历史胜场",
+      "loseNum": "该英雄历史败场",
+      "maxHeroPower": "最高英雄战力",
+      "betterHeroPower": "底蕴计算采用的高战力英雄基准"
+    },
+    "chat_player_battle_roster.battle_stats": {
+      "totalHeroHurtCnt": "对英雄伤害",
+      "totalHurtCnt": "总伤害",
+      "totalBeheroHurtCnt": "承受英雄伤害",
+      "totalBehurtCnt": "总承伤",
+      "buildingDamage": "对建筑伤害",
+      "healCnt": "治疗量",
+      "ctrlTime": "控制时长，来源单位需按样本核对",
+      "joinGamePercent": "参团率，实库样本为0到1的字符串，取文本后转numeric",
+      "hurtTransRate": "伤害转化率，实库样本含0.5、1、1.9；不是固定0到1",
+      "money": "金钱，对应规范列gold",
+      "fightPower": "当局英雄战力",
+      "addFightPower": "当局战力变化",
+      "kda": "来源KDA；比较时可由规范K/D/A列自定义聚合口径",
+      "mvp": "来源MVP标记，先检查值域再判断",
+      "towerCnt": "推塔数",
+      "killSoldier": "补兵数",
+      "monsterCoin": "野怪经济",
+      "tripleKillCnt": "三杀次数",
+      "UltraKillCnt": "四杀次数（U大写）",
+      "rampageCnt": "五杀次数",
+      "godLikeCnt": "超神次数"
+    }
+  },
+  "version": "6f8bce03e64e660f",
+  "json_root_owners": {
+    "battleStats": [
+      [
+        "chat_player_battles",
+        "participant_payload"
+      ]
+    ],
+    "battleRecords": [
+      [
+        "chat_player_battles",
+        "participant_payload"
+      ]
+    ]
+  }
+}

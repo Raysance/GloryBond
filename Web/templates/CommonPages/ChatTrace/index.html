@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>运行轨迹 · HOK</title>
+  <style>{% include 'CommonPages/ChatTrace/styles.css' %}</style>
+  <style>{% include 'CommonPages/ChatTrace/conversation.css' %}</style>
+</head>
+<body>
+  <header>
+    <div class="title-line"><strong id="title">HOK 运行记录</strong><span id="model"></span><span id="run-status"></span></div>
+    <nav class="view-tabs" aria-label="记录视图"><button data-view="chat" class="active" aria-pressed="true">对话</button><button data-view="trace" aria-pressed="false">轨迹</button></nav>
+  </header>
+  <main class="record-layout" data-view="chat">
+  <section id="chat-view" aria-label="对话">
+    <div class="conversation-heading"><strong><span class="studio-mark" aria-hidden="true">✳</span> agent studio</strong><span>对话</span></div>
+    <div class="chat-scroll"><div id="conversation" class="conversation"></div></div>
+  </section>
+  <section id="trace-view">
+    <div class="toolbar">
+      <button id="duration-toggle" aria-pressed="true" title="显示或隐藏每步耗时"></button>
+      <button id="round-toggle" aria-pressed="true" title="展开或折叠全部轮次"></button>
+      <button id="call-toggle" aria-pressed="true" title="显示或隐藏调用摘要"></button>
+      <button id="export" title="仅导出本页已脱敏的执行记录">↓ 导出</button>
+      <label class="search"><input id="search" type="search" aria-label="搜索执行记录" placeholder="搜索"></label>
+    </div>
+    <div id="overview" aria-label="执行时间分布"></div>
+    <div class="workspace">
+      <div id="events" class="events" aria-label="执行记录列表"></div>
+      <aside id="inspector" aria-label="所选步骤详情">
+        <div class="inspector-head"><span id="detail-kind"></span><span id="detail-step"></span><button id="close-detail" aria-label="关闭详情">×</button></div>
+        <div class="detail-tabs" role="tablist" aria-label="调用详情">
+          <button role="tab" data-tab="summary" aria-selected="true" class="active">概述</button>
+          <button role="tab" data-tab="input" aria-selected="false">参数</button>
+          <button role="tab" data-tab="output" aria-selected="false">结果</button>
+          <button role="tab" data-tab="schema" aria-selected="false">Schema</button>
+          <button role="tab" data-tab="timing" aria-selected="false">计时</button>
+        </div>
+        <div id="detail-content" role="tabpanel" tabindex="0"></div>
+      </aside>
+    </div>
+  </section>
+  </main>
+  <footer id="footer"></footer>
+  <dialog id="image-dialog"><button id="close-image" aria-label="关闭大图">关闭 ×</button><img id="full-image" alt="图表原图"></dialog>
+  <script type="application/json" id="trace-data">{{ trace | tojson }}</script>
+  <script>{% include 'CommonPages/ChatTrace/conversation.js' %}</script>
+  <script>{% include 'CommonPages/ChatTrace/app.js' %}</script>
+</body>
+</html>

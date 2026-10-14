@@ -21,14 +21,14 @@ def check_code_safety(code):
         return False, f"SyntaxError: {e}"
 
     forbidden_imports = [
-        'os', 'subprocess', 'sys', 'shutil', 'pathlib', 'glob', 
-        'pickle', 'marshal', 'tempfile', 'builtins', 'io', 
-        'socket', 'requests', 'urllib', 'ftplib', 'poplib', 
+        'os', 'subprocess', 'sys', 'shutil', 'pathlib', 'glob',
+        'pickle', 'marshal', 'tempfile', 'builtins', 'io',
+        'socket', 'requests', 'urllib', 'ftplib', 'poplib',
         'imaplib', 'smtplib', 'telnetlib'
     ]
-    
+
     forbidden_functions = [
-        'open', 'eval', 'exec', 'compile', '__import__', 
+        'open', 'eval', 'exec', 'compile', '__import__',
         'input', 'exit', 'quit', 'help', 'globals', 'locals', 'vars',
         'print' # 禁止print，强制使用add_msg
     ]
@@ -44,7 +44,7 @@ def check_code_safety(code):
                 base_module = node.module.split('.')[0]
                 if base_module in forbidden_imports:
                     return False, f"Forbidden import: {node.module}"
-                
+
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 if node.func.id in forbidden_functions:
@@ -57,21 +57,21 @@ def check_code_safety(code):
 def generate_code_from_text(user_input):
     manual = get_api_manual()
     prompt = diy_code_pmpt + "\n\nAPI Manual:\n" + manual + "\n\nUser Request: " + user_input
-    
+
     retry_count = 2
     last_error = ""
-    
+
     for i in range(retry_count):
         try:
             if last_error:
                 current_prompt = prompt + f"\n\nPrevious attempt failed with error: {last_error}. Please fix it."
             else:
                 current_prompt = prompt
-                
+
             code = ai_api(current_prompt, 0.2)
             # 清理 markdown 标记
             code = code.replace("```python", "").replace("```", "").strip()
-            
+
             is_safe, error = check_code_safety(code)
             if is_safe:
                 return code
@@ -79,17 +79,17 @@ def generate_code_from_text(user_input):
                 last_error = error
         except Exception as e:
             last_error = str(e)
-            
+
     raise Exception(f"Failed to generate safe code after {retry_count} attempts. Last error: {last_error}")
 
 def save_code_to_redis(summary, code):
     code_id = hashlib.md5(summary.encode('utf-8')).hexdigest()
-    
+
     # 存储代码
-    dmc.redis_deamon_diy_code.hset("diy_codes", code_id, code)
+    dmc.redis_deamon_diy_code.hset(REDIS_KEY_DIY_CODES, code_id, code)
     # 存储概要映射
-    dmc.redis_deamon_diy_code.hset("diy_summaries", code_id, summary)
-    
+    dmc.redis_deamon_diy_code.hset(REDIS_KEY_DIY_SUMMARIES, code_id, summary)
+
     return code_id
 
 def execute_generated_code(code, event):
@@ -110,13 +110,13 @@ def handle_diy_request(event, user_input):
     try:
         # 1. 生成代码
         code = generate_code_from_text(user_input)
-        
+
         # 2. 存储代码
         code_id = save_code_to_redis(user_input, code)
-        
+
         # 3. 执行代码
         result = execute_generated_code(code, event)
-        
+
         return f"Code generated and executed.\nID: {code_id}\nResult: {result}"
     except Exception as e:
         return f"DIY Error: {str(e)}"

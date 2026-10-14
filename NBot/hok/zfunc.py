@@ -3,14 +3,8 @@ from .zutil import *
 from .zstatic import *
 from . import zdynamic as dmc
 
-import hashlib
-import secrets
-import redis
-from wcwidth import wcswidth
-import math
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "battle:invisible_disabled_qids"
+_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
+_GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
 def _redis_get_json(key, default=None):
@@ -22,8 +16,103 @@ def _redis_get_json(key, default=None):
     return json.loads(raw)
 
 
+def recent_emoji_messages(user_id, group_id, limit=8):
+    """Read only this speaker's recent speech in the trusted source group."""
+    user, group = str(user_id), str(group_id or "")
+    if not group:
+        return []
+    if not user.isascii() or not user.isdecimal() or not group.isascii() or not group.isdecimal() or int(group) <= 0:
+        raise ValueError("Emoji context requires trusted QQ and group IDs")
+    try:
+        from . import zdb
+        rows = zdb.load_group_chat_messages(group, limit=100, user_id=user)
+    except Exception as error:
+        log_message(f"EMOJI_HISTORY_READ_FALLBACK: error={type(error).__name__}", level=logging.ERROR)
+        rows = []
+    try:
+        pending = _load_group_chat_history_redis(group)
+    except Exception:
+        pending = []
+    merged = {str(row["message_id"]): row for row in [*pending, *rows]
+              if str(row.get("user_id")) == user and row.get("message_id") is not None}
+    records = sorted(merged.values(), key=lambda row: int(row.get("timestamp") or 0))
+    return [row for row in records if str(row.get("text") or "").strip()
+            and not str(row["text"]).lstrip().startswith(("#", "＃"))
+            and not ("战力" in row["text"] and "查询" in row["text"])][-max(1, min(40, int(limit))):]
+
+
+def emoji_message_state(user_id, group_id, action, message_hash, value=None):
+    """Read/write regenerable emoji decisions, isolated by group and speaker."""
+    user, group = str(user_id), str(group_id or "private")
+    if not user.isascii() or not user.isdecimal() or (group != "private" and not group.isdecimal()):
+        raise ValueError("Invalid emoji identity")
+    if not re.fullmatch(r"[a-f0-9]{40}", message_hash):
+        raise ValueError("Invalid emoji message hash")
+    root = REDIS_KEY_EMOJI_PREFIX + group + ":" + user
+    store = dmc.redis_deamon
+    if action == "get":
+        raw = store.hget(root + ":actions", message_hash)
+        return json.loads(raw) if raw else None
+    if action == "used":
+        return bool(store.sismember(root + ":used", message_hash))
+    with store.pipeline(transaction=True) as pipe:
+        if action == "set":
+            key = root + ":actions"
+            pipe.hset(key, message_hash, json.dumps(value, ensure_ascii=False))
+        elif action == "mark":
+            key = root + ":used"
+            pipe.sadd(key, message_hash)
+        else:
+            raise ValueError("Unknown emoji state operation")
+        pipe.expire(key, 172800)
+        pipe.execute()
+
+
 def _redis_set_json(key, value):
     dmc.redis_deamon.set(key, json.dumps(value, ensure_ascii=False))
+
+
+def _wait_official_low_priority_turn():
+    """Yield background official-API work to interactive web queues."""
+    from .ztime import current_timestamp, sleep_seconds
+
+    while True:
+        now = current_timestamp()
+        active_until = getattr(dmc, "OfficialForegroundActiveUntil", 0)
+        if now < active_until:
+            sleep_seconds(min(active_until - now, 3))
+            continue
+        try:
+            if dmc.redis_deamon.llen(REDIS_KEY_BATTLE_SHARE_QUEUE):
+                sleep_seconds(3)
+                continue
+            if dmc.redis_deamon.llen(REDIS_KEY_BATTLE_ANALYZE_QUEUE):
+                sleep_seconds(3)
+                continue
+        except Exception as error:
+            log_message(f"OFFICIAL_LOW_PRIORITY_QUEUE_CHECK_ERROR: {error}")
+        wait_seconds = (
+            getattr(dmc, "OfficialLowPriorityLastVisitAt", 0)
+            + 5
+            - current_timestamp()
+        )
+        if wait_seconds > 0:
+            sleep_seconds(wait_seconds)
+            continue
+        dmc.OfficialLowPriorityLastVisitAt = current_timestamp()
+        return
+
+
+def wzry_get_official(*args, priority="normal", **kwargs):
+    """Apply business priority rules, then call the stateless API adapter."""
+    from . import zapi
+    from .ztime import current_timestamp
+
+    if priority == "low":
+        _wait_official_low_priority_turn()
+    else:
+        dmc.OfficialForegroundActiveUntil = current_timestamp() + 5
+    return zapi.wzry_get_official(*args, **kwargs)
 
 
 def get_battle_invisible_disabled_qids():
@@ -42,409 +131,487 @@ def save_battle_invisible_disabled_qids(disabled_qids):
     _redis_set_json(_BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY, disabled_qids)
     return disabled_qids
 
-def _to_pinyin(s):
-    from pypinyin import lazy_pinyin
-    
-    return "".join(lazy_pinyin(str(s))).lower()
+
+def _battle_visibility_qids(realname):
+    from .business.battle_visibility import resolve_visibility_qids
+
+    target_qids, missing_names = resolve_visibility_qids(
+        realname,
+        globals().get("sameuser", {}),
+        qid,
+    )
+    for name in missing_names:
+        log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {name}")
+    return target_qids
+
+
+def sync_battle_visibility_state(realname, visible):
+    from .business.battle_visibility import update_disabled_qids
+    from .utils.message_sender import BATTLE_INVISIBLE_MUTE_SECONDS
+    from .utils.message_sender import add_group_ban_task
+
+    target_qids = _battle_visibility_qids(realname)
+    if not target_qids:
+        log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
+        return []
+
+    disabled_qids, changed_qids = update_disabled_qids(
+        get_battle_invisible_disabled_qids(),
+        target_qids,
+        visible=visible,
+    )
+    action = "ENABLE" if visible else "DISABLE"
+    for user_qid in changed_qids:
+        log_message(f"WZRY_VISIBILITY_{action}_QID: {realname} {user_qid}")
+
+    if changed_qids:
+        save_battle_invisible_disabled_qids(disabled_qids)
+        duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
+        source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
+        for user_qid in target_qids:
+            add_group_ban_task(user_qid, duration=duration, source=source)
+    return changed_qids
+
+
+def _today_hero_cached(realname, current_date, *, ignore_limit=False):
+    if ignore_limit:
+        return None
+    raw = dmc.TodayHeroPool.get(f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}")
+    if not raw:
+        return None
+    payload = json.loads(raw)
+    if payload.get("date") != current_date:
+        return None
+    return payload
+
+
+def _today_hero_store(realname, payload):
+    current_date = payload["date"]
+    dmc.TodayHeroPool.set(
+        f"{REDIS_KEY_HERO_TODAY_PREFIX}{realname}",
+        json.dumps(payload),
+    )
+    history_key = f"{REDIS_KEY_HERO_HISTORY_PREFIX}{realname}"
+    history_entry = {
+        "date": current_date,
+        "heroname": payload.get("heroname"),
+        "skinname": payload.get("skinname"),
+        "selectinfo": payload.get("selectinfo"),
+    }
+    history_items = dmc.TodayHeroPool.lrange(history_key, 0, -1)
+    for index, raw in enumerate(history_items):
+        if json.loads(raw).get("date") == current_date:
+            dmc.TodayHeroPool.lset(history_key, index, json.dumps(history_entry))
+            return payload
+    dmc.TodayHeroPool.rpush(history_key, json.dumps(history_entry))
+    return payload
+
+
+def _group_chat_history_key(group_id):
+    return f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}{str(group_id)}"
+
+
+def _record_group_chat_message_redis(record):
+    """Emergency/legacy Redis writer retained until migration is verified."""
+    key = _group_chat_history_key(record["group_id"])
+    redis_client = dmc.redis_deamon
+    redis_client.rpush(key, json.dumps(record, ensure_ascii=False))
+    max_messages = int(getattr(dmc, "ChatHistoryMaxMessages", 0) or 0)
+    if max_messages > 0:
+        redis_client.ltrim(key, -max_messages, -1)
+
+
+def _load_group_chat_history_redis(group_id):
+    """Read the legacy DB0 list without trusting embedded group metadata."""
+    records = []
+    for raw in dmc.redis_deamon.lrange(_group_chat_history_key(group_id), 0, -1):
+        try:
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            record = json.loads(raw)
+        except Exception:
+            continue
+        if isinstance(record, dict):
+            records.append({**record, "group_id": str(group_id)})
+    return records
+
+
+def _list_group_chat_history_groups_redis():
+    groups = {}
+    for key in dmc.redis_deamon.scan_iter(match=f"{_GROUP_CHAT_HISTORY_REDIS_PREFIX}*"):
+        key = key.decode("utf-8") if isinstance(key, bytes) else key
+        group_id = key[len(_GROUP_CHAT_HISTORY_REDIS_PREFIX):]
+        if not group_id.isascii() or not group_id.isdecimal() or int(group_id) <= 0:
+            continue
+        count = dmc.redis_deamon.llen(key)
+        if count:
+            groups[group_id] = {"group_id": group_id, "message_count": count}
+    return groups
+
+
+def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply_to_message_id=None):
+    """Persist one inbound group message to PostgreSQL, with Redis fallback."""
+    from .ztime import current_datetime_text, current_epoch_seconds
+
+    normalized_text = str(text or "").strip()
+    if not normalized_text:
+        return None
+    if message_id in (None, ""):
+        message_id = f"{current_epoch_seconds()}:{user_id}"
+    record = {
+        "group_id": str(group_id),
+        "user_id": str(user_id),
+        "message_id": str(message_id),
+        "reply_to_message_id": str(reply_to_message_id) if reply_to_message_id not in (None, "") else None,
+        "time": current_datetime_text(),
+        "timestamp": current_epoch_seconds(),
+        "text": normalized_text,
+    }
+    try:
+        from . import zdb
+        zdb.upsert_group_chat_message(record, trusted_group_id=group_id)
+    except Exception as error:
+        log_message(
+            f"GROUP_CHAT_POSTGRES_WRITE_FALLBACK: group_id={group_id} "
+            f"message_id={message_id} error={type(error).__name__}",
+            level=logging.ERROR,
+        )
+        _record_group_chat_message_redis(record)
+    return record
+
+
+def load_group_chat_history(group_id, limit=None, time_start=None, time_end=None):
+    """Read SQL history plus any not-yet-migrated Redis records."""
+    try:
+        legacy = _load_group_chat_history_redis(group_id)
+    except Exception as error:
+        log_message(
+            f"GROUP_CHAT_REDIS_LEGACY_READ_SKIPPED: group_id={group_id} error={type(error).__name__}",
+            level=logging.ERROR,
+        )
+        legacy = []
+    try:
+        from . import zdb
+        sql_records = zdb.load_group_chat_messages(
+            str(group_id), time_start=time_start, time_end=time_end)
+    except Exception as error:
+        log_message(
+            f"GROUP_CHAT_POSTGRES_READ_FALLBACK: group_id={group_id} error={type(error).__name__}",
+            level=logging.ERROR,
+        )
+        sql_records = []
+
+    # SQL is authoritative for duplicate (group_id, message_id) records.  Redis
+    # remains readable during rollout so messages written by an older process
+    # between backup and deployment are not lost.
+    merged = {}
+    for position, record in enumerate([*legacy, *sql_records]):
+        if not isinstance(record, dict):
+            continue
+        message_id = str(record.get("message_id") or "").strip()
+        if not message_id:
+            continue
+        merged[message_id] = ({**record, "group_id": str(group_id)}, position)
+    records = [item for item, _ in sorted(
+        merged.values(),
+        key=lambda pair: (int(pair[0].get("timestamp") or 0), pair[1]),
+    )]
+    if time_start is not None:
+        records = [record for record in records if int(record.get("timestamp") or 0) >= int(time_start)]
+    if time_end is not None:
+        records = [record for record in records if int(record.get("timestamp") or 0) <= int(time_end)]
+    if limit is not None:
+        try:
+            limit = max(1, int(limit))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be a positive integer") from exc
+        records = records[-limit:]
+    return records
+
+
+def list_chat_history_groups():
+    """List SQL groups, including any legacy Redis-only messages during migration."""
+    try:
+        redis_groups = _list_group_chat_history_groups_redis()
+    except Exception as error:
+        log_message(f"GROUP_CHAT_REDIS_GROUPS_SKIPPED: error={type(error).__name__}", level=logging.ERROR)
+        redis_groups = {}
+    try:
+        from . import zdb
+        sql_groups = {item["group_id"]: item for item in zdb.list_group_chat_history_groups()}
+    except Exception as error:
+        log_message(f"GROUP_CHAT_POSTGRES_GROUPS_FALLBACK: error={type(error).__name__}", level=logging.ERROR)
+        sql_groups = {}
+    groups = {**redis_groups, **sql_groups}
+    for group_id in redis_groups.keys() & sql_groups.keys():
+        groups[group_id] = {"group_id": group_id,
+                            "message_count": len(load_group_chat_history(group_id))}
+    return [groups[group_id] for group_id in sorted(groups, key=int)]
+
+
+from .business import hero_tier as _hero_tier_business
+
+
+def _to_pinyin(value):
+    return _hero_tier_business.to_pinyin(value)
+
 
 def safe_hero_name(hero_id, default=None):
-    if hero_id is None:
-        return default or "未知英雄"
-    hero_id = str(hero_id)
-    return HeroList.get(hero_id, default or f"未知英雄({hero_id})")
+    return _hero_tier_business.safe_hero_name(hero_id, default=default)
 
-def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
-    def get_battle_visibility_qids(user_name):
-        related_names = {user_name}
-        for main_name, alias_names in globals().get("sameuser", {}).items():
-            aliases = set(alias_names if isinstance(alias_names, list) else [])
-            aliases.add(main_name)
-            if user_name in aliases:
-                related_names.update(aliases)
-        target_qids = []
-        for name in sorted(related_names):
-            user_qid = qid.get(name)
-            if not user_qid:
-                log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {name}")
-                continue
-            user_qid = str(user_qid)
-            if user_qid not in target_qids:
-                target_qids.append(user_qid)
-        return target_qids
 
-    def sync_battle_visibility_qid(visible):
-        from .utils.message_sender import BATTLE_INVISIBLE_MUTE_SECONDS
-        from .utils.message_sender import add_group_ban_task
+def hero_tier_query_process():
+    return _hero_tier_business.hero_tier_query_process()
 
-        target_qids = get_battle_visibility_qids(realname)
-        if not target_qids:
-            log_message(f"WZRY_VISIBILITY_QID_NOT_FOUND: {realname}")
-            return
-        disabled_qids = get_battle_invisible_disabled_qids()
-        target_qid_set = set(target_qids)
-        changed_qids = []
-        if visible:
-            changed_qids = [user_qid for user_qid in target_qids if user_qid in disabled_qids]
-            disabled_qids = [user_qid for user_qid in disabled_qids if user_qid not in target_qid_set]
-            for user_qid in changed_qids:
-                log_message(f"WZRY_VISIBILITY_ENABLE_QID: {realname} {user_qid}")
-        else:
-            for user_qid in target_qids:
-                if user_qid not in disabled_qids:
-                    disabled_qids.append(user_qid)
-                    changed_qids.append(user_qid)
-                    log_message(f"WZRY_VISIBILITY_DISABLE_QID: {realname} {user_qid}")
-        changed = bool(changed_qids)
-        if changed:
-            save_battle_invisible_disabled_qids(disabled_qids)
-            duration = 0 if visible else BATTLE_INVISIBLE_MUTE_SECONDS
-            source = f"battle_visibility:{realname}:{'visible' if visible else 'invisible'}"
-            for user_qid in target_qids:
-                add_group_ban_task(user_qid, duration=duration, source=source)
 
-    def get_star_today_most_recent(today_details):
-        for detail in today_details[::-1]:
-            if (detail["MapType"]==1):
-                return detail["StarAfterGame"]
-        return -1
-        
-    def get_star_before_today_most_recent(target_id, target_date_obj=None):
-        from .zfile import readerl
-        from .zfile import get_file_list
-        from .ztime import time_sul
+from .business import battle_matchup as _battle_matchup_business
 
-        if target_date_obj:
-            today_dt = datetime.datetime.combine(target_date_obj, datetime.datetime.min.time())
-            yesterday_sul = today_dt - datetime.timedelta(days=1)
-        else:
-            yesterday_sul = time_sul() - datetime.timedelta(days=1)
-        yesterday_str = yesterday_sul.strftime("%Y-%m-%d")
-        
-        json_files = get_file_list(os.path.join("data","history"),".json")
-        def extract_date(filename):
-            try:
-                base_name = os.path.basename(filename)
-                date_str = base_name.split('.')[0]  # 去掉.json后缀
-                return datetime.datetime.strptime(date_str, "%Y-%m-%d")
-            except:
-                return datetime.datetime.min  # 无效文件名排到最后
-        # 按日期排序（从新到旧）
-        json_files.sort(key=extract_date, reverse=True)
-        for file_path in json_files:
-            file_base = os.path.basename(file_path)
-            if yesterday_str not in file_base:
-                # 检查日期，如果文件日期晚于昨天，跳过；如果早于昨天，也停止（因为我们要找的是截止到昨天的最新星数）
-                # 用户的要求是“从昨天筛选”，通常意味着我们要找昨天那个文件。
-                # 如果昨天没打，可能需要找比昨天更早的。
-                file_date = extract_date(file_path)
-                if file_date > yesterday_sul: continue
-            
-            data = readerl(file_path)
-            for player in data:
-                if (int(player["id"]) == int(target_id)):
-                    for detail in player["details"][::-1]:
-                        if (detail["MapType"]==1):
-                            return detail["StarAfterGame"]
-        return -1
 
-    from .zapi import wzry_get_official
-    from .ztime import time_r
-    from .ztime import time_sul
-    from .ztime import stamp_to_time
-    from .ztime import date_roleback
-    from .zfile import writerl
-    from .zfunc import extract_url_params
+def _battle_matchup_composition(detail_list):
+    return _battle_matchup_business.battle_matchup_composition(detail_list)
 
-    log_message("VISIT: wzry_data")
-    
-    userid=target_userid if target_userid else userlist[realname]
-    roleid=target_roleid if target_roleid else roleidlist[realname]
-    
-    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
-    profile_data=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
-    res = {
-        "btlist": btlist_data,
-        "profile": profile_data
-    }
 
-    if (savepath):
-        os.makedirs(os.path.dirname(savepath), exist_ok=True)
-        writerl(savepath,res)
-    roleInfo=[roles for roles in res["profile"]["roleList"] if int(roles["roleId"])==roleid][0]
-    nickname=roleInfo["roleName"]
-    rankInfo=[mods for mods in res["profile"]["head"]["mods"] if mods["modId"]==701][0]
-    rankName=rankInfo["name"]
-    rankStar=int(json.loads(rankInfo["param1"])["rankingStar"])
-    # totalNum=[int(mods["content"]) for mods in res["profile"]["head"]["mods"] if mods["name"]=="总场次"][0]
-    totalNum=0
-    starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
-    # winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
-    BtlVisible=not res["btlist"]["invisible"]
-    if sync_battle_visibility:
-        sync_battle_visibility_qid(BtlVisible)
-    isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
-    real_date=time_r().strftime("%m-%d")
-    sul_time=time_sul()
-    target_date_obj = datetime.datetime.strptime(target_date, "%Y-%m-%d").date() if target_date else sul_time.date()
-    starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法强行填充
-    peakUp=[]
-    today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法强行填充
-    today_up_tourna=fin
-    today_up_peak=fin
-    today_btl_aver=fin # 今日平均评分
-    today_details=[] # 今日所有战局
-    today_game_cnt={} # 今日每个地图局数
-    gaming_info={} # 当前正在进行的游戏信息
-    if(BtlVisible):
-        from .tools.representative_battle import build_battle_keywords
+def hero_matchup_process(my_detail, op_detail, matchup_api=None):
+    return _battle_matchup_business.hero_matchup_process(
+        my_detail,
+        op_detail,
+        matchup_api=matchup_api,
+    )
 
-        today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==target_date_obj)]
-        # today_btl = [game for game in res['btlist']['list'] if (time_sul(stamp_to_time(int(game['dtEventTime']))).date()==date_roleback().date())]
-        today_details=[{\
-            'GameTime':game['gametime'],\
-            'GameTime_Timestamp':int(game['dtEventTime']),\
-            'HeroName':safe_hero_name(game.get('heroId')),\
-            'MapName':game['mapName'],\
-            'MapType':1 if '排位' in game['mapName'] else (-1 if '巅峰' in game['mapName'] else 0),\
-            'StarAfterGame': -1 if '排位' not in game['mapName'] else (ranklist[game['roleJobName']]+game['stars']),\
-            'PeakGradeAfterGame': -1 if '巅峰' not in game['mapName'] else game['newMasterMatchScore'],\
-            'PeakGradeBeforeGame': -1 if '巅峰' not in game['mapName'] else game['oldMasterMatchScore'],\
-            'KillCnt':game['killcnt'],'DeadCnt':game['deadcnt'],'AssistCnt':game['assistcnt'],\
-            'Result':('胜利' if game['gameresult']==1 else '失败'),\
-            'GameGrade':float(game['gradeGame']),\
-            'Duration_Second':int(game['usedTime']),\
-            'GameSeq':int(game['gameSeq']),\
-            'Params':extract_url_params(game['detailUrl']),\
-            'Others':build_battle_keywords(game)\
-                } for game in today_btl]
-        today_details=today_details[::-1]
-        today_game_map_set={game['mapName'] for game in today_btl}
-        today_game_cnt={
-            mapname: [sum(1 for game in today_btl if game['mapName']==mapname and game['gameresult']==1),\
-            sum(1 for game in today_btl if game['mapName']==mapname)] for mapname in today_game_map_set
-        }
-        today_game_cnt_tmp = {}
-        for k, v in today_game_cnt.items():
-            new_key = mapname_replace_rule.get(k, k)
-            if (new_key in today_game_cnt_tmp):
-                today_game_cnt_tmp[new_key][0] += v[0]
-                today_game_cnt_tmp[new_key][1] += v[1]
-            else:
-                today_game_cnt_tmp[new_key]=[v[0],v[1]]
-        today_game_cnt = today_game_cnt_tmp
-        # today_num=sum(v[1] for k,v in today_game_cnt.items())
-        # if (not roleid and today_btl): roleid=extract_url_params(today_btl[0]['battleDetailUrl'])['toAppRoleId']
-        today_num=len(today_details) # 重新计算今日场次
-        today_tourna=[game for game in today_btl if "排位" in game['mapName']]
-        today_peak=[game for game in today_btl if "巅峰" in game['mapName']]
-        today_btl_win=[game for game in today_btl if game['gameresult']==1]
-        today_btl_lose=[game for game in today_btl if game['gameresult']==2]
-        today_tourna_win=[game for game in today_tourna if game['gameresult']==1]
-        today_tourna_lose=[game for game in today_tourna if game['gameresult']==2]
-        today_peak_win=[game for game in today_peak if game['gameresult']==1]
-        today_peak_lose=[game for game in today_peak if game['gameresult']==2]
-        today_num_btl_win=len(today_btl_win)
-        today_num_btl_lose=len(today_btl_lose)
-        today_num_tourna_win=len(today_tourna_win)
-        today_num_tourna_lose=len(today_tourna_lose)
-        today_num_peak_win=len(today_peak_win)
-        today_num_peak_lose=len(today_peak_lose)
-        today_up_peak=today_num_peak_win
-        # try:
-        star_today_most_recent=get_star_today_most_recent(today_details)
-        star_before_today_most_recent=get_star_before_today_most_recent(userid, target_date_obj)
-        # print(star_today_most_recent,star_before_today_most_recent)
-        starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
-        # except Exception as e:
-        #     log_message(str(e))
-        peakUp=get_peak_alter_list(details=today_details,processed=False)
-        gamegrades = [
-            round(float(game["gradeGame"]), 1)
-            for game in today_btl
-            if check_btl_official(game["mapName"])
-        ]
-        today_btl_aver = round(sum(gamegrades) / len(gamegrades), 3) if gamegrades else 0
-        today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
-        today_btl_min= fin if len(gamegrades)==0 else min(gamegrades)
-    
-    if (isGaming):
-        gaming_info={
-                    "in_game":True,\
-                    "map_name":res["btlist"]["gaming"]["mapName"],\
-                    "hero_name":safe_hero_name(res["btlist"]["gaming"].get("heroId")),\
-                    "duration_minute":res["btlist"]["gaming"]["duration"],\
-                    "battle_num_this_hero":res["btlist"]["gaming"]["gameNum"],\
-                    "win_rate_this_hero":res["btlist"]["gaming"]["winRate"],\
-                    "can_be_watched":res["btlist"]["gaming"]["canBeWatch"],\
-                    "battle_id":res["btlist"]["gaming"]["battleId"],\
-        }
-    # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
-    # export_btl_thread.start()
-    unaccessible_battles=export_btldetail(today_details,roleid)
-    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
+
+def _battle_lineup_items(detail_list):
+    return _battle_matchup_business.battle_lineup_items(detail_list)
+
+
+def _format_battle_lineup_ai_text(value):
+    return _battle_matchup_business.format_battle_lineup_ai_text(value)
+
+
+def battle_lineup_ai_process(my_lineup, op_lineup, ai_func=None):
+    return _battle_matchup_business.battle_lineup_ai_process(
+        my_lineup,
+        op_lineup,
+        ai_func=ai_func,
+    )
+
+
+def _compact_report_value(value, max_len=220):
+    return _rankings_business.compact_report_value(value, max_len=max_len)
+
+
+def _build_traversal_error(source, realname, params, error):
+    return _rankings_business.build_traversal_error(
+        source,
+        realname,
+        params,
+        error,
+    )
+
+
+def format_traversal_error_report(title, errors):
+    return _rankings_business.format_traversal_error_report(title, errors)
+
+
+def peak_rank_process(player_names=None):
+    return _rankings_business.peak_rank_process(player_names=player_names)
+
+
+from .business import player_data as _player_data_business
+
+
+def wzry_data(
+    realname,
+    savepath=None,
+    target_userid=None,
+    target_roleid=None,
+    target_date=None,
+    sync_battle_visibility=False,
+):
+    return _player_data_business.wzry_data(
+        realname,
+        savepath=savepath,
+        target_userid=target_userid,
+        target_roleid=target_roleid,
+        target_date=target_date,
+        sync_battle_visibility=sync_battle_visibility,
+    )
+
+
+def _enrich_battle_list_skills_from_cache(payload, roleid):
+    return _player_data_business.enrich_battle_list_skills_from_cache(
+        payload,
+        roleid,
+    )
+
+
 def dump_specific_user(userid, roleid, target_date):
-    """
-    模仿zscheduler中的dump_today，调用wzry_data函数导出具体用户、具体日期的数据。
-    :param userid: 指定的用户ID
-    :param roleid: 指定的角色ID
-    :param target_date: 导出的日期，格式为 '%Y-%m-%d' (精确到天)
-    """
-    from .zfile import writerl
+    return _player_data_business.dump_specific_user(
+        userid,
+        roleid,
+        target_date,
+    )
+from .business import ai_prompts as _ai_prompts_business
 
-    log_message(f"DUMPBEGIN specific user {userid} date: {target_date}.json")
-    
-    # 获取真正的realname (key)
-    realname = "unknown"
-    for k, v in userlist.items():
-        if v == userid:
-            realname = k
-            break
-    
-    gameinfo = []
-    try:
-        data = wzry_data(
-            realname=realname, 
-            savepath=os.path.join("data","history", "personal", target_date, str(userid) + ".json"),
-            target_userid=userid,
-            target_roleid=roleid,
-            target_date=target_date
-        )
-        gameinfo.append(data)
-    except Exception as e:
-        log_message(f"Dump specific user {userid} failed: {e}")
 
-    aggregated_filename = os.path.join("data","history", target_date + ".json")
-    try:
-        if os.path.exists(aggregated_filename):
-            with open(aggregated_filename, 'r', encoding='utf-8') as f:
-                import json
-                existing_data = json.load(f)
-            # Remove old data for this user if exists
-            existing_data = [d for d in existing_data if str(d.get("id")) != str(userid)]
-            existing_data.extend(gameinfo)
-            writerl(aggregated_filename, existing_data)
-        else:
-            writerl(aggregated_filename, gameinfo)
-    except Exception as e:
-        log_message(f"Failed to update aggregated file {aggregated_filename}: {e}")
-        
-    log_message(f"DUMPEND specific user {userid} date: {target_date}.json")
-    return gameinfo[0]
+def ai_parser(user_query, msg_type, network=False):
+    return _ai_prompts_business.ai_parser(
+        user_query,
+        msg_type,
+        network=network,
+    )
 
-def export_past():
-    import json
-    import glob
+def chat_prepare_reply(result):
+    """Combine plots and publish the trace without losing a successful answer."""
+    from .zfile import combine_chat_plot_images
+    from .ztime import monotonic_seconds
 
-    directory = "data/history/"
-    result = {f: json.load(open(f, 'r', encoding='utf-8')) for f in glob.glob(f"{directory}/2026-02*.json")}
-    for k,v in result.items():
-        for player in v:
-            export_btldetail(player["details"],player["roleid"])
-def ai_parser(user_query,msg_type,network=False,use_mem=None):
-    from .zapi import ai_api,ark_api
-    from .ztime import get_timebased_rand
-
-    if use_mem is None:
-        use_mem = dmc.use_mem
-
-    ai_temperature=1.5
-    style_templates_index=get_timebased_rand(len(pmpt_style_templates),30)
-    style_template=pmpt_style_templates[style_templates_index]
-    
-    whole_query=""
-
-    match msg_type:
-        case "rnk":
-            whole_query += remind_news_pmpt + dmc.today_news + rnk_pmpt + user_query[0]
-        case "best_battle":
-            whole_query += "你是一个幽默的王者荣耀解说，请用夸张、幽默且具有生活气息的语言，对以下这局今日最有代表性的对局进行一句话点评（70字以内，不用双引号，不用Markdown）：" + user_query[0]
-        case "single_parser":
-            whole_query += name_pmpt[0] + str(nameref) + name_pmpt[1]+ user_query[0] + name_pmpt[2]
-            ai_temperature=2
-        case "single_player":
-            whole_query += single_pmpt1 + user_query[0] + user_query[1] + single_pmpt2 + user_query[2]
-        case "tq":
-            whole_query += tq_pmpt + user_query[0]
-        case "chat":
-            if use_mem:
-                context_msg = f"""
-                【情境信息】
-                - 当前用户: {user_query[3]} (QID: {user_query[7]})
-                
-                - 1. 与该用户的近期对话 (主动聊天记忆):
-                {user_query[1]}
-                
-                - 2. 大家都刚说了什么 (全局被动背景):
-                {user_query[4]}
-                
-                - 3. 重点记住的内容 (主动强制记忆):
-                {user_query[2]}
-                
-                - 4. 用户的过往状态总结 (提炼记忆):
-                {user_query[5]}
-                
-                - 用户近期王者评价 (战绩表现):
-                {user_query[6]}
-
-                【重要指令】
-                以上信息仅作为对话背景。
-                1. 强制记忆(3)是用户特意让你记住的，请务必尊重其中的事实或要求。
-                2. 对话史(1)和被动背景(2)能提供即时语境。
-                3. 总结(4)能帮你把握用户的性格和长期状态。
-                请自然地融合在回复中，不要直接提及“我根据记忆模块汇报”、“系统提示显示”等废话。
-                
-                当前请求: {user_query[0]}
-                """
-                whole_query += style_template + context_msg + chat_pmpt
-            else:
-                whole_query += style_template + "这是这次的请求：（" + user_query[0] + "）" + chat_pmpt + "回答中不用透露出现有记住/记录这些，自然一些,并保持礼貌文明用语。"
-        case "poke":
-            whole_query = poke_pmpt[0] + user_query[0] + poke_pmpt[1] + user_query[1] + poke_pmpt[2]
-        case "festival":
-            whole_query = festival_pmpt[0] + user_query[0] + festival_pmpt[1]
-        case "raise_question":
-            whole_query = raise_question_pmpte
-        case "pure_chat":
-            whole_query = user_query[0]
-        case "urge_game":
-            whole_query = urge_game_pmpt[0] + user_query[0] + urge_game_pmpt[1] + user_query[1] + urge_game_pmpt[2] + user_query[2] + urge_game_pmpt[3]
-        case "summary":
-            whole_query = user_query[0]
-        case "skill_advantage":
-            whole_query = skill_advantage_pmpt[0] + skill_advantage_pmpt[1] + user_query[0] + skill_advantage_pmpt[2] + user_query[1] +  skill_advantage_pmpt[3] + user_query[2] + skill_advantage_pmpt[4] + user_query[3] + skill_advantage_pmpt[5] + user_query[4]
-    ai_back=""
-    ai_status=True
-    if (not network):
+    result = dict(result)
+    result["trace"] = dict(result["trace"])
+    begin = monotonic_seconds()
+    originals = result.get("artifacts", [])
+    delivery = {"source_images": len(originals), "merged": False}
+    if len(originals) > 1:
         try:
-            ai_back=ai_api(user_query=whole_query,temperature=ai_temperature)
-        except Exception as e:
-            ai_status=False
-            ai_back=str(e)
-    else:
-        try:
-            whole_query=ark_chat_pmpt+whole_query
-            ai_back=ark_api(whole_query)
-        except Exception as e:
-            ai_status=False
-            ai_back=str(e)
+            result["artifacts"] = combine_chat_plot_images(originals)
+            delivery["merged"] = True
+        except Exception as error:
+            delivery["error"] = type(error).__name__
+            result["text"] += f"\n图表合并失败（{type(error).__name__}），以下保留原图。"
+    delivery["duration_ms"] = round((monotonic_seconds() - begin) * 1000, 2)
+    result["trace"]["delivery"] = delivery
+    result["trace"]["duration_ms"] = result["trace"].get("duration_ms", 0) + delivery["duration_ms"]
+    try:
+        result["trace_url"] = chat_publish_trace(result["trace"], originals)
+    except Exception as error:
+        result["trace_error"] = type(error).__name__
+    return result
 
-    if (msg_type=="chat" and use_mem and ai_status):
-        from .zmemory import instance as zm
-        # 将本次对话存入个体短期记忆
-        zm.save_active_chat(user_query[6], user_query[0], ai_back)
-    return ai_back
+
+async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=True):
+    """QQBot owns live member lookup and avatar retrieval; the agent receives a snapshot."""
+    from .utils.qq_profiles import load_group_member_profile
+    from .business.qq_profiles import normalize_group_member_profile
+    from .zapi import qq_avatar_bytes
+
+    record = await load_group_member_profile(group_id, user_id)
+    profile = normalize_group_member_profile(record, group_id, user_id)
+    result = {"profile": profile, "avatar_bytes": None, "avatar_error": None}
+    if include_avatar:
+        try:
+            result["avatar_bytes"] = await asyncio.to_thread(qq_avatar_bytes, user_id, config=qq_profile_config)
+        except Exception as exc:
+            result["avatar_error"] = f"头像读取失败（{type(exc).__name__}），文字资料仍可用"
+    return result
+
+
+async def agent_runtime_start():
+    """Bind QQ IO to the shared, externally maintained ReAct runtime."""
+    from qq_agent import QQAgentService
+    from .zfile import store_agent_artifact
+    from .tools.chat_text import normalize_qq_text, format_chat_reply
+    from .utils.message_sender import add_chat_result_msg
+
+    if dmc.qq_agent_service is not None:
+        await dmc.qq_agent_service.start()
+        return dmc.qq_agent_service
+    config = dict(confs.get("QQAgent", {}))
+    if not config.get("enabled", True):
+        raise RuntimeError("QQ Agent is disabled in config.yaml")
+    if config.get("log_directory", "log/qq_agent") == "log/qq_agent":
+        config["log_directory"] = os.path.join(log_root, "qq_agent")
+    if config.get("image_directory", "data/agent_inputs") == "data/agent_inputs":
+        config["image_directory"] = os.path.join(data_root, "agent_inputs")
+
+    async def send(packet, delivery):
+        return add_chat_result_msg({**packet, "text": format_text(packet["text"])}, destination=delivery)
+
+    async def prepare(packet):
+        return await asyncio.to_thread(chat_prepare_reply, packet)
+
+    async def store(identifier, raw):
+        return await asyncio.to_thread(store_agent_artifact, identifier, raw)
+
+    def format_text(text):
+        names = {player: namenick.get(player) or "该玩家" for player in dict.fromkeys([*namenick, *qid, *userlist, *roleidlist])}
+        identities = {str(identity): names[player] for mapping in (qid, userlist, roleidlist)
+                      for player, identity in mapping.items() if identity}
+        return format_chat_reply(normalize_qq_text(text), player_names=names,
+                                 identity_names=identities, aliases=[a for values in nameref.values() for a in values])
+
+    service = QQAgentService(root=project_root, config=config, admin_id=confs["QQBot"]["super_qid"],
+                             bot_id=confs["QQBot"]["bot_qid"],
+                             sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
+                             member_profile_reader=agent_read_group_member_profile)
+    dmc.qq_agent_service = service
+    try:
+        await service.start()
+    except BaseException:
+        dmc.qq_agent_service = None
+        raise
+    return service
+
+
+async def agent_chat(**request):
+    service = await agent_runtime_start()
+    return await service.chat(**request)
+
+
+async def agent_clear_memory(user_id, group_id=None):
+    service = await agent_runtime_start()
+    return await service.clear_memory(user_id, group_id)
+
+
+async def agent_task_tick():
+    if dmc.qq_agent_service is not None:
+        await dmc.qq_agent_service.tick()
+
+
+async def agent_runtime_stop():
+    if dmc.qq_agent_service is not None:
+        await dmc.qq_agent_service.close()
+        dmc.qq_agent_service = None
+
+
+def agent_register_tool(**spec):
+    if dmc.qq_agent_service is None:
+        raise RuntimeError("Register agent tools after runtime startup")
+    dmc.qq_agent_service.runtime.registry.register(**spec)
+
+
+def chat_publish_trace(trace, artifacts=()):
+    """Publish the sanitized execution record with a random, expiring bearer link."""
+    from .business.chat_trace import public_value
+    from .zfile import chat_plot_public_path
+
+    token = WebArtifacts.make_hash()
+    payload = public_value(trace, secrets=(chat_api_config.get("api_key"), chat_readonly_dsn))
+    payload["artifacts"] = [
+        {"artifact_id": str(item.get("artifact_id", "")), "url": url}
+        for item in artifacts if (url := chat_plot_public_path(item.get("path", "")))
+    ]
+    payload["expires_in_seconds"] = max(60, int(getattr(dmc, "ChatTraceExpireSeconds", 604800)))
+    serialized = json.dumps(payload, ensure_ascii=False)
+    saved = dmc.redis_deamon.set(f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{token}", serialized,
+                                 ex=payload["expires_in_seconds"])
+    if not saved:
+        raise RuntimeError("chat_trace_publish_failed")
+    return WebArtifacts.route_url("chat_trace", token)
+
 
 class WebArtifacts:
     @staticmethod
     def make_hash(seed=None):
         """Create a short stable hash from seed or a random token."""
-        source=str(seed) if seed is not None else secrets.token_hex(16)
-        return hashlib.sha256(source.encode()).hexdigest()[:16]
+        from .business.web_artifacts import make_hash
+
+        return make_hash(seed)
 
     @staticmethod
     def history_json_path(filename_hashed):
         """Build the public history JSON path."""
-        return os.path.join(temp_path,"temp_files",filename_hashed+".json")
+        from .zfile import web_history_json_path
+
+        return web_history_json_path(filename_hashed)
 
     @staticmethod
     def history_artifact(seed=None):
@@ -455,42 +622,33 @@ class WebArtifacts:
     @staticmethod
     def route_url(sitetype,hash_key):
         """Build a public route URL for a stored web payload."""
-        routes={
-            "all":"all",
-            "single_oneday":"person",
-            "single_period":"period",
-            "btldetail":"battle",
-            "query_select":"query",
-            "benefit":"benefit",
-            "bili_video":"bili-video",
-        }
-        route=routes.get(sitetype)
-        if (not route): return ""
-        return f"https://hok.{confs["WebService"]["server_domain"]}/{route}?key={hash_key}"
+        from .business.web_artifacts import route_url
+
+        return route_url(sitetype, hash_key, confs["WebService"]["server_domain"])
 
     @staticmethod
     def create_route_link(contents,sitetype):
         """Store route contents in Redis and return the public URL."""
         hash_key=WebArtifacts.make_hash()
-        dmc.redis_deamon.set(hash_key,contents,ex=REDIS_TEXT_EXPIRE_SECONDS)
+        redis_key = f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{hash_key}"
+        dmc.redis_deamon.set(redis_key,contents,ex=REDIS_TEXT_EXPIRE_SECONDS)
         return WebArtifacts.route_url(sitetype,hash_key)
 
     @staticmethod
     def history_route_link(filename_hashed,sitetype,caller="",time_text="",extra=None):
         """Create a route link for a history JSON artifact."""
-        payload={"filename":filename_hashed,"caller":caller,"time":time_text}
-        if (extra): payload.update(extra)
+        from .business.web_artifacts import history_route_payload
+
+        payload = history_route_payload(filename_hashed, caller, time_text, extra)
         return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),sitetype)
 
     @staticmethod
     def publish_history_json_route(payload,sitetype):
         """Publish a JSON payload to the history JSON path, then return a route URL."""
-        from .zfile import ensure_dir
-        from .zfile import writerl
+        from .zfile import write_web_history_payload
 
-        filename_hashed,json_path=WebArtifacts.history_artifact()
-        ensure_dir(os.path.dirname(json_path))
-        writerl(json_path,payload)
+        filename_hashed = WebArtifacts.make_hash()
+        write_web_history_payload(filename_hashed, payload)
         return WebArtifacts.route_url(sitetype,filename_hashed)
 
     @staticmethod
@@ -498,2695 +656,346 @@ class WebArtifacts:
         """Publish a Bilibili video payload to Redis and return its public detail page."""
         return WebArtifacts.create_route_link(json.dumps(payload,ensure_ascii=False),"bili_video")
 
+from .business import online_status as _online_status_business
+
+
 def online_process():
-    from .zapi import wzry_get_official
-    from .zapi import steam_api_user_status
-
-    def process_user(realname):
-        userid = userlist[realname]
-        roleid = roleidlist[realname]
-        
-        profile_res = wzry_get_official(reqtype="profile", userid=userid, roleid=roleid)
-        # except Exception as e:
-            # return {'online_cnt': 0, 'battle_info': None, 'nickname': ''}
-            
-        
-        user_online_cnt = 0
-        user_battle_info = None
-        user_nickname = ''
-        
-        for role_info in profile_res["roleList"]:
-            online = role_info["gameOnline"]
-            if online:
-                if not user_nickname:
-                    user_nickname = role_info['roleName']
-                btlist_res = wzry_get_official(reqtype="btlist", userid=userid, roleid=roleid)
-                user_online_cnt += 1
-                
-                if btlist_res["isGaming"]:
-                    user_battle_info = {
-                        'battleId': btlist_res['gaming'].get('battleId', ''),
-                        'job': role_info['shortRoleJobName'],
-                        'mapName': btlist_res['gaming']['mapName'],
-                        'heroName': safe_hero_name(btlist_res['gaming'].get('heroId')),
-                        'duration': btlist_res['gaming']['duration']
-                    }
-                else:
-                    user_battle_info = {
-                        'battleId': None,
-                        'job': role_info['shortRoleJobName'],
-                        'mapName': None,
-                        'heroName': None,
-                        'duration': None
-                    }
-        
-        return {'online_cnt': user_online_cnt, 'battle_info': user_battle_info, 'nickname': user_nickname}
-
-    snd_msg = ""
-    total_online_cnt = 0
-    battle_groups = {}  # 按战局ID分组: {battleId: [玩家信息]}
-    idle_users = []  # 在线但不在游戏中的玩家
-    steam_online_users = []
-    
-    def process_steam_user(steam_id):
-        return steam_api_user_status(confs['Steam']['api_key'], steam_id)
-        
-    try:
-        workers = len(userlist) + len(steam_userlist)
-        with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-            future_to_user = {
-                executor.submit(process_user, realname): ('wzry', realname) 
-                for realname in userlist
-            }
-            for realname, steam_id in steam_userlist.items():
-                future_to_user[executor.submit(process_steam_user, steam_id)] = ('steam', realname)
-                    
-            for future in as_completed(future_to_user):
-                req_type, realname = future_to_user[future]
-                if req_type == 'wzry':
-                    result = future.result()
-                    if result and result['online_cnt'] > 0:
-                        total_online_cnt += result['online_cnt']
-                        battle_info = result['battle_info']
-                        
-                        if battle_info and battle_info['battleId']:
-                            # 有对战号，加入对应战局组
-                            battle_id = battle_info['battleId']
-                            if battle_id not in battle_groups:
-                                battle_groups[battle_id] = []
-                            battle_groups[battle_id].append({
-                                'name': result['nickname'],
-                                'info': battle_info
-                            })
-                        elif battle_info:
-                            # 在线但不在游戏中
-                            idle_users.append({
-                                'name': result['nickname'],
-                                'job': battle_info['job']
-                            })
-                elif req_type == 'steam':
-                    try:
-                        result = future.result()
-                        if result:
-                            state = result.get('personastate', 0)
-                            game = result.get('gameextrainfo', '')
-                            # 如果有游戏信息或者状态不为 0 (离线)，则认为在线
-                            if state > 0 or game:
-                                steam_online_users.append({
-                                    'name': result.get('personaname', realname),
-                                    'game': game,
-                                    'state': state
-                                })
-                    except:
-                        pass
-    except Exception as e:
-        return str(e)
-    
-    if total_online_cnt or steam_online_users:
-        if total_online_cnt:
-            snd_msg += f"在线 {total_online_cnt} 人\n"
-            snd_msg += "─────────────\n"
-            
-            if battle_groups:
-                for battle_id, players in battle_groups.items():
-                    map_name = players[0]['info']['mapName']
-                    duration = players[0]['info']['duration']
-                    snd_msg += f"🎮 {map_name}  {duration}min\n"
-                    
-                    for player in players:
-                        snd_msg += f"   • {player['name']} {player['info']['job']}  {player['info']['heroName']}\n"
-                    
-                    snd_msg += "\n"
-            
-            if idle_users:
-                if battle_groups:
-                    snd_msg += "─────────────\n"
-                for user in idle_users:
-                    snd_msg += f"💤 {user['name']}  {user['job']}\n"
-                    
-        if steam_online_users:
-            if total_online_cnt:
-                snd_msg = snd_msg.rstrip('\n') + "\n\n"
-            snd_msg += f"Steam 在线 {len(steam_online_users)} 人\n"
-            snd_msg += "─────────────\n"
-            for user in steam_online_users:
-                game = user.get('game')
-                if game:
-                    snd_msg += f"🎮 {user['name']}  {game}\n"
-                else:
-                    snd_msg += f"💤 {user['name']}  在线\n"
-        
-        snd_msg = snd_msg.rstrip('\n')
-    else:
-        snd_msg = "🐟🐟无人在线"
-    
-    return snd_msg
-def rnk_process(rcv_msg,caller=None,show_zero=True,show_analyze=False,debug=False):
-    if (caller==None): caller=""
-    from .zfunc import wzry_data
-    from .zfunc import ai_parser
-    from .zfunc import Analyses
-    from .ztime import time_r
-    from .ztime import time_sul
-    from .zfile import writerl
-    global userlist
-
-    # if (not debug): global userlist
-    # else: userlist=userlis
-    snd_msg=""
-    today_date=str(time_r().strftime("%Y-%m-%d"))
-    today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
-    now_time=str(time_r().strftime("%Y-%m-%d %H:%M:%S"))
-    filename_hashed,filepath=WebArtifacts.history_artifact(round(time.time()*1000000))
-    website_link=WebArtifacts.history_route_link(filename_hashed,"all",caller=caller,time_text=now_time)
-    gameinfo=[]
-
-    def visit_wzry_data(key):
-        try:
-            game_data = wzry_data(realname=key)
-            return game_data
-        except Exception as e:
-            return None
-
-    gameinfo = []
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future_to_key = {executor.submit(visit_wzry_data, key): key for key in userlist}
-        for future in as_completed(future_to_key):
-            result = future.result()
-            if result is not None:
-                gameinfo.append(result)
-    if (not gameinfo):
-        log_message(f"ERROR: 王者荣耀数据源错误")
-        return
-    filename_export=os.path.join("data","history",today_sul_date+".json")
-    writerl(filename_export,gameinfo)
-    if (not show_zero): gameinfo=[item for item in gameinfo if item['today_num']!=0]
-    sorted_star=sorted(gameinfo, key=lambda item: (item['star_up']) ,reverse=True)
-    sorted_btl=sorted(gameinfo, key=lambda item: (item['today_num']) ,reverse=True)
-    dumpfile_raw1=[{k: v for k, v in d.items() if k != "key"} for d in sorted_star]
-    writerl(filepath,dumpfile_raw1)
-    snd_msg+=str(time_r().strftime("%Y-%m-%d %H:%M"))+"\n"
-    if (not gameinfo or sorted_btl[0]['today_num']==0): 
-        snd_msg+="\n今日还没有战绩哦"
-        return [snd_msg,[]]
-    else:
-        if (show_analyze):
-            extreme_data=Analyses.get_extreme_data()
-            benefit_data=Analyses.get_benefit_data()
-            snd_msg+="\n"
-            snd_msg+="近5天最高最低评分：\n"
-            snd_msg+="      ↑"+namenick[extreme_data[3]]+"的"+extreme_data[5]+"："+str(extreme_data[1])+"分\n"
-            snd_msg+="      ↓"+namenick[extreme_data[2]]+"的"+extreme_data[4]+"："+str(extreme_data[0])+"分\n"
-            snd_msg+="机制受益受害者 ：\n"
-            snd_msg+="      "+namenick[benefit_data[0]]+"："+str(benefit_data[2])+"\n"
-            snd_msg+="      "+namenick[benefit_data[1]]+"："+str(benefit_data[3])+"\n"
-            snd_msg+="\n"
-        snd_msg+="--- 上分榜 ---\n"
-        toppoint_gamenick=sorted_star[0]['nickname'] if (sorted_star[0]['star_up']>0) else ""
-        bottompoint_gamenick=sorted_star[-1]['nickname'] if (sorted_star[-1]['star_up']<0) else ""
-        if(sorted_star[0]['star_up']>0): snd_msg+="今日上分最佳👆："+sorted_star[0]['nickname']+"\n"
-        if(sorted_star[-1]['star_up']<0): snd_msg+="今日掉分最多👇："+sorted_star[-1]['nickname']+"\n"
-
-        for inde,item in enumerate(sorted_star):
-            diff = item['star_up']
-            snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff:+}\n"
-
-        snd_msg+="\n--- 场次榜 ---\n"
-        topplay_gamenick=sorted_btl[0]['nickname'] if (sorted_btl[0]['today_num']>0) else ""
-        if(sorted_btl[0]['today_num']>0): snd_msg+="今日场次最多👆："+sorted_btl[0]['nickname']+"\n"
-
-        for inde,item in enumerate(sorted_btl):
-            diff = item['today_num']
-            snd_msg += f"    {inde+1}.\t{item['nickname']}\t       {diff}\n"
-
-        snd_msg+="\n"
-        snd_msg+=website_link+"\n\n"
-        if ("$" not in rcv_msg): snd_msg+=ai_parser([snd_msg],"rnk")
-        return [snd_msg,{toppoint_gamenick,bottompoint_gamenick,topplay_gamenick}]   
-def single_process(rcv_msg):
-    def extract_history_query(s):
-        import re
-        if ("昨天" in s or "昨日" in s): return [1,[1]] # 
-        if ("前天" in s): return [1,[2]]
-        int_int_match = re.search(r'(\d+)-(\d+)$', s)
-        if int_int_match:
-            return [2,[int(int_int_match.group(1)),int(int_int_match.group(2))]]
-        int_match = re.search(r'(\d+)$', s)
-        if int_match:
-            return [1,[int(int_match.group(1))]]
-        
-        return [0,[]]
-
-    from .zfunc import ai_parser
-    from .zfunc import wzry_data
-    from .zfunc import Analyses
-    from .ztime import time_r
-    from .ztime import time_sul
-    from .ztime import time_r_delta
-    from .ztime import time_delta
-    from .ztime import str_to_time
-    from .ztime import time_to_str
-    from .zfile import readerl
-    from .zfile import copyfile
-    from .zfile import file_exist
-    from .ztime import time_r
-    from .ztime import calc_gap
-    from .ztime import add_second
-    from .zfile import writerl
-
-    snd_msg=""
-    pokename=[]
-    gameinfo=[]
-    ai_feedback=True
-    exist_battle=True
-    show_map_cnt_total=False
-    history_query=[]
-    last_official_btl_params=None
-    if ("$" in rcv_msg): ai_feedback=False
-    # ai_feedback=False
-    matching_name=extract_name(rcv_msg)
-
-    if (not matching_name): snd_msg+="没有提到玩家名字哦"
-    else:
-        if (calc_gap(time_r(),dmc.LastSingleRequestTime.get(matching_name,datetime.datetime.fromtimestamp(0)))<5): return None # 防止重复冗余请求
-        dmc.LastSingleRequestTime[matching_name]=time_r()
-
-        today_date=str(time_r().strftime("%Y-%m-%d"))
-        exhibit_date_woyear=str(time_sul().strftime("%m-%d"))
-        yesterday_date=str(time_r()-datetime.timedelta(days=1))
-
-        filename_hashed,website_filepath=WebArtifacts.history_artifact(round(time.time()*1000000))
-        history_query=extract_history_query(rcv_msg)
-        battle_visible=True
-        if (history_query[0]==1): # 追溯过去某一天
-            ai_feedback=False
-            show_map_cnt_total=True
-            traceback_cnt=history_query[1][0]
-            traceback_date=str(time_r_delta(traceback_cnt).strftime("%Y-%m-%d"))
-            exhibit_date_woyear=str(time_r_delta(traceback_cnt).strftime("%m-%d"))
-            rough_filepath=os.path.join("data","history",traceback_date+".json")
-            if (not file_exist(rough_filepath)): traceback_date=str(record_begin_date)
-            rough_filepath=os.path.join("data","history",traceback_date+".json")
-            histories=readerl(rough_filepath)
-            gameinfo=[history for history in histories if (history["id"]==userlist[matching_name])][0]
-            
-            if ("roleid" not in gameinfo): gameinfo["roleid"]=str(roleidlist[gameinfo["key"]])
-            if ("visible" not in gameinfo): gameinfo["visible"]=True
-            
-            detail_filepath=os.path.join("data","history","personal",traceback_date,str(userlist[matching_name])+".json")
-            try:
-                copyfile(detail_filepath,website_filepath)
-            except Exception as e:
-                exhibit_date_woyear+=" 链接失效"
-            website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
-        elif (history_query[0]==2): # 追溯时间段
-            ai_feedback=False
-            show_map_cnt_total=True
-            lost_info_date=[]
-            traceback_from=history_query[1][0]
-            traceback_to=history_query[1][1]
-            if (traceback_from<traceback_to): traceback_to,traceback_from=traceback_from,traceback_to
-            traceback_date_from=time_r_delta(traceback_from)
-            traceback_date_to=time_r_delta(traceback_to)
-            traceback_date_from_path=os.path.join("data","history",traceback_date_from.strftime('%Y-%m-%d')+".json")
-            if (not file_exist(traceback_date_from_path)): traceback_date_from=str_to_time(record_begin_date)
-            traceback_date_to_path=os.path.join("data","history",traceback_date_to.strftime('%Y-%m-%d')+".json")
-            if (not file_exist(traceback_date_to_path)): traceback_date_to=str_to_time(record_begin_date)
-            
-            gameinfo_raw=[]
-            
-            scan_date=traceback_date_from
-            while(scan_date<=traceback_date_to):
-                rough_filepath=os.path.join("data","history",scan_date.strftime('%Y-%m-%d')+".json")
-                if (file_exist(rough_filepath)):
-                    histories=readerl(rough_filepath)
-                    matching_history = next((history for history in histories if history["key"] == matching_name), None)
-                    if matching_history:
-                        gameinfo_raw.append(matching_history)
-                    else:
-                        lost_info_date.append(scan_date.strftime('%m-%d'))
-                scan_date=time_delta(scan_date,1)
-            lost_info_msg=f"(Lost {" ".join(lost_info_date)})" if lost_info_date else ""
-            exhibit_date_woyear=f"{traceback_date_from.strftime("%m-%d")} - {traceback_date_to.strftime("%m-%d")} {lost_info_msg}"
-            writerl(website_filepath,gameinfo_raw)
-            # 前后两句顺序不要改, merge_crossday_gamedata会修改可变字典gameinfo_raw
-            gameinfo=merge_crossday_gamedata(gameinfo_raw)
-            website_link=WebArtifacts.history_route_link(filename_hashed,"single_period",extra={"DateFrom":traceback_date_from.strftime("%m-%d"),"DateTo":traceback_date_to.strftime("%m-%d")})
-        else: # 当天战局
-            gameinfo=wzry_data(matching_name,website_filepath,sync_battle_visibility=True)
-            
-            # Save to history file
-            today_sul_date=str(time_sul().strftime("%Y-%m-%d"))
-            filename_export=os.path.join("data","history",today_sul_date+".json")
-            if file_exist(filename_export):
-                current_history = readerl(filename_export)
-                # Remove existing entry if any
-                current_history = [item for item in current_history if item.get('key') != matching_name]
-                current_history.append(gameinfo)
-            else:
-                current_history = [gameinfo]
-            writerl(filename_export, current_history)
-            
-            battle_visible=gameinfo['visible']
-            if (gameinfo['details']):
-                for item in gameinfo['details'][::-1]: 
-                    if (check_btl_official_with_matching(item["MapName"])):
-                        last_official_btl_params=item["Params"]
-                        break
-                if (last_official_btl_params):
-                    dmc.LastBtlParams=last_official_btl_params
-                    dmc.LastBtlRoleId=roleidlist[matching_name]
-                    dmc.LastBtlMsgTime=time_to_str(time_r())
-                    dmc.LastBtlMsgStatus=True
-            if (gameinfo["gaming_info"]):
-                dmc.spoiler_cache = {
-                    "time": time.time(),
-                    "realname": matching_name,
-                    "battleID": gameinfo["gaming_info"]["battle_id"],
-                }
-            website_link=WebArtifacts.history_route_link(filename_hashed,"single_oneday")
-
-        # 历史数据中的 btl_aver 可能由旧口径生成，查询时统一按正式对局重算。
-        gameinfo["btl_aver"] = calculate_official_battle_average(gameinfo.get("details", []))
-        
-        win_content= "\n".join([f"              -{mapname}WIN：{map_cnt[0]} {f' / {map_cnt[1]}' if show_map_cnt_total else ''}" 
-                    for mapname, map_cnt in gameinfo['map_cnt'].items()])+"\n"
-        expert_hero_info=Analyses.get_expert_hero(userlist[matching_name])
-        if (matching_name not in expert_hero_info):
-            expert_hero_content=""
-        else:
-            expert_hero_content=f"最拿手英雄：{list(expert_hero_info[matching_name][0].keys())[0]},拿手程度：{list(expert_hero_info[matching_name][0].values())[0]}\n"
-        gaming_content=""
-        if (gameinfo["gaming_info"]):
-            gaming_content=f"👀{namenick[matching_name]}正在{gameinfo["gaming_info"]["map_name"]}中玩{gameinfo["gaming_info"]["hero_name"]}，{gameinfo["gaming_info"]["duration_minute"]}分钟前开局{"，快去看看" if gameinfo["gaming_info"]["can_be_watched"] else "，快去看看"}。\n\n"
-        if (gameinfo["visible"] and "排位" in gameinfo['map_cnt']):
-            StarUpContent=f"      相比前一天 +⭐: {gameinfo['star_up']}\n"
-        else:
-            StarUpContent=f""
-        if (gameinfo["visible"] and "巅峰" in gameinfo['map_cnt']):
-            PeakUpContent=f"      相比前一天 巅峰分: \n"
-            for score in gameinfo['peak_up']:
-                PeakUpContent+=f"             {score[0]} --> {score[1]}\n"
-        else:
-            PeakUpContent=""
-
-        if (battle_visible):
-            snd_msg += (
-                f"{gaming_content}"
-                f"🚩{gameinfo['nickname']}({exhibit_date_woyear})的战报:\n"
-                f"        场次：{gameinfo['today_num']}\n"
-                f"{win_content}"
-                f"        平均评分: {gameinfo['btl_aver'] if gameinfo['btl_aver']!=fin else serr}\n"
-                f"      当前段位: {gameinfo['rank_name']} {gameinfo['rank_star']}⭐\n"
-                f"{StarUpContent}"
-                f"{PeakUpContent}"
-                # f"{expert_hero_content}\n"
-            )
-            
-            snd_msg+=website_link+"\n\n"
-            if (gameinfo['today_num']==0): 
-                ai_feedback=False
-                exist_battle=False
-            pokename.append(gameinfo['nickname'])
-            ai_process_gameinfo=[]
-            for detail in gameinfo['details']:
-                ai_process_gameinfo.append({k: v for k, v in detail.items() if k in {"GameTime","HeroName","MapName","StarAfterGame","PeakGradeAfterGame","PeakGradeBeforeGame","KillCnt","DeadCnt","AssistCnt","Result","GameGrade","Duration_Second","Others"} and not v == -1})
-            if (ai_feedback): snd_msg+=ai_parser([str(ai_process_gameinfo),snd_msg,rcv_msg],"single_player")+"\n"
-            # if (ai_feedback): snd_msg+=(str(ai_process_gameinfo))+"\n"
-        else:
-            snd_msg += (
-                f"{gaming_content}"
-                f"🚩{gameinfo['nickname']}({exhibit_date_woyear})的战报:\n"
-                f"              -战绩不可见\n"
-                f"      当前段位: {gameinfo['rank_name']} {gameinfo['rank_star']}⭐\n"
-                f"{StarUpContent}"
-                f"{PeakUpContent}"
-            )
-
-    return [snd_msg,pokename,exist_battle,last_official_btl_params,roleidlist[matching_name]]
-def view_process(rcv_msg,time_gap=analyze_time_gap):
-    from .zfunc import Analyses
-
-    snd_msg=" "
-    if ("b" in rcv_msg):
-        benefit_data=Analyses.get_benefit_data(time_gap=time_gap)[4]
-        snd_msg+="受益受害：(排位巅峰战队)\n"
-        for k,v in benefit_data.items():
-            snd_msg+=f"{namenick[k]}：\n    {str(round(v[0],2))} {str(round(v[1]*100,1))}% {str(round(v[2],2))}\n"
-        payload=Analyses.get_benefit_debug_payload(time_gap=time_gap)
-        snd_msg+=WebArtifacts.publish_history_json_route(payload,"benefit")+"\n"
-    if ("e" in rcv_msg):
-        extreme_data=Analyses.get_extreme_data(time_gap=time_gap)
-        snd_msg+=f"近{time_gap}天最高最低评分：\n"
-        snd_msg+="      ↑"+namenick[extreme_data[3]]+"的"+extreme_data[5]+"："+str(round(extreme_data[1],3))+"分\n"
-        snd_msg+="      ↓"+namenick[extreme_data[2]]+"的"+extreme_data[4]+"："+str(round(extreme_data[0],3))+"分\n"
-    if ("k" in rcv_msg):
-        expert_hero=Analyses.get_expert_hero(time_gap=time_gap)
-        for k,v in expert_hero.items():
-            snd_msg+=f"{namenick[k]}的最拿手英雄：{list(v[0].keys())[0]},拿手程度：{str(round(list(v[0].values())[0],3))}\n"
-        snd_msg+="\n"
-    if ("i" in rcv_msg):
-        intersection_data=Analyses.get_intersection_data(time_gap=time_gap)
-        for k,v in intersection_data.items():
-            double_player=[]
-            for player in k: double_player.append(player)
-            snd_msg+=f"{namenick[double_player[0]]}与{namenick[double_player[1]]}：{str(int(v))}\n"
-    if ("h" in rcv_msg):
-        hero_overview = Analyses.get_hero_benefit_data(time_gap=30)
-        hero_min, hero_max, min_val, max_val, hero_stats = hero_overview
-        snd_msg+=f"英雄受益受害（近30日）：\n"
-        if hero_stats:
-            snd_msg+=f"  受益：{hero_min} ({min_val})\n"
-            snd_msg+=f"  受害：{hero_max} ({max_val})\n"
-            snd_msg+=line_delim
-            snd_msg+="\n  受益榜（Top 6）：\n"
-            # hero_stats 已按 metric 升序排列（越小越受益）
-            for hn, vals in list(hero_stats.items())[:6]:
-                snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
-            snd_msg+=line_delim
-            snd_msg+="\n  受害榜（Top 6）：\n"
-            for hn, vals in list(hero_stats.items())[-6:][::-1]:
-                snd_msg+=f"    {hn} ( {vals[3]} 场 ):\n       {round(vals[0],3)} {round(vals[1]*100,1)}% {round(vals[2],2)}\n"
-        else:
-            snd_msg+="  无数据。\n"
-    return snd_msg
-def btldetail_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,gen_image=False,show_profile=False,from_web=False,individual_show=False,strict_filter=True):
-    from .zapi import wzry_get_official
-    from .zfile import writerl
-    from .zfunc import check_btl_official_with_matching
-    from .tools import gen_battle_res
-    import json
-    import os
-
-    res = fetch_battle(gameseq,roleid)
-
-    if not res:
-        res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype)
-    
-    if ('head' not in res): return None,None,None
-    if (strict_filter and not check_btl_official_with_matching(res['head']['mapName'])): return None,None,res['head']['mapName']
-    
-    my_team_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
-    my_team_total_money=0
-    my_team_total_grade=0
-    my_money=0
-    my_grade=0
-    am_i_assist=False
-    for single_info in my_team_detail:
-        my_team_total_money+=int(single_info['battleStats']['money'])
-        my_team_total_grade+=float(single_info['battleStats']['gradeGame'])
-        if (single_info['basicInfo']['userId']==res['head']['userId']):
-            my_money=int(single_info['battleStats']['money'])
-            my_grade=float(single_info['battleStats']['gradeGame'])
-            for equipments in single_info['battleRecords']['finalEquips']:
-                if (any(keyword in equipments['equipName'] for keyword in {"学识宝石","近卫","极影"})):
-                    am_i_assist=True
-    team_contribute_factor=(5 * my_grade / my_team_total_grade) * pow((5 * my_money / my_team_total_money), -0.5)
-    if (am_i_assist): team_contribute_factor*=0.9
-    team_contribute_text=f"贡献: {round(team_contribute_factor,2)}"
-    my_userid=res['head']['userId']
-    our_player_infos_suf=[]
-    our_player_infos_suf_all=[]
-    our_plyaer_info_userlist=userlist|extra_useridlist
-    out_player_info_namenicklist=namenick|extra_namenick
-    for player in my_team_detail:
-        user_id=player['basicInfo']['userId']
-        for our_player_name,our_player_id in our_plyaer_info_userlist.items():
-            if (int(user_id)==int(our_player_id)):
-                our_player_infos_suf_all.append([our_player_name,player['battleStats']['gradeGame']])
-                if (int(user_id)!=int(my_userid)):
-                    our_player_infos_suf.append([our_player_name,player['battleStats']['gradeGame']])
-                break
-                
-            
-    our_player_infos=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf]
-    our_player_infos_all=[[out_player_info_namenicklist[playername],playergrade] for playername,playergrade in our_player_infos_suf_all]
-    our_player_text=""
-    our_player_text_all=""
-    if (our_player_infos):
-        our_player_text="With: "
-        for info in our_player_infos:
-            our_player_text+=f"{info[0]}({info[1]}) "
-        our_player_text+="\n"
-    if (our_player_infos_all):
-        our_player_text_all=""
-        for info in our_player_infos_all:
-            our_player_text_all+=f"{info[0]}({info[1]}) "
-        our_player_text_all+="\n"
-    filename_hashed,json_output_path=WebArtifacts.history_artifact(round(time.time()*1000000))
-    linkurl=WebArtifacts.history_route_link(filename_hashed,"btldetail")
-    picpath=""
-    writerl(json_output_path,res)
-    if (gen_image):
-        picpath=os.path.join(temp_path,"temp_files","exhibit.png")
-        gen_battle_res.generate_battle_ui_image(json_output_path,picpath)
-    snd_message=""
-    if (individual_show):
-        snd_message+=(
-            f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
-            f"{our_player_text_all}"
-            f"{linkurl}"
-        )
-    elif (from_web):
-        snd_message+=(
-            f"{res['battle']['dtEventTime']} {res['head']['mapName']} {'🏆' if res['head']['gameResult']==True else '🏳️'}\n"
-            f"{res['head']['roleName']} {res['head']['heroName']} {team_contribute_text}\n"
-            f"{linkurl}"
-        )
-    else:
-        snd_message+=(
-            f"最后一局 {'🏆' if res['head']['gameResult']==True else '🏳️'} "
-            f"{team_contribute_text}"
-            f"\n{res['head']['mapName']} {res['head']['heroName']}: {res['head']['killCnt']}/{res['head']['deadCnt']}/{res['head']['assistCnt']} {res['head']['gradeGame']}\n"
-            f"{our_player_text}"
-            f"{linkurl}\n\n"
-            f"戳一戳 来评估两方实力"
-        )
-    return snd_message,picpath,res['head']['mapName']
-def heropower_process(realname):
-    from .zapi import wzry_get_official
-
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
-
-    res=wzry_get_official(reqtype="heropower",userid=userid,roleid=roleid)
-    # print(res)
-    ret_text=f"{namenick[realname]}的战力英雄\n"
-    ret_text+=f"─────────────\n"
-    for hero in res['heroList']:
-        try:
-            region_name=hero['honorTitle']['desc']['full'].split("第")[0]
-            metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
-            ret_text+=f"【{hero['basicInfo']['title']}】"
-            ret_text+=f" {hero['basicInfo']['heroFightPower']}\n"
-            ret_text+=f" {region_name}  第 {hero['honorTitle']['rank']} 名\n\n"
-        except Exception as e:
-            pass
-    return ret_text
-# 单一玩家、单一英雄
-def single_player_single_hero_process(username,heroid,heroname,this_season=False):
-    from .zapi import wzry_get_official
-    from .ztime import time_r, time_delta,str_to_time
-
-    userid=userlist[username]
-    roleid=roleidlist[username]
-
-    res = wzry_get_official(reqtype="herostatistics", userid=userid, roleid=roleid, heroid=heroid)
-
-    # 提取核心数据
-    hero_info = res.get("heroInfo", {})
-    tier_dict = getattr(dmc, "herotier", {})
-    herotier = tier_dict.get(heroname, "未知")
-    winNum = int(hero_info.get("winNum") or 0)
-    failNum = int(hero_info.get("failNum") or 0)
-    total_cnt = winNum + failNum
-    win_rate = (winNum / total_cnt) if total_cnt else 0
-
-    power_data = res.get("powerData") or []
-    heropower = power_data[-1]["value"] if power_data else 0
-    month_heropower_incre = (power_data[-1]["value"] - power_data[0]["value"]) if len(power_data) > 1 else 0
-
-    month_mvp = int(hero_info.get("mvpCount") or 0)
-    month_medal = int(hero_info.get("goldCount") or 0) + int(hero_info.get("silverCount") or 0) + int(hero_info.get("bestCount") or 0)
-
-    # 获取本地历史数据（用于详细统计）
-    end_date = time_r()
-    if(this_season): 
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else: 
-        start_date = time_delta(end_date, -30)
-        TimeLim="近30日"
-    history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-    games = history.get(username, []) if history else []
-    hero_games = [g for g in games if g.get('HeroName') == heroname]
-
-    # 组装简洁输出
-    lines = []
-    lines.append(f"【统计信息】 {namenick[username]}的{heroname} (梯度{herotier})")
-    lines.append(line_delim)
-    lines.append(f"战力  {heropower}  ({month_heropower_incre:+d})")
-    lines.append(f"总战绩  {winNum}胜{failNum}负  胜率{round(win_rate*100,1)}%")
-    
-    if hero_games:
-        total_games_h = len(hero_games)
-        wins_h = sum(1 for g in hero_games if g.get('Result') == '胜利')
-        win_rate_h = (wins_h / total_games_h) if total_games_h else 0
-        avg_grade_h = sum(float(g.get('GameGrade', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        mvp_h = sum(1 for g in hero_games if 'MVP' in (g.get('Others') or ''))
-        avg_kill_h = sum(int(g.get('KillCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        avg_dead_h = sum(int(g.get('DeadCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        avg_assist_h = sum(int(g.get('AssistCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
-        
-        lines.append(line_delim)
-        lines.append(f"{TimeLim}表现")
-        lines.append(f"{total_games_h}场  胜率{round(win_rate_h*100,1)}%  均分{round(avg_grade_h,1)}")
-        lines.append(f"MVP×{mvp_h}  牌子×{month_medal}  KDA {round(avg_kill_h,1)}/{round(avg_dead_h,1)}/{round(avg_assist_h,1)}")
-    else:
-        lines.append(line_delim)
-        lines.append(f"{TimeLim}无对局记录")
-
-    # 添加成就牌（如果有特殊成就才显示）
-    medal_list = res.get("medalList") or []
-    if medal_list and len(medal_list) > 0:
-        lines.append(line_delim)
-        lines.append("成就")
-        for medal_info in medal_list[:3]:  # 最多显示3个
-            info = medal_info.get("UserMedalInfo") if isinstance(medal_info, dict) else str(medal_info)
-            if info:
-                lines.append(f"  · {info}")
-
-    return "\n".join(lines)
-# 单一玩家、所有英雄
-def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, this_season=False):
-    """统计玩家在最近若干天内的英雄表现，返回 JSON 风格字符串和可读摘要。
-    - rcv_msg: 包含用户名的消息，使用 extract_name 解析
-    - days: 向前统计天数
-    - top_n: 每个榜单返回的条目数
-    - min_games: 计算胜率/评分榜时的最小出场次数阈值
-    返回字符串（先 JSON，再人类可读摘要）。
-    """
-    from .ztime import time_r, time_delta, str_to_time
-    import json
-
-    userid = userlist[username]
-
-    end_date = time_r()
-    if(this_season):
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else:
-        start_date = time_delta(end_date, -days)
-        TimeLim=f"近{days}日"
-    history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-    games = history.get(username, []) if history else []
-    total_games = len(games)
-    if total_games == 0:
-        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
-
-    # 聚合每个英雄的统计
-    hero_stats = {}
-    tier_dict = getattr(dmc, "herotier", {})
-    total_tier_val = 0
-    tier_counted_games = 0
-    for g in games:
-        hn = g.get('HeroName', '未知')
-        if hn in tier_dict:
-            try:
-                total_tier_val += float(tier_dict[hn])
-                tier_counted_games += 1
-            except:
-                pass
-        s = hero_stats.setdefault(hn, {'count': 0, 'wins': 0, 'grades': [], 'kills': 0, 'deads': 0, 'assists': 0, 'mvp': 0})
-        s['count'] += 1
-        if g.get('Result') == '胜利':
-            s['wins'] += 1
-        try:
-            s['grades'].append(float(g.get('GameGrade') or 0))
-        except:
-            pass
-        s['kills'] += int(g.get('KillCnt') or 0)
-        s['deads'] += int(g.get('DeadCnt') or 0)
-        s['assists'] += int(g.get('AssistCnt') or 0)
-        if 'MVP' in (g.get('Others') or ''):
-            s['mvp'] += 1
-
-    # 计算指标
-    metrics = {}
-    for hn, s in hero_stats.items():
-        cnt = s['count']
-        wins = s['wins']
-        win_rate = (wins / cnt) if cnt else 0
-        avg_grade = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-        avg_k = s['kills'] / cnt if cnt else 0
-        avg_d = s['deads'] / cnt if cnt else 0
-        avg_a = s['assists'] / cnt if cnt else 0
-        play_rate = cnt / total_games
-        metrics[hn] = {
-            'hero': hn,
-            'count': cnt,
-            'play_rate': play_rate,
-            'win_rate': win_rate,
-            'avg_grade': avg_grade,
-            'kda': [round(avg_k, 2), round(avg_d, 2), round(avg_a, 2)],
-            'mvp': s['mvp']
-        }
-
-    # 排名列表
-    top_by_play = sorted(metrics.values(), key=lambda x: x['play_rate'], reverse=True)[:top_n]
-    eligible = [m for m in metrics.values() if m['count'] >= max(1, min_games)]
-    top_by_win = sorted(eligible, key=lambda x: x['win_rate'], reverse=True)[:top_n]
-    top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
-
-    # 可读摘要
-    lines = []
-    avg_tier = round(total_tier_val / tier_counted_games, 2) if tier_counted_games > 0 else "N/A"
-    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（{TimeLim}，共 {total_games} 场，均梯: {avg_tier}）")
-    lines.append(line_delim)
-    lines.append("出场率 TOP:")
-    for it in top_by_play:
-        th = it['hero']
-        tier_info = f" (梯 {tier_dict[th]})" if th in tier_dict else ""
-        lines.append(f"  【{th}】{tier_info}: 出场 {it['count']} 场 ({round(it['play_rate']*100,1)}%)\n  胜率 {round(it['win_rate']*100,1)}%  均分 {round(it['avg_grade'],1)}\n  KDA {it['kda'][0]}/{it['kda'][1]}/{it['kda'][2]}")
-    lines.append(line_delim)
-    lines.append("胜率 TOP (至少 %d 场)：" % max(1, min_games
-                ))
-    if top_by_win:
-        for it in top_by_win:
-            th = it['hero']
-            tier_info = f" (梯 {tier_dict[th]})" if th in tier_dict else ""
-            lines.append(f"  【{th}】{tier_info}: 胜率 {round(it['win_rate']*100,1)}% ({it['count']} 场)\n  均分 {round(it['avg_grade'],1)}")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-    lines.append(line_delim)
-    lines.append("评分 TOP：")
-    if top_by_grade:
-        for it in top_by_grade:
-            th = it['hero']
-            tier_info = f" (梯 {tier_dict[th]})" if th in tier_dict else ""
-            lines.append(f"  【{th}】{tier_info}: 均分 {round(it['avg_grade'],1)} ({it['count']} 场)\n  胜率 {round(it['win_rate']*100,1)}%")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-
-    return "\n".join(lines)
-# 所有玩家、所有英雄
-def mult_player_mult_hero_process(days=30, top_n=5, min_games=5, this_season=False):
-    """统计所有玩家在最近若干天内的英雄总体表现，返回人类可读摘要字符串。
-    - days: 向前统计天数
-    - top_n: 每个榜单返回的条目数
-    - min_games: 计算胜率/评分榜时的最小出场次数阈值（按英雄总出场次数）
-    """
-    from .ztime import time_r, time_delta, str_to_time
-
-    end_date = time_r()
-    if(this_season):
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else:
-        start_date = time_delta(end_date, -days)
-        TimeLim=f"近{days}日"
-
-    hero_stats = {}
-    total_games_all = 0
-
-    for realname, uid in userlist.items():
-        try:
-            history, duration = fetch_history(userid=uid, start_date=start_date, end_date=end_date)
-        except Exception:
-            continue
-        games = history.get(realname, []) if history else []
-        total_games_all += len(games)
-        for g in games:
-            hn = g.get('HeroName', '未知')
-            s = hero_stats.setdefault(hn, {'count': 0, 'wins': 0, 'grades': []})
-            s['count'] += 1
-            if g.get('Result') == '胜利':
-                s['wins'] += 1
-            try:
-                s['grades'].append(float(g.get('GameGrade') or 0))
-            except:
-                pass
-
-    if total_games_all == 0:
-        return f"{TimeLim}内所有用户没有对局数据。"
-
-    metrics = {}
-    for hn, s in hero_stats.items():
-        cnt = s['count']
-        wins = s['wins']
-        win_rate = (wins / cnt) if cnt else 0
-        avg_grade = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-        play_rate = cnt / total_games_all
-        metrics[hn] = {'hero': hn, 'count': cnt, 'play_rate': play_rate, 'win_rate': win_rate, 'avg_grade': avg_grade}
-
-    top_by_play = sorted(metrics.values(), key=lambda x: x['play_rate'], reverse=True)[:top_n]
-    eligible = [m for m in metrics.values() if m['count'] >= max(1, min_games)]
-    top_by_win = sorted(eligible, key=lambda x: x['win_rate'], reverse=True)[:top_n]
-    top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
-
-    lines = []
-    lines.append(f"【统计信息】 群u的英雄汇总\n（{TimeLim}，共 {total_games_all} 场）")
-    lines.append(line_delim)
-    lines.append("出场率 TOP:")
-    for it in top_by_play:
-        lines.append(f"  {it['hero']}: 出场 {it['count']} 场 ({round(it['play_rate']*100,1)}%)  胜率 {round(it['win_rate']*100,1)}%  均分 {round(it['avg_grade'],1)}")
-    lines.append(line_delim)
-    lines.append(f"胜率 TOP（至少 {max(1,min_games)} 场）：")
-    if top_by_win:
-        for it in top_by_win:
-            lines.append(f"  {it['hero']}: 胜率 {round(it['win_rate']*100,1)}% ({it['count']} 场)  均分 {round(it['avg_grade'],1)}")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-    lines.append(line_delim)
-    lines.append("评分 TOP：")
-    if top_by_grade:
-        for it in top_by_grade:
-            lines.append(f"  {it['hero']}: 均分 {round(it['avg_grade'],1)} ({it['count']} 场)  胜率 {round(it['win_rate']*100,1)}%")
-    else:
-        lines.append("  无满足最小出场次数的英雄")
-
-    return "\n".join(lines)
-# 所有玩家、单一英雄
-def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top_n=5, this_season=False):
-    """针对指定英雄聚合全服数据，返回人类可读摘要。
-    - hero_name: 英雄名称（精确匹配 `HeroName` 字段）
-    - days: 向前统计天数
-    - min_games: 列入胜率/评分榜的最小出场次数阈值（按单个玩家）
-    - top_n: 每个榜单返回条目数
-    返回字符串，包含：总体场次、参战玩家数、总体胜率、均分、KDA、地图分布、玩家榜单等
-    """
-    from .ztime import time_r, time_delta, str_to_time
-    import collections
-
-    end_date = time_r()
-    if(this_season):
-        start_date = str_to_time(this_season_start_date)
-        TimeLim=f"本赛季({this_season_start_date.replace('-','')}-now)"
-    else:
-        start_date = time_delta(end_date, -days)
-        TimeLim=f"近{days}日"
-
-    per_player = {}  # player -> stats
-    map_counter = collections.Counter()
-    total_games = 0
-
-    for realname, uid in userlist.items():
-        try:
-            history, duration = fetch_history(userid=uid, start_date=start_date, end_date=end_date)
-        except Exception:
-            continue
-        games = history.get(realname, []) if history else []
-        hero_games = [g for g in games if g.get('HeroName') == hero_name]
-        if not hero_games:
-            continue
-        stats = {'count': 0, 'wins': 0, 'grades': [], 'kills': 0, 'deads': 0, 'assists': 0, 'mvp': 0, 'maps': collections.Counter()}
-        for g in hero_games:
-            stats['count'] += 1
-            total_games += 1
-            if g.get('Result') == '胜利':
-                stats['wins'] += 1
-            try:
-                stats['grades'].append(float(g.get('GameGrade') or 0))
-            except:
-                pass
-            stats['kills'] += int(g.get('KillCnt') or 0)
-            stats['deads'] += int(g.get('DeadCnt') or 0)
-            stats['assists'] += int(g.get('AssistCnt') or 0)
-            if 'MVP' in (g.get('Others') or ''):
-                stats['mvp'] += 1
-            mapname = g.get('MapName') or '未知'
-            stats['maps'][mapname] += 1
-            map_counter[mapname] += 1
-        per_player[realname] = stats
-
-    if total_games == 0:
-        return f"在{TimeLim}内未发现任何玩家使用 {hero_name} 的对局。"
-
-    # 汇总总体指标
-    total_wins = sum(s['wins'] for s in per_player.values())
-    all_grades = [g for s in per_player.values() for g in s['grades']]
-    overall_winrate = total_wins / total_games if total_games else 0
-    overall_avg_grade = (sum(all_grades) / len(all_grades)) if all_grades else 0
-    overall_k = sum(s['kills'] for s in per_player.values()) / total_games
-    overall_d = sum(s['deads'] for s in per_player.values()) / total_games
-    overall_a = sum(s['assists'] for s in per_player.values()) / total_games
-
-    # 玩家榜单
-    players_by_count = sorted(per_player.items(), key=lambda x: x[1]['count'], reverse=True)[:top_n]
-    eligible = [(p, s) for p, s in per_player.items() if s['count'] >= max(1, min_games)]
-    players_by_win = sorted(eligible, key=lambda x: (x[1]['wins'] / x[1]['count']) if x[1]['count'] else 0, reverse=True)[:top_n]
-    players_by_grade = sorted(eligible, key=lambda x: (sum(x[1]['grades']) / len(x[1]['grades'])) if x[1]['grades'] else 0, reverse=True)[:top_n]
-
-    # 地图分布前几
-    top_maps = map_counter.most_common(8)
-
-    # 组装输出
-    lines = []
-    lines.append(f"【统计信息】 群u的{hero_name}\n（{TimeLim}）")
-    lines.append(line_delim)
-    lines.append(f"总场次：{total_games}    参战玩家数：{len(per_player)}")
-    lines.append(f"总胜率：{round(overall_winrate*100,1)}%    均分：{round(overall_avg_grade,2)}\n K/D/A：{round(overall_k,2)}/{round(overall_d,2)}/{round(overall_a,2)}")
-    lines.append(line_delim)
-    lines.append("地图分布（Top）：")
-    for m, c in top_maps:
-        lines.append(f"  【{m}】: {c} 场 ({round(c/total_games*100,1)}%)")
-    lines.append(line_delim)
-    lines.append(f"出场最多的玩家（Top {top_n}）：")
-    for p, s in players_by_count:
-        winr = (s['wins'] / s['count']) if s['count'] else 0
-        avgg = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-        lines.append(f"  【{namenick.get(p,p)}】: {s['count']} 场  胜率 {round(winr*100,1)}%  均分 {round(avgg,2)}  KDA {round(s['kills']/s['count'],2)}/{round(s['deads']/s['count'],2)}/{round(s['assists']/s['count'],2)}")
-    lines.append(line_delim)
-    lines.append(f"胜率最高（至少 {max(1,min_games)} 场）Top {top_n}: ")
-    if players_by_win:
-        for p, s in players_by_win:
-            winr = (s['wins'] / s['count']) if s['count'] else 0
-            lines.append(f"  【{namenick.get(p,p)}】: 胜率 {round(winr*100,1)}% ({s['count']} 场)  均分 {round((sum(s['grades'])/len(s['grades'])) if s['grades'] else 0,2)}")
-    else:
-        lines.append("  无满足最小出场次数的玩家")
-    lines.append(line_delim)
-    lines.append(f"评分最高（至少 {max(1,min_games)} 场）Top {top_n}: ")
-    if players_by_grade:
-        for p, s in players_by_grade:
-            avgg = (sum(s['grades']) / len(s['grades'])) if s['grades'] else 0
-            lines.append(f"  【{namenick.get(p,p)}】: 均分 {round(avgg,2)} ({s['count']} 场)  胜率 {round((s['wins']/s['count'])*100,1)}%")
-    else:
-        lines.append("  无满足最小出场次数的玩家")
-
-    return "\n".join(lines)
-
-def todayhero_process(realname,ignore_limit=False,ai_comment=True):
-    from .zfunc import single_player_single_hero_process
-    def get_hero_name(realname,hero_name_candidates):
-        from .ztime import time_r,time_delta
-        from .zfunc import fetch_history
-        # 45% 随机
-        # 35% 最近
-        # 20% 榜单
-        hero_selected_way=random.random()
-        hero_name=""
-        selected_info={"way":"","details":[]}
-        initial_time_to=time_r()
-        trace_back_time_to=initial_time_to
-        trace_back_time_from=time_delta(trace_back_time_to,-5)
-        game_details,_=fetch_history(userid=userlist[realname],start_date=trace_back_time_from,end_date=trace_back_time_to)
-        game_details=game_details[realname]
-        if (realname in force_choice):
-            hero_name=force_choice[realname]
-            selected_info["way"]="RANDOM"
-            selected_info["details"]:[]
-            return hero_name,selected_info
-        if (hero_selected_way<0.45):
-            hero_name = random.choice(hero_name_candidates)
-            selected_info["way"]="RANDOM"
-            selected_info["details"]=[]
-        elif (hero_selected_way<0.8 and game_details):
-            recent_hero_name_candidates=set()
-            for game_detail in game_details:
-                if (game_detail["HeroName"] in hero_name_candidates):
-                    recent_hero_name_candidates.add(game_detail["HeroName"])
-            hero_name = random.choice(list(recent_hero_name_candidates))
-            selected_info["way"]="RECENT"
-            for game_detail in game_details:
-                if (game_detail["HeroName"]==hero_name):
-                    selected_info["details"].append({"MapName":game_detail["MapName"],"GameGrade":game_detail["GameGrade"]})
-        elif (hero_selected_way<1):
-            # print(dmc.herorank)
-            rankId_candidate=list(dmc.herorank.keys())
-            rankId=random.choice(rankId_candidate)
-            rankTitle=dmc.herorank[rankId]["title"]
-            hero_name=""
-            while(hero_name not in hero_name_candidates):
-                rankIndex=random.randint(0,10)
-                hero_name=dmc.herorank[rankId]["list"][rankIndex]["heroInfo"]["heroName"]
-            hero_rankinfo=dmc.herorank[rankId]["list"][rankIndex]
-            selected_info["way"]="HERORANK"
-            selected_info["details"].append({})
-            valid_data_type={"banRate":"顶端排位被ban率","showRate":"顶端排位出场率","winRate":"顶端排位胜率","killNum":"顶端排位场均击杀数","output":"顶端排位场均输出","mvp":"顶端排位MVP率","goldPlay":"顶端排位金牌率"}
-            for k,v in hero_rankinfo.items():
-                if (k in valid_data_type and v!=0):
-                    selected_info["details"][0][valid_data_type[k]]=v
-        return hero_name,selected_info
-    def get_rand_hero_skin(realname):
-        skin_folder_path=os.path.join("resources","wzry_images","skins")
-        hero_names = [d for d in os.listdir(skin_folder_path) 
-              if os.path.isdir(os.path.join(skin_folder_path, d))]
-        hero_name,selected_info=get_hero_name(realname,hero_names)
-        # hero_name = random.choice(hero_names)
-        hero_path = os.path.join(skin_folder_path, hero_name)
-        
-        skin_files = [f for f in os.listdir(hero_path) 
-                if os.path.isfile(os.path.join(hero_path, f))]
-        
-        skin_file = random.choice(skin_files)
-        skin_name=os.path.splitext(skin_file)[0]
-        pic_path = os.path.join(project_root,hero_path,skin_file)
-        return hero_name, skin_name,pic_path,selected_info
-    def get_hero_skin(realname,ignore_limit):
-        import redis
-        from .ztime import time_r
-        current_date = time_r().strftime("%Y-%m-%d")
-        if (ignore_limit): hero_info_str=None
-        else: hero_info_str = dmc.TodayHeroPool.get(realname)
-        if (hero_info_str):
-            hero_info = json.loads(hero_info_str)
-            stored_date = hero_info.get("date")
-            if stored_date == current_date:
-                return hero_info.get("heroname"),hero_info.get("skinname"),hero_info.get("picpath"),hero_info.get("selectinfo")
-            else:
-                pass
-        hero_name, skin_name,pic_path,selected_info=get_rand_hero_skin(realname)
-        new_data = {
-            "date": current_date,
-            "heroname": hero_name,
-            "skinname": skin_name,
-            "picpath":pic_path,
-            "selectinfo":selected_info
-        }
-        dmc.TodayHeroPool.set(realname, json.dumps(new_data))
-        
-        history_key = f"hero_history:{realname}"
-        history_entry = {
-            "date": current_date,
-            "heroname": hero_name,
-            "skinname": skin_name,
-            "selectinfo": selected_info
-        }
-        
-        history_list = dmc.TodayHeroPool.lrange(history_key, 0, -1)
-        date_found = False
-        for i, entry_str in enumerate(history_list):
-            entry = json.loads(entry_str)
-            if entry.get("date") == current_date:
-                dmc.TodayHeroPool.lset(history_key, i, json.dumps(history_entry))
-                date_found = True
-                break
-        if not date_found:
-            dmc.TodayHeroPool.rpush(history_key, json.dumps(history_entry))
-        
-        return hero_name, skin_name,pic_path,selected_info
-    def get_hero_skills(heroid):
-        from .zfile import readerl
-        all_skills=[]
-        
-        skill_raw=readerl(os.path.join("resources","wzry_images",'hero_skills',heroid+".json"))
-        for skill in skill_raw["skillList1"]:
-            all_skills.append(skill["desc"])
-        return all_skills
-
-    hero_name,skin_name,pic_path,selected_info=get_hero_skin(realname,ignore_limit=ignore_limit)
-    heroid=[heroid_ for heroid_,heroname_ in HeroList.items() if heroname_==hero_name][0]
-
-    hero_skills=get_hero_skills(heroid)
-    hero_statistics=single_player_single_hero_process(realname,heroid,hero_name)
-
-    if (ai_comment): 
-        play_reason = ai_parser(msg_type="skill_advantage", user_query=[hero_name, namenick[realname], str(hero_skills), str(selected_info), hero_statistics], use_mem=False)
-    else: 
-        play_reason = str(selected_info)
-
-    former_msg=f"{namenick[realname]}的今日英雄：{hero_name}"
-    latter_msg=play_reason
-    return former_msg,latter_msg,pic_path
-
-def allhero_process(realname):
-    from .zapi import wzry_get_official
-
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
-
-    res=wzry_get_official(reqtype="allhero",userid=userid,roleid=roleid)
-    ret_text=f"{namenick[realname]}的拿手英雄\n"
-    hero_cnt=0
-    for hero in res['heroList']:
-        if (hero_cnt>5): break
-        hero_cnt+=1
-        # try:
-        ret_text+=f"{hero['name']}： {hero['heroFightPower']}\n"
-        ret_text+=f"   {hero['playNum']}场 {hero['winRate']}\n"
-        # except Exception as e:
-        #     pass
-        # print(hero['honorTitle']['region']['provinceName'],hero['honorTitle']['desc']['full'])
-        # ret_text+=f"{hero['honorTitle']['region']['provinceName']} {hero['honorTitle']['desc']['full']} "
-    return ret_text
-def gradeanalyze_process(realname):
-    from .tools import gen_grade_chart
-
-    userid=userlist[realname]
-    data_path=os.path.join("data","history")
-    pic_visit_path=os.path.join(temp_path,"wzry_grade_chart","grade_chart.png")
-    pic_save_path=os.path.join(temp_path,"wzry_grade_chart")
-    analyze_msg=gen_grade_chart.gen(userid,data_path,pic_save_path)
-    
-    return pic_visit_path,analyze_msg
-def watchbattle_process(realname):
-    from .zapi import wzry_get_official
-    from .tools import gen_battle_shot
-
-    userid=userlist[realname]
-    roleid=roleidlist[realname]
-
-    btlist_data=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
-    if (not btlist_data["isGaming"]): return None,None
-    res=btlist_data["gaming"]
-    if (not res["canBeWatch"]): return None,None
-
-    battleId=res["battleId"]
-    mapName=res["mapName"]
-    duration=res["duration"]
-
-    save_path=os.path.join(temp_path,"wzry_btl_shot",str(roleid)+".png")
-    if(dmc.RTMPListener): dmc.RTMPListener.stop()
-    dmc.RTMPListener = gen_battle_shot.RTMPListener(dmc.streamurl,save_path=save_path,roleid=roleid)
-    dmc.RTMPListener.start()  # 开始后台监听
-
-    dmc.RTMPListener.screenshot()   # 截图一次
-    return save_path,None
-def watchbattleinfo_to_coplayer_res(watchbattle_json, roleid=None, game_result=None):
-    """将 watchbattleinfo 响应转换为 coplayer_process 所需的最小 res 结构（严格模式）。"""
-
-    def _int(value, field_name):
-        if value is None:
-            raise ValueError(f"missing required field: {field_name}")
-        return int(value)
-
-    def _extract_acnt_camp_from_url(url):
-        if not isinstance(url, str) or "?" not in url:
-            raise ValueError("missing required field: battleInfo.battleDetailUrl")
-        query = url.split("?", 1)[1]
-        params = {}
-        for pair in query.split("&"):
-            if "=" in pair:
-                key, value = pair.split("=", 1)
-                params[key] = value
-        if "acntCamp" not in params:
-            raise ValueError("missing required field: acntCamp in battleDetailUrl")
-        return int(params["acntCamp"])
-
-    def _is_auth(raw_player):
-        rid = _int(raw_player["roleId"], "roleId")
-        uid = _int(raw_player["userId"], "userId")
-        role_name = raw_player["roleInfo"]["roleName"]
-        return rid != 0 and uid != 0 and role_name != "未授权游戏信息"
-
-    def _convert_player(raw_player):
-        return {
-            "basicInfo": {
-                "roleId": _int(raw_player["roleId"], "roleId"),
-                "userId": _int(raw_player["userId"], "userId"),
-                "roleName": raw_player["roleInfo"]["roleName"],
-                "isGameAuth": _is_auth(raw_player),
-            },
-            "heroBehavior": {
-                "winNum": _int(raw_player["win"], "win"),
-                "loseNum": _int(raw_player["lost"], "lost"),
-                "avgScore": "8.0",
-                "winRate": raw_player["winRate"],
-            },
-            "battleRecords": {
-                "usedHero": {
-                    "heroName": raw_player["heroName"],
-                    "heroIcon": raw_player["heroIcon"],
-                }
-            },
-            "battleStats": {
-                "fightPower": _int(raw_player["heroFightValue"], "heroFightValue"),
-            },
-        }
-
-    if not isinstance(watchbattle_json, dict):
-        raise TypeError("watchbattle_json must be dict")
-
-    source = watchbattle_json["data"] if "data" in watchbattle_json else watchbattle_json
-    battle_info = source["battleInfo"] if "battleInfo" in source else source
-    if not isinstance(battle_info, dict):
-        raise TypeError("battle_info must be dict")
-
-    camp1 = battle_info["camp1"]
-    camp2 = battle_info["camp2"]
-    red_roles = [_convert_player(player) for player in camp1]
-    blue_roles = [_convert_player(player) for player in camp2]
-
-    target_roleid = int(roleid) if roleid is not None else int(battle_info["roleInfo"]["roleId"])
-
-    head_acnt_camp = None
-    for player in camp1:
-        if int(player["roleId"]) == target_roleid:
-            head_acnt_camp = 1
-            break
-    if head_acnt_camp is None:
-        for player in camp2:
-            if int(player["roleId"]) == target_roleid:
-                head_acnt_camp = 2
-                break
-
-    if head_acnt_camp is None:
-        head_acnt_camp = _extract_acnt_camp_from_url(battle_info["battleDetailUrl"])
-
-    # if game_result is None:
-    #     raise ValueError("missing required arg: game_result")
-
-    return {
-        "head": {
-            "acntCamp": int(head_acnt_camp),
-            "gameResult": True,
-        },
-        "redTeam": {
-            "acntCamp": 1,
-        },
-        "redRoles": red_roles,
-        "blueRoles": blue_roles,
-    }
-def spoiler_process(battle_id,roleid,userid):
-    from .zapi import wzry_get_official
-    import math
-    raw_res=wzry_get_official(reqtype="watchbattle",battle_id=battle_id,roleid=roleid,userid=userid)
-    res=watchbattleinfo_to_coplayer_res(raw_res)
-    coplayer_txt,pic_path,stats=coplayer_process(-1,-1,-1,-1,-1,spoiler_info=res)
-    
-    # 计算预测胜率
-    # 结合底蕴(level)和英雄梯度(tier)
-    # 修正逻辑：
-    # 底蕴：范围 [10, 70]，差值一般在 [-20, 20]，权重约 0.05
-    # 梯度：范围 [20, 70]，差值可能较大，权重约 0.04
-    def win_rate_sigmoid(level_diff, tier_diff):
-        # 权重设置：底蕴权重 0.05, 梯度权重 0.04
-        score = level_diff * 0.05 + tier_diff * 0.04
-        return 1 / (1 + math.exp(-score))
-
-    level_diff = stats["my_side_level"] - stats["op_side_level"]
-    tier_diff = stats["my_side_tier"] - stats["op_side_tier"]
-    
-    predicted_win_rate = win_rate_sigmoid(level_diff, tier_diff)
-    win_rate_str = f"预测我方胜率：{round(predicted_win_rate * 100, 2)}%\n"
-
-    describe_txt=f"对局预言：{raw_res['battleID']}\n{raw_res['battleInfo']['roleInfo']['roleInfo']['roleName']}  {raw_res['battleInfo']['mapName']}  {raw_res['battleInfo']['roleInfo']['heroName']}\n\n"
-    # ret_txt=describe_txt + win_rate_str + coplayer_txt
-    ret_txt=describe_txt + coplayer_txt
-    return ret_txt,pic_path
-def coplayer_process(gameSvrId, relaySvrId, gameseq, pvptype,roleid,spoiler_info,from_web=False,return_power_data=False,official_priority="normal",save_power_history=False):
-    from .zapi import wzry_get_official
-    from .zfunc import check_btl_official_with_matching
-    from .tools.gen_coplayer_analyses import CoPlayerProcess
-
-    def sigmoid(x):
-        return 1/(1+math.exp(-x))
-    
-    def fetch_player_data(player):
-        roleid = player["basicInfo"]["roleId"]
-        userid = player["basicInfo"]["userId"]
-        is_auth = player["basicInfo"]["isGameAuth"]
-        result = {
-            'player': player,
-            'profile_res': None,
-            'heropower_res': None,
-            'recentbtl_res': None,
-            'errors': []
-        }
-        if not is_auth:
-            return result
-        try:
-            result['profile_res'] = wzry_get_official(reqtype="profile", roleid=roleid, userid=userid, priority=official_priority)
-        except Exception as e:
-            result['errors'].append(str(e))
-        try:
-            result['heropower_res'] = wzry_get_official(reqtype="heropower", roleid=roleid, userid=userid, priority=official_priority)
-        except Exception as e:
-            result['errors'].append(str(e))
-        try:
-            result['recentbtl_res'] = wzry_get_official(reqtype="btlist_url", roleid=roleid, userid=userid, priority=official_priority)
-        except Exception as e:
-            result['errors'].append(str(e))
-        return result
-    def get_hero_tier(detail_list):
-        total_tier = 0
-        found_cnt = 0
-        for player in detail_list:
-            heroName = player["battleRecords"]["usedHero"]["heroName"]
-            tier_dict = getattr(dmc, 'herotier', {})
-            if heroName in tier_dict:
-                tier = tier_dict[heroName]
-                total_tier += tier
-                found_cnt += 1
-        if (found_cnt):
-            total_tier = total_tier * (5 / found_cnt)
-        avg_tier = total_tier / 5
-        return avg_tier
-
-    def get_player_power(detail_list, is_my_side, player_data_cache):
-        auth_cnt=0      # 授权人数统计
-        ret_level=0     # 返回值
-        req_error=[]
-        player_power_data=[]
-        for player in detail_list:
-            # 对于该队伍中的一个玩家
-            winNum=10        # 当前英雄输局数
-            loseNum=10       # 当前英雄胜局数
-            avgScore=8      # 当前英雄平均评分
-            winRate=0.5     # 当前英雄胜率
-            starNum=50      # 总星数
-            peakScore=1200  # 巅峰分数
-            PowerNum=70000  # 总战斗力
-            TotalCnt=1000   # 总场次
-            MVPCnt=100      # 总MVP场次
-            MVPRate=0.1
-            heroPower=1000
-            rankName="未知段位"
-            rankStar=0
-            RecentWinRate=0.55
-            RecentAvgScore=8
-            BetterHeroPowerList=[]
-            BetterHeroPower=1
-            heroTag=""
-            MaxHeroPower=-1
-            MaxHeroTag=""
-
-            is_auth=player["basicInfo"]["isGameAuth"] # 营地授权与否
-            roleid=player["basicInfo"]["roleId"]
-            userid=player["basicInfo"]["userId"]
-            nickname=player["basicInfo"]["roleName"]
-            heroBehavior=player["heroBehavior"]
-            heroName=player["battleRecords"]["usedHero"]["heroName"]
-            heroAvatar=player["battleRecords"]["usedHero"]["heroIcon"]
-            player_avatar_url=""
-            if (is_auth):
-                auth_cnt+=1
-                winNum=heroBehavior["winNum"]
-                loseNum=heroBehavior["loseNum"]
-                avgScore=float(heroBehavior["avgScore"])
-                winRate=float(heroBehavior["winRate"].strip('%')) / 100
-                heroPower=player["battleStats"]["fightPower"]
-                
-                # 从缓存中获取预先并行获取的数据
-                player_key = (roleid, userid)
-                cached_data = player_data_cache.get(player_key, {})
-                profile_res = cached_data.get('profile_res')
-                heropower_res = cached_data.get('heropower_res')
-                recentbtl_res = cached_data.get('recentbtl_res')
-                req_error.extend(cached_data.get('errors', []))
-                
-                if not profile_res:
-                    continue
-
-                RoleInfo = (roles[0] if (roles := [role for role in profile_res["roleList"] if role["roleId"] == roleid]) else None)
-                rankInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 701]) else None)
-                peakInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 702]) else None)
-                Powerinfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 304]) else None)
-                TotalNumInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 401]) else None)
-                MVPInfo = (mods[0] if (mods := [mods for mods in profile_res["head"]["mods"] if mods["modId"] == 408]) else None)
-                if (RoleInfo):
-                    player_avatar_url=RoleInfo.get("roleIcon","")
-                if (rankInfo):
-                    rankName=rankInfo["name"]
-                    rankStar=int(json.loads(rankInfo["param1"])["rankingStar"])
-                    starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
-                if (peakInfo): peakScore=int(peakInfo["content"]) or 1200
-                if (Powerinfo): PowerNum=int(Powerinfo["content"])
-                if (TotalNumInfo): TotalCnt=int(TotalNumInfo["content"])
-                if (MVPInfo): MVPCnt=int(MVPInfo["content"])
-                if (TotalNumInfo and MVPInfo): MVPRate=MVPCnt/TotalCnt
-                else: MVPRate=0.25
-                if (heropower_res):
-                    for hero in heropower_res['heroList']:
-                        try:
-                            if (hero['basicInfo']['title']==heroName):
-                                region_name=hero['honorTitle']['desc']['full'].split("第")[0]
-                                metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
-                                heroTag=f"{region_name}\n No.{hero['honorTitle']['rank']} \n"
-                        except Exception as e:
-                            pass
-                        if (hero['basicInfo']['heroFightPower']>=heroPower):
-                            BetterHeroPowerList.append(hero['basicInfo']['heroFightPower'])
-                        if (hero['basicInfo']['heroFightPower']>MaxHeroPower):
-                            if ('honorTitle' in hero and hero['honorTitle']):
-                                MaxHeroPower=hero['basicInfo']['heroFightPower']
-                                region_name=hero['honorTitle']['desc']['full'].split("第")[0]
-                                metal_name=hero['honorTitle']['desc']['abbr'].split("第")[0]
-                                MaxHeroTag=f"Top {MaxHeroPower}\n{region_name}第{hero['honorTitle']['rank']}{hero['basicInfo']['title']}"
-                if (recentbtl_res and recentbtl_res["list"]):
-                    official_btls=[]
-                    for btl in recentbtl_res["list"]:
-                        if (check_btl_official(btl["mapName"])):
-                            official_btls.append({"result":btl["gameresult"]==1,"grade":float(btl["gradeGame"])})
-                    if (official_btls):
-                        if (len(official_btls)>=10):
-                            RecentWinRate=sum(1 for btl in official_btls if (btl["result"]))/len(official_btls)
-                        RecentAvgScore=sum(btl["grade"] for btl in official_btls)/len(official_btls)
-            BetterHeroPower=heroPower
-            if (BetterHeroPowerList):
-                BetterHeroPowerList=BetterHeroPowerList[:3]
-                BetterHeroPower=sum(BetterHeroPowerList)/len(BetterHeroPowerList)
-            HeroShowCnt=loseNum+winNum                      # 该玩家此英雄的出场局数
-            equiv_star=(starNum-25)+(peakScore-1200)/15.0   # 巅峰分与星数折算成一个综合星级
-            if (equiv_star<=0): equiv_star=1                # 星级下界
-            single_level = (
-                1
-                * pow(equiv_star, 0.3)                                          # equiv_star        星级和巅峰分计算得的等价星级                                0.3
-                * pow(sigmoid(MVPRate), 4)                                      # MVPRate           MVP率                                                       4
-                * pow((PowerNum / 10000), 0.85)                                 # PowerNum          战斗力                                                      0.85
-                * pow((8.0 + RecentAvgScore) / 2, 1)                       # avgScore          该英雄历史场次平均评分 + 近期场次平均评分                       1
-                * pow(sigmoid(HeroShowCnt / 10), 1.3)                           # HeroShowCnt       该英雄历史场次数                                            1.3
-                * pow(sigmoid((heroPower + BetterHeroPower) / 2 / 10000), 2)    # heroPower         该英雄当前战力 + 更高战力英雄的战力平均值(最多取更高的3个)          2
-                * pow(max(RecentWinRate / 0.5, 1), 2)
-            )
-            # 指标1.5倍的等价条件
-            # 王者0星 巅峰1200分 -> 王者50星 巅峰1600分
-            # MVP率 30% -> 56%
-            # 战斗力 50000 -> 80000
-            # 本局使用英雄与近期场次的平均评分 8分 -> 12分
-            # 本局使用英雄的总场次 10场 -> 300场
-            # 本局使用英雄与高战力英雄的战力 1000 -> 6000 -> 13000
-
-            # 高战力英雄的取法： 比该局所选英雄战力高的英雄中 取前3名
-
-            # 生成图表中
-            # 卡片右上角红色角标：营地未授权
-            # 玩家卡片背景色：红色，低于所有玩家历史平均水平；绿色，高于所有玩家历史平均水平；颜色越深，差值越大
-            # 底蕴值：以该局最高玩家为100%计算
-            if (is_auth): ret_level+=single_level
-            player_power_data.append({
-                "side": "my" if is_my_side else "op",
-                "roleId": roleid,
-                "userId": userid,
-                "nickname": nickname,
-                "isAuth": is_auth,
-                "heroName": heroName,
-                "playerAvatarUrl": player_avatar_url,
-                "heroAvatarUrl": heroAvatar,
-                "heroPower": heroPower,
-                "heroTag": heroTag,
-                "maxHeroTag": MaxHeroTag,
-                "winNum": winNum,
-                "loseNum": loseNum,
-                "heroShowCnt": HeroShowCnt,
-                "heroAvgScore": avgScore,
-                "heroWinRate": winRate,
-                "rankName": rankName,
-                "rankStar": rankStar,
-                "starNum": starNum,
-                "peakScore": peakScore,
-                "equivStar": equiv_star,
-                "powerNum": PowerNum,
-                "totalCnt": TotalCnt,
-                "mvpCnt": MVPCnt,
-                "mvpRate": MVPRate,
-                "recentWinRate": RecentWinRate,
-                "recentAvgScore": RecentAvgScore,
-                "betterHeroPower": BetterHeroPower,
-                "maxHeroPower": MaxHeroPower,
-                "singleLevel": single_level if is_auth else 0,
-                "requestErrors": cached_data.get('errors', []) if is_auth else [],
-            })
-            gen_inst.add_player(
-                nickname=nickname,
-                is_auth=is_auth,
-                is_my_side=is_my_side,
-                winNum=winNum,
-                loseNum=loseNum,
-                avgScore=avgScore,
-                winRate=winRate,
-                avatarUrl=player_avatar_url,
-                starNum=starNum,
-                peakScore=peakScore,
-                PowerNum=PowerNum,
-                TotalCnt=TotalCnt,
-                MVPCnt=TotalCnt*MVPRate,
-                rankName=rankName,
-                rankStar=rankStar,
-                single_level=single_level,
-                HeroAvatar=heroAvatar,
-                HeroPower=heroPower,
-                HeroTag=heroTag,
-                MaxHeroTag=MaxHeroTag,
-            )
-        ret_level=ret_level*(5/auth_cnt) if (auth_cnt) else 0
-        return ret_level,auth_cnt,req_error,player_power_data
-
-    gen_inst=CoPlayerProcess()
-    is_spoiler=1 if spoiler_info else 0
-    if (is_spoiler):
-        res=spoiler_info
-    else:
-        res = fetch_battle(gameseq,roleid)
-        if not res:
-            res=wzry_get_official(reqtype="btldetail",gameseq=gameseq,gameSvrId=gameSvrId,relaySvrId=relaySvrId,roleid=roleid,pvptype=pvptype,priority=official_priority)
-    if ('head' not in res): return None
-    gameres=res['head']['gameResult']
-    my_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']==res['head']['acntCamp']) else res['blueRoles']
-    op_side_detail=res['redRoles'] if (res['redTeam']['acntCamp']!=res['head']['acntCamp']) else res['blueRoles']
-    # my_side_detail=my_side_detail[0:1]
-    # op_side_detail=op_side_detail[0:1]
-    # 并行获取所有玩家的数据
-    all_players = my_side_detail + op_side_detail
-    player_data_cache = {}
-    
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future_to_player = {executor.submit(fetch_player_data, player): player for player in all_players}
-        for future in as_completed(future_to_player):
-            try:
-                result = future.result()
-                player = result['player']
-                roleid = player["basicInfo"]["roleId"]
-                userid = player["basicInfo"]["userId"]
-                player_key = (roleid, userid)
-                player_data_cache[player_key] = {
-                    'profile_res': result['profile_res'],
-                    'recentbtl_res': result['recentbtl_res'],
-                    'heropower_res': result['heropower_res'],
-                    'errors': result['errors']
-                }
-            except Exception as e:
-                pass
-
-    my_side_total_level,my_side_auth_cnt,my_side_req_error,my_side_power_data=get_player_power(my_side_detail,1,player_data_cache)
-    op_side_total_level,op_side_auth_cnt,op_side_req_error,op_side_power_data=get_player_power(op_side_detail,0,player_data_cache)
-    
-    my_side_total_tier = get_hero_tier(my_side_detail)
-    op_side_total_tier = get_hero_tier(op_side_detail)
-
-    delta_level=my_side_total_level-op_side_total_level
-
-    if (op_side_total_level and my_side_total_level):
-        record = {
-            'game_res': gameres,
-            'my_side_total_level': my_side_total_level,
-            'op_side_total_level': op_side_total_level,
-            'gameSvrId': gameSvrId,
-            'relaySvrId': relaySvrId,
-            'gameseq': gameseq,
-            'pvptype': pvptype,
-            'roleid': roleid,
-        }
-        redis_client = dmc.BtlAnalyzeEvaluatorPool
-        redis_client.rpush('records', json.dumps(record, ensure_ascii=False))
-
-    snd_msg=(
-        f"实力天平倾斜度：{round(delta_level,2) if op_side_total_level else "unknown"}\n"
-        f"我方底蕴：{round(my_side_total_level,2) if my_side_total_level else "unknown"}\n"
-        f"我方英雄梯度：{round(my_side_total_tier,2)}\n"
-        f"对方底蕴：{round(op_side_total_level,2) if op_side_total_level else "unknown"}\n"
-        f"对方英雄梯度：{round(op_side_total_tier,2)}\n"
+    return _online_status_business.online_process()
+from .business import rankings as _rankings_business
+
+
+def rnk_process(rcv_msg, caller=None, show_zero=True, show_analyze=False, debug=False):
+    return _rankings_business.rnk_process(
+        rcv_msg,
+        caller=caller,
+        show_zero=show_zero,
+        show_analyze=show_analyze,
+        debug=debug,
     )
-    save_path=os.path.join(temp_path,"temp_files","coplayer_analyses.png")
+from .business import player_report as _player_report_business
 
-    pic_title="对局预言" if is_spoiler else "对局底蕴"
-    out_path, ok = gen_inst.gen(save_path,title=pic_title)
 
-    stats = {
-        "my_side_level": my_side_total_level,
-        "op_side_level": op_side_total_level,
-        "my_side_tier": my_side_total_tier,
-        "op_side_tier": op_side_total_tier
-    }
+def single_process(rcv_msg):
+    return _player_report_business.single_process(rcv_msg)
+from .business import battle_detail as _battle_detail_business
 
-    if (return_power_data):
-        power_data = {
-            "GameSeq": str(gameseq),
-            "gameSvrId": gameSvrId,
-            "relaySvrId": relaySvrId,
-            "pvptype": pvptype,
-            "roleid": roleid,
-            "mapName": res.get("head", {}).get("mapName") or res.get("battle", {}).get("mapName", ""),
-            "gameTime": res.get("head", {}).get("dtEventTime") or res.get("battle", {}).get("dtEventTime", ""),
-            "gameResult": gameres,
-            "mySide": {
-                "level": my_side_total_level,
-                "tier": my_side_total_tier,
-                "authCnt": my_side_auth_cnt,
-                "requestErrors": my_side_req_error,
-            },
-            "opSide": {
-                "level": op_side_total_level,
-                "tier": op_side_total_tier,
-                "authCnt": op_side_auth_cnt,
-                "requestErrors": op_side_req_error,
-            },
-            "players": my_side_power_data + op_side_power_data,
-        }
-        if (save_power_history and not is_spoiler):
-            from .ztime import time_r
 
-            power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-            BattlePowerHistory.save(power_data)
-        return snd_msg,save_path,stats,power_data
+def view_process(rcv_msg, time_gap=analyze_time_gap):
+    return _battle_detail_business.view_process(rcv_msg, time_gap=time_gap)
 
-    return snd_msg,save_path,stats
 
-class BattlePowerHistory:
-    @staticmethod
-    def path(gameseq):
-        return os.path.join("data","history","power",f"{gameseq}.json")
+def btldetail_process(
+    gameSvrId,
+    relaySvrId,
+    gameseq,
+    pvptype,
+    roleid,
+    gen_image=False,
+    show_profile=False,
+    from_web=False,
+    individual_show=False,
+    strict_filter=True,
+):
+    return _battle_detail_business.btldetail_process(
+        gameSvrId,
+        relaySvrId,
+        gameseq,
+        pvptype,
+        roleid,
+        gen_image=gen_image,
+        show_profile=show_profile,
+        from_web=from_web,
+        individual_show=individual_show,
+        strict_filter=strict_filter,
+    )
+from .business import hero_profiles as _hero_profiles_business
 
-    @staticmethod
-    def failed_path(gameseq):
-        return os.path.join("data","history","power_failed",f"{gameseq}.json")
 
-    @staticmethod
-    def side(power_data, side_key):
-        return power_data.get(side_key, {}) if isinstance(power_data, dict) else {}
+def heropower_process(realname):
+    return _hero_profiles_business.heropower_process(realname)
 
-    @staticmethod
-    def display_value(value):
-        return round(value, 2) if value else "unknown"
 
-    @staticmethod
-    def message(power_data):
-        my_side = BattlePowerHistory.side(power_data, "mySide")
-        op_side = BattlePowerHistory.side(power_data, "opSide")
-        my_side_level = my_side.get("level") or 0
-        op_side_level = op_side.get("level") or 0
-        my_side_tier = my_side.get("tier") or 0
-        op_side_tier = op_side.get("tier") or 0
-        delta_level = my_side_level - op_side_level
-        return (
-            f"实力天平倾斜度：{BattlePowerHistory.display_value(delta_level) if op_side_level else "unknown"}\n"
-            f"我方底蕴：{BattlePowerHistory.display_value(my_side_level)}\n"
-            f"我方英雄梯度：{round(my_side_tier,2)}\n"
-            f"对方底蕴：{BattlePowerHistory.display_value(op_side_level)}\n"
-            f"对方英雄梯度：{round(op_side_tier,2)}\n"
-        )
+from .business import hero_statistics as _hero_statistics_business
+from .business import honor_power as _honor_power_business
 
-    @staticmethod
-    def stats(power_data):
-        my_side = BattlePowerHistory.side(power_data, "mySide")
-        op_side = BattlePowerHistory.side(power_data, "opSide")
-        return {
-            "my_side_level": my_side.get("level") or 0,
-            "op_side_level": op_side.get("level") or 0,
-            "my_side_tier": my_side.get("tier") or 0,
-            "op_side_tier": op_side.get("tier") or 0
-        }
 
-    @staticmethod
-    def add_player_to_image(gen_inst, player):
-        hero_show_cnt = int(player.get("heroShowCnt") or 0)
-        win_rate = float(player.get("heroWinRate") or 0)
-        win_num = player.get("winNum")
-        lose_num = player.get("loseNum")
-        if win_num is None or lose_num is None:
-            win_num = int(round(hero_show_cnt * win_rate))
-            lose_num = max(hero_show_cnt - win_num, 0)
-        gen_inst.add_player(
-            nickname=player.get("nickname", "未知玩家"),
-            is_auth=bool(player.get("isAuth")),
-            is_my_side=player.get("side") == "my",
-            winNum=int(win_num or 0),
-            loseNum=int(lose_num or 0),
-            avgScore=float(player.get("heroAvgScore") or 0),
-            winRate=win_rate,
-            avatarUrl=player.get("playerAvatarUrl", ""),
-            starNum=player.get("starNum"),
-            peakScore=player.get("peakScore"),
-            PowerNum=player.get("powerNum"),
-            TotalCnt=player.get("totalCnt"),
-            MVPCnt=player.get("mvpCnt"),
-            rankName=player.get("rankName"),
-            rankStar=player.get("rankStar"),
-            single_level=player.get("singleLevel"),
-            HeroAvatar=player.get("heroAvatarUrl", ""),
-            HeroPower=player.get("heroPower"),
-            HeroTag=player.get("heroTag", ""),
-            MaxHeroTag=player.get("maxHeroTag", ""),
-        )
+def _honor_hero_from_query(query_text):
+    return _honor_power_business._honor_hero_from_query(query_text)
 
-    @staticmethod
-    def image(power_data):
-        from .tools.gen_coplayer_analyses import CoPlayerProcess
 
-        gen_inst = CoPlayerProcess()
-        for player in power_data.get("players", []):
-            BattlePowerHistory.add_player_to_image(gen_inst, player)
-        save_path=os.path.join(temp_path,"temp_files","coplayer_analyses.png")
-        gen_inst.gen(save_path,title="对局底蕴")
-        return save_path
+def _honor_region_name_without_suffix(region_name):
+    return _honor_power_business._honor_region_name_without_suffix(region_name)
 
-    @staticmethod
-    def rounded(data):
-        if isinstance(data, float):
-            return round(data, 3)
-        if isinstance(data, list):
-            return [BattlePowerHistory.rounded(item) for item in data]
-        if isinstance(data, dict):
-            return {key: BattlePowerHistory.rounded(value) for key, value in data.items()}
-        return data
 
-    @staticmethod
-    def load(gameseq):
-        from .zfile import readerl
-        from .zfile import file_exist
+def _honor_district_entries(district_payload):
+    return _honor_power_business._honor_district_entries(district_payload)
 
-        if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
-            return None
-        saved_power_data = readerl(BattlePowerHistory.path(gameseq))
-        if isinstance(saved_power_data, dict):
-            return saved_power_data
-        raise Exception(f"load_battle_power_history_error: invalid saved data GameSeq={gameseq}")
 
-    @staticmethod
-    def save(power_data):
-        from .zfile import ensure_dir
-        from .zfile import writerl
-        from .zfile import file_exist
+def resolve_honor_district(region_query, district_payload=None):
+    return _honor_power_business.resolve_honor_district(
+        region_query, district_payload=district_payload
+    )
 
-        gameseq = power_data.get("GameSeq")
-        if not gameseq:
-            raise Exception("save_battle_power_history_error: missing GameSeq")
-        map_name = power_data.get("mapName", "")
-        if not check_btl_official(map_name):
-            log_message(f"SKIP_SAVE_BATTLE_POWER_NON_OFFICIAL: GameSeq={gameseq} mapName={map_name}")
-            return None
-        ensure_dir(os.path.join("data","history","power"))
-        power_data = BattlePowerHistory.rounded(power_data)
-        writerl(BattlePowerHistory.path(gameseq), power_data)
-        if not file_exist(BattlePowerHistory.path(gameseq)):
-            raise Exception(f"save_battle_power_history_error: write failed GameSeq={gameseq}")
-        return BattlePowerHistory.path(gameseq)
 
-    @staticmethod
-    def failed_exists(gameseq):
-        from .zfile import file_exist
+def _honor_rank_percentile_points(rank_list):
+    return _honor_power_business._honor_rank_percentile_points(rank_list)
 
-        return bool(gameseq and file_exist(BattlePowerHistory.failed_path(gameseq)))
 
-    @staticmethod
-    def mark_failed(gameseq, reason, candidate=None):
-        from .zfile import ensure_dir
-        from .zfile import writerl
-        from .ztime import time_r
+def honor_power_query_process(realname, query_text):
+    return _honor_power_business.honor_power_query_process(realname, query_text)
 
-        if not gameseq:
-            raise Exception("mark_battle_power_failed_error: missing GameSeq")
-        ensure_dir(os.path.join("data","history","power_failed"))
-        failed_data = {
-            "GameSeq": str(gameseq),
-            "failedAt": time_r().strftime("%Y-%m-%d %H:%M:%S"),
-            "reason": str(reason),
-            "candidate": candidate or {},
-        }
-        writerl(BattlePowerHistory.failed_path(gameseq), failed_data)
-        return BattlePowerHistory.failed_path(gameseq)
 
-    @staticmethod
-    def normalize_params(game_params):
-        params = dict(game_params)
-        if "gameseq" not in params and "GameSeq" in params:
-            params["gameseq"] = params["GameSeq"]
-        return params
+def single_player_single_hero_process(
+    username, heroid, heroname, this_season=True
+):
+    return _hero_statistics_business.single_player_single_hero_process(
+        username, heroid, heroname, this_season=this_season
+    )
 
-    @staticmethod
-    def saved_response(power_data, gen_image):
-        stats = BattlePowerHistory.stats(power_data)
-        pic_path = BattlePowerHistory.image(power_data) if gen_image else ""
-        return BattlePowerHistory.message(power_data),pic_path,stats,power_data
 
-    @staticmethod
-    def parse_game_time(detail, gameseq):
-        import datetime
+def single_player_mult_hero_process(
+    username, days=30, top_n=3, min_games=2, this_season=False
+):
+    return _hero_statistics_business.single_player_mult_hero_process(
+        username,
+        days=days,
+        top_n=top_n,
+        min_games=min_games,
+        this_season=this_season,
+    )
 
-        game_time = detail.get("GameTime_Timestamp")
-        if not game_time:
-            return None
-        try:
-            return datetime.datetime.fromtimestamp(int(game_time))
-        except Exception as e:
-            log_message(f"HISTORY_POWER_TIME_PARSE_ERROR: {gameseq} {str(e)}")
-            return None
 
-    @staticmethod
-    def should_skip_candidate(gameseq, excluded_gameseqs):
-        from .zfile import file_exist
+def mult_player_mult_hero_process(
+    days=30, top_n=5, min_games=5, this_season=False
+):
+    return _hero_statistics_business.mult_player_mult_hero_process(
+        days=days,
+        top_n=top_n,
+        min_games=min_games,
+        this_season=this_season,
+    )
 
-        if not gameseq or gameseq in excluded_gameseqs:
-            return True
-        if file_exist(BattlePowerHistory.path(gameseq)):
-            return True
-        if BattlePowerHistory.failed_exists(gameseq):
-            return True
-        return False
 
-    @staticmethod
-    def begin_in_progress(gameseq):
-        gameseq = str(gameseq)
-        with dmc.BattlePowerInProgressLock:
-            progress = dmc.BattlePowerInProgress.get(gameseq)
-            if progress:
-                return progress, False
-            progress = {
-                "event": threading.Event(),
-                "error": "",
-            }
-            dmc.BattlePowerInProgress[gameseq] = progress
-            return progress, True
+def mult_player_single_hero_process(
+    hero_id, hero_name, days=30, min_games=3, top_n=5, this_season=False
+):
+    return _hero_statistics_business.mult_player_single_hero_process(
+        hero_id,
+        hero_name,
+        days=days,
+        min_games=min_games,
+        top_n=top_n,
+        this_season=this_season,
+    )
 
-    @staticmethod
-    def finish_in_progress(gameseq, progress, error=None):
-        gameseq = str(gameseq)
-        if error:
-            progress["error"] = str(error)
-        with dmc.BattlePowerInProgressLock:
-            current_progress = dmc.BattlePowerInProgress.get(gameseq)
-            if current_progress is progress:
-                dmc.BattlePowerInProgress.pop(gameseq, None)
-        progress["event"].set()
+from .business import today_hero as _today_hero_business
 
-    @staticmethod
-    def wait_in_progress(gameseq, progress, gen_image):
-        gameseq = str(gameseq)
-        log_message(f"BATTLE_POWER_WAIT_IN_PROGRESS: GameSeq={gameseq}")
-        progress["event"].wait()
-        saved_power_data = BattlePowerHistory.load(gameseq)
-        if saved_power_data:
-            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
-        if progress.get("error"):
-            raise Exception(f"battle_power_process_wait_failed: GameSeq={gameseq} {progress['error']}")
-        if BattlePowerHistory.failed_exists(gameseq):
-            raise Exception(f"battle_power_process_wait_skipped_failed: GameSeq={gameseq}")
-        raise Exception(f"battle_power_process_wait_missing_result: GameSeq={gameseq}")
+
+def todayhero_process(realname, ignore_limit=False, ai_comment=True):
+    return _today_hero_business.todayhero_process(
+        realname,
+        ignore_limit=ignore_limit,
+        ai_comment=ai_comment,
+    )
+def allhero_process(realname):
+    return _hero_profiles_business.allhero_process(realname)
+from .business import player_visuals as _player_visuals_business
+
+
+def gradeanalyze_process(realname):
+    return _player_visuals_business.gradeanalyze_process(realname)
+
+
+def watchbattle_process(realname):
+    return _player_visuals_business.watchbattle_process(realname)
+from .business import battle_watch as _battle_watch_business
+
+
+def watchbattleinfo_to_coplayer_res(watchbattle_json, roleid=None, game_result=None):
+    return _battle_watch_business.watchbattleinfo_to_coplayer_res(
+        watchbattle_json,
+        roleid=roleid,
+        game_result=game_result,
+    )
+def spoiler_process(battle_id,roleid,userid):
+    return _battle_watch_business.spoiler_process(battle_id, roleid, userid)
+from .business import battle_power as _battle_power_business
+
+BattlePowerHistory = _battle_power_business.BattlePowerHistory
+
+
+def record_battle_evaluator(record):
+    redis_client = dmc.BtlAnalyzeEvaluatorPool
+    redis_client.rpush(
+        REDIS_KEY_BATTLE_EVALUATOR_RECORDS,
+        json.dumps(record, ensure_ascii=False),
+    )
+    max_records = max(
+        1,
+        int(getattr(dmc, "BtlAnalyzeEvaluatorMaxRecords", 10000)),
+    )
+    redis_client.ltrim(REDIS_KEY_BATTLE_EVALUATOR_RECORDS, -max_records, -1)
+
+
+def coplayer_process(
+    gameSvrId,
+    relaySvrId,
+    gameseq,
+    pvptype,
+    roleid,
+    spoiler_info,
+    from_web=False,
+    return_power_data=False,
+    official_priority="normal",
+    save_power_history=False,
+    with_ai_analysis=False,
+):
+    return _battle_power_business.coplayer_process(
+        gameSvrId,
+        relaySvrId,
+        gameseq,
+        pvptype,
+        roleid,
+        spoiler_info,
+        from_web=from_web,
+        return_power_data=return_power_data,
+        official_priority=official_priority,
+        save_power_history=save_power_history,
+        with_ai_analysis=with_ai_analysis,
+    )
 
 def mark_battle_power_failed(gameseq, reason, candidate=None):
-    return BattlePowerHistory.mark_failed(gameseq, reason, candidate)
+    return _battle_power_business.mark_battle_power_failed(
+        gameseq,
+        reason,
+        candidate,
+    )
 
-def battle_power_process(gameSvrId, relaySvrId, gameseq, pvptype, roleid, spoiler_info=None, from_web=False, official_priority="normal", save_power_history=True, gen_image=True):
-    from .ztime import time_r
 
-    spoiler_info = spoiler_info or {}
-    progress = None
-    is_owner = False
-    if (not spoiler_info):
-        saved_power_data = BattlePowerHistory.load(gameseq)
-        if saved_power_data:
-            return BattlePowerHistory.saved_response(saved_power_data, gen_image)
-        if BattlePowerHistory.failed_exists(gameseq):
-            raise Exception(f"battle_power_process_skipped_failed: GameSeq={gameseq}")
-        if save_power_history:
-            progress, is_owner = BattlePowerHistory.begin_in_progress(gameseq)
-            if not is_owner:
-                return BattlePowerHistory.wait_in_progress(gameseq, progress, gen_image)
-    try:
-        ret = coplayer_process(
-            gameSvrId,
-            relaySvrId,
-            gameseq,
-            pvptype,
-            roleid,
-            spoiler_info=spoiler_info,
-            from_web=from_web,
-            return_power_data=True,
-            official_priority=official_priority,
-            save_power_history=save_power_history,
-        )
-        snd_msg,pic_path,stats,power_data = ret
-        if (save_power_history and not spoiler_info and not power_data.get("evaluatedAt")):
-            power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-            BattlePowerHistory.save(power_data)
-        return snd_msg,pic_path,stats,power_data
-    except Exception as e:
-        if progress and is_owner:
-            progress["error"] = repr(e)
-        raise
-    finally:
-        if progress and is_owner:
-            BattlePowerHistory.finish_in_progress(gameseq, progress)
+def battle_power_process(
+    gameSvrId,
+    relaySvrId,
+    gameseq,
+    pvptype,
+    roleid,
+    spoiler_info=None,
+    from_web=False,
+    official_priority="normal",
+    save_power_history=True,
+    gen_image=True,
+    with_ai_analysis=False,
+):
+    return _battle_power_business.battle_power_process(
+        gameSvrId,
+        relaySvrId,
+        gameseq,
+        pvptype,
+        roleid,
+        spoiler_info=spoiler_info,
+        from_web=from_web,
+        official_priority=official_priority,
+        save_power_history=save_power_history,
+        gen_image=gen_image,
+        with_ai_analysis=with_ai_analysis,
+    )
+
 
 def evaluate_battle_power_history(game_params, roleid, official_priority="low"):
-    from .ztime import time_r
-
-    params = BattlePowerHistory.normalize_params(game_params)
-    gameseq = params.get("gameseq")
-    saved_power_data = BattlePowerHistory.load(gameseq)
-    if saved_power_data:
-        return saved_power_data
-    if BattlePowerHistory.failed_exists(gameseq):
-        raise Exception(f"evaluate_battle_power_history_skipped_failed: GameSeq={gameseq}")
-    _, _, _, power_data = battle_power_process(
-        params.get("gameSvrId"),
-        params.get("relaySvrId"),
-        params.get("gameseq"),
-        params.get("pvptype"),
+    return _battle_power_business.evaluate_battle_power_history(
+        game_params,
         roleid,
-        spoiler_info={},
         official_priority=official_priority,
-        save_power_history=True,
     )
-    if not power_data.get("evaluatedAt"):
-        power_data["evaluatedAt"] = time_r().strftime("%Y-%m-%d %H:%M:%S")
-        BattlePowerHistory.save(power_data)
-    return power_data
 
-def find_pending_battle_power_candidate(days=7, excluded_gameseqs=None, start_date_str=None):
-    from .ztime import time_r
-    import datetime
 
-    end_date = time_r()
-    if start_date_str:
-        start_date = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
-    else:
-        start_date = end_date - datetime.timedelta(days=days)
-    history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
-    candidates = []
-    seen = set()
-    excluded_gameseqs = {str(item) for item in (excluded_gameseqs or set())}
-    for realname, details in history_data.items():
-        roleid = roleidlist.get(realname)
-        if not roleid:
-            continue
-        for detail in details:
-            gameseq = str(detail.get("GameSeq") or "")
-            if not gameseq or gameseq in seen:
-                continue
-            seen.add(gameseq)
-            if BattlePowerHistory.should_skip_candidate(gameseq, excluded_gameseqs):
-                continue
-            game_time = detail.get("GameTime_Timestamp")
-            game_time_obj = BattlePowerHistory.parse_game_time(detail, gameseq)
-            if not game_time_obj:
-                continue
-            if game_time_obj < start_date or game_time_obj > end_date:
-                continue
-            params = detail.get("Params") or {}
-            if not params:
-                continue
-            candidates.append({
-                "realname": realname,
-                "roleid": roleid,
-                "GameSeq": gameseq,
-                "GameTime": game_time,
-                "Params": params,
-            })
-    candidates.sort(key=lambda item: item.get("GameTime") or 0, reverse=True)
-    return candidates[0] if candidates else None
+def find_pending_battle_power_candidate(
+    days=7,
+    excluded_gameseqs=None,
+    start_date_str=None,
+):
+    return _battle_power_business.find_pending_battle_power_candidate(
+        days=days,
+        excluded_gameseqs=excluded_gameseqs,
+        start_date_str=start_date_str,
+    )
+
 
 def recent_power_process(realname, days=7):
-    from .zfile import readerl
-    from .zfile import file_exist
-    from .ztime import time_r
-    import datetime
+    return _battle_power_business.recent_power_process(realname, days=days)
 
-    roleid = roleidlist.get(realname)
-    if not roleid:
-        return "未找到该玩家的 roleid"
-    end_date = time_r()
-    start_date = end_date - datetime.timedelta(days=days)
-    history_data, _ = fetch_history(userid=userlist.get(realname), start_date=start_date, end_date=end_date, filter_official=True)
-    details = history_data.get(realname, [])
-    valid_details = [detail for detail in details if check_btl_official(detail.get("MapName", ""))]
-    rows = []
-    missing = 0
-    for detail in valid_details:
-        gameseq = detail.get("GameSeq")
-        if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
-            missing += 1
-            continue
-        power_data = readerl(BattlePowerHistory.path(gameseq))
-        if not isinstance(power_data, dict):
-            missing += 1
-            continue
-        player_record = None
-        for player in power_data.get("players", []):
-            if str(player.get("roleId")) == str(roleid):
-                player_record = player
-                break
-        if not player_record:
-            missing += 1
-            continue
-        own_key = "mySide" if player_record.get("side") == "my" else "opSide"
-        rival_key = "opSide" if own_key == "mySide" else "mySide"
-        own_side = power_data.get(own_key, {})
-        rival_side = power_data.get(rival_key, {})
-        own_level = float(own_side.get("level") or 0)
-        rival_level = float(rival_side.get("level") or 0)
-        single_level = float(player_record.get("singleLevel") or 0)
-        battle_player_levels = [
-            float(player.get("singleLevel") or 0)
-            for player in power_data.get("players", [])
-            if float(player.get("singleLevel") or 0) > 0
-        ]
-        battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
-        rows.append({
-            "GameSeq": gameseq,
-            "HeroName": detail.get("HeroName"),
-            "Result": detail.get("Result"),
-            "GameGrade": detail.get("GameGrade"),
-            "MapName": detail.get("MapName"),
-            "ownLevel": own_level,
-            "rivalLevel": rival_level,
-            "battlePlayerAvgLevel": battle_player_avg_level,
-            "singleLevelPercent": single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0,
-            "levelDiff": own_level - rival_level,
-            "ownTier": float(own_side.get("tier") or 0),
-            "rivalTier": float(rival_side.get("tier") or 0),
-            "ownAuthCnt": int(own_side.get("authCnt") or 0),
-            "rivalAuthCnt": int(rival_side.get("authCnt") or 0),
-            "singleLevel": single_level,
-        })
-    if not rows:
-        return f"最近{days}天没有可用的底蕴历史数据（官方对局{len(valid_details)}局，待后台评估{missing}局）"
-
-    count = len(rows)
-    avg_own = sum(row["ownLevel"] for row in rows) / count
-    avg_rival = sum(row["rivalLevel"] for row in rows) / count
-    avg_diff = sum(row["levelDiff"] for row in rows) / count
-    avg_own_tier = sum(row["ownTier"] for row in rows) / count
-    avg_rival_tier = sum(row["rivalTier"] for row in rows) / count
-    avg_single = sum(row["singleLevel"] for row in rows) / count
-    avg_single_percent = sum(row["singleLevelPercent"] for row in rows) / count
-    win_count = sum(1 for row in rows if row["Result"] == "胜利")
-    display_name = namenick.get(realname, realname)
-    lines = [
-        f"【{display_name}】最近{days}天对局底蕴统计",
-    ]
-    if missing:
-        lines.append(f"已评估/官方对局：{count}/{len(valid_details)}（待评估{missing}）")
-    lines.extend([
-        f"胜率：{round(win_count / count * 100, 1)}%（{win_count}胜{count - win_count}负）",
-        f"我方底蕴：{round(avg_own, 2)}",
-        f"对方底蕴：{round(avg_rival, 2)}",
-        f"底蕴差：{round(avg_diff, 2)}",
-        f"个人底蕴/队友对手底蕴：{round(avg_single_percent, 1)}%",
-        f"个人单人底蕴：{round(avg_single, 2)}",
-        f"我方/对方英雄梯度：{round(avg_own_tier, 2)} / {round(avg_rival_tier, 2)}",
-    ])
-    return "\n".join(lines)
 
 def power_rank_process(days=7):
-    from .ztime import time_r
-    from .zfile import ensure_dir
-    from .zfile import readerl
-    from .zfile import file_exist
-    from .tools import gen_power_rank_table
-    import datetime
+    return _battle_power_business.power_rank_process(days=days)
 
-    end_date = time_r()
-    start_date = end_date - datetime.timedelta(days=days)
-    history_data, _ = fetch_history(start_date=start_date, end_date=end_date, filter_official=True)
+from .business import history_data as _history_data_business
 
-    rows = []
-    columns = ["总局数", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
-    metric_keys = ["平均底蕴", "我方底蕴", "对方底蕴", "个人底蕴/队友对手底蕴", "个人单人底蕴", "我方英雄梯度", "对方英雄梯度"]
-    for realname, details in history_data.items():
-        roleid = roleidlist.get(realname)
-        if not roleid:
-            continue
-        accum = {key: 0.0 for key in metric_keys}
-        count = 0
-        for detail in details:
-            gameseq = detail.get("GameSeq")
-            if not gameseq or not file_exist(BattlePowerHistory.path(gameseq)):
-                continue
-            power_data = readerl(BattlePowerHistory.path(gameseq))
-            if not isinstance(power_data, dict):
-                continue
-            player_record = None
-            for player in power_data.get("players", []):
-                if str(player.get("roleId")) == str(roleid):
-                    player_record = player
-                    break
-            if not player_record:
-                continue
-            own_key = "mySide" if player_record.get("side") == "my" else "opSide"
-            rival_key = "opSide" if own_key == "mySide" else "mySide"
-            own_side = power_data.get(own_key, {})
-            rival_side = power_data.get(rival_key, {})
-            own_level = float(own_side.get("level") or 0)
-            rival_level = float(rival_side.get("level") or 0)
-            own_tier = float(own_side.get("tier") or 0)
-            rival_tier = float(rival_side.get("tier") or 0)
-            single_level = float(player_record.get("singleLevel") or 0)
-            battle_player_levels = [
-                float(player.get("singleLevel") or 0)
-                for player in power_data.get("players", [])
-                if float(player.get("singleLevel") or 0) > 0
-            ]
-            battle_player_avg_level = sum(battle_player_levels) / len(battle_player_levels) if battle_player_levels else 0
-            accum["平均底蕴"] += (own_level + rival_level) / 2
-            accum["我方底蕴"] += own_level
-            accum["对方底蕴"] += rival_level
-            accum["个人底蕴/队友对手底蕴"] += single_level / battle_player_avg_level * 100 if battle_player_avg_level else 0
-            accum["个人单人底蕴"] += single_level
-            accum["我方英雄梯度"] += own_tier
-            accum["对方英雄梯度"] += rival_tier
-            count += 1
-        if not count:
-            continue
-        games = {key: accum[key] / count for key in accum}
-        games["总局数"] = count
-        rows.append({
-            "realname": realname,
-            "player": namenick.get(realname, realname),
-            "total": games["平均底蕴"],
-            "games": games,
-            "rank_value": games["平均底蕴"],
-            "subs": [],
-        })
 
-    if not rows:
-        return f"最近{days}天没有可用的底蕴排行数据", ""
-    rows.sort(key=lambda item: float(item.get("rank_value") or 0), reverse=True)
+def fetch_history(
+    userid=None,
+    start_date=None,
+    end_date=None,
+    filter_official=True,
+):
+    return _history_data_business.fetch_history(
+        userid=userid,
+        start_date=start_date,
+        end_date=end_date,
+        filter_official=filter_official,
+    )
 
-    ts = str(round(time.time() * 1000000))
-    filename_hashed = WebArtifacts.make_hash(ts)
-    out_dir = ensure_dir(os.path.join("resources","wzry_images", "tmp"))
-    pic_path = os.path.join(out_dir, f"power_rank_{filename_hashed}.png")
-    gen_power_rank_table.gen(rows, columns, pic_path, title=f"最近{days}天底蕴排行（排位、巅峰、战队赛）")
-    return "", pic_path
+from .business import game_activity as _game_activity_business
 
-def fetch_history(userid=None,start_date=None,end_date=None,filter_official=True): # 所有历史数据
-    from .zfile import readerl
-    from .zfile import writerl
-    from .ztime import str_to_time,time_r
-
-    if (not start_date or start_date<str_to_time(record_begin_date)): start_date=str_to_time(record_begin_date)
-    if (not end_date): end_date=time_r()
-    gamedetails={}
-    filenames=sorted(os.listdir(os.path.join("data","history")),reverse=True)
-    duration=0
-    for filename in filenames:
-        if not os.path.isfile(os.path.join("data","history",filename)): continue
-        history_date=os.path.splitext(os.path.basename(filename))[0]
-        if not bool(re.fullmatch(r'^\d{4}-\d{2}-\d{2}$', history_date)): continue
-        date_parsed=str_to_time(history_date)
-        if (date_parsed>end_date or date_parsed<start_date): continue
-        duration+=1
-        full_path=os.path.join("data","history",filename)
-        gameinfo=readerl(full_path)
-        for player in gameinfo:
-            playername=player["key"]
-            playerdetails=player["details"][::-1]
-            if (filter_official):
-                playerdetails=[detail for detail in playerdetails if check_btl_official(detail["MapName"])]
-            if (playername not in gamedetails): 
-                gamedetails[playername]=playerdetails
-            else:
-                for playerdetail in playerdetails:
-                    gamedetails[playername].append(playerdetail)
-    if (userid): gamedetails={k:v for k,v in gamedetails.items() if userid==userlist[k]}
-    return gamedetails,duration
 
 def recentgames_process(realname):
-    from .ztime import time_r
-    from .zapi import steam_api_recent_games
-    import datetime
+    return _game_activity_business.recentgames_process(realname)
 
-    # 1. 获取名字（优先使用 namenick）
-    display_name = namenick.get(realname, realname)
-
-    # 2. 获取王者荣耀时长 (最近2周)
-    end_date = time_r()
-    start_date = end_date - datetime.timedelta(days=14)
-    
-    userid = userlist.get(realname)
-    wzry_seconds = 0
-    if userid:
-        gamedetails, _ = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-        player_details = gamedetails.get(realname, [])
-        for detail in player_details:
-            wzry_seconds += detail.get("Duration_Second", 0)
-    
-    wzry_hours = round(wzry_seconds / 3600, 1)
-
-    # 3. 获取 Steam 时长 (最近2周)
-    steam_id = steam_userlist.get(realname)
-    steam_hours = 0.0
-    game_list = []
-    
-    # 将王者荣耀作为一个“游戏”加入列表
-    if wzry_hours > 0:
-        game_list.append(f"👑 王者荣耀: {wzry_hours}h")
-
-    if steam_id:
-        steam_api_key = confs.get("Steam", {}).get("api_key")
-        if steam_api_key:
-            games = steam_api_recent_games(steam_api_key, steam_id)
-            if games:
-                for game in games:
-                    # playtime_2weeks 是分钟
-                    game_2weeks_mins = game.get("playtime_2weeks", 0)
-                    h = round(game_2weeks_mins / 60, 1)
-                    if h > 0:
-                        steam_hours += h
-                        game_list.append(f"♨️ {game.get('name')}: {h}h")
-    
-    total_hours = round(wzry_hours + steam_hours, 1)
-
-    # 4. 构造返回文字
-    res_msg = f"🎮 {display_name} 最近2周的游戏时长：\n"
-    if game_list:
-        res_msg += "\n".join(game_list)
-        res_msg += f"\n\n📊 总计时长：{total_hours}h"
-    else:
-        res_msg += "最近2周没有游戏记录哦~"
-    
-    return res_msg
 
 def gametime_rank_process(days=14):
-    from .ztime import time_r
-    from .zfile import ensure_dir
-    from .tools import gen_gametime_table
-    from .zapi import steam_api_recent_games
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    import datetime
-    import hashlib
+    return _game_activity_business.gametime_rank_process(days=days)
 
-    end_date = time_r()
-    start_date = end_date - datetime.timedelta(days=days)
+from .business import battle_history as _battle_history_business
 
-    steam_api_key = confs.get("Steam", {}).get("api_key")
-    steam_games_by_realname = {}
-    if steam_api_key:
-        steam_tasks = [(realname, steam_userlist.get(realname)) for realname in steam_userlist]
-        steam_tasks = [(realname, steam_id) for realname, steam_id in steam_tasks if steam_id]
-        if steam_tasks:
-            max_workers = min(8, max(1, len(steam_tasks)))
-            with ThreadPoolExecutor(max_workers=max_workers) as ex:
-                fut_map = {ex.submit(steam_api_recent_games, steam_api_key, steam_id): realname for realname, steam_id in steam_tasks}
-                for fut in as_completed(fut_map):
-                    realname = fut_map[fut]
-                    try:
-                        steam_games_by_realname[realname] = fut.result() or []
-                    except Exception as e:
-                        raise Exception(f"steam_recent_games_error: {realname} {repr(e)}")
+Analyses = _battle_history_business.Analyses
 
-    def calc_recent_gametime(realname):
-        display_name = namenick.get(realname, realname)
 
-        userid = userlist.get(realname)
-        wzry_seconds = 0
-        if userid:
-            gamedetails, _ = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
-            player_details = gamedetails.get(realname, [])
-            for detail in player_details:
-                wzry_seconds += detail.get("Duration_Second", 0)
+def fetch_battle(gameseq, roleid=0):
+    return _battle_history_business.fetch_battle(gameseq, roleid=roleid)
 
-        wzry_hours = wzry_seconds / 3600.0
-        per_game = {}
-        if wzry_hours > 0:
-            per_game["王者荣耀"] = wzry_hours
+from .business import user_helpers as _user_helpers_business
 
-        steam_id = steam_userlist.get(realname)
-        steam_hours = 0.0
-        if steam_id:
-            games = steam_games_by_realname.get(realname, [])
-            if games:
-                for game in games:
-                    game_2weeks_mins = game.get("playtime_2weeks", 0)
-                    h = game_2weeks_mins / 60.0
-                    if h > 0:
-                        steam_hours += h
-                        game_name = game.get("name") or "Unknown"
-                        per_game[game_name] = per_game.get(game_name, 0) + h
-
-        total_hours = wzry_hours + steam_hours
-        return display_name, total_hours, per_game
-
-    realnames = sorted(set(list(userlist.keys()) + list(steam_userlist.keys())))
-    all_games = set()
-
-    raw_rows = []
-    for realname in realnames:
-        display_name, total_hours, per_game = calc_recent_gametime(realname)
-        if total_hours <= 0:
-            continue
-        raw_rows.append({"realname": realname, "player": display_name, "total": float(total_hours), "games": per_game or {}})
-        for g in (per_game or {}):
-            all_games.add(g)
-
-    from .tools.gen_gametime_table import merge_gametime_rows
-    rows = merge_gametime_rows(raw_rows, globals().get("sameuser", {}), namenick=namenick)
-
-    if not rows:
-        return f"最近{days}天没有可用的时长记录", ""
-
-    ts = str(round(time.time() * 1000000))
-    filename_hashed = WebArtifacts.make_hash(ts)
-    out_dir = ensure_dir(os.path.join("resources","wzry_images", "tmp"))
-    pic_path = os.path.join(out_dir, f"gametime_rank_{filename_hashed}.png")
-
-    def sort_games(rows, all_games):
-        if not all_games:
-            return []
-        sums = {}
-        for item in rows:
-            per_game = item.get("games") or {}
-            for g, v in per_game.items():
-                sums[g] = sums.get(g, 0) + float(v or 0)
-        games_other = [g for g in all_games if g != "王者荣耀"]
-        games_other.sort(key=lambda g: sums.get(g, 0), reverse=True)
-        return (["王者荣耀"] if "王者荣耀" in all_games else []) + games_other
-
-    game_list = sort_games(rows, all_games)
-    title = f"最近{days}天游戏时长排行"
-    gen_gametime_table.gen(rows, game_list, pic_path, title=title)
-    return "", pic_path
-
-def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
-    from .zfile import read_battle_detail
-    res=read_battle_detail(gameseq)
-    if (res and roleid):
-        # 找到对应的玩家信息并更新head
-        target_role = None
-        for role in res.get('redRoles', []) + res.get('blueRoles', []):
-            if int(role['basicInfo']['roleId']) == int(roleid):
-                target_role = role
-                break
-        
-        if target_role:
-            # 更新head信息以适应当前的查询目标
-            res['head'] = {
-                'userId': target_role['basicInfo']['userId'],
-                'roleId': target_role['basicInfo']['roleId'],
-                'roleName': target_role['basicInfo']['roleName'],
-                'heroName': target_role['battleRecords']['usedHero']['heroName'],
-                'acntCamp': target_role['basicInfo']['acntCamp'],
-                'gameResult': (res['redTeam']['gameResult'] == 1 if target_role['basicInfo']['acntCamp'] == res['redTeam']['acntCamp'] else res['blueTeam']['gameResult'] == 1),
-                'killCnt': target_role['battleStats']['killCnt'],
-                'deadCnt': target_role['battleStats']['deadCnt'],
-                'assistCnt': target_role['battleStats']['assistCnt'],
-                'gradeGame': target_role['battleStats']['gradeGame'],
-                'mapName': res.get('battle', {}).get('mapName', 'Unknown'),
-                'dtEventTime': res.get('battle', {}).get('dtEventTime', '')
-            }
-    return res
-class Analyses:
-    @staticmethod
-    def analyze_history(userid=None,start_date=None,end_date=None): # 返回排位巅峰战队赛
-        all_history,duration=fetch_history(userid=userid,start_date=start_date,end_date=end_date)
-        analyzed_infos={}
-        for k,v in all_history.items():
-            history_kept=v
-            if (len(history_kept)==0): continue
-            analyzed_info={}
-            win_tourna_cnt=sum(1 for detail in history_kept if detail["Result"]=="胜利")
-            total_tourna_cnt=sum(1 for detail in history_kept)
-            win_rate_tourna=-1 if total_tourna_cnt==0 else float(win_tourna_cnt)/total_tourna_cnt
-            hero_info={}
-            for detail in history_kept:
-                if (detail["HeroName"] not in hero_info): hero_info[detail["HeroName"]]=[0,1,[],0,0]
-                else: hero_info[detail["HeroName"]][1]+=1
-                if (detail["Result"]=="胜利"): hero_info[detail["HeroName"]][0]+=1
-                hero_info[detail["HeroName"]][2].append(float(detail["GameGrade"]))
-            for hero in hero_info:
-                hero_info[hero][3]=float(hero_info[hero][0])/hero_info[hero][1] # 英雄胜率
-                hero_info[hero][4]=float(sum(hero_info[hero][2]))/len(hero_info[hero][2]) # 英雄平均评分
-            analyzed_info={"win_tourna_cnt":win_tourna_cnt,"total_tourna_cnt":total_tourna_cnt,"win_rate_tourna":win_rate_tourna,"hero_info":{k:v for k,v in hero_info.items()},"duration":duration}
-            analyzed_infos[k]=analyzed_info
-        # print(analyzed_infos)
-        return analyzed_infos
-
-    @staticmethod
-    def summarize_player_benefit_infos(analyzed_infos):
-        summary={}
-        for k,v in analyzed_infos.items():
-            if (len(v["hero_info"])==0): continue
-            count=sum(heroinfo[1] for heroname,heroinfo in v["hero_info"].items())
-            if (count==0): continue
-            wins=sum(heroinfo[0] for heroname,heroinfo in v["hero_info"].items())
-            grade_sum=sum(sum(heroinfo[2]) for heroname,heroinfo in v["hero_info"].items())
-            summary[k]={"count":count,"wins":wins,"grade_sum":grade_sum,"win_rate":float(wins)/count,"avg_grade":float(grade_sum)/count}
-        return summary
-
-    @staticmethod
-    def build_benefit_shrinkage_rows(userid=None,time_gap=analyze_time_gap):
-        from .ztime import time_r
-        from .ztime import time_r_delta
-        from .ztime import time_delta
-        from .ztime import time_to_str
-
-        end_date=time_r()
-        start_date=time_r_delta(time_gap)
-        prior_end_date=time_delta(start_date,-1)
-        prior_start_date=time_r_delta(time_gap+benefit_history_gap)
-        analyzed_infos=Analyses.analyze_history(userid=userid,start_date=start_date,end_date=end_date)
-        prior_analyzed_infos=Analyses.analyze_history(userid=userid,start_date=prior_start_date,end_date=prior_end_date)
-        recent_summary=Analyses.summarize_player_benefit_infos(analyzed_infos)
-        prior_summary=Analyses.summarize_player_benefit_infos(prior_analyzed_infos)
-        rows=[]
-        for k,v in recent_summary.items():
-            recent_win_rate=v["win_rate"]
-            recent_avg_grade=v["avg_grade"]
-            posterior_win_rate=recent_win_rate
-            posterior_avg_grade=recent_avg_grade
-            prior_info=prior_summary.get(k)
-            prior_weight=0
-            if (prior_info):
-                prior_weight=min(prior_info["count"],max(benefit_prior_min_games,v["count"]),benefit_prior_max_games)
-                posterior_win_rate=(v["wins"]+prior_info["win_rate"]*prior_weight)/(v["count"]+prior_weight)
-                posterior_avg_grade=(v["grade_sum"]+prior_info["avg_grade"]*prior_weight)/(v["count"]+prior_weight)
-            posterior_metric=pow(posterior_avg_grade,2)/(math.exp(posterior_win_rate))
-            recent_metric=pow(recent_avg_grade,2)/(math.exp(recent_win_rate))
-            rows.append({
-                "player": k,
-                "nickname": namenick.get(k,k),
-                "recent_count": v["count"],
-                "recent_wins": v["wins"],
-                "recent_win_rate": recent_win_rate,
-                "recent_avg_grade": recent_avg_grade,
-                "recent_metric": recent_metric,
-                "prior_count": prior_info["count"] if prior_info else 0,
-                "prior_wins": prior_info["wins"] if prior_info else 0,
-                "prior_win_rate": prior_info["win_rate"] if prior_info else None,
-                "prior_avg_grade": prior_info["avg_grade"] if prior_info else None,
-                "prior_weight": prior_weight,
-                "posterior_win_rate": posterior_win_rate,
-                "posterior_avg_grade": posterior_avg_grade,
-                "posterior_metric": posterior_metric,
-                "metric_delta": posterior_metric-recent_metric,
-            })
-        rows=sorted(rows,key=lambda item:item["posterior_metric"])
-        meta={
-            "time_gap": time_gap,
-            "benefit_history_gap": benefit_history_gap,
-            "benefit_prior_min_games": benefit_prior_min_games,
-            "benefit_prior_max_games": benefit_prior_max_games,
-            "recent_start": time_to_str(start_date,"%Y-%m-%d"),
-            "recent_end": time_to_str(end_date,"%Y-%m-%d"),
-            "prior_start": time_to_str(prior_start_date,"%Y-%m-%d"),
-            "prior_end": time_to_str(prior_end_date,"%Y-%m-%d"),
-            "formula": "posterior_avg_grade^2 / exp(posterior_win_rate)",
-        }
-        return rows,meta
-
-    @staticmethod
-    def get_benefit_debug_payload(userid=None,time_gap=analyze_time_gap):
-        from .ztime import time_r
-        from .ztime import time_to_str
-
-        rows,meta=Analyses.build_benefit_shrinkage_rows(userid=userid,time_gap=time_gap)
-        meta["generated_at"]=time_to_str(time_r())
-        return {"meta":meta,"rows":rows}
-
-    @staticmethod
-    def get_benefit_data(userid=None,time_gap=analyze_time_gap): # 评分^2/exp(胜率)： exp防止胜率0附近斜率过大 # 值越大越受害 值越小越受益
-        rows,meta=Analyses.build_benefit_shrinkage_rows(userid=userid,time_gap=time_gap)
-        # print(analyzed_infos)
-
-        user_low_grade_winrate_ratio="" # 评分胜率比最低
-        user_high_grade_winrate_ratio="" # 评分胜率比最高
-        low_grade_winrate_ratio=10000
-        high_grade_winrate_ratio=0
-        player_benefit={}
-        for item in rows: # 为了评判机制受益程度，或许评分与上星比值更为合理（评分：实力，上星：受益），胜率与上星无必然关联
-            k=item["player"]
-            win_rate=item["posterior_win_rate"]
-            aver_grade=item["posterior_avg_grade"]
-            grade_winrate_ratio=item["posterior_metric"]
-            # grade_winrate_ratio=math.exp((math.log(aver_grade)-math.log(2))/(math.log(14)-math.log(2)))/(math.exp(win_rate))
-            # grade_winrate_ratio=math.exp((aver_grade-2)/(14-2))/(math.exp(win_rate))
-            player_benefit[k]=[grade_winrate_ratio,win_rate,aver_grade]
-            # print("benefit",k,win_rate,aver_grade,grade_winrate_ratio)
-            if (grade_winrate_ratio<low_grade_winrate_ratio): 
-                user_low_grade_winrate_ratio=k
-                low_grade_winrate_ratio=grade_winrate_ratio
-            if (grade_winrate_ratio>high_grade_winrate_ratio): 
-                user_high_grade_winrate_ratio=k
-                high_grade_winrate_ratio=grade_winrate_ratio
-        player_benefit = dict(sorted(player_benefit.items(), key=lambda item: item[1][0]))
-        # print([user_low_grade_winrate_ratio,user_high_grade_winrate_ratio,round(low_grade_winrate_ratio,3),round(high_grade_winrate_ratio,3)],player_benefit)
-        return [user_low_grade_winrate_ratio,user_high_grade_winrate_ratio,round(low_grade_winrate_ratio,3),round(high_grade_winrate_ratio,3),player_benefit]
-    
-    @staticmethod
-    def get_hero_benefit_data(time_gap=analyze_time_gap):
-        """按英雄聚合分析（与 get_benefit_data 对玩家的分析类似）
-        - time_gap: 向前统计天数
-        返回格式：[hero_min_metric, hero_max_metric, round(min_val,3), round(max_val,3), hero_stats]
-        hero_stats 为 dict: {hero: [metric, win_rate, avg_grade, total_count]}
-        metric 计算方式与玩家端一致： avg_grade^2 / exp(win_rate)
-        值越大表示该英雄在统计期内总体上“受害”（评分高但胜率偏低），值越小表示更“受益”。
-        """
-        from .ztime import time_r
-        from .ztime import time_r_delta
-
-        end_date = time_r()
-        start_date = time_r_delta(time_gap)
-        analyzed_infos = Analyses.analyze_history(userid=None, start_date=start_date, end_date=end_date)
-
-        hero_acc = {}  # hero -> {'count':, 'wins':, 'grades':[]}
-        for player, info in analyzed_infos.items():
-            for hero, hinfo in info.get('hero_info', {}).items():
-                cnt = hinfo[1]
-                wins = hinfo[0]
-                grades = hinfo[2]
-                entry = hero_acc.setdefault(hero, {'count': 0, 'wins': 0, 'grades': []})
-                entry['count'] += cnt
-                entry['wins'] += wins
-                entry['grades'].extend(grades)
-
-        # 只统计出场超过 3 场的英雄
-        hero_acc = {h: acc for h, acc in hero_acc.items() if acc['count'] > 3}
-        if not hero_acc:
-            return ["", "", 0, 0, {}]
-
-        hero_stats = {}
-        min_metric = float('inf')
-        max_metric = float('-inf')
-        hero_min = ""
-        hero_max = ""
-
-        for hero, acc in hero_acc.items():
-            total = acc['count']
-            win_rate = (acc['wins'] / total) if total else 0
-            all_grades = acc['grades']
-            avg_grade = (sum(all_grades) / len(all_grades)) if all_grades else 0
-            metric = pow(avg_grade, 2) / math.exp(win_rate) if total else 0
-            hero_stats[hero] = [metric, win_rate, avg_grade, total]
-            if metric < min_metric:
-                min_metric = metric
-                hero_min = hero
-            if metric > max_metric:
-                max_metric = metric
-                hero_max = hero
-
-        # 按 metric 排序（升序）
-        hero_stats = dict(sorted(hero_stats.items(), key=lambda item: item[1][0]))
-        return [hero_min, hero_max, round(min_metric, 3), round(max_metric, 3), hero_stats]
-    
-    @staticmethod
-    def get_expert_hero(userid=None,time_gap=analyze_time_gap):
-        from .ztime import time_r
-        from .ztime import time_r_delta
-
-        end_date=time_r()
-        start_date=time_r_delta(time_gap)
-        analyzed_infos=Analyses.analyze_history(userid=userid,start_date=start_date,end_date=end_date)
-        exported={}
-        for k,v in analyzed_infos.items(): # 英雄胜率*英雄评分*f(英雄场次)
-            if (len(v["hero_info"])==0): continue
-            max_factor_hero=""
-            max_factor=0
-            for heroname,heroinfo in v["hero_info"].items():
-                factor=math.pow(heroinfo[3],0.5)*(heroinfo[4])*((math.tanh((heroinfo[1]-5)/3)+1)/2)
-                if (factor>max_factor):
-                    max_factor=factor
-                    max_factor_hero=heroname
-            exported[k]=[{max_factor_hero:round(max_factor,3)}]
-        # print(exported)
-        return exported
-
-    @staticmethod
-    def get_extreme_data(time_gap=analyze_time_gap):
-        from .ztime import time_r
-        from .ztime import time_r_delta
-
-        end_date=time_r()
-        start_date=time_r_delta(time_gap)
-        history_info,_=fetch_history(userid=None,start_date=start_date,end_date=end_date)
-        
-        lowest_grade=16
-        highest_grade=0
-        lowest_player=""
-        highest_player=""
-        lowest_hero=""
-        highest_hero=""
-
-        for playerid,details in history_info.items():
-            for detail in details:
-                if (check_btl_official_with_matching(detail['MapName'])):
-                    detail['GameGrade']=float(detail['GameGrade'])
-                    if (detail['GameGrade']<lowest_grade):
-                        lowest_grade=detail['GameGrade']
-                        lowest_player=playerid
-                        lowest_hero=detail['HeroName']
-                    if (detail['GameGrade']>highest_grade):
-                        highest_grade=detail['GameGrade']
-                        highest_player=playerid
-                        highest_hero=detail['HeroName']
-        # print([lowest_grade,highest_grade,lowest_player,highest_player,lowest_hero,highest_hero])
-        return [round(lowest_grade,1),round(highest_grade,1),lowest_player,highest_player,lowest_hero,highest_hero]
-
-    @staticmethod
-    def get_intersection_data(time_gap=analyze_time_gap):
-        from .ztime import time_r
-        from .ztime import time_r_delta
-
-        end_date=time_r()
-        start_date=time_r_delta(time_gap)
-        history_info,_=fetch_history(userid=None,start_date=start_date,end_date=end_date)
-
-        player_intersection={}
-        for playerid_a,details_a in history_info.items():
-            for playerid_b,details_b in history_info.items():
-                if (playerid_a==playerid_b): continue
-                for detail_a in details_a:
-                    for detail_b in details_b:
-                        if (detail_a['GameSeq']==detail_b['GameSeq']):
-                            player_set=frozenset({playerid_a,playerid_b})
-                            if (player_set not in player_intersection): player_intersection[player_set]=1/2
-                            else: player_intersection[player_set]+=1/2
-                            
-        player_intersection = dict(sorted(player_intersection.items(), key=lambda item: item[1]))
-        # print(player_intersection)
-        return player_intersection
 
 def generate_greeting():
-    from .ztime import time_r
-    current_time = time_r()
-    current_hour = current_time.hour
-    if 5 <= current_hour < 12:
-        greeting = "早上好"
-    elif 12 <= current_hour < 14:
-        greeting = "中午好"
-    elif 14 <= current_hour < 18:
-        greeting = "下午好"
-    elif 18 <= current_hour < 23:
-        greeting = "晚上好"
-    else:  # 23:00 - 5:00
-        greeting = "这么晚还不睡吗"
-    return greeting
+    return _user_helpers_business.generate_greeting()
+
+
 def qid2nick(userqid):
-    matching_nickname = [key for key, val in qid.items() if str(val) == userqid]
-    if (matching_nickname and matching_nickname[0] in namenick):
-        return namenick[matching_nickname[0]]
-    else:
-        return ""
+    return _user_helpers_business.qid2nick(userqid)
+
+
 def qid2realname(userqid):
-    matching_name = [key for key, val in qid.items() if str(val) == userqid]
-    if (matching_name):
-        return matching_name[0]
-    else:
-        return None
+    return _user_helpers_business.qid2realname(userqid)
+
+
 def get_emoji(txt):
-    from .zapi import ai_api
-    from .zfile import readerl
+    return _user_helpers_business.get_emoji(txt)
 
-    emojiref=readerl("emojiref.json")
-    # print(emojiref)
-    emojinew={}
-    for k,v in emojiref.items():
-        emojinew[k]=v["content"]
-    pmpt=emoji_pmpt[0]+emoji_pmpt[1]+str(emojinew)+emoji_pmpt[2]+txt+emoji_pmpt[3]
-    res=int(ai_api(pmpt,temperature=2))
-    return res
+
 def get_emoji_url(index):
-    emoji_url=f"http://{confs['WebService']['server_domain']}/doraemon_emojis/{index}.jpg"
-    return emoji_url
+    return _user_helpers_business.get_emoji_url(index)
 
 
-_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "bili:video_subscriptions"
+_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "hok:bili:subscriptions"
+
+
+from .business import bili_video as _bili_video_business
+
+
+def _bili_video_normalize_subscription_item(item):
+    return _bili_video_business._bili_video_normalize_subscription_item(item)
 
 
 def _bili_video_normalize_subscriptions(subscriptions):
-    if not isinstance(subscriptions, dict):
-        subscriptions = {}
-    normalized = {}
-    for user_qid, item in subscriptions.items():
-        if isinstance(item, dict):
-            up_name = str(item.get("up_name") or "").strip()
-            up_mid = str(item.get("up_mid") or item.get("mid") or "").strip()
-            query = str(item.get("query") or up_name).strip()
-            subscribed_at = str(item.get("subscribed_at") or "")
-        else:
-            up_name = str(item or "").strip()
-            up_mid = ""
-            query = up_name
-            subscribed_at = ""
-        if not up_name and not up_mid:
-            continue
-        normalized[str(user_qid)] = {
-            "up_mid": up_mid,
-            "up_name": up_name,
-            "query": query,
-            "subscribed_at": subscribed_at,
-        }
-    return normalized
+    return _bili_video_business._bili_video_normalize_subscriptions(subscriptions)
 
 
 def _bili_video_get_subscriptions():
@@ -3205,15 +1014,28 @@ def _bili_video_save_subscriptions(subscriptions):
     _redis_set_json(_BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY, subscriptions)
 
 
+def _bili_video_subscription_items_for_user(subscriptions, user_qid):
+    return _bili_video_business._bili_video_subscription_items_for_user(
+        subscriptions, user_qid
+    )
+
+
+def _bili_video_set_subscription_items_for_user(subscriptions, user_qid, items):
+    return _bili_video_business._bili_video_set_subscription_items_for_user(
+        subscriptions, user_qid, items
+    )
+
+
+def _bili_video_iter_subscription_items(subscriptions):
+    return _bili_video_business._bili_video_iter_subscription_items(subscriptions)
+
+
 def _bili_video_identity_key(up_mid, up_name=""):
-    up_mid = str(up_mid or "").strip()
-    if up_mid:
-        return f"mid:{up_mid}"
-    return f"name:{str(up_name).strip()}"
+    return _bili_video_business._bili_video_identity_key(up_mid, up_name)
 
 
 def _bili_video_seen_key(up_mid, up_name=""):
-    return f"bili:video_seen:{_bili_video_identity_key(up_mid, up_name)}"
+    return _bili_video_business._bili_video_seen_key(up_mid, up_name)
 
 
 def _bili_video_seen_exists(up_mid, up_name, bvid):
@@ -3227,1782 +1049,392 @@ def _bili_video_mark_seen(up_mid, up_name, bvids):
     return dmc.redis_deamon.sadd(_bili_video_seen_key(up_mid, up_name), *clean_bvids)
 
 
+def _bili_video_seen_initialized(up_mid, up_name):
+    return bool(dmc.redis_deamon.exists(_bili_video_seen_key(up_mid, up_name)))
+
+
+def _bili_video_acquire_push_lock():
+    from .ztime import current_epoch_seconds
+
+    return bool(
+        dmc.redis_deamon.set(
+            "hok:lock:bili:video_push",
+            str(current_epoch_seconds()),
+            nx=True,
+            ex=600,
+        )
+    )
+
+
+def _bili_video_release_push_lock():
+    return dmc.redis_deamon.delete("hok:lock:bili:video_push")
+
+
+def _bili_video_send_group_message(message):
+    from .utils.message_sender import add_msg
+
+    return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+
+
+def _bili_video_subscribed_at_epoch(item):
+    return _bili_video_business._bili_video_subscribed_at_epoch(item)
+
+
 def _bili_video_subscribers_by_up():
-    subscriptions = _bili_video_get_subscriptions()
-    grouped = {}
-    for user_qid, item in subscriptions.items():
-        identity = _bili_video_identity_key(item.get("up_mid"), item.get("up_name"))
-        if identity not in grouped:
-            grouped[identity] = {
-                "up_mid": item.get("up_mid") or "",
-                "up_name": item.get("up_name") or "",
-                "query": item.get("query") or item.get("up_name") or "",
-                "subscribers": [],
-            }
-        grouped[identity]["subscribers"].append(user_qid)
-    for item in grouped.values():
-        item["subscribers"].sort()
-    return grouped
+    return _bili_video_business._bili_video_subscribers_by_up()
 
 
 def _bili_video_update_subscription_identity(identity, *, up_mid=None, up_name=None):
-    subscriptions = _bili_video_get_subscriptions()
-    changed = False
-    for user_qid, item in subscriptions.items():
-        if _bili_video_identity_key(item.get("up_mid"), item.get("up_name")) != identity:
-            continue
-        if up_mid and item.get("up_mid") != str(up_mid):
-            item["up_mid"] = str(up_mid)
-            changed = True
-        if up_name and item.get("up_name") != str(up_name):
-            item["up_name"] = str(up_name)
-            changed = True
-        subscriptions[user_qid] = item
-    if changed:
-        _bili_video_save_subscriptions(subscriptions)
-    return changed
+    return _bili_video_business._bili_video_update_subscription_identity(
+        identity,
+        up_mid=up_mid,
+        up_name=up_name,
+    )
 
 
 def _bili_video_format_subscriber_list(user_qids):
-    formatted = []
-    for user_qid in user_qids:
-        nick = qid2nick(str(user_qid))
-        if nick:
-            formatted.append(f"{nick}({user_qid})")
-        else:
-            formatted.append(str(user_qid))
-    return "、".join(formatted)
+    return _bili_video_business._bili_video_format_subscriber_list(user_qids)
+
+
+def _bili_video_format_subscription_label(item):
+    return _bili_video_business._bili_video_format_subscription_label(item)
+
+
+def _bili_video_find_matching_items(items, query_text):
+    return _bili_video_business._bili_video_find_matching_items(items, query_text)
 
 
 def _bili_video_app_url(aid):
-    aid = str(aid or "").strip()
-    return f"bilibili://video/{aid}?page=0" if aid else ""
+    return _bili_video_business._bili_video_app_url(aid)
 
 
 def _bili_video_mobile_url(bvid):
-    bvid = str(bvid or "").strip()
-    return f"https://m.bilibili.com/video/{bvid}" if bvid else ""
+    return _bili_video_business._bili_video_mobile_url(bvid)
 
 
 def _bili_video_pic_url(video):
-    pic_url = str((video or {}).get("pic") or "").strip()
-    if pic_url.startswith("//"):
-        return "https:" + pic_url
-    if pic_url.startswith("http://"):
-        return pic_url.replace("http://", "https://", 1)
-    return pic_url
+    return _bili_video_business._bili_video_pic_url(video)
 
 
 def _cq_escape(value):
-    return (
-        str(value or "")
-        .replace("&", "&amp;")
-        .replace("[", "&#91;")
-        .replace("]", "&#93;")
-        .replace(",", "&#44;")
-    )
+    return _bili_video_business._cq_escape(value)
 
 
 def _bili_video_pic_message_segment(video):
-    pic_url = _bili_video_pic_url(video)
-    if not pic_url:
-        return "暂无"
-    return f"[CQ:image,file={_cq_escape(pic_url)}]"
+    return _bili_video_business._bili_video_pic_message_segment(video)
 
 
 def _bili_video_page_link(up_name, video):
-    from .ztime import epoch_to_text
-
-    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
-    bvid = str(video.get("bvid") or "").strip()
-    aid = str(video.get("aid") or video.get("avid") or "").strip()
-    video_url = video.get("url") or (f"https://www.bilibili.com/video/{bvid}" if bvid else "")
-    up_mid = str(video.get("up_mid") or "").strip()
-    return WebArtifacts.bili_video_route_link({
-        "up_name": up_name,
-        "up_mid": up_mid,
-        "up_url": f"https://space.bilibili.com/{up_mid}" if up_mid else "",
-        "aid": aid,
-        "bvid": bvid,
-        "title": video.get("title") or "无标题",
-        "pubdate": int(video.get("pubdate") or 0),
-        "pubdate_text": pubdate_text,
-        "url": video_url,
-        "pic": video.get("pic") or "",
-        "app_url": _bili_video_app_url(aid),
-        "mobile_url": _bili_video_mobile_url(bvid),
-    })
+    return _bili_video_business._bili_video_page_link(up_name, video)
 
 
 def _bili_video_format_video_message(up_name, video):
-    from .ztime import epoch_to_text
-
-    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
-    page_link = _bili_video_page_link(up_name, video)
-    return (
-        "B站订阅视频推送\n"
-        f"【{video.get('title') or '无标题'}】\n"
-        f"{up_name} · {pubdate_text}\n\n"
-        f"{_bili_video_pic_message_segment(video)}\n\n"
-        f"{page_link}"
-    )
+    return _bili_video_business._bili_video_format_video_message(up_name, video)
 
 
 def _bili_video_format_push_message(up_name, video, subscribers):
-    return _bili_video_format_video_message(up_name, video)
+    return _bili_video_business._bili_video_format_push_message(
+        up_name, video, subscribers
+    )
 
 
 def _bili_video_format_latest_message(up_name, video):
-    return _bili_video_format_video_message(up_name, video)
-
+    return _bili_video_business._bili_video_format_latest_message(up_name, video)
 
 
 def _bili_video_similarity(query, candidate_name):
-    import difflib
-
-    query = str(query or "").strip().lower()
-    candidate_name = str(candidate_name or "").strip().lower()
-    if not query or not candidate_name:
-        return 0
-    if query == candidate_name:
-        return 240
-    score = int(difflib.SequenceMatcher(None, query, candidate_name).ratio() * 100)
-    if query in candidate_name:
-        score += 120
-    if candidate_name in query:
-        score += 80
-    return score
+    return _bili_video_business._bili_video_similarity(query, candidate_name)
 
 
 def _bili_video_resolve_best_up(query):
-    from .zapi import bilibili_search_users
-
-    query = str(query or "").strip()
-    candidates = bilibili_search_users(query, page_size=10)
-    if not candidates:
-        return None, []
-    ranked = []
-    for candidate in candidates:
-        text_score = _bili_video_similarity(query, candidate.get("name"))
-        fans = int(candidate.get("fans") or 0)
-        videos = int(candidate.get("videos") or 0)
-        popularity_bonus = min(int(math.log10(max(fans, 1)) * 18), 140)
-        video_bonus = min(videos // 20, 25)
-        official_bonus = 50 if candidate.get("official_type") in {0, 1} else 0
-        total_score = text_score + popularity_bonus + video_bonus + official_bonus
-        ranked.append((total_score, text_score, fans, videos, candidate))
-    ranked.sort(key=lambda item: (item[0], item[1], item[2], item[3]), reverse=True)
-    best = dict(ranked[0][4])
-    best["match_score"] = ranked[0][0]
-    return best, [dict(item[4], match_score=item[0]) for item in ranked]
+    return _bili_video_business._bili_video_resolve_best_up(query)
 
 
 def bili_video_subscribe_user(user_qid, up_name):
-    from .zapi import bilibili_search_videos_by_mid
-    from .ztime import time_to_str
-    from .ztime import time_r
-
-    user_qid = str(user_qid)
-    up_name = str(up_name or "").strip()
-    if not up_name:
-        return "参数错误，格式：#订阅 UP昵称"
-
-    subscriptions = _bili_video_get_subscriptions()
-    if user_qid in subscriptions:
-        current_up = subscriptions[user_qid]["up_name"]
-        current_mid = subscriptions[user_qid].get("up_mid") or "未知mid"
-        return f"你已经订阅了 {current_up}({current_mid})，每人最多订阅 1 个 UP。请先发送 #取消订阅"
-
-    best_up, _ = _bili_video_resolve_best_up(up_name)
-    if not best_up:
-        return f"未找到可匹配的 B站 UP：{up_name}"
-
-    resolved_mid = str(best_up.get("mid") or "").strip()
-    resolved_name = str(best_up.get("name") or "").strip()
-    videos = bilibili_search_videos_by_mid(
-        resolved_mid,
-        up_name=resolved_name,
-        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
-    )
-    if not videos:
-        return f"已匹配到 {resolved_name}({resolved_mid})，但未找到该 UP 的公开视频，订阅未保存"
-
-    subscriptions[user_qid] = {
-        "up_mid": resolved_mid,
-        "up_name": resolved_name,
-        "query": up_name,
-        "subscribed_at": time_to_str(time_r()),
-    }
-    _bili_video_save_subscriptions(subscriptions)
-    _bili_video_mark_seen(resolved_mid, resolved_name, [video.get("bvid") for video in videos])
-    latest = videos[0]
-    return (
-        f"订阅成功：{resolved_name}({resolved_mid})\n"
-        f"搜索词：{up_name}\n"
-        f"已将当前最新视频标记为已读：{latest.get('title') or latest.get('bvid')}"
-    )
+    return _bili_video_business.bili_video_subscribe_user(user_qid, up_name)
 
 
 def bili_video_unsubscribe_user(user_qid, query_text=""):
-    user_qid = str(user_qid)
-    subscriptions = _bili_video_get_subscriptions()
-    current = subscriptions.pop(user_qid, None)
-    if not current:
-        return "你当前没有 B站 UP 订阅"
-    _bili_video_save_subscriptions(subscriptions)
-    return f"已取消订阅：{current['up_name']}({current.get('up_mid') or '未知mid'})"
+    return _bili_video_business.bili_video_unsubscribe_user(user_qid, query_text)
 
 
 def bili_video_my_subscription(user_qid):
-    item = _bili_video_get_subscriptions().get(str(user_qid))
-    if not item:
-        return "你当前没有 B站 UP 订阅"
-    return f"你的 B站 UP 订阅：{item['up_name']}({item.get('up_mid') or '未知mid'})"
+    return _bili_video_business.bili_video_my_subscription(user_qid)
+
+
+def _bili_video_latest_for_item(item):
+    return _bili_video_business._bili_video_latest_for_item(item)
 
 
 def bili_video_latest_for_user(user_qid):
-    from .zapi import bilibili_get_user_card
-    from .zapi import bilibili_search_videos_by_mid
-
-    user_qid = str(user_qid)
-    item = _bili_video_get_subscriptions().get(user_qid)
-    if not item:
-        return "你当前没有订阅 UP，格式：#订阅 UP昵称"
-
-    identity = _bili_video_identity_key(item.get("up_mid"), item.get("up_name"))
-    up_mid = item.get("up_mid") or ""
-    up_name = item.get("up_name") or item.get("query") or ""
-    if not up_mid:
-        best_up, _ = _bili_video_resolve_best_up(up_name)
-        if not best_up:
-            return f"未能解析你订阅的 UP：{up_name}"
-        up_mid = str(best_up.get("mid") or "")
-        up_name = str(best_up.get("name") or up_name)
-        _bili_video_update_subscription_identity(identity, up_mid=up_mid, up_name=up_name)
-
-    try:
-        current_card = bilibili_get_user_card(up_mid)
-        if current_card.get("name"):
-            up_name = current_card["name"]
-            _bili_video_update_subscription_identity(identity, up_name=up_name)
-    except Exception as error:
-        log_message(f"BILI_VIDEO_LATEST_CARD_ERROR: mid={up_mid} error={repr(error)}")
-
-    videos = bilibili_search_videos_by_mid(
-        up_mid,
-        up_name=up_name,
-        page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
-    )
-    if not videos:
-        return f"暂未查询到 {up_name}({up_mid}) 的公开视频"
-    return _bili_video_format_latest_message(up_name, videos[0])
+    return _bili_video_business.bili_video_latest_for_user(user_qid)
 
 
 def bili_video_list_subscriptions():
-    grouped = _bili_video_subscribers_by_up()
-    if not grouped:
-        return "当前没有 B站 UP 订阅"
-    lines = ["B站 UP 订阅列表："]
-    for identity in sorted(grouped):
-        item = grouped[identity]
-        label = f"{item.get('up_name') or identity}({item.get('up_mid') or '未知mid'})"
-        lines.append(f"{label}：{_bili_video_format_subscriber_list(item['subscribers'])}")
-    return "\n".join(lines)
+    return _bili_video_business.bili_video_list_subscriptions()
 
 
 def bili_video_check_and_push(*, debug=False):
-    from .zapi import bilibili_get_user_card
-    from .zapi import bilibili_search_videos_by_mid
-    from .ztime import time_r
-    from .utils.message_sender import add_msg
-
-    if not getattr(dmc, "BiliVideoPushEnabled", True):
-        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH paused by BiliVideoPushEnabled=false"}
-
-    grouped = _bili_video_subscribers_by_up()
-    if not grouped:
-        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH no subscriptions"}
-
-    lock_key = "bili:video_push_lock"
-    locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time_r().timestamp())), nx=True, ex=600))
-    if locked:
-        return {"checked": 0, "pushed": 0, "debug": "BILI_VIDEO_PUSH locked"}
-
-    checked = 0
-    pushed = 0
-    debug_lines = []
-    try:
-        for identity in sorted(grouped):
-            checked += 1
-            item = grouped[identity]
-            up_mid = item.get("up_mid") or ""
-            up_name = item.get("up_name") or item.get("query") or identity
-            subscribers = item["subscribers"]
-
-            if not up_mid:
-                best_up, _ = _bili_video_resolve_best_up(up_name)
-                if not best_up:
-                    debug_lines.append(f"BILI_VIDEO_SKIP unresolved={up_name}")
-                    continue
-                up_mid = str(best_up.get("mid") or "")
-                up_name = str(best_up.get("name") or up_name)
-                if _bili_video_update_subscription_identity(identity, up_mid=up_mid, up_name=up_name):
-                    debug_lines.append(f"BILI_VIDEO_MIGRATED identity={identity} mid={up_mid} up={up_name}")
-
-            try:
-                current_card = bilibili_get_user_card(up_mid)
-                if current_card.get("name"):
-                    up_name = current_card["name"]
-                    if _bili_video_update_subscription_identity(identity, up_name=up_name):
-                        debug_lines.append(f"BILI_VIDEO_NAME_UPDATED mid={up_mid} up={up_name}")
-            except Exception as error:
-                debug_lines.append(f"BILI_VIDEO_CARD_ERROR mid={up_mid} error={repr(error)}")
-
-            videos = bilibili_search_videos_by_mid(
-                up_mid,
-                up_name=up_name,
-                page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
-            )
-            debug_lines.append(f"BILI_VIDEO_UP mid={up_mid} up={up_name} videos={len(videos)} subscribers={len(subscribers)}")
-            if not videos:
-                continue
-
-            seen_key = _bili_video_seen_key(up_mid, up_name)
-            if not dmc.redis_deamon.exists(seen_key):
-                _bili_video_mark_seen(up_mid, up_name, [video.get("bvid") for video in videos])
-                debug_lines.append(f"BILI_VIDEO_INIT_SEEN mid={up_mid} up={up_name} count={len(videos)}")
-                continue
-
-            new_videos = [
-                video for video in videos
-                if video.get("bvid") and not _bili_video_seen_exists(up_mid, up_name, video.get("bvid"))
-            ]
-            new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
-            for video in new_videos:
-                msg = _bili_video_format_push_message(up_name, video, subscribers)
-                add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
-                _bili_video_mark_seen(up_mid, up_name, [video.get("bvid")])
-                pushed += 1
-                debug_lines.append(f"BILI_VIDEO_PUSHED mid={up_mid} up={up_name} bvid={video.get('bvid')}")
-        return {"checked": checked, "pushed": pushed, "debug": "\n".join(debug_lines)}
-    finally:
-        dmc.redis_deamon.delete(lock_key)
+    return _bili_video_business.bili_video_check_and_push(debug=debug)
 
 
 def bili_video_admin_command(raw_msg):
-    raw_msg = str(raw_msg or "").strip()
-    args = raw_msg.replace("##bili", "", 1).strip().split()
-    action = args[0].lower() if args else "list"
-    if action == "list":
-        return bili_video_list_subscriptions()
-    if action == "check":
-        result = bili_video_check_and_push(debug=True)
-        return f"B站订阅检查完成：checked={result.get('checked')} pushed={result.get('pushed')}\n{result.get('debug') or ''}".strip()
-    return "参数错误，支持：##bili list / ##bili check"
+    return _bili_video_business.bili_video_admin_command(raw_msg)
 
 
 def generate_user_emoji_image(*, user_qid: str, size=None):
     from .tools.gen_emoji_image import generate_user_emoji_image as _impl
     return _impl(user_qid=user_qid, size=size)
 def extract_url_params(url):
-    from urllib.parse import urlparse, parse_qs
-    # 解析 URL
-    parsed_url = urlparse(url)
-    # 提取查询参数并转换为字典
-    params = parse_qs(parsed_url.query)
-    # 将值从列表转换为单个值（如果参数只有一个值）
-    return {key: value[0] if len(value) == 1 else value for key, value in params.items()}
-def get_peak_alter_list(details,processed,reverse=1):
-    peak_alter_list=[]
-    detail_dup=[]
-    if (not processed):
-        for detail in details:
-            if (detail["MapType"]!=-1): continue
-            detail_dup.append({"PeakBefore":detail["PeakGradeBeforeGame"],"PeakAfter":detail["PeakGradeAfterGame"],"used":False})
-    else:
-        for detail in details:
-            detail_dup.append({"PeakBefore":detail[0],"PeakAfter":detail[1],"used":False})
-    if (reverse==-1): detail_dup=detail_dup[::-1]
-    for item_a in detail_dup:
-        if (item_a["used"]): continue
-        item_a["used"]=True
-        PeakBefore=item_a["PeakBefore"]
-        PeakAfter=item_a["PeakAfter"]
-        for item_b in detail_dup:
-            if (item_b["used"]): continue
-            if (item_b["PeakBefore"]==PeakAfter): 
-                PeakAfter=item_b["PeakAfter"]
-                item_b["used"]=True
-        peak_alter_list.append([PeakBefore,PeakAfter])
-    return peak_alter_list
-def extract_name(from_text,precise=False):
-    for is_origin in [True,False]:
-        for realname,nicknames in nameref.items():
-            for nickname in nicknames:
-                if txt_contain(nickname,from_text,precise,is_origin):
-                    return realname
-    for realname,_ in extra_useridlist.items():
-        if txt_contain(realname,from_text,p=True,ori=True):
-            return realname
-    return None
-def merge_crossday_gamedata(gamedata):
-    if (not gamedata): return {}
-    res=gamedata[-1]
-    res["gaming_info"]={}
-    res["btl_aver"]=0
-    if ("roleid" not in res): res["roleid"]=str(roleidlist[res["key"]])
-    for daydata in gamedata[-2::-1]:
-        res["today_num"]+=daydata["today_num"]
-        res["up_tourna"]+=daydata["up_tourna"]
-        res["up_peak"]+=daydata["up_peak"]
-        for mapname,mapcnt in daydata["map_cnt"].items():
-            if (mapname not in res["map_cnt"]):
-                res["map_cnt"][mapname]=[0,0]
-            res["map_cnt"][mapname][0]+=mapcnt[0]
-            res["map_cnt"][mapname][1]+=mapcnt[1]
-        for peakdiff in daydata.get("peak_up",[]):
-            res["peak_up"].append(peakdiff)
-        res["star_up"]+=daydata["star_up"]
-        for detail in daydata["details"]:
-            res["details"].append(detail)
-    if ("peak_up" in res):
-        combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True)
-        res["peak_up"]=combined_up_peak
-        combined_up_peak=get_peak_alter_list(details=res["peak_up"],processed=True,reverse=-1)
-        res["peak_up"]=combined_up_peak
-    else:
-        res["peak_up"]=[]
-    if ("visible" not in res): res["visible"]=True
-    res["btl_aver"] = calculate_official_battle_average(res["details"])
+    return _user_helpers_business.extract_url_params(url)
 
-    return res
-def calculate_official_battle_average(details):
-    official_btls_grades = [
-        float(btl["GameGrade"])
-        for btl in details
-        if check_btl_official(btl["MapName"])
-    ]
-    average = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
-    return round(average, 3)
-def check_btl_official(btlname):
-    import re
 
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位|巅峰|战队', btlname):
-        return True
-    return False
-def check_btl_official_only_rank(btlname):
-    import re
-
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位', btlname):
-        return True
-    return False
-def check_btl_official_with_matching(btlname):
-    import re
-
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位|巅峰|战队|匹配|王者峡谷', btlname):
-        return True
-    return False
-def check_btl_official_with_matching_with_entertain(btlname):
-    import re
-
-    btlname=str.lower(btlname)
-    if re.search(r'1v1|2v2|3v3', btlname):
-        return False
-    if re.search(r'排位|巅峰|战队|匹配|王者峡谷|梦境|火焰山|无限乱斗', btlname):
-        return True
-    return False
-def export_btldetail(gameinfo,roleid):
-    from .zfile import writerl
-    from .zapi import wzry_get_official
-    from .zfile import file_exist
-    unaccessible_battles=[]
-    for btl in gameinfo:
-        savepath=os.path.join("data","history","battles",str(btl["GameSeq"])+".json")
-        if (file_exist(savepath) or not check_btl_official_with_matching_with_entertain(btl["MapName"])): continue
-        try:
-            res=wzry_get_official(reqtype="btldetail",roleid=roleid,**btl['Params'])
-            writerl(savepath,res)
-        except Exception as e:
-            unaccessible_battles.append({"roleid":roleid,"GameSeq":btl["GameSeq"],"Error":str(e)})
-
-    return unaccessible_battles
-
-def notify_msg_impl():
-    from .zutil import log_message
-    from .zstatic import confs
-    import datetime
-    import traceback
-
-    log_message("NOTIFY"+str(datetime.date.today()))
-    snd_msg="今日王者战报(每日23:30推送)：\n"
-    try:
-        from .zfunc import rnk_process
-        snd_msg += rnk_process(rcv_msg="", caller=None, show_zero=False, show_analyze=True)[0]
-    except Exception:
-        return [traceback.format_exc()] # 返回错误信息列表
-    
-    messages = [snd_msg]
-
-    # 定时发送保留正式文字、图片和图片下方的 AI 文案。
-    try:
-        rep_btl_res = get_daily_representative_battle()
-        if rep_btl_res:
-            match_text, battle_image, best_battle = rep_btl_res
-            messages.append((match_text, battle_image, best_battle.get("AiCommentary")))
-    except Exception:
-        log_message(
-            "GET_REPRESENTATIVE_BATTLE_ERROR: "
-            f"target_date=auto error={traceback.format_exc()}"
-        )
-
-    return messages
-
-def kpl_check_and_push(*, debug: bool = False, event=None, force: bool = False, preview_only: bool = False):
-    from .ztime import time_r
-    from .ztime import date_start_epoch_ms
-    from .tools.kpl_match_collector import get_full_match_list
-    from .tools.kpl_match_collector import get_match_content
-    from .utils.message_sender import add_msg
-    from nonebot.adapters.onebot.v11 import MessageSegment
-    from .zfile import download_url_to_file
-    from .zfile import ensure_dir
-    if not preview_only and not getattr(dmc, "KplPushEnabled", True):
-        return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH paused by KplPushEnabled=false"}
-
-    lock_key = "kpl:push_lock"
-    pending_key = "kpl:push_pending"
-    if force:
-        loop_guard = 1
-    else:
-        loop_guard = 2
-
-    last_result = None
-    while loop_guard > 0:
-        loop_guard -= 1
-        now = time_r()
-        if not force:
-            locked = not bool(dmc.redis_deamon.set(lock_key, str(int(time.time())), nx=True, ex=600))
-            if locked:
-                dmc.redis_deamon.set(pending_key, "1", ex=3600)
-                return {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH locked; pending set"}
-
-        try:
-            time_ms = date_start_epoch_ms(now)
-            mid = getattr(dmc, "KplScheduleMid", 214)
-            ps = getattr(dmc, "KplSchedulePs", 50)
-            window_sec = getattr(dmc, "KplPushWindowSeconds", 3600)
-            size = getattr(dmc, "KplImageSize", "1792x1024")
-            resolution = getattr(dmc, "KplImageResolution", "2k")
-
-            full = get_full_match_list(mid=mid, time_ms=time_ms, now=now, ps=ps)
-            now_epoch = int(full.get("now_epoch") or 0)
-            finished = full.get("groups", {}).get("finished") or []
-
-            candidates = []
-            for it in finished:
-                cid = it.get("cid")
-                etime = it.get("etime") or 0
-                if not cid or not etime:
-                    continue
-                gap = now_epoch - int(etime)
-                if force or (0 <= gap <= window_sec):
-                    candidates.append((int(etime), it))
-
-            candidates.sort(key=lambda x: x[0], reverse=True)
-
-            debug_lines = []
-            debug_lines.append(f"KPL_PUSH now_epoch={now_epoch} mid={mid} time_ms={time_ms} finished_cnt={len(finished)} cand_cnt={len(candidates)}")
-
-            local_result = None
-            for etime, it in candidates:
-                cid = int(it.get("cid"))
-                pushed = bool(dmc.redis_deamon.sismember("kpl:pushed_cids", str(cid)))
-                debug_lines.append(f"KPL_PUSH_CAND cid={cid} etime={etime} pushed={pushed} home={it.get('home', {}).get('name')} away={it.get('away', {}).get('name')} score={it.get('score')}")
-                if pushed and not force:
-                    continue
-
-                match_content = get_match_content(it)
-                if preview_only:
-                    preview = kpl_build_match_image_prompt(match_content=match_content)
-                    if debug:
-                        debug_lines.append("KPL_PUSH_PROMPT")
-                        debug_lines.append(preview.get("prompt") or "")
-                        debug_lines.append("KPL_PUSH_PAYLOAD")
-                        debug_lines.append(json.dumps(preview.get("payload") or {}, ensure_ascii=False))
-                    local_result = {"pushed": False, "cid": cid, "image_path": None, "debug": "\n".join(debug_lines)}
-                    break
-
-                res = kpl_match_image_generate(match_content=match_content, size=size, resolution=resolution)
-                url = (res or {}).get("url") or ""
-                if not url:
-                    raise Exception(f"kpl_push_error: empty image url for cid={cid}")
-                if debug:
-                    debug_lines.append("KPL_PUSH_PROMPT")
-                    debug_lines.append((res or {}).get("prompt") or "")
-                    debug_lines.append("KPL_PUSH_PAYLOAD")
-                    debug_lines.append(json.dumps((res or {}).get("payload") or {}, ensure_ascii=False))
-
-                day_dir = os.path.join("resources","wzry_images", "kpl", now.strftime("%Y-%m-%d"))
-                ensure_dir(day_dir)
-                local_path = os.path.join(day_dir, f"{cid}.png")
-                download_url_to_file(url, local_path)
-
-                home = (it.get("home") or {}).get("name") or ""
-                away = (it.get("away") or {}).get("name") or ""
-                score = it.get("score") or {}
-                score_text = f"{score.get('home', '-')}-{score.get('away', '-')}"
-                stage = it.get("game_stage") or it.get("title") or ""
-                text = f"KPL 战局推送：{home} vs {away}  {score_text}\n{stage}\n结束时间: {match_content.get('end_time_iso') or it.get('etime')}"
-                msg = text + MessageSegment.image(f"file:///{os.path.abspath(local_path)}")
-                add_msg(msg, event=event, msg_type="group", to_id=confs["QQBot"]["group_qid"])
-
-                dmc.redis_deamon.sadd("kpl:pushed_cids", str(cid))
-                local_result = {"pushed": True, "cid": cid, "image_path": local_path, "debug": "\n".join(debug_lines)}
-                break
-
-            if local_result is None:
-                local_result = {"pushed": False, "cid": None, "image_path": None, "debug": "\n".join(debug_lines)}
-            last_result = local_result
-
-        finally:
-            if not force:
-                dmc.redis_deamon.delete(lock_key)
-
-        if force:
-            return last_result
-
-        pending = dmc.redis_deamon.get(pending_key)
-        if pending:
-            dmc.redis_deamon.delete(pending_key)
-            continue
-        return last_result
-
-    return last_result or {"pushed": False, "cid": None, "image_path": None, "debug": "KPL_PUSH loop_guard_exceeded"}
-
-def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str):
-    """
-    根据 KPL 单场内容生成战报图。
-
-    - 使用多种风格模板随机选择一种
-    - 对输入数据进行过滤与摘要，避免将不可读/冗余字段喂给生图
-    """
-    from .zapi import apimart_images_generate
-    from .ztime import get_timebased_rand
-
-    built = kpl_build_match_image_prompt(match_content=match_content)
-    prompt = built["prompt"]
-    payload = built["payload"]
-    style = built["style_template"]
-    res = apimart_images_generate(prompt=prompt, reference_image_url="", size=size, resolution=resolution)
-    if not isinstance(res, dict):
-        raise Exception(f"kpl_match_image_generate_error: unexpected response {str(res)[:500]}")
-    res["prompt"] = prompt
-    res["payload"] = payload
-    res["style_template"] = style
-    return res
-
-def kpl_build_match_image_prompt(*, match_content: dict):
-    from .ztime import get_timebased_rand
-
-    style_templates = [
-        "暗色高级转播UI：深蓝灰渐变背景 + 玻璃拟态卡片，8px圆角、细分割线、轻阴影，整体克制高级；比分与队名用大字号，数据区用表格卡片。",
-        "浅色极简信息图：白/浅灰背景，大留白，12列网格对齐；标题用黑字，强调色只用于比分和小图标，表格线极浅，信息密集但不拥挤。",
-        "官方海报质感：暗色底 + 柔和聚光，主体居中，左右队名对称；使用干净的几何块面与细线框，不要霓虹，不要花哨纹理，质感像赛事官方宣传图。",
-        "现代电竞面板：深色面板+模块化信息块，顶部标题条，中部比分条，底部双列对比表；使用统一图标与小标签，强调对齐与层级。",
-    ]
-    style_mode = getattr(dmc, "KplImageStyleMode", "fixed")
-    fixed_idx = getattr(dmc, "KplImageStyleFixedIndex", 1)
-    if style_mode == "random":
-        style_idx = get_timebased_rand(len(style_templates), 10)
-    else:
-        try:
-            style_idx = int(fixed_idx)
-        except Exception:
-            style_idx = 1
-        if style_idx < 0 or style_idx >= len(style_templates):
-            style_idx = 1
-    style = style_templates[style_idx]
-
-    def _strip_timezone(iso_s: str):
-        if not iso_s:
-            return "-"
-        s = str(iso_s).strip()
-        try:
-            dt = datetime.datetime.fromisoformat(s)
-            return dt.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            m = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", s)
-            if m:
-                return m.group(1).replace("T", " ")
-            return s
-
-    raw = match_content.get("raw") or {}
-    raw_data = raw.get("data") or (raw.get("overall_grade") or {}).get("data") or {}
-    home_team = match_content.get("home_team") or raw_data.get("home_team") or {}
-    away_team = match_content.get("away_team") or raw_data.get("away_team") or {}
-    home_name = home_team.get("name") or home_team.get("title") or ""
-    away_name = away_team.get("name") or away_team.get("title") or ""
-    score_data = match_content.get("score") or {}
-    home_score = score_data.get("home", raw_data.get("home_score"))
-    away_score = score_data.get("away", raw_data.get("away_score"))
-    total_score = None
-    if home_score is not None and away_score is not None:
-        total_score = f"{home_score}-{away_score}"
-
-    pos_map = {"TOP": "对抗路", "JUG": "打野", "MID": "中路", "AD": "发育路", "SUP": "游走"}
-
-    hot_map = {}
-    for p in match_content.get("players") or []:
-        if not isinstance(p, dict):
-            continue
-        name = p.get("player_name")
-        hot = str(p.get("hot_comment") or "").strip().replace("\n", " ")
-        if not name or not hot:
-            continue
-        if len(hot) > 80:
-            hot = hot[:80] + "..."
-        hot_map[name] = hot
-
-    global_grade = raw_data.get("global_grade_info") or {}
-    team_players = {}
-    for side in ["home_team", "away_team"]:
-        side_info = global_grade.get(side) or {}
-        plist = side_info.get("players") or []
-        for p in plist:
-            if not isinstance(p, dict):
-                continue
-            name = p.get("nickname")
-            place = p.get("place")
-            pos = pos_map.get(str(place), place)
-            if side == "home_team":
-                team_name = home_name
-            else:
-                team_name = away_name
-            team_players.setdefault(team_name, [])
-            item = {"name": name, "pos": pos, "score": p.get("avg_grade")}
-            hot = hot_map.get(name)
-            if hot:
-                item["hot"] = hot
-            team_players[team_name].append(item)
-
-    if not team_players:
-        for team in match_content.get("overall_ratings") or []:
-            team_name = team.get("name") or ""
-            if not team_name:
-                continue
-            team_players[team_name] = [
-                {
-                    "name": player.get("name"),
-                    "pos": player.get("position"),
-                    "score": player.get("rating"),
-                }
-                for player in team.get("players") or []
-            ]
-
-    teams_payload = []
-    for name in [home_name, away_name]:
-        if not name:
-            continue
-        if name == home_name:
-            score = home_score
-        elif name == away_name:
-            score = away_score
-        else:
-            score = None
-        teams_payload.append({"name": name, "score": score, "players": team_players.get(name) or []})
-
-    if home_name and away_name:
-        match_name = f"{home_name} vs {away_name}"
-    else:
-        match_name = match_content.get("match_name") or "KPL 对局战报"
-
-    payload = {
-        "match_name": match_name,
-        "start_time": _strip_timezone(match_content.get("start_time_text") or match_content.get("start_time_iso") or ""),
-        "end_time": _strip_timezone(match_content.get("end_time_text") or match_content.get("end_time_iso") or ""),
-        "total_score": total_score or "-",
-        "teams": teams_payload,
-    }
-
-    prompt = (
-        "你是专业赛事视觉设计师。"
-        "请根据以下 JSON 数据生成一张 KPL 系列赛战报信息图（强调整场系列赛的大比分）。"
-        "只生成图片，不要输出任何额外解释文字。"
-        "整体风格要求高级、现代、干净，确保文字清晰可读。"
-        "不要虚构 JSON 中不存在的信息；不要输出 JSON 字段名，只展示内容本身。\n"
-        f"风格模板：{style}\n\n"
-        + json.dumps(payload, ensure_ascii=False)
+def get_peak_alter_list(details, processed, reverse=1):
+    return _user_helpers_business.get_peak_alter_list(
+        details,
+        processed,
+        reverse=reverse,
     )
 
-    return {"prompt": prompt, "payload": payload, "style_template": style}
+
+def extract_name(from_text, precise=False):
+    return _user_helpers_business.extract_name(from_text, precise=precise)
+from .business import battle_metrics as _battle_metrics_business
+
+
+def merge_crossday_gamedata(gamedata):
+    return _battle_metrics_business.merge_crossday_gamedata(gamedata)
+
+
+def calculate_official_battle_average(details):
+    return _battle_metrics_business.calculate_official_battle_average(details)
+
+
+def _battle_all_roles(battle_detail):
+    return _battle_metrics_business._battle_all_roles(battle_detail)
+
+
+def _find_battle_role(battle_detail, roleid=None, userid=None):
+    return _battle_metrics_business._find_battle_role(
+        battle_detail, roleid=roleid, userid=userid
+    )
+
+
+def _battle_role_has_assist_equip(role):
+    return _battle_metrics_business._battle_role_has_assist_equip(role)
+
+
+def calculate_battle_contribution_factor(
+    battle_detail, roleid=None, userid=None, role=None
+):
+    return _battle_metrics_business.calculate_battle_contribution_factor(
+        battle_detail,
+        roleid=roleid,
+        userid=userid,
+        role=role,
+    )
+
+
+def calculate_official_battle_contribution_average(details, roleid):
+    return _battle_metrics_business.calculate_official_battle_contribution_average(
+        details, roleid
+    )
+
+
+def check_btl_official(btlname):
+    return _battle_metrics_business.check_btl_official(btlname)
+
+
+def check_btl_official_only_rank(btlname):
+    return _battle_metrics_business.check_btl_official_only_rank(btlname)
+
+
+def check_btl_official_with_matching(btlname):
+    return _battle_metrics_business.check_btl_official_with_matching(btlname)
+
+
+def check_btl_official_with_matching_with_entertain(btlname):
+    return _battle_metrics_business.check_btl_official_with_matching_with_entertain(
+        btlname
+    )
+def export_btldetail(gameinfo, roleid):
+    return _player_data_business.export_battle_details(gameinfo, roleid)
+
+from .business import daily_notification as _daily_notification_business
+
+
+def notify_msg_impl():
+    return _daily_notification_business.notify_msg_impl()
+
+_KPL_PUSH_LOCK_KEY = "hok:lock:kpl:push"
+_KPL_PUSH_PENDING_KEY = "hok:kpl:push_pending"
+_KPL_PUSHED_CIDS_KEY = "hok:kpl:pushed_cids"
+
+
+from .business import kpl as _kpl_business
+
+
+def _kpl_acquire_push_lock():
+    from .ztime import current_epoch_seconds
+
+    return bool(
+        dmc.redis_deamon.set(
+            _KPL_PUSH_LOCK_KEY,
+            str(current_epoch_seconds()),
+            nx=True,
+            ex=600,
+        )
+    )
+
+
+def _kpl_release_push_lock():
+    return dmc.redis_deamon.delete(_KPL_PUSH_LOCK_KEY)
+
+
+def _kpl_mark_push_pending():
+    return dmc.redis_deamon.set(_KPL_PUSH_PENDING_KEY, "1", ex=3600)
+
+
+def _kpl_take_push_pending():
+    pending = dmc.redis_deamon.get(_KPL_PUSH_PENDING_KEY)
+    if pending:
+        dmc.redis_deamon.delete(_KPL_PUSH_PENDING_KEY)
+        return True
+    return False
+
+
+def _kpl_was_pushed(cid):
+    return bool(dmc.redis_deamon.sismember(_KPL_PUSHED_CIDS_KEY, str(cid)))
+
+
+def _kpl_mark_pushed(cid):
+    return dmc.redis_deamon.sadd(_KPL_PUSHED_CIDS_KEY, str(cid))
+
+
+def _kpl_save_push_image(image_url, cid, date_text):
+    from .zfile import save_kpl_push_image
+
+    return save_kpl_push_image(image_url, cid, date_text)
+
+
+def _kpl_send_push_message(text, image_path, event=None):
+    from .utils.message_sender import add_text_image_msg
+
+    return add_text_image_msg(
+        text,
+        image_path,
+        event=event,
+        msg_type="group",
+        to_id=confs["QQBot"]["group_qid"],
+    )
+
+
+def kpl_check_and_push(
+    *,
+    debug: bool = False,
+    event=None,
+    force: bool = False,
+    preview_only: bool = False,
+):
+    return _kpl_business.kpl_check_and_push(
+        debug=debug,
+        event=event,
+        force=force,
+        preview_only=preview_only,
+    )
+
+
+def kpl_match_image_generate(*, match_content: dict, size: str, resolution: str):
+    return _kpl_business.kpl_match_image_generate(
+        match_content=match_content,
+        size=size,
+        resolution=resolution,
+    )
+
+
+def kpl_build_match_image_prompt(*, match_content: dict):
+    return _kpl_business.kpl_build_match_image_prompt(match_content=match_content)
+
+
+from .business import history_query as _history_query_business
+from .business import representative_battle as _representative_battle_business
+
 
 def _build_representative_battle_text(best_battle, title_date):
-    result_emoji = "🏆" if best_battle.get("Result") == "胜利" else "🏳️"
-    lines = [
-        f"【{title_date}代表性对局】",
-        f"{best_battle['RepresentativeCategory']} {best_battle['RepScore']}/100",
-        (
-            f"{best_battle['nickname']} {best_battle['HeroName']} "
-            f"{best_battle['Kill']}/{best_battle['Dead']}/{best_battle['Assist']} "
-            f"{best_battle['MapName']} {result_emoji}"
-        ),
-    ]
-    tags = "".join(best_battle.get("RawTags") or [])
-    if tags:
-        lines.append(tags)
-    return "\n".join(lines)
+    return _representative_battle_business._build_representative_battle_text(
+        best_battle, title_date
+    )
 
 
 def get_daily_representative_battle(target_date=None, candidates_only=False):
-    """Select the day's most representative battle with a transparent score."""
-    from .ztime import time_sul
-    from .zfile import read_history_date
-    from .tools.representative_battle import ranking_key
-    from .tools.representative_battle import score_candidate
-    from .tools.representative_battle import validate_candidate
-
-    use_today_title = target_date is None
-    if target_date is None:
-        target_date = time_sul().strftime("%Y-%m-%d")
-
-    gameinfo = read_history_date(target_date)
-
-    if not gameinfo:
-        return [] if candidates_only else None
-
-    candidates_by_game = {}
-    candidate_perspectives = []
-    filter_summary = {
-        "scanned": 0,
-        "official_map_rejected": 0,
-        "rule_rejected": 0,
-        "duplicate_perspectives": 0,
-        "detail_available": 0,
-    }
-
-    for player_data in gameinfo:
-        realname = player_data.get("key")
-        nick = player_data.get("nickname", realname)
-        details = player_data.get("details", [])
-        roleid = player_data.get("roleid")
-        for btl in details:
-            filter_summary["scanned"] += 1
-            if not check_btl_official_with_matching(btl.get("MapName", "")):
-                filter_summary["official_map_rejected"] += 1
-                continue
-
-            eligible, rejected_reasons = validate_candidate(btl, representative_battle_rules)
-            if not eligible:
-                filter_summary["rule_rejected"] += 1
-                continue
-
-            gameseq = btl.get("GameSeq")
-            try:
-                battle_detail = fetch_battle(gameseq, roleid)
-            except Exception:
-                battle_detail = None
-
-            scored = score_candidate(
-                battle=btl,
-                detail=battle_detail,
-                roleid=roleid,
-                rules=representative_battle_rules,
-            )
-            if scored["has_detail"]:
-                filter_summary["detail_available"] += 1
-
-            detail_factors = [item for item in scored["breakdown"] if item["source"] == "详情JSON"]
-            detail_reason = detail_factors[0]["condition"] if detail_factors else ""
-
-            btl_info = {
-                "realname": realname,
-                "nickname": nick,
-                "roleid": roleid,
-                "HeroName": btl.get("HeroName"),
-                "Result": btl.get("Result"),
-                "Grade": btl.get("GameGrade", 0),
-                "Kill": btl.get("KillCnt", 0),
-                "Dead": btl.get("DeadCnt", 0),
-                "Assist": btl.get("AssistCnt", 0),
-                "MapName": btl.get("MapName"),
-                "GameSeq": gameseq,
-                "GameTimeTimestamp": btl.get("GameTime_Timestamp", 0),
-                "Duration": btl.get("Duration_Second", 0),
-                "Others": btl.get("Others", ""),
-                "Params": btl.get("Params") or {},
-                "DetailReason": detail_reason,
-                "Tags": "".join(scored["tags"][:3]),
-                "RepScore": scored["score"],
-                "RawTags": scored["tags"],
-                "ScoreBreakdown": scored["breakdown"],
-                "RepresentativeCategory": scored["representative_category"],
-                "CategoryScores": scored["category_scores"],
-                "CategoryBreakdowns": scored["category_breakdowns"],
-                "DetailMetrics": scored["detail_metrics"],
-                "HasDetail": scored["has_detail"],
-                "RuleVersion": representative_battle_rules.get("version"),
-                "RejectedReasons": rejected_reasons,
-            }
-            candidate_perspectives.append(btl_info)
-
-            existing = candidates_by_game.get(str(gameseq))
-            if existing:
-                filter_summary["duplicate_perspectives"] += 1
-            if not existing or ranking_key(btl_info) > ranking_key(existing):
-                candidates_by_game[str(gameseq)] = btl_info
-
-    if candidates_only:
-        return candidate_perspectives
-
-    all_battles = list(candidates_by_game.values())
-    if not all_battles:
-        return None
-
-    all_battles.sort(key=ranking_key, reverse=True)
-    best_btl = all_battles[0]
-    filter_summary["eligible_unique_battles"] = len(all_battles)
-    best_btl["FilterSummary"] = filter_summary
-    best_btl["RankingKey"] = list(ranking_key(best_btl))
-
-    title_date = "今日" if use_today_title else target_date
-    match_info = _build_representative_battle_text(best_btl, title_date)
-
-    btl_img = None
-    try:
-        params = best_btl.get("Params") or {}
-        _, btl_img, _ = btldetail_process(
-            gameSvrId=params.get("gameSvrId", 0),
-            relaySvrId=params.get("relaySvrId", 0),
-            gameseq=best_btl["GameSeq"],
-            pvptype=params.get("pvptype", 0),
-            roleid=best_btl["roleid"],
-            gen_image=True,
-        )
-    except Exception:
-        log_message(f"GET_REP_BATTLE_DETAIL_ERROR: {traceback.format_exc()}")
-
-    best_btl["AiCommentary"] = None
-    try:
-        enriched = ai_parser([match_info], "best_battle")
-        if enriched and "Error" not in enriched:
-            best_btl["AiCommentary"] = enriched
-    except Exception:
-        pass
-    return match_info, btl_img, best_btl
+    return _representative_battle_business.get_daily_representative_battle(
+        target_date=target_date,
+        candidates_only=candidates_only,
+    )
 
 
 def representative_battle_query_impl(query_text):
-    """Return the public representative-battle payload without debug details."""
-    from .ztime import parse_representative_battle_date
-
-    target_date = parse_representative_battle_date(query_text)
-    representative_result = get_daily_representative_battle(target_date=target_date)
-    if not representative_result:
-        return {
-            "target_date": target_date,
-            "found": False,
-            "text": None,
-            "image_path": None,
-        }
-    if not isinstance(representative_result, (list, tuple)) or len(representative_result) < 2:
-        raise Exception(
-            "representative_battle_query_impl_error: "
-            f"target_date={target_date} result={representative_result!r}"
-        )
-    return {
-        "target_date": target_date,
-        "found": True,
-        "text": representative_result[0],
-        "image_path": representative_result[1],
-        "commentary": representative_result[2].get("AiCommentary"),
-    }
+    return _representative_battle_business.representative_battle_query_impl(query_text)
 
 
 def _build_representative_category_leader_text(category_label, candidate):
-    result_emoji = "🏆" if candidate.get("Result") == "胜利" else "🏳️"
-    category_score = (candidate.get("CategoryScores") or {}).get(category_label, 0)
-    return (
-        f"{category_label} {category_score}/100\n"
-        f"{candidate.get('nickname') or '未知玩家'} "
-        f"{candidate.get('HeroName') or '未知英雄'} "
-        f"{candidate.get('Kill', 0)}/{candidate.get('Dead', 0)}/{candidate.get('Assist', 0)} "
-        f"{candidate.get('MapName') or '未知地图'} {result_emoji}"
+    return _representative_battle_business._build_representative_category_leader_text(
+        category_label, candidate
     )
 
 
 def get_representative_battle_category_leaders(target_date):
-    """Return the top battle perspective for each category without rich output."""
-    from .tools.representative_battle import category_ranking_key
-
-    candidates = get_daily_representative_battle(target_date=target_date, candidates_only=True)
-    if not candidates:
-        return []
-
-    category_labels = [
-        representative_battle_rules["categories"][category_key]["label"]
-        for category_key in ("good", "bad", "extreme")
-    ]
-    leaders = []
-    for category_label in category_labels:
-        candidates_by_game = {}
-        for candidate in candidates:
-            game_key = str(candidate.get("GameSeq"))
-            existing = candidates_by_game.get(game_key)
-            if (
-                existing is None
-                or category_ranking_key(candidate, category_label)
-                > category_ranking_key(existing, category_label)
-            ):
-                candidates_by_game[game_key] = candidate
-        leader = max(
-            candidates_by_game.values(),
-            key=lambda candidate: category_ranking_key(candidate, category_label),
-        )
-        leaders.append({
-            "category": category_label,
-            "score": (leader.get("CategoryScores") or {}).get(category_label, 0),
-            "candidate": leader,
-            "text": _build_representative_category_leader_text(category_label, leader),
-        })
-    return leaders
+    return _representative_battle_business.get_representative_battle_category_leaders(
+        target_date
+    )
 
 
 def representative_battle_range_debug_impl(query_text):
-    """Build a text-only three-category leader report for an inclusive date range."""
-    from .ztime import inclusive_date_strings
-    from .ztime import parse_representative_battle_date_range
-
-    start_date, end_date = parse_representative_battle_date_range(query_text)
-    day_reports = []
-    for target_date in inclusive_date_strings(start_date, end_date):
-        leaders = get_representative_battle_category_leaders(target_date)
-        if leaders:
-            day_text = f"【{target_date}】\n" + "\n".join(leader["text"] for leader in leaders)
-        else:
-            day_text = f"【{target_date}】\n暂无对局"
-        day_reports.append(day_text)
-    return {
-        "start_date": start_date,
-        "end_date": end_date,
-        "day_reports": day_reports,
-    }
+    return _representative_battle_business.representative_battle_range_debug_impl(
+        query_text
+    )
 
 
-def extract_heroname(origin_text,precise=False):
-    if txt_contain("轮椅",origin_text,precise,True):
-        heroid=-1
-        while(True):
-            heroid = random.choice(list(HeroList))
-            heroname=safe_hero_name(heroid)
-            if(heroname in ["狂铁","沈梦溪","海诺","曹操","女娲","艾琳","张飞","嫦娥","元流之子(射手)","艾琳","杨戬","盾山","张飞","云缨"]):break
-        return heroid,heroname
-    if txt_contain("下水道",origin_text,precise,True):
-        heroid=-2
-        while(True):
-            heroid = random.choice(list(HeroList))
-            heroname=safe_hero_name(heroid)
-            if(heroname in ["安琪拉","马可波罗","扁鹊","钟无艳","伽罗","孙膑","李元芳","赵怀真","周瑜"]):break
-        return heroid,heroname
-    for is_origin in [True,False]:
-        for heroid,heroname in HeroList.items():
-            if txt_contain(heroname,origin_text,precise,is_origin):
-                return heroid,heroname
-        for heroid,heroname in HeroName_replacements.items():
-            if txt_contain(heroname,origin_text,precise,is_origin):
-                return heroid,safe_hero_name(heroid)
-    return None
-def txt_contain(x,y,p,ori):
-    if (ori):
-        if (p):
-            return x == y
-        else:
-            return x in y
-    else:
-        y_norm = str(y).lower().replace(' ', '')
-        if (p):
-            return _to_pinyin(x) == _to_pinyin(y_norm)
-        else:
-            return _to_pinyin(x) in _to_pinyin(y_norm)
+def extract_heroname(origin_text, precise=False):
+    return _history_query_business.extract_heroname(origin_text, precise=precise)
+
+
+def txt_contain(x, y, precise, is_origin):
+    return _history_query_business.txt_contain(x, y, precise, is_origin)
+
 
 def history_query_handler(rcv_msg):
-    from .zapi import ai_api
-    from .zfile import get_file_list, readerl
-    from .ztime import parse_fuzzy_time
-    import json
-    import re
+    return _history_query_business.history_query_handler(rcv_msg)
 
-    user_msg = rcv_msg.strip()
-    # 预替换：将用户常用口语/短语映射为规范查询表达，便于后续AI解析
-    from datetime import datetime,timedelta
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    date_1_days_ago = datetime.now() - timedelta(days=1)
-    date_1_days_ago_str = date_1_days_ago.strftime("%Y-%m-%d")
-    date_2_days_ago = datetime.now() - timedelta(days=2)
-    date_2_days_ago_str = date_2_days_ago.strftime("%Y-%m-%d")
-    date_7_days_ago = datetime.now() - timedelta(days=7)
-    date_7_days_ago_str = date_7_days_ago.strftime("%Y-%m-%d")
-    date_14_days_ago = datetime.now() - timedelta(days=14)
-    date_14_days_ago_str = date_14_days_ago.strftime("%Y-%m-%d")
-    date_30_days_ago = datetime.now() - timedelta(days=30)
-    date_30_days_ago_str = date_30_days_ago.strftime("%Y-%m-%d")
-    alias_map = {
-        "带飞": "评分高于",
-        "今天": f"{today_str}",
-        "昨天": f"{date_1_days_ago_str}",
-        "前天": f"{date_2_days_ago_str}",
-        "本赛季": f"{this_season_start_date}到{today_str}",
-        "这赛季": f"{this_season_start_date}到{today_str}",
-        "这个赛季": f"{this_season_start_date}到{today_str}",
-        "当前赛季": f"{this_season_start_date}到{today_str}",
-        "上个赛季": f"{last_season_start_date}到{last_season_end_date}",
-        "上赛季": f"{last_season_start_date}到{last_season_end_date}",
-        "上上个赛季": f"{pre_last_season_start_date}到{pre_last_season_end_date}",
-        "上上赛季": f"{pre_last_season_start_date}到{pre_last_season_end_date}",
-        "这周": f"{date_7_days_ago_str}到{today_str}",
-        "本周": f"{date_7_days_ago_str}到{today_str}",
-        "上周": f"{date_14_days_ago_str}到{date_7_days_ago_str}",
-        "本月": f"{date_30_days_ago_str}到{today_str}",
-        "这个月": f"{date_30_days_ago_str}到{today_str}"
-    }
-    # 优先替换较长键以避免短词匹配冲突
-    for k in sorted(alias_map.keys(), key=lambda x: -len(x)):
-        if k in user_msg:
-            user_msg = user_msg.replace(k, alias_map[k])
-    
-    # 引导AI返回结构化数据
-    prompt = f"""
-    你是一个针对《王者荣耀》战绩历史查询的助手。请从用户的描述中提取查询条件，并返回一个JSON对象。
-    支持的字段如下（如果没提到则为null）：
-    - PlayerName: 字符串，查询的主体玩家名称。
-    - HeroName: 字符串，指用户自己使用的英雄名称。
-    - Result: "胜利" 或 "失败"
-    - MapName: 字符串，地图/模式名称，仅限以下选项："排位赛", "排位赛 单排", "排位赛 双排", "排位赛 三排", "排位赛 五排", "巅峰赛", "匹配", "梦境大乱斗", "火焰山大战", "娱乐模式", "快速赛"
-    - GameTime: 字符串，指游戏开始的具体时间，要求格式"yyyy-mm-dd HH:MM"。
-    - FuzzyTime: 字符串，模糊时间描述，如"昨天下午","前天凌晨","上周中午"。
-    - DateRange: [start_date, end_date] 字符串数组，格式为 "yyyy-mm-dd"，表示查询的具体日期范围。如果用户提到如 "2024-01-01到2024-02-01" 或类似的明确日期，请填入此项。
-    - Position: 整数，分路位置：0为对抗路，1为中路，2为射手/发育路，3为打野，4为辅助。
-    - CoPlayers: 数组，同局玩家 [{{"Name": "玩家名", "Hero": "英雄名", "Grade": 评分 }}]。
-    - KDA: 数组 [击杀, 死亡, 助攻]。
-    - GameGrade: 浮点数，指定具体评分(近似)。
-    - Duration: 整数，游戏时长(秒)。
-    - Others: 字符串列表，包含 "MVP", "超神", "一血" 等关键词。
 
-    // 数值区间查询 (支持 "大于8分", "经济20%以上", "承伤30%到40%","伤害25%左右"(左右表示正负3%))
-    - GradeRange: [min, max] 浮点数，评分区间。
-    - MoneyRange: [min, max] 整数，经济占比(%)区间(0-100)。
-    - DamageRange: [min, max] 整数，伤害(对英雄)占比(%)区间(0-100)。
-    - DamageTakenRange: [min, max] 整数，承伤占比(%)区间(0-100)。
-    - ContributeRange: [min, max] 浮点数，团队贡献系数区间(通常在0.5-2.0之间)。
-    
-    // 排名查询 (支持 "评分第一", "全队评分第三")
-    - TeamGradeRank: 整数，队内评分排名(1-5)。
-    
-    // 比较查询 (如"A的评分比B高", "A的经济/伤害/承伤比B高", "A的贡献比B高")
-    // Operator 只支持 ">" (高于) 或 "<" (低于)
-    - ScoreComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
-    - MoneyComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
-    - DamageComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
-    - DamageTakenComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
-    - ContributeComparison: {{ "PlayerA": "名字", "PlayerB": "名字", "Operator": ">" }}
-    
-    用户描述：{user_msg}
-    对于区间，如果只说"大于X"，则为 [X, 100]；"小于X"，则为 [0, X]。
-    //以下是玩家名字的示例，请重点关注：
-    //{sum(nameref.values(), [])}
-    最终只需返回JSON，不要包含任何解释。
-    """
-    
-    try:
-        res_text = ai_api(prompt, temperature=0.1)
-        res_text = re.sub(r'```json\n|```', '', res_text).strip()
-        query_target = json.loads(res_text)
-    except Exception as e:
-        return f"查询失败: {str(e)}"
-    
-    # 预处理
-    # 1. 用extract_name解析玩家名字
-    PlayerName=None
-    if query_target.get("PlayerName"):
-        PlayerName = extract_name(query_target["PlayerName"])
-        if PlayerName: query_target["PlayerName"] = PlayerName # 更新为标准化名字
+def format_history_query_prefix(query_desc, stats):
+    return _history_query_business.format_history_query_prefix(query_desc, stats)
 
-    
-    # 2. 用extract_heroname解析英雄名称
-    if query_target.get("HeroName"):
-        herores = extract_heroname(query_target["HeroName"])
-        if herores: query_target["HeroName"] = herores[1]
-    
-    # 3. 解析同局玩家 (名字->RoleId, 英雄名标准化)
-    if query_target.get("CoPlayers"):
-        for player in query_target["CoPlayers"]:
-            # 英雄名标准化
-            if player.get("Hero"):
-                herores = extract_heroname(player["Hero"])
-                if herores: player["Hero"] = herores[1]
-            
-            # 玩家名 -> 真实名 -> RoleId
-            if player.get("Name"):
-                rname = extract_name(player["Name"])
-                if rname:
-                    player["RealName"] = rname
-                    player["Name"] = namenick.get(rname, rname)
-                    # 从 roleidlist 获取 RoleId
-                    if rname in roleidlist:
-                        player["RoleId"] = roleidlist[rname]
-                    elif rname in extra_roleidlist:
-                        player["RoleId"] = extra_roleidlist[rname]
 
-    # 4. 解析 Comparison 中的名字
-    comparison_fields = ["ScoreComparison", "MoneyComparison", "DamageComparison", "DamageTakenComparison", "ContributeComparison"]
-    for field in comparison_fields:
-        if query_target.get(field):
-            sc = query_target[field]
-            if sc.get("PlayerA"):
-                pn = extract_name(sc["PlayerA"])
-                if pn: sc["PlayerA"] = pn
-                
-            if sc.get("PlayerB"):
-                pn = extract_name(sc["PlayerB"])
-                if pn: sc["PlayerB"] = pn
+def history_query_single_match(detail, realname):
+    return btldetail_process(
+        **detail["Params"],
+        roleid=roleidlist[realname],
+        gen_image=True,
+        individual_show=True,
+    )
 
-    # 5. MapName 映射逻辑
-    map_targets = []
-    if query_target.get("MapName"):
-        mn = query_target["MapName"]
-        if mn == "排位赛":
-            map_targets = ["排位赛", "排位赛 双排", "排位赛 三排", "排位赛 五排"]
-        elif mn == "排位赛 单排":
-            map_targets = ["排位赛"]
-        elif mn == "匹配": # 匹配对应到王者峡谷
-            map_targets = ["王者峡谷"]
-        elif mn in ["娱乐", "娱乐模式"]: # 娱乐模式映射
-            map_targets = ["梦境大乱斗", "火焰山大战","无限乱斗"]
-        else:
-            map_targets = [mn]
-    
-    # 将查询条件转换为自然语言描述
-    desc_parts = []
-    if query_target.get("PlayerName"):
-        nick = namenick.get(query_target["PlayerName"], query_target["PlayerName"])
-        desc_parts.append(f"玩家: {nick}")
 
-    if query_target.get("GradeRange"):
-        desc_parts.append(f"评分区间: {query_target['GradeRange']}")
-    if query_target.get("MoneyRange"):
-        desc_parts.append(f"经济: {query_target['MoneyRange']}")
-    if query_target.get("DamageRange"):
-        desc_parts.append(f"伤害: {query_target['DamageRange']}")
-    if query_target.get("DamageTakenRange"):
-        desc_parts.append(f"承伤: {query_target['DamageTakenRange']}")
-    if query_target.get("ContributeRange"):
-        desc_parts.append(f"贡献: {query_target['ContributeRange']}")
-    if query_target.get("TeamGradeRank"):
-        desc_parts.append(f"评分排名: 第{query_target['TeamGradeRank']}")
-    comparison_labels = {
-        "ScoreComparison": "评分",
-        "MoneyComparison": "经济占比",
-        "DamageComparison": "伤害占比",
-        "DamageTakenComparison": "承伤占比",
-        "ContributeComparison": "贡献"
-    }
-    for field, label in comparison_labels.items():
-        if query_target.get(field):
-            sc = query_target[field]
-            nickA = namenick.get(sc.get('PlayerA'), sc.get('PlayerA'))
-            nickB = namenick.get(sc.get('PlayerB'), sc.get('PlayerB'))
-            op = "高于" if sc.get('Operator') == ">" else "低于"
-            desc_parts.append(f"{label}比较: {nickA} {op} {nickB}")
-    
-    if query_target.get("DateRange"):
-        desc_parts.append(f"时间范围: {'到'.join(query_target['DateRange'])}")
-    elif query_target.get("FuzzyTime"):
+def history_query_multiple_matches_link(query_target, matches):
+    from .zfile import write_web_history_payload
+    from .ztime import current_datetime_text, current_timestamp
 
-        desc_parts.append(f"模糊时间: {query_target['FuzzyTime']}")
-    elif query_target.get("GameTime"):
-        desc_parts.append(f"具体时间: {query_target['GameTime']}")
-        
-    if query_target.get("HeroName"):
-        desc_parts.append(f"英雄: {query_target['HeroName']}")
-        
-    if query_target.get("Position") is not None:
-        pos_names = ["对抗路", "中路", "发育路", "打野", "辅助"]
-        try:
-            desc_parts.append(f"分路: {pos_names[int(query_target['Position'])]}")
-        except: pass
-
-    if query_target.get("CoPlayers"):
-        cp_texts = []
-        for p in query_target["CoPlayers"]:
-            p_text = f"{p.get('Name','未知')}"
-            if p.get('Hero'): p_text += f"({p['Hero']})"
-            if p.get('Grade'): p_text += f"[{p['Grade']}分]"
-            cp_texts.append(p_text)
-        desc_parts.append(f"同局: {', '.join(cp_texts)}")
-
-    if query_target.get("MapName"):
-        desc_parts.append(f"地图: {query_target['MapName']}")
-        
-    if query_target.get("Result"):
-        desc_parts.append(f"结果: {query_target['Result']}")
-        
-    if query_target.get("KDA"):
-        try:
-            k, d, a = query_target["KDA"]
-            desc_parts.append(f"KDA约: {k}/{d}/{a}")
-        except: pass
-        
-    if query_target.get("GameGrade"):
-        desc_parts.append(f"评分约: {query_target['GameGrade']}")
-        
-    if query_target.get("Duration"):
-        try:
-            mins = query_target["Duration"] // 60
-            secs = query_target["Duration"] % 60
-            desc_parts.append(f"时长约: {mins}分{secs}秒")
-        except: pass
-        
-    if query_target.get("Others"):
-        desc_parts.append(f"其他: {' '.join(query_target['Others'])}")
-        
-    query_desc = " | ".join(desc_parts) if desc_parts else "全量查询"
-
-    # 至少指定2个条件
-    condition_count = 0
-    for k, v in query_target.items():
-        if k == "CoPlayers" and isinstance(v, list):
-            condition_count += len(v)
-        elif v:
-            condition_count += 1
-    if condition_count < 1:
-        return [query_target, f"至少指定1个查询条件", query_desc, {}]
-
-    matches = []
-    
-    # 解析时间范围
-    start_date, end_date = None, None
-    fetch_start, fetch_end = None, None
-    if query_target.get("DateRange"):
-        from .ztime import str_to_time
-        try:
-            start_date = str_to_time(query_target["DateRange"][0])
-            end_date = str_to_time(query_target["DateRange"][1])
-            start_date = start_date.replace(hour=0, minute=0, second=0)
-            end_date = end_date.replace(hour=23, minute=59, second=59)
-            fetch_start = start_date
-            fetch_end = end_date
-        except: pass
-    elif query_target.get("FuzzyTime"):
-        try:
-            start_date, end_date = parse_fuzzy_time(query_target["FuzzyTime"])
-            # fetch_history 按日期过滤，所以传整天
-            fetch_start = start_date.replace(hour=0, minute=0, second=0)
-            fetch_end = end_date.replace(hour=23, minute=59, second=59)
-        except:
-            pass
-
-    # 获取所有玩家的指定时间对局记录
-    history_data, _ = fetch_history(start_date=fetch_start, end_date=fetch_end, filter_official=False) 
-    
-    for realname, details in history_data.items():
-        # 如果指定玩家名且不匹配，则continue
-        if PlayerName and realname != PlayerName:
-            continue
-            
-        for detail in details:
-            is_match = True
-            btl_detail = None
-            all_roles = None
-            
-            # 英雄名 (_to_pinyin)
-            if query_target.get("HeroName"):
-                if _to_pinyin(query_target["HeroName"]) not in _to_pinyin(detail.get("HeroName", "")):
-                    is_match = False
-            
-            # 地图名 (包含匹配与映射)
-            if is_match and map_targets:
-                if not any(target == detail.get("MapName", "") for target in map_targets):
-                    is_match = False
-            
-            # 评分区间 (无需详情)
-            if is_match and query_target.get("GradeRange"):
-               try:
-                   grade = float(detail.get("GameGrade", -1))
-                   mn, mx = map(float, query_target["GradeRange"])
-                   if not (mn <= grade <= mx):
-                       is_match = False
-               except:
-                   is_match = False
-
-            # 分路位置查询 (Position)
-            if is_match and query_target.get("Position") is not None:
-                btl_detail = fetch_battle(detail["GameSeq"])
-                if not btl_detail:
-                    is_match = False
-                else:
-                    target_role_id = roleidlist.get(realname) or extra_roleidlist.get(realname)
-                    my_role = None
-                    all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
-                    for role in all_roles:
-                        if str(role.get('basicInfo', {}).get('roleId', '')) == str(target_role_id):
-                            my_role = role
-                            break
-                    if my_role:
-                        if int(my_role.get('battleRecords', {}).get('position', -1)) != int(query_target['Position']):
-                            is_match = False
-                    else:
-                        is_match = False
-
-            btl_detail = btl_detail if 'btl_detail' in locals() and btl_detail else None
-            all_roles = all_roles if 'all_roles' in locals() and all_roles else None
-
-            # ------------------------------------------------------------------
-            # (1) 同局玩家查询 (CoPlayers)
-            # ------------------------------------------------------------------
-            if is_match and query_target.get("CoPlayers"):
-                btl_detail = fetch_battle(detail["GameSeq"])
-                if (not btl_detail): # 由于从1月份才开始保存battle_info
-                    is_match = False # 如果指定了队友/对手，并且对局记录不存在，则直接忽略该对局
-                else:
-                    # 获取红蓝双方所有玩家
-                    all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
-                    
-                    found_all_coplayers = True
-                    for target_p in query_target["CoPlayers"]:
-                        found_this = False
-                        for role in all_roles:
-                            # 1. 名字/RoleId 匹配
-                            if target_p.get("RoleId"):
-                                if str(role.get('basicInfo', {}).get('roleId', '')) != str(target_p["RoleId"]):
-                                    continue
-                            elif target_p.get("Name"):
-                                role_name = role.get('basicInfo', {}).get('roleName', '')
-                                if target_p["Name"] not in role_name:
-                                    continue
-
-                            # 2. 英雄匹配 (已标准化)
-                            used_hero = role.get('battleRecords', {}).get('usedHero', {}).get('heroName', '')
-                            if target_p.get("Hero"):
-                                # 此处使用标准化后的名称进行对比，所以用精确匹配或拼音匹配
-                                if _to_pinyin(target_p["Hero"]) not in _to_pinyin(used_hero):
-                                    # 再尝试一下模糊包含
-                                    if not txt_contain(target_p["Hero"], used_hero, False, False):
-                                        continue
-                                
-                            # 3. 评分匹配 (误差0.5以内)
-                            if target_p.get("Grade"):
-                                try:
-                                    role_grade = float(role.get('battleStats', {}).get('gradeGame', -1))
-                                    target_grade = float(target_p["Grade"])
-                                    if abs(role_grade - target_grade) > 0.5: 
-                                        continue
-                                except:
-                                    continue
-                                    
-                            found_this = True
-                            break
-                        
-                        if not found_this:
-                            found_all_coplayers = False
-                            break
-                    
-                    if not found_all_coplayers:
-                        is_match = False
-
-            # ------------------------------------------------------------------
-            # (2) 详细数据查询 (Money, Damage, Rank, Comparison)
-            # ------------------------------------------------------------------
-            need_advanced_stats = (
-                query_target.get("MoneyRange") or 
-                query_target.get("DamageRange") or 
-                query_target.get("DamageTakenRange") or
-                query_target.get("ContributeRange") or
-                query_target.get("TeamGradeRank") or
-                query_target.get("ScoreComparison") or
-                query_target.get("MoneyComparison") or
-                query_target.get("DamageComparison") or
-                query_target.get("DamageTakenComparison") or
-                query_target.get("ContributeComparison")
-            )
-
-            if is_match and need_advanced_stats:
-                if not btl_detail:
-                    btl_detail = fetch_battle(detail["GameSeq"])
-                if btl_detail:
-                    all_roles = btl_detail.get('redRoles', []) + btl_detail.get('blueRoles', [])
-
-                if (not btl_detail):
-                    is_match = False
-                else:
-                    # 找到自己的Role (用于后续统计)
-                    my_role = None
-                    target_role_id = roleidlist.get(realname)
-                    if target_role_id:
-                        for r in all_roles:
-                             if str(r.get("basicInfo",{}).get("roleId")) == str(target_role_id):
-                                 my_role = r
-                                 break
-                    
-                    if is_match and my_role:
-                        my_camp = my_role.get("basicInfo", {}).get("acntCamp")
-                        team_roles = [r for r in all_roles if r.get("basicInfo", {}).get("acntCamp") == my_camp]
-                        
-                        stats = my_role.get("battleStats", {})
-                        
-                        # 经济占比区间
-                        if query_target.get("MoneyRange"):
-                            # try:
-                            total_money = sum(float(r.get("battleStats", {}).get("money", 0)) for r in team_roles)
-                            my_val = float(stats.get("money", 0))
-                            percent = (my_val / total_money * 100) if total_money > 0 else 0
-                            mn, mx = map(float, query_target["MoneyRange"])
-                            if not (mn <= percent <= mx): is_match = False
-                            # except: is_match = False
-                        
-                        # 伤害占比区间
-                        if is_match and query_target.get("DamageRange"):
-                            # try:
-                            total_hurt = sum(float(r.get("battleStats", {}).get("totalHeroHurtCnt", 0)) for r in team_roles)
-                            my_val = float(stats.get("totalHeroHurtCnt", 0))
-                            percent = (my_val / total_hurt * 100) if total_hurt > 0 else 0
-                            mn, mx = map(float, query_target["DamageRange"])
-                            if not (mn <= percent <= mx): is_match = False
-                            # except: is_match = False
-                                
-                        # 承伤占比区间
-                        if is_match and query_target.get("DamageTakenRange"):
-                            # try:
-                            total_behurt = sum(float(r.get("battleStats", {}).get("totalBeheroHurtCnt", 0)) for r in team_roles)
-                            my_val = float(stats.get("totalBeheroHurtCnt", 0))
-                            percent = (my_val / total_behurt * 100) if total_behurt > 0 else 0
-                            mn, mx = map(float, query_target["DamageTakenRange"])
-                            if not (mn <= percent <= mx): is_match = False
-                            # except: is_match = False
-
-                        # 贡献度系数区间
-                        if is_match and query_target.get("ContributeRange"):
-                            try:
-                                total_grade = sum(float(r.get("battleStats", {}).get("gradeGame", 0)) for r in team_roles)
-                                total_money = sum(float(r.get("battleStats", {}).get("money", 0)) for r in team_roles)
-                                my_grade = float(stats.get("gradeGame", 0))
-                                my_money = float(stats.get("money", 0))
-                                
-                                if total_grade > 0 and total_money > 0 and my_money > 0:
-                                    # factor = (5 * my_grade / total_grade) * pow((5 * my_money / total_money), -0.5)
-                                    term1 = (5 * my_grade / total_grade)
-                                    term2 = pow((5 * my_money / total_money), -0.5)
-                                    factor = term1 * term2
-                                    mn, mx = map(float, query_target["ContributeRange"])
-                                    if not (mn <= factor <= mx): is_match = False
-                                else:
-                                    is_match = False
-                            except: is_match = False
-                        
-                        # 队内评分排名
-                        if is_match and query_target.get("TeamGradeRank"):
-                            try:
-                                my_grade = float(my_role.get("battleStats", {}).get("gradeGame", -1))
-                                my_rank = 1
-                                for r in team_roles:
-                                    if str(r.get("basicInfo", {}).get("roleId")) == str(my_role.get("basicInfo", {}).get("roleId")):
-                                        continue
-                                    if float(r.get("battleStats", {}).get("gradeGame", -1)) > my_grade:
-                                        my_rank += 1
-                                
-                                target_rank = int(query_target["TeamGradeRank"])
-                                if my_rank != target_rank:
-                                    is_match = False
-                            except: is_match = False
-
-                    # 属性比较
-                    if is_match:
-                        def get_role_by_name(p_name):
-                            rid = roleidlist.get(p_name) or extra_roleidlist.get(p_name)
-                            for r in all_roles:
-                                if rid:
-                                    if str(r.get("basicInfo",{}).get("roleId")) == str(rid):
-                                        return r
-                                elif p_name and p_name in r.get("basicInfo", {}).get("roleName", ""):
-                                    return r
-                            return None
-
-                        def get_stat_value(role, field_name):
-                            stats = role.get("battleStats", {})
-                            if field_name == "ScoreComparison":
-                                return float(stats.get("gradeGame", -1))
-                            
-                            # 获取队伍总和
-                            camp = role.get("basicInfo", {}).get("acntCamp")
-                            t_roles = [x for x in all_roles if x.get("basicInfo", {}).get("acntCamp") == camp]
-                            
-                            if field_name == "MoneyComparison":
-                                total = sum(float(x.get("battleStats", {}).get("money", 0)) for x in t_roles)
-                                return (float(stats.get("money", 0)) / total * 100) if total > 0 else 0
-                            elif field_name == "DamageComparison":
-                                total = sum(float(x.get("battleStats", {}).get("totalHeroHurtCnt", 0)) for x in t_roles)
-                                return (float(stats.get("totalHeroHurtCnt", 0)) / total * 100) if total > 0 else 0
-                            elif field_name == "DamageTakenComparison":
-                                total = sum(float(x.get("battleStats", {}).get("totalBeheroHurtCnt", 0)) for x in t_roles)
-                                return (float(stats.get("totalBeheroHurtCnt", 0)) / total * 100) if total > 0 else 0
-                            elif field_name == "ContributeComparison":
-                                total_g = sum(float(x.get("battleStats", {}).get("gradeGame", 0)) for x in t_roles)
-                                total_m = sum(float(x.get("battleStats", {}).get("money", 0)) for x in t_roles)
-                                my_g = float(stats.get("gradeGame", 0))
-                                my_m = float(stats.get("money", 0))
-                                if total_g > 0 and total_m > 0 and my_m > 0:
-                                    return (5 * my_g / total_g) * pow((5 * my_m / total_m), -0.5)
-                                return 0
-                            return -1
-
-                        comp_fields = ["ScoreComparison", "MoneyComparison", "DamageComparison", "DamageTakenComparison", "ContributeComparison"]
-                        for field in comp_fields:
-                            if is_match and query_target.get(field):
-                                try:
-                                    sc = query_target[field]
-                                    pa, pb, op = sc.get("PlayerA"), sc.get("PlayerB"), sc.get("Operator")
-                                    roleA, roleB = get_role_by_name(pa), get_role_by_name(pb)
-
-                                    if roleA and roleB:
-                                        valA = get_stat_value(roleA, field)
-                                        valB = get_stat_value(roleB, field)
-                                        
-                                        if op == ">" and not (valA > valB): is_match = False
-                                        elif op == "<" and not (valA < valB): is_match = False
-                                    else: is_match = False
-                                except: is_match = False
-
-            # 输赢
-            if is_match and query_target.get("Result"):
-                if query_target["Result"] not in detail.get("Result", ""):
-                    is_match = False
-            
-            # KDA (略微近似, 每个值差值<=1)
-            if is_match and query_target.get("KDA"):
-                try:
-                    tk, td, ta = query_target["KDA"]
-                    dk, dd, da = detail.get("KillCnt", 0), detail.get("DeadCnt", 0), detail.get("AssistCnt", 0)
-                    if abs(int(tk) - int(dk)) > 1 or abs(int(td) - int(dd)) > 1 or abs(int(ta) - int(da)) > 1:
-                        is_match = False
-                except:
-                    pass
-            
-            # 评分 (略微近似, 差值<=0.5)
-            if is_match and query_target.get("GameGrade"):
-                try:
-                    if abs(float(detail.get("GameGrade", 0)) - float(query_target["GameGrade"])) > 0.5:
-                        is_match = False
-                except:
-                    pass
-            
-            # 时长 (略微近似, 差值<=60s)
-            if is_match and query_target.get("Duration"):
-                try:
-                    if abs(int(detail.get("Duration_Second", 0)) - int(query_target["Duration"])) > 60:
-                        is_match = False
-                except:
-                    pass
-            
-            # 游戏时间 (支持 30 分钟偏差)
-            if is_match and query_target.get("GameTime"):
-                t_time_str = str(query_target["GameTime"])
-                match_time = re.search(r'(\d{1,2}:\d{1,2})', t_time_str)
-                if match_time:
-                    t_hhmm = match_time.group(1)
-                    d_time_str = str(detail.get("GameTime", ""))
-                    match_time_d = re.search(r'(\d{1,2}:\d{1,2})', d_time_str)
-                    
-                    if match_time_d:
-                        d_hhmm = match_time_d.group(1)
-                        try:
-                            th, tm = map(int, t_hhmm.split(":"))
-                            dh, dm = map(int, d_hhmm.split(":"))
-                            diff = abs((th * 60 + tm) - (dh * 60 + dm))
-                            if diff > 12 * 60:
-                                diff = 24 * 60 - diff
-                            
-                            if diff > 30:
-                                is_match = False
-                        except:
-                            if t_hhmm not in d_time_str:
-                                is_match = False
-                    elif t_hhmm not in d_time_str:
-                        is_match = False
-            
-            # 如果有 FuzzyTime, 还需要额外过滤具体时间点 (fetch_history 只按日期过滤)
-            if is_match and start_date and end_date:
-                detail_time_str = str(detail.get("GameTime", ""))
-                if detail_time_str:
-                    try:
-                        from datetime import datetime
-                        # 尝试匹配完整日期格式 yyyy-mm-dd HH:MM
-                        full_match = re.search(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{1,2})', detail_time_str)
-                        current_detail_dt = None
-                        
-                        if full_match:
-                            y, m, d, H, M = map(int, full_match.groups())
-                            current_detail_dt = datetime(y, m, d, H, M)
-                        else:
-                            # 尝试匹配 HH:MM
-                            time_match = re.search(r'(\d{1,2}):(\d{1,2})', detail_time_str)
-                            if time_match:
-                                dt_h, dt_m = map(int, time_match.groups())
-                                current_detail_dt = start_date.replace(hour=dt_h, minute=dt_m)
-                        
-                        if current_detail_dt:
-                            if not (start_date <= current_detail_dt <= end_date):
-                                is_match = False
-                    except:
-                        pass
-
-            # Others (MVP/超神/一血)
-            if is_match and query_target.get("Others"):
-                d_others = detail.get("Others", "")
-                for keyword in query_target["Others"]:
-                    if keyword not in d_others:
-                        is_match = False
-                        break
-            
-            if is_match:
-                matches.append([detail, realname])
-    
-    # 去重: 对于gameseq相同的对局只保留一份
-    unique_matches = []
-    seen_gameseqs = set()
-    for m in matches:
-        # m[0] is detail
-        gs = m[0].get("GameSeq")
-        if gs and gs not in seen_gameseqs:
-            seen_gameseqs.add(gs)
-            unique_matches.append(m)
-    matches = unique_matches
-
-    # 统计数据
-    stats = {}
-    if matches:
-        total = len(matches)
-        wins = sum(1 for m, _ in matches if "胜利" in m.get("Result", ""))
-        total_grade = sum(float(m.get("GameGrade", 0)) for m, _ in matches)
-        total_k = sum(int(m.get("KillCnt", 0)) for m, _ in matches)
-        total_d = sum(int(m.get("DeadCnt", 0)) for m, _ in matches)
-        total_a = sum(int(m.get("AssistCnt", 0)) for m, _ in matches)
-        
-        stats = {
-            "total": total,
-            "wins": wins,
-            "win_rate": (wins / total * 100) if total > 0 else 0,
-            "avg_grade": (total_grade / total) if total > 0 else 0,
-            "total_k": total_k,
-            "total_d": total_d,
-            "total_a": total_a,
-            "avg_kda": (total_k + total_a) / max(total_d, 1)
-        }
-
-    return [query_target, matches, query_desc, stats]
+    now_time = current_datetime_text()
+    packed_data = _history_query_business.pack_history_query_matches(
+        matches,
+        roleidlist,
+        fetch_battle,
+    )
+    filename_hashed = WebArtifacts.make_hash(round(current_timestamp() * 1000000))
+    write_web_history_payload(filename_hashed, packed_data)
+    return WebArtifacts.history_route_link(
+        filename_hashed,
+        "query_select",
+        query_target,
+        now_time,
+    )

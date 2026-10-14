@@ -150,11 +150,12 @@ def _emoji_batch_classify_messages(messages):
             raise Exception("emoji_message_check_error: missing_index_result")
     return out
 
-def _emoji_pick_one_refined_message(user_qid: str):
-    from ..zmemory import instance as zm
+def _emoji_pick_one_refined_message(user_qid: str, group_id=None):
     import hashlib as _hashlib
 
-    recent_items = zm.load_user_recent_passive_items(user_qid, 8)
+    from .emoji_context import EmojiContext
+    context = EmojiContext(user_qid, group_id)
+    recent_items = context.recent()
     candidates = []
     for item in recent_items[::-1]:
         msg = (item.get("text", "") or "").strip()
@@ -171,7 +172,7 @@ def _emoji_pick_one_refined_message(user_qid: str):
     uncached_infos = []
 
     for info in candidates:
-        cached = zm.emoji.get_msg_action(user_qid, info["hash"])
+        cached = context.get_action(info["hash"])
         if cached is None:
             uncached_texts.append(info["raw"])
             uncached_infos.append(info)
@@ -183,11 +184,11 @@ def _emoji_pick_one_refined_message(user_qid: str):
         for info, res in zip(uncached_infos, results):
             action = (res.get("action") or "").strip()
             text = (res.get("text") or "").strip()
-            zm.emoji.set_msg_action(user_qid, info["hash"], action=action, text=text, raw_text=info["raw"])
+            context.set_action(info["hash"], action=action, text=text, raw_text=info["raw"])
 
     pool = []
     for info in candidates:
-        cached = zm.emoji.get_msg_action(user_qid, info["hash"])
+        cached = context.get_action(info["hash"])
         if cached is None:
             continue
         action = (cached.get("action") or "").strip()
@@ -195,12 +196,12 @@ def _emoji_pick_one_refined_message(user_qid: str):
         checked.append({"action": action, "text": text, "raw": info["raw"], "hash": info["hash"]})
         if action == "drop":
             continue
-        if action in {"use", "refine"} and text and not zm.emoji.msg_used(user_qid, info["hash"]):
+        if action in {"use", "refine"} and text and not context.used(info["hash"]):
             pool.append({"action": action, "text": text, "raw": info["raw"], "hash": info["hash"]})
 
     if pool:
         picked = random.choice(pool)
-        zm.emoji.mark_msg_used(user_qid, picked["hash"])
+        context.mark_used(picked["hash"])
         picked["checked"] = checked
         return picked
 
@@ -340,9 +341,8 @@ def _emoji_image_caption(text: str, max_chars: int = 10):
     caption = re.sub(r"[，,。.!！?？;；:：、~～…]+", "", caption)
     return caption[:max_chars]
 
-def _emoji_build_prompt(*, last_user_text: str, summary_2d: str, style_template: str = ""):
+def _emoji_build_prompt(*, last_user_text: str, style_template: str = ""):
     last_user_text = (last_user_text or "").strip()
-    summary_2d = (summary_2d or "").strip()
     caption = _emoji_image_caption(last_user_text)
     prompt = "请以参考图作为“画风与角色设定”参考生成一张静态图片。参考图仅用于风格与角色识别特征，不要把姿态、表情、镜头角度、构图一比一复刻。请根据用户上下文表达情绪与动作，多样化展示人物的姿态与表情（例如：开心/震惊/无语/生气/得意/委屈/疑惑等，对应不同动作与脸部表情）。"
     if style_template:
@@ -359,12 +359,10 @@ def _emoji_build_prompt(*, last_user_text: str, summary_2d: str, style_template:
     prompt += "\n- 背景尽量透明（PNG alpha），仅保留人物与文字元素；若无法透明则使用纯色简洁背景且不抢戏"
     prompt += "\n- 画面干净、清晰、适合作为表情包；不要水印；不要多张图；不要输出任何解释性文字"
     prompt += "\n\n用户最近发言:\n" + (last_user_text if last_user_text else "（空）")
-    prompt += "\n\n用户近2天发言总结:\n" + (summary_2d if summary_2d else "（空）")
     return prompt
 
-def _emoji_build_prompt_with_message(*, recent_msg: str, summary_2d: str, style_template: str = ""):
+def _emoji_build_prompt_with_message(*, recent_msg: str, style_template: str = ""):
     recent_msg = (recent_msg or "").strip()
-    summary_2d = (summary_2d or "").strip()
     caption = _emoji_image_caption(recent_msg)
     prompt = "请以参考图作为“画风与角色设定”参考生成一张静态图片。参考图仅用于风格与角色识别特征，不要把姿态、表情、镜头角度、构图一比一复刻。请根据用户上下文表达情绪与动作，多样化展示人物的姿态与表情（例如：开心/震惊/无语/生气/得意/委屈/疑惑等，对应不同动作与脸部表情）。"
     if style_template:
@@ -382,29 +380,26 @@ def _emoji_build_prompt_with_message(*, recent_msg: str, summary_2d: str, style_
     prompt += "\n- 画面干净、清晰、适合作为表情包；不要水印；不要多张图；不要输出任何解释性文字"
     prompt += "\n\n可用的最近发言(已筛选/润色，且本条不会重复使用):\n"
     prompt += (recent_msg if recent_msg else "（空）") + "\n"
-    prompt += "\n用户近2天发言总结:\n" + (summary_2d if summary_2d else "（空）")
     return prompt
 
-def _emoji_build_kmoji_prompt(*, last_user_text: str, summary_2d: str, prompt_tail: str, style_template: str = ""):
+def _emoji_build_kmoji_prompt(*, last_user_text: str, prompt_tail: str, style_template: str = ""):
     tail = (prompt_tail or "").strip()
     if tail:
         return "\n文案内容只需要：" + tail
 
-    return _emoji_build_prompt(last_user_text=last_user_text, summary_2d=summary_2d, style_template=style_template)
+    return _emoji_build_prompt(last_user_text=last_user_text, style_template=style_template)
 
-def generate_user_emoji_image(*, user_qid: str, size=None):
+def generate_user_emoji_image(*, user_qid: str, group_id=None, size=None):
     from ..zapi import apimart_images_generate
     from ..zfile import download_url_to_file, append_jsonl, ensure_dir
-    from ..zmemory import instance as zm
     from ..ztime import time_r
 
-    summary_2d = zm.load_user_summary_last_days(user_qid, 2)
 
     template_path = _emoji_pick_template_path(include_extra_dirs=False)
     reference_url, template_filename = _emoji_template_reference_url(template_path)
-    picked = _emoji_pick_one_refined_message(user_qid)
+    picked = _emoji_pick_one_refined_message(user_qid, group_id)
     style_template = _emoji_pick_style_template()
-    prompt = _emoji_build_prompt_with_message(recent_msg=picked.get("text", ""), summary_2d=summary_2d, style_template=style_template)
+    prompt = _emoji_build_prompt_with_message(recent_msg=picked.get("text", ""), style_template=style_template)
 
     if not size:
         size = getattr(dmc, "EmojiImageSize", None) or "2048x2048"
@@ -453,10 +448,9 @@ def generate_user_emoji_image(*, user_qid: str, size=None):
     append_jsonl(_emoji_meta_jsonl_path(), meta)
     return meta
 
-def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, template_num: int = None, template_name: str = None, template_prefix: str = None, prompt_tail: str = "", size=None):
+def generate_user_kmoji_image(*, user_qid: str, group_id=None, custom_image_url: str = None, template_num: int = None, template_name: str = None, template_prefix: str = None, prompt_tail: str = "", size=None):
     from ..zapi import apimart_images_generate
     from ..zfile import download_url_to_file, append_jsonl, ensure_dir, copyfile_to_dir
-    from ..zmemory import instance as zm
     from ..ztime import time_r
 
     use_default_template = False
@@ -467,18 +461,16 @@ def generate_user_kmoji_image(*, user_qid: str, custom_image_url: str = None, te
     picked = None
     tail = (prompt_tail or "").strip()
     if tail:
-        prompt = _emoji_build_kmoji_prompt(last_user_text="", summary_2d="", prompt_tail=tail, style_template=style_template)
-        summary_2d = ""
+        prompt = _emoji_build_kmoji_prompt(last_user_text="", prompt_tail=tail, style_template=style_template)
     else:
-        summary_2d = zm.load_user_summary_last_days(user_qid, 2)
-        picked = _emoji_pick_one_refined_message(user_qid)
-        prompt = _emoji_build_prompt_with_message(recent_msg=picked.get("text", ""), summary_2d=summary_2d, style_template=style_template)
+        picked = _emoji_pick_one_refined_message(user_qid, group_id)
+        prompt = _emoji_build_prompt_with_message(recent_msg=picked.get("text", ""), style_template=style_template)
 
     now = time_r()
     ts = now.strftime("%Y%m%d_%H%M%S")
 
     if use_default_template:
-        template_path = _emoji_pick_template_path()
+        template_path = _emoji_pick_template_path(include_extra_dirs=False)
         reference_url, _ = _emoji_template_reference_url(template_path)
     elif template_prefix:
         template_path = _emoji_pick_template_by_prefix(template_prefix)

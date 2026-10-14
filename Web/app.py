@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Request, HTTPException, Query, Body, Cookie
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.templating import Jinja2Templates
 
 import redis
+import asyncio
 import os
 import json
 import sys
@@ -12,22 +13,28 @@ import datetime
 import secrets
 import yaml
 import time
+import subprocess
+import shutil
 from urllib.parse import urlencode
-from dotenv import load_dotenv
-
-
+from runtime_config import RUNTIME, load_shared_config
 from utils import *
-
-env_path = "/QQBot/.env"
-load_dotenv(dotenv_path=env_path)
+from request_analytics import (
+    analytics_payload,
+    build_request_event,
+    cache_ip_geography,
+    enrich_request_event,
+    should_track_request,
+    store_request_event,
+)
+from health_diagnostics import run_chat_runtime_diagnostic
 
 # 引入变量
+confs = load_shared_config()
 variables_to_import = ["userlist", "roleidlist", "qid", "namenick", "nameref", "extra_useridlist", "extra_roleidlist", "extra_namenick"]
-variables_file_path = "../NBot/variables_static.json"
+config_file_path = str(RUNTIME.config_file)
 
 def reload_variables():
-    with open(variables_file_path, 'r', encoding='utf-8') as file:
-        data = json.load(file)
+    data = load_shared_config().get("StaticVariables", {})
     for var_name in variables_to_import:
         if var_name in data:
             globals()[var_name] = data[var_name]
@@ -36,31 +43,71 @@ def reload_variables():
 
 reload_variables()
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(RUNTIME.app_root / "templates"))
 # 引入Redis变量
-file_path_root=os.path.join(str(os.environ.get('BOT_PATH')),"file_transfer")
-redis_path=str(os.environ.get('REDIS_CONF'))
-with open(redis_path, 'r', encoding='utf-8') as file:
-    varia = json.load(file)
+file_path_root = str(RUNTIME.file_transfer_dir)
+varia = confs.get("Redis", {})
 globals().update(varia)
 
 # 初始化fastapi与redis
 app = FastAPI()
+APP_STARTED_AT = time.time()
 r_com = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
-r_liked_set = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_LIKED_SET)
-r_share_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_SHARE_QUEUE)
-r_analyze_queue=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_ANALYZE_QUEUE)
-r_chat = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB_CHAT_MEMORY)
+r_liked_set = r_com
+r_share_queue = r_com
+r_analyze_queue = r_com
+r_chat = r_com
+analytics_tasks = set()
+manual_health_check_lock = asyncio.Lock()
 
-confs = {}
-with open('../NBot/config.yaml', 'r') as file:
-    confs = yaml.load(file, Loader=yaml.FullLoader)
+WEB_ARTIFACT_PREFIX = "hok:web:artifact:"
+BATTLE_LIKED_IDS_KEY = "hok:battle:liked_ids"
+BATTLE_SHARE_QUEUE_KEY = "hok:queue:battle:share"
+BATTLE_ANALYZE_QUEUE_KEY = "hok:queue:battle:analyze"
+MEMORY_PREFIX = "hok:memory:"
+
+
+def web_artifact_storage_key(key: str) -> str:
+    return f"{WEB_ARTIFACT_PREFIX}{key}"
+
+
+def get_web_artifact(key: str):
+    return r_com.get(web_artifact_storage_key(key))
+
+
+def web_artifact_exists(key: str) -> bool:
+    return bool(r_com.exists(web_artifact_storage_key(key)))
+
 SECRET_KEY = confs["WebService"]["secret_key"]
 VALID_PATTERN = [int(item) for item in str(confs["WebService"]["valid_pattern"])]
 
+
+@app.middleware("http")
+async def collect_request_analytics(request: Request, call_next):
+    user_agent = str(request.headers.get("user-agent") or "")
+    track_request = should_track_request(request.url.path, request.method, user_agent)
+    started = time.perf_counter()
+    response = await call_next(request)
+    if track_request:
+        try:
+            event = build_request_event(
+                request,
+                response_status=response.status_code,
+                duration_ms=(time.perf_counter() - started) * 1000,
+            )
+            enrich_request_event(r_com, event, request.query_params.get("key"))
+            store_request_event(r_com, event)
+            if event.get("ip"):
+                task = asyncio.create_task(asyncio.to_thread(cache_ip_geography, r_com, event["ip"]))
+                analytics_tasks.add(task)
+                task.add_done_callback(analytics_tasks.discard)
+        except Exception as exc:
+            logging.warning("REQUEST_ANALYTICS_STORE_FAILED path=%s error=%r", request.url.path, exc)
+    return response
+
 def key_to_filename(key: str, reqtype: str):
     try:
-        content = json.loads(r_com.get(key).decode('utf-8'))
+        content = json.loads(get_web_artifact(key).decode('utf-8'))
         local_path=os.path.join("file_transfer","temp_files",content["filename"]+".json")
         return content,local_path
     except:
@@ -87,6 +134,383 @@ def is_mobile_request(request: Request):
         "micromessenger",
     )
     return any(token in user_agent for token in mobile_tokens)
+
+def health_service_names(env_name: str, defaults: list[str]) -> list[str]:
+    raw = os.environ.get(env_name)
+    if not raw:
+        return defaults
+    names = [item.strip() for item in raw.split(",") if item.strip()]
+    return names or defaults
+
+def run_health_command(command: list[str], timeout: float = 1.5) -> dict:
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        return {
+            "ok": result.returncode == 0,
+            "returncode": result.returncode,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+        }
+    except FileNotFoundError:
+        return {"ok": False, "error": "command_not_found"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "timeout"}
+    except Exception as exc:
+        return {"ok": False, "error": repr(exc)}
+
+def systemd_service_state(service_names: list[str]) -> dict:
+    if not shutil.which("systemctl"):
+        return {"available": False, "state": "unavailable"}
+
+    checked = {}
+    for service_name in service_names:
+        result = run_health_command(["systemctl", "is-active", service_name])
+        state = result.get("stdout") or result.get("stderr") or result.get("error") or "unknown"
+        checked[service_name] = state
+        if result.get("ok") and state == "active":
+            return {"available": True, "state": "active", "matched": service_name, "checked": checked}
+
+    return {"available": True, "state": "inactive", "checked": checked}
+
+def process_snapshot() -> list[dict]:
+    result = run_health_command(["ps", "-eo", "pid=,comm=,args="])
+    if not result.get("ok"):
+        result = run_health_command(["ps", "-axo", "pid=,comm=,args="])
+    if not result.get("ok"):
+        return []
+
+    processes = []
+    current_pid = os.getpid()
+    for line in result.get("stdout", "").splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) < 2:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        if pid == current_pid:
+            continue
+        processes.append({
+            "pid": pid,
+            "command": os.path.basename(parts[1]),
+            "args": parts[2] if len(parts) > 2 else parts[1],
+        })
+    return processes
+
+def summarize_processes(processes: list[dict], matcher) -> dict:
+    shell_commands = {"bash", "dash", "fish", "sh", "zsh"}
+    matches = [proc for proc in processes if proc["command"] not in shell_commands and matcher(proc)]
+    return {
+        "count": len(matches),
+        "pids": [proc["pid"] for proc in matches[:5]],
+        "commands": sorted({proc["command"] for proc in matches})[:5],
+    }
+
+def git_repository_info(path: str) -> dict:
+    if not path or not os.path.exists(path):
+        return {"status": "missing", "path": path}
+    if not shutil.which("git"):
+        return {"status": "unknown", "path": path, "error": "git_command_not_found"}
+
+    root_result = run_health_command(["git", "-C", path, "rev-parse", "--show-toplevel"])
+    if not root_result.get("ok"):
+        return {
+            "status": "unknown",
+            "path": path,
+            "error": root_result.get("stderr") or root_result.get("error") or "not_a_git_repository",
+        }
+
+    repo_root = root_result.get("stdout") or path
+    head_result = run_health_command(["git", "-C", repo_root, "rev-parse", "HEAD"])
+    short_head_result = run_health_command(["git", "-C", repo_root, "rev-parse", "--short", "HEAD"])
+    branch_result = run_health_command(["git", "-C", repo_root, "rev-parse", "--abbrev-ref", "HEAD"])
+    if not head_result.get("ok"):
+        return {
+            "status": "unknown",
+            "path": path,
+            "root": repo_root,
+            "error": head_result.get("stderr") or head_result.get("error") or "head_unavailable",
+        }
+
+    return {
+        "status": "ok",
+        "path": path,
+        "root": repo_root,
+        "head": head_result.get("stdout"),
+        "short_head": short_head_result.get("stdout") if short_head_result.get("ok") else None,
+        "branch": branch_result.get("stdout") if branch_result.get("ok") else None,
+    }
+
+def check_redis_health(processes: list[dict]) -> dict:
+    started = time.time()
+    systemd = systemd_service_state(health_service_names("HEALTH_REDIS_SERVICES", ["redis", "redis-server"]))
+    process_info = summarize_processes(
+        processes,
+        lambda proc: proc["command"] == "redis-server" or "redis-server" in proc["args"].lower(),
+    )
+    try:
+        r_com.ping()
+        latency_ms = round((time.time() - started) * 1000, 2)
+        info = {}
+        try:
+            raw_info = r_com.info(section="server")
+            info["redis_version"] = raw_info.get("redis_version")
+        except Exception:
+            pass
+        return {
+            "status": "ok",
+            "latency_ms": latency_ms,
+            "host": REDIS_HOST,
+            "port": REDIS_PORT,
+            "systemd": systemd,
+            "processes": process_info,
+            "dbs": {
+                "hok": REDIS_DB,
+            },
+            "queues": {
+                BATTLE_SHARE_QUEUE_KEY: r_share_queue.llen(BATTLE_SHARE_QUEUE_KEY),
+                BATTLE_ANALYZE_QUEUE_KEY: r_analyze_queue.llen(BATTLE_ANALYZE_QUEUE_KEY),
+            },
+            **info,
+        }
+    except Exception as exc:
+        return {
+            "status": "down",
+            "host": REDIS_HOST,
+            "port": REDIS_PORT,
+            "systemd": systemd,
+            "processes": process_info,
+            "error": repr(exc),
+        }
+
+def check_nginx_health(processes: list[dict]) -> dict:
+    service_names = health_service_names("HEALTH_NGINX_SERVICES", ["nginx"])
+    systemd = systemd_service_state(service_names)
+    process_info = summarize_processes(
+        processes,
+        lambda proc: proc["command"] == "nginx" or "nginx:" in proc["args"].lower(),
+    )
+    status = "ok" if systemd.get("state") == "active" or process_info["count"] > 0 else "down"
+    return {
+        "status": status,
+        "systemd": systemd,
+        "processes": process_info,
+    }
+
+def qqbot_path_candidates() -> list[str]:
+    candidates = [
+        os.environ.get("QQBOT_PATH"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "HOK_QQBot")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "NBot")),
+    ]
+    deduped = []
+    for path in candidates:
+        if path and path not in deduped:
+            deduped.append(path)
+    return deduped
+
+def check_qqbot_health(processes: list[dict]) -> dict:
+    service_names = health_service_names(
+        "HEALTH_QQBOT_SERVICES",
+        ["hok-nbot", "hok-qqbot", "hok_qqbot", "HOK_QQBot", "qqbot", "nonebot"],
+    )
+    systemd = systemd_service_state(service_names)
+    path_candidates = qqbot_path_candidates()
+    existing_paths = [path for path in path_candidates if os.path.exists(path)]
+    normalized_paths = [path.lower() for path in path_candidates]
+
+    def matches_qqbot_process(proc: dict) -> bool:
+        args = proc["args"].lower()
+        if "hok_qqbot_web" in args or "hok_qqbot_web" in proc["command"].lower():
+            return False
+        if "nb run" in args or "nonebot" in args:
+            return True
+        return any(path and path in args for path in normalized_paths)
+
+    process_info = summarize_processes(processes, matches_qqbot_process)
+    status = "ok" if systemd.get("state") == "active" or process_info["count"] > 0 else "down"
+    if status == "down" and existing_paths:
+        status = "degraded"
+    repository_path = existing_paths[0] if existing_paths else (path_candidates[0] if path_candidates else "")
+
+    return {
+        "status": status,
+        "systemd": systemd,
+        "processes": process_info,
+        "repository": git_repository_info(repository_path),
+        "paths": {
+            "configured": path_candidates,
+            "existing": existing_paths,
+        },
+    }
+
+def onebot_path_candidates() -> list[str]:
+    candidates = [
+        os.environ.get("ONEBOT_PATH"),
+        os.environ.get("NAPCAT_PATH"),
+        str(RUNTIME.napcat_root),
+    ]
+    deduped = []
+    for path in candidates:
+        if path and path not in deduped:
+            deduped.append(path)
+    return deduped
+
+def check_onebot_health(processes: list[dict]) -> dict:
+    service_names = health_service_names(
+        "HEALTH_ONEBOT_SERVICES",
+        ["hok-napcat", "napcat", "NapCat", "onebot", "qq"],
+    )
+    systemd = systemd_service_state(service_names)
+    path_candidates = onebot_path_candidates()
+    existing_paths = [path for path in path_candidates if os.path.exists(path)]
+    normalized_paths = [path.lower() for path in path_candidates]
+
+    def matches_onebot_process(proc: dict) -> bool:
+        args = proc["args"].lower()
+        command = proc["command"].lower()
+        if "napcat" in args or "onebot" in args:
+            return True
+        if command == "qq" and any(path and path in args for path in normalized_paths):
+            return True
+        return False
+
+    process_info = summarize_processes(processes, matches_onebot_process)
+    status = "ok" if systemd.get("state") == "active" or process_info["count"] > 0 else "down"
+    if status == "down" and existing_paths:
+        status = "degraded"
+
+    return {
+        "status": status,
+        "systemd": systemd,
+        "processes": process_info,
+        "paths": {
+            "configured": path_candidates,
+            "existing": existing_paths,
+        },
+    }
+
+def service_overall_status(services: dict) -> str:
+    if any(services[name]["status"] == "down" for name in ("web", "redis", "postgres")):
+        return "down"
+    if any(item["status"] != "ok" for item in services.values()):
+        return "degraded"
+    return "ok"
+
+def compact_repository_info(repository: dict) -> dict:
+    if repository.get("status") != "ok":
+        return {"status": repository.get("status", "unknown")}
+    return {
+        "commit": repository.get("short_head"),
+        "branch": repository.get("branch"),
+    }
+
+def compact_process_info(processes: dict) -> dict:
+    return {
+        "count": processes.get("count", 0),
+        "commands": processes.get("commands", []),
+    }
+
+def compact_service_state(service: dict) -> str:
+    systemd = service.get("systemd", {})
+    if systemd.get("matched"):
+        return f"{systemd.get('matched')}:{systemd.get('state')}"
+    return systemd.get("state", "unknown")
+
+def remove_empty_health_fields(value):
+    if isinstance(value, dict):
+        return {
+            key: remove_empty_health_fields(item)
+            for key, item in value.items()
+            if item is not None and item != []
+        }
+    return value
+
+def compact_health_payload(services: dict) -> dict:
+    overall_status = service_overall_status(services)
+    if overall_status == "ok":
+        return {"status": "ok"}
+
+    return remove_empty_health_fields({
+        "status": overall_status,
+        "time": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "web": {
+            "status": services["web"]["status"],
+            "pid": services["web"]["pid"],
+            "uptime_seconds": services["web"]["uptime_seconds"],
+            **compact_repository_info(services["web"]["repository"]),
+        },
+        "redis": {
+            "status": services["redis"]["status"],
+            "service": compact_service_state(services["redis"]),
+            "processes": compact_process_info(services["redis"].get("processes", {})),
+            "latency_ms": services["redis"].get("latency_ms"),
+            "version": services["redis"].get("redis_version"),
+            "queues": services["redis"].get("queues"),
+            "error": services["redis"].get("error"),
+        },
+        "postgres": services["postgres"],
+        "nginx": {
+            "status": services["nginx"]["status"],
+            "service": compact_service_state(services["nginx"]),
+            "processes": compact_process_info(services["nginx"].get("processes", {})),
+        },
+        "qqbot": {
+            "status": services["qqbot"]["status"],
+            "service": compact_service_state(services["qqbot"]),
+            "processes": compact_process_info(services["qqbot"].get("processes", {})),
+            **compact_repository_info(services["qqbot"]["repository"]),
+        },
+        "onebot": {
+            "status": services["onebot"]["status"],
+            "service": compact_service_state(services["onebot"]),
+            "processes": compact_process_info(services["onebot"].get("processes", {})),
+        },
+    })
+
+def collect_health_services() -> dict:
+    processes = process_snapshot()
+    return {
+        "web": {
+            "status": "ok",
+            "pid": os.getpid(),
+            "uptime_seconds": int(time.time() - APP_STARTED_AT),
+            "repository": git_repository_info(os.path.dirname(os.path.abspath(__file__))),
+        },
+        "redis": check_redis_health(processes),
+        "postgres": check_postgres_health(),
+        "nginx": check_nginx_health(processes),
+        "qqbot": check_qqbot_health(processes),
+        "onebot": check_onebot_health(processes),
+    }
+
+def manual_health_service_summary(services: dict) -> dict:
+    return {
+        name: {
+            "status": item.get("status", "unknown"),
+            **({"latency_ms": item.get("latency_ms")} if item.get("latency_ms") is not None else {}),
+            **(
+                {"commit": item.get("repository", {}).get("short_head")}
+                if item.get("repository", {}).get("short_head") else {}
+            ),
+        }
+        for name, item in services.items()
+    }
+
+@app.get("/health")
+async def health_check():
+    services = collect_health_services()
+    return Response(
+        json.dumps(compact_health_payload(services), ensure_ascii=False, indent=2),
+        media_type="application/json",
+    )
 
 @app.exception_handler(404)
 async def not_found_exception_handler(request: Request, exc: HTTPException):
@@ -209,6 +633,13 @@ async def show_benefit_visualizer(request: Request, key: str):
         }
     )
 
+@app.get("/chat-trace", response_class=HTMLResponse)
+async def show_chat_trace(request: Request, key: str = ""):
+    from chat_trace import chat_trace_response
+
+    return await chat_trace_response(request, key, load_artifact=get_web_artifact, templates=templates)
+
+
 @app.get("/bili-video")
 async def show_bili_video(request: Request, key: str):
     if os.path.basename(key) != key or key in ("", ".", ".."):
@@ -216,7 +647,7 @@ async def show_bili_video(request: Request, key: str):
             "ErrorPages/illegal.html",{"request": request,"message":"key非法"}
         )
     try:
-        raw = r_com.get(key)
+        raw = get_web_artifact(key)
         if not raw:
             raise ValueError("empty bili video payload")
         video = json.loads(raw.decode("utf-8"))
@@ -254,7 +685,19 @@ async def show_bili_video(request: Request, key: str):
 def check_key_valid(key:str, reqtype:str):
     if key is None:
         return False
-    return r_com.exists(key) or key==SECRET_KEY
+    return key==SECRET_KEY or web_artifact_exists(key)
+
+
+@app.get("/battle-data/{game_seq}")
+async def battle_data(game_seq: str, roleid: str = Query("0")):
+    if not game_seq.isdigit() or not str(roleid).isdigit():
+        raise HTTPException(status_code=400, detail="invalid battle identifier")
+    payload = fetch_battle(game_seq, int(roleid))
+    if not payload:
+        raise HTTPException(status_code=404, detail="battle detail not found")
+    return JSONResponse(content=payload)
+
+
 @app.get("/jump-person", response_class=HTMLResponse)
 async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query(None), AdminKey: str = Cookie(None)):
     final_key = key or AdminKey
@@ -289,7 +732,7 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
     if (check_battle_local_exist(gameSeq,targetRoleId)):
-        web_path=os.path.join("file_transfer","battles",gameSeq+".json")
+        web_path=f"/battle-data/{gameSeq}?roleid={targetRoleId}"
     else:
         try:
             res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
@@ -327,8 +770,11 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
             }
         )
     happen_time=int(time.time())
-    if (r_liked_set.exists(gameSeq)):
-        result=r_liked_set.delete(gameSeq) 
+    is_liked = bool(
+        r_liked_set.sismember(BATTLE_LIKED_IDS_KEY, gameSeq)
+    )
+    if is_liked:
+        r_liked_set.srem(BATTLE_LIKED_IDS_KEY, gameSeq)
         success_data={
             "success": True,
             "message": "取消收藏成功",
@@ -338,7 +784,7 @@ async def like_btldetail(request:Request,gameSeq: str,key:str = Query(None), Adm
             }
         }
     else:
-        r_liked_set.set(gameSeq,happen_time)
+        r_liked_set.sadd(BATTLE_LIKED_IDS_KEY, gameSeq)
         success_data={
             "success": True,
             "message": "收藏成功",
@@ -369,7 +815,7 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
     }
     try:
         json_params = json.dumps(params)
-        result = r_share_queue.lpush("Shared_queue", json_params)
+        result = r_share_queue.lpush(BATTLE_SHARE_QUEUE_KEY, json_params)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -379,7 +825,7 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
                 "error_code": "DB_OPERATION_ERROR"
             }
         )
-    
+
     happen_time=int(time.time())
     success_data={
         "success": True,
@@ -416,7 +862,7 @@ async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRole
     }
     try:
         json_params = json.dumps(params)
-        result = r_analyze_queue.lpush("Analyze_queue", json_params)
+        result = r_analyze_queue.lpush(BATTLE_ANALYZE_QUEUE_KEY, json_params)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -426,7 +872,7 @@ async def analyze_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRole
                 "error_code": "DB_OPERATION_ERROR"
             }
         )
-    
+
     happen_time=int(time.time())
     success_data={
         "success": True,
@@ -456,7 +902,7 @@ async def admin_verify(request: Request, pattern: str):
 
     else:
         return {"state": "success","message":"认证成功","key": SECRET_KEY}
-        
+
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
     return templates.TemplateResponse("AdminPages/AdminLogin.html", {"request": request})
@@ -482,6 +928,64 @@ async def admin_dashboard_page(request: Request, AdminKey: str = Cookie(None)):
             "AdminKey": AdminKey
         }
     )
+
+@app.get("/admin/funcs/request-analytics", response_class=HTMLResponse)
+async def admin_request_analytics_page(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login")
+    return templates.TemplateResponse(
+        "AdminPages/RequestAnalytics.html",
+        {
+            "request": request,
+            "AdminKey": AdminKey,
+        }
+    )
+
+@app.get("/admin/funcs/health-check", response_class=HTMLResponse)
+async def admin_health_check_page(request: Request, AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login")
+    return templates.TemplateResponse(
+        "AdminPages/HealthCheck.html",
+        {"request": request, "AdminKey": AdminKey},
+    )
+
+@app.post("/admin/funcs/health-check/run")
+async def admin_health_check_run(AdminKey: str = Cookie(None)):
+    if AdminKey != SECRET_KEY:
+        return JSONResponse({"status": "error", "message": "认证失败"}, status_code=401)
+    if manual_health_check_lock.locked():
+        return JSONResponse(
+            {"status": "error", "message": "已有一项深度诊断正在运行"},
+            status_code=409,
+        )
+    async with manual_health_check_lock:
+        services = await asyncio.to_thread(collect_health_services)
+        platform_status = service_overall_status(services)
+        chat_report = await asyncio.to_thread(run_chat_runtime_diagnostic, RUNTIME.nbot_root)
+    status = "failed" if chat_report.get("status") != "ok" or platform_status == "down" else platform_status
+    return JSONResponse({
+        "status": status,
+        "platform_status": platform_status,
+        "services": manual_health_service_summary(services),
+        "chat": chat_report,
+    })
+
+@app.get("/admin/funcs/request-analytics/data")
+async def admin_request_analytics_data(
+    limit: int = Query(200, ge=1, le=500),
+    AdminKey: str = Cookie(None),
+):
+    if AdminKey != SECRET_KEY:
+        return JSONResponse({"status": "error", "message": "认证失败"}, status_code=401)
+    try:
+        return JSONResponse(analytics_payload(r_com, SECRET_KEY, limit=limit))
+    except Exception as exc:
+        logging.exception("REQUEST_ANALYTICS_READ_FAILED error=%r", exc)
+        return JSONResponse(
+            {"status": "error", "message": "访问统计读取失败"},
+            status_code=500,
+        )
 
 @app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)
 async def jump_admin_page(request: Request, AdminKey: str = Cookie(None)):
@@ -528,8 +1032,8 @@ async def admin_chat_viewer_page(request: Request, AdminKey: str = Cookie(None))
 async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
         return {"status": "error", "message": "认证失败"}
-    
-    prefix = "zmem:"
+
+    prefix = MEMORY_PREFIX
     try:
         if mode == "forced":
             # 获取长效记忆 (forced_mem)
@@ -540,7 +1044,7 @@ async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: st
                 for k in all_keys:
                     key_str = k.decode('utf-8')
                     qid_part = key_str.split(":")[-1]
-                    raw_records = r_chat.lrange(k, 0, -1) 
+                    raw_records = r_chat.lrange(k, 0, -1)
                     for idx, r in enumerate(raw_records):
                         item = json.loads(r.decode('utf-8'))
                         records.append({
@@ -657,7 +1161,7 @@ async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: st
                 for idx, r in enumerate(raw_records):
                     records.append({**json.loads(r.decode('utf-8')), "idx": idx, "qid": target_qid})
                 records.reverse()
-        
+
         return {"status": "success", "records": records}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -666,11 +1170,11 @@ async def fetch_chat_records(target_qid: str, mode: str = "active", AdminKey: st
 async def memory_operation(op: str = Body(...), qid: str = Body(...), mode: str = Body("forced"), content: str = Body(None), idx: int = Body(None), AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
         return {"status": "error", "message": "认证失败"}
-    
+
     mapping = {"forced": "forced_mem", "active": "active_chat", "passive": "passive_chat", "summary": "summary_mem"}
     if mode not in mapping: return {"status": "error", "message": "未知模式"}
-    
-    key = f"zmem:{mapping[mode]}:{qid}"
+
+    key = f"{MEMORY_PREFIX}{mapping[mode]}:{qid}"
     try:
         if op == "add":
             item = {"time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -680,11 +1184,11 @@ async def memory_operation(op: str = Body(...), qid: str = Body(...), mode: str 
             elif mode == "summary": item["summary"] = content
             r_chat.rpush(key, json.dumps(item, ensure_ascii=False))
             r_chat.ltrim(key, -100, -1)
-        
+
         elif op == "delete":
             target_val = r_chat.lindex(key, idx)
             if target_val: r_chat.lrem(key, 1, target_val)
-        
+
         elif op == "update":
             old_val_raw = r_chat.lindex(key, idx)
             if old_val_raw:
@@ -693,7 +1197,7 @@ async def memory_operation(op: str = Body(...), qid: str = Body(...), mode: str 
                 elif mode == "passive": item["text"] = content
                 elif mode == "forced": item["mem"] = content
                 elif mode == "summary": item["summary"] = content
-                
+
                 # 更新时间并打上修改标记
                 item["time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (已修改)"
                 r_chat.lset(key, idx, json.dumps(item, ensure_ascii=False))
@@ -723,9 +1227,10 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
     if AdminKey != SECRET_KEY:
         return JSONResponse({"status": "error", "message": "AdminKey失效"}, status_code=401)
     try:
-        with open(variables_file_path, 'r', encoding='utf-8') as f:
-            full_data = json.load(f)
-        
+        with open(config_file_path, 'r', encoding='utf-8') as f:
+            full_config = yaml.safe_load(f) or {}
+        full_data = full_config.setdefault("StaticVariables", {})
+
         for change in changes:
             op = change.get('op')
             ctype = change.get('type')
@@ -751,16 +1256,22 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
                     if f_name in full_data and ckey in full_data[f_name]:
                         del full_data[f_name][ckey]
 
-        with open(variables_file_path, 'w', encoding='utf-8') as f:
-            json.dump(full_data, f, ensure_ascii=False, indent=2)
-        
+        temporary_path = config_file_path + ".tmp"
+        with open(temporary_path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump(full_config, f, allow_unicode=True, sort_keys=False)
+        os.replace(temporary_path, config_file_path)
+
         # 同步更新到内存中的全局变量
         reload_variables()
-                
+
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=os.environ.get("HOK_WEB_HOST", "127.0.0.1"),
+        port=int(os.environ.get("HOK_WEB_PORT", "8000")),
+    )

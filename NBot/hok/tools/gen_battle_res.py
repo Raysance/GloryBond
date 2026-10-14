@@ -337,6 +337,18 @@ class BattleUIGenerator:
         # 应用遮罩
         hero_img.putalpha(mask)
         img.paste(hero_img, (self.padding + 20, y_offset + 60), hero_img)
+
+        # 召唤师技能：右下角叠放，不占用额外横向空间
+        skill = battle_records.get('skill', {}) or {}
+        if skill.get('skillIcon'):
+            skill_img = self._download_image(skill['skillIcon'], (30, 30))
+            skill_x = self.padding + 76
+            skill_y = y_offset + 116
+            draw.ellipse(
+                [skill_x - 2, skill_y - 2, skill_x + 32, skill_y + 32],
+                fill=(255, 255, 255, 255),
+            )
+            img.paste(skill_img, (skill_x, skill_y), skill_img)
         
         # 玩家名称
         player_name = head.get('roleName', '未知玩家')
@@ -596,6 +608,18 @@ class BattleUIGenerator:
         hero_img.putalpha(mask)
         
         img.paste(hero_img, (x + 10, y + 15), hero_img)
+
+        # 召唤师技能叠放在英雄头像右下角，保持卡片其他数据对齐
+        skill = battle_records.get('skill', {}) or {}
+        if skill.get('skillIcon'):
+            skill_img = self._download_image(skill['skillIcon'], (20, 20))
+            skill_x = x + 42
+            skill_y = y + 44
+            draw.ellipse(
+                [skill_x - 2, skill_y - 2, skill_x + 22, skill_y + 22],
+                fill=(255, 255, 255, 255),
+            )
+            img.paste(skill_img, (skill_x, skill_y), skill_img)
         
         # 玩家名称
         player_name = basic_info.get('roleName', '未知玩家')

@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import datetime
 import importlib
-import json
 import os
 from pathlib import Path
 import sys
-import tempfile
 import types
 
 
@@ -22,32 +20,6 @@ def _ensure_sys_path(root: Path) -> None:
     root_text = str(root)
     if root_text not in sys.path:
         sys.path.insert(0, root_text)
-
-
-def _ensure_redis_conf() -> None:
-    """Ensure REDIS_CONF points to a readable local config."""
-    redis_conf = os.environ.get("REDIS_CONF")
-    if redis_conf and Path(redis_conf).exists():
-        return
-    root = project_root()
-    config = {
-        "BOT_PATH": str(root),
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": 6379,
-        "REDIS_DB": 0,
-        "REDIS_DB_LIKED_SET": 1,
-        "REDIS_DB_SHARE_QUEUE": 2,
-        "REDIS_DB_ANALYZE_QUEUE": 3,
-        "REDIS_DB_MESSAGE_QUEUE": 4,
-        "REDIS_DB_TODAY_HERO_POOL": 5,
-        "REDIS_DB_BTL_ANALYZE_EVALUATOR_POOL": 6,
-        "REDIS_DB_DIY_CODE": 7,
-        "REDIS_DB_CHAT_MEMORY": 8,
-        "REDIS_TEXT_EXPIRE_SECONDS": 3600,
-    }
-    path = Path(tempfile.gettempdir()) / "hok_local_debug_redis_conf.json"
-    path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
-    os.environ["REDIS_CONF"] = str(path)
 
 
 def _install_yaml_stub() -> None:
@@ -224,7 +196,6 @@ def bootstrap() -> Path:
     root = project_root()
     os.environ["BOT_PATH"] = str(root)
     _ensure_sys_path(root)
-    _ensure_redis_conf()
     _install_missing_dependency_stubs()
     _prepare_hok_namespace(root)
     return root

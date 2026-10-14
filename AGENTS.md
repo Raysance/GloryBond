@@ -19,6 +19,7 @@
 - `NBot/` 与 `Web/` 是可单独提交到 private repo 的子项目，子目录内的 `.gitignore` 只忽略运行缓存、编译产物、临时文件等不必要文件。
 - 敏感文件的忽略规则统一放在根目录 `.gitignore`，避免 public repo 意外展示真实环境信息。
 - 根目录 `README.md` 只用于功能介绍、使用入口和公开展示，不写实现细节、仓库维护规则、部署细节、目录职责、真实 QQ 号、群号、API-Key、服务器凭据、私有域名管理信息或可反推出用户隐私的数据。
+- 最新公开快照由 `tools/sync_public_snapshot.py` 同步已跟踪源码，排除源仓库真实配置、部署脚本和运行数据，匿名化身份字面量并将JSON样本值清空。同步不得复制私有agent内核源码，只记录 `NBot/vendor/react-agent-runtime` 的既有私有submodule引用；公开运行前置条件及版本记录放 `docs/DEVELOPMENT.md` 与 `docs/RELEASE.md`。NBot源规范中允许私有仓库提交凭据的条款不适用于本公开仓库；根公开边界优先。
 
 ## 2. 目录职责
 

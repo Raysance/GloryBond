@@ -1,0 +1,3 @@
+[submodule "NBot/vendor/react-agent-runtime"]
+	path = NBot/vendor/react-agent-runtime
+	url = git@github.com:Raysance/react-agent-runtime.git
