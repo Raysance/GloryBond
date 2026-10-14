@@ -492,6 +492,11 @@ async def agent_set_bot_avatar(image_bytes):
     return await set_bot_avatar(image_bytes)
 
 
+async def agent_read_generated_image(identifier):
+    from .zfile import load_agent_artifact_image
+    return await asyncio.to_thread(load_agent_artifact_image, identifier)
+
+
 async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=True):
     """QQBot owns live member lookup and avatar retrieval; the agent receives a snapshot."""
     from .utils.qq_profiles import load_group_member_profile
@@ -547,7 +552,8 @@ async def agent_runtime_start():
                              bot_id=confs["QQBot"]["bot_qid"],
                              sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
                              member_profile_reader=agent_read_group_member_profile,
-                             bot_avatar_setter=agent_set_bot_avatar)
+                             bot_avatar_setter=agent_set_bot_avatar,
+                             generated_image_reader=agent_read_generated_image)
     dmc.qq_agent_service = service
     try:
         await service.start()

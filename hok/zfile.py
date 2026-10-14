@@ -2,6 +2,24 @@
 from .zutil import *
 
 
+def load_agent_artifact_image(identifier):
+    """Read an already validated, locally stored agent PNG by opaque ID."""
+    import re
+    from pathlib import Path
+    from PIL import Image
+    if not re.fullmatch(r"[a-f0-9]{32}", identifier):
+        raise ValueError("Invalid agent artifact")
+    path = Path(temp_path) / ("chat_plot_" + identifier + ".png")
+    if path.stat().st_size > 32 * 1024**2:
+        raise ValueError("Agent artifact exceeds image size limit")
+    with Image.open(path) as image:
+        if image.format != "PNG" or image.width * image.height > 16_000_000:
+            raise ValueError("Unsupported agent output image")
+        image.load()
+        width, height = image.size
+    return {"raw": path.read_bytes(), "width": width, "height": height}
+
+
 def store_agent_artifact(identifier, raw):
     """Save validated agent output as a trace-compatible PNG in file_transfer."""
     import io

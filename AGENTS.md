@@ -246,4 +246,4 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 - 部署恢复使用 `deployment/scripts/restore_application.sh`，先按旧 HEAD 与目标版本的删除列表移除源文件，再 reset/restore；禁止仅 reset 导致已退休模块遗留为可导入的未跟踪文件。历史目录继续排除，复制内核备份由 sync_agent_runtime.sh 负责。
 
-- `qq_agent/avatar.py` 注册 `set_bot_avatar`，仅可信入口确认的 `QQBot.super_qid` 获得 `qq.avatar.write`（群/私聊均可），Web 与普通用户不授予。图片只取本次消息和已校验引用中的 attachment，直接图片在前，按1起始序号选择，不接受模型 URL/路径/身份。经 `zfunc.agent_set_bot_avatar` 调用 `utils/qq_profiles.set_bot_avatar`，向配置绑定机器人提交 base64 像素，兼容远程 NapCat。写操作通过共享诊断器处理，超时结果未知且禁止自动重放；内核不增加 QQ 专用逻辑。
+- `qq_agent/avatar.py` 注册 `set_bot_avatar`，仅可信入口确认的 `QQBot.super_qid` 获得 `qq.avatar.write`（群/私聊均可），Web 与普通用户不授予。图片可取本次消息和已校验引用中的 attachment（直接图片在前，按1起始序号选择），或本轮 generate_image 返回的 image_resource_id；不接受模型 URL/路径/身份。生成工具在产物输出成功后通过 ctx.add_resource 注册 generated_image 资源，引用只在同一 ToolContext 有效。生成图片读取经 zfunc.agent_read_generated_image 调用 zfile.load_agent_artifact_image，按经过当前资源校验的 artifact_id 读取既有已校验PNG，不把文件IO放入内核；过期/缺失/非图片资源不写QQ。经 `zfunc.agent_set_bot_avatar` 调用 `utils/qq_profiles.set_bot_avatar`，向配置绑定机器人提交 base64 像素，兼容远程 NapCat。写操作通过共享诊断器处理，超时结果未知且禁止自动重放；内核不增加 QQ 专用逻辑。

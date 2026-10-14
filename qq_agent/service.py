@@ -85,13 +85,14 @@ class QQFinalizer:
 class QQAgentService:
     def __init__(self, *, root, config, admin_id, sender, prepare_reply, store_artifact, formatter,
                  bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
-                 bot_avatar_setter=None):
+                 bot_avatar_setter=None, generated_image_reader=None):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
         self.bridge_factory, self.model_factory = bridge_factory, model_factory
         self.member_profile_reader = member_profile_reader
         self.bot_avatar_setter = bot_avatar_setter
+        self.generated_image_reader = generated_image_reader
         self.clock = Clock()
         self._start_lock = asyncio.Lock()
         self.runtime = None
@@ -120,7 +121,8 @@ class QQAgentService:
                     register_member_profile_tool(registry, reader=self.member_profile_reader,
                                                  store_image=self.store_tool_image, now=self.clock.now)
                 if self.bot_avatar_setter is not None:
-                    register_bot_avatar_tool(registry, setter=self.bot_avatar_setter, image_store=self.image_store)
+                    register_bot_avatar_tool(registry, setter=self.bot_avatar_setter, image_store=self.image_store,
+                                             generated_image_reader=self.generated_image_reader)
                 options = {
                     "api_key": remote["private"]["api_key"], "base_url": self.public["base_url"],
                     "model": self.public["model"], "thinking": self.config.get("thinking", False),

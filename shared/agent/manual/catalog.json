@@ -1789,13 +1789,16 @@
       "id": "profiles_avatar_write",
       "title": "更换机器人头像",
       "parent": "profiles",
-      "summary": "管理员使用本次消息或引用图片更换机器人自身QQ头像；权限、图片选择和失败边界",
+      "summary": "管理员使用本次消息、引用图片或本轮生成图片更换机器人自身QQ头像；支持生成后直接设置，资源不跨轮",
       "keywords": [
         "换头像",
         "设置头像",
-        "更换头像"
+        "更换头像",
+        "生成头像",
+        "生成后换头像"
       ],
       "tools": [
+        "generate_image",
         "set_bot_avatar"
       ],
       "document": {
@@ -1810,6 +1813,10 @@
         {
           "path": "hok/utils/qq_profiles.py",
           "symbol": "set_bot_avatar"
+        },
+        {
+          "path": "hok/zfile.py",
+          "symbol": "load_agent_artifact_image"
         }
       ]
     }

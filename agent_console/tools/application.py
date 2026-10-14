@@ -233,7 +233,8 @@ def register_application_tools(registry, *, service, catalogs):
         await ctx.emit(
             "output.artifact", {k: v for k, v in result.items() if k != "request"}
         )
-        return result
+        resource_id = ctx.add_resource({"kind": "generated_image", "artifact_id": result["artifact_id"]})
+        return {**result, "image_resource_id": resource_id}
 
     async def recall(args, ctx):
         return await service.memory("recall", ctx, query=args.query)
@@ -422,7 +423,7 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "generate_image",
-            "根据提示词生成图片并发送产物。耗时较长。",
+            "根据提示词生成图片并发送产物，成功返回本轮image_resource_id供后续工具使用。耗时较长。",
             ImageArgs,
             image,
             "images",

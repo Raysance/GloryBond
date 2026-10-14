@@ -11,11 +11,14 @@ from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
 from agent_console.image_inputs import ImageStore
 from agent_console.tools.diagnostics import DiagnosticToolRegistry
+from agent_console.tools.application import register_application_tools
 from local_debugger import import_hok_module
 from qq_agent.avatar import register_bot_avatar_tool
 from qq_agent.service import qq_principal
 
 ADAPTER = import_hok_module('utils.qq_profiles')
+FILES = import_hok_module('zfile')
+FUNCS = import_hok_module('zfunc')
 
 
 class AvatarTests(unittest.IsolatedAsyncioTestCase):
@@ -28,8 +31,10 @@ class AvatarTests(unittest.IsolatedAsyncioTestCase):
         self.raw = output.getvalue()
         self.image = self.store.inputs([self.store.save(self.raw)['id']])[0]
         self.setter = AsyncMock(return_value={'bot_id': '300'})
+        self.generated_reader = AsyncMock(return_value={'raw': self.raw, 'width': 16, 'height': 16})
         self.registry = DiagnosticToolRegistry()
-        register_bot_avatar_tool(self.registry, setter=self.setter, image_store=self.store)
+        register_bot_avatar_tool(self.registry, setter=self.setter, image_store=self.store,
+                                 generated_image_reader=self.generated_reader)
 
     def context(self, *, user='999', group=None, images=(), quoted=()):
         principal = qq_principal(user, group, '', admin_id='999', bot_id='300',
@@ -50,6 +55,66 @@ class AvatarTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(result.data['submitted'])
             self.assertEqual(result.data['bot_id'], '300')
         self.setter.assert_awaited_with(self.raw)
+
+    async def test_generate_then_set_avatar_uses_current_resource_and_saved_pixels(self):
+        artifact_id = 'a' * 32
+        service = Mock(generate_image=AsyncMock(return_value={'artifact_id': artifact_id, 'mime': 'image/png'}))
+        register_application_tools(self.registry, service=service, catalogs={})
+        ctx = self.context()
+        ctx.disclosed.add('generate_image')
+
+        async def emit(kind, data):
+            if kind == 'output.artifact':
+                FILES.store_agent_artifact(data['artifact_id'], self.raw)
+
+        ctx.emit = emit
+        self.generated_reader.side_effect = FUNCS.agent_read_generated_image
+        with patch.object(FILES, 'temp_path', self.tmp.name):
+            generated = await execute(self.registry, {'id': 'generate', 'type': 'function', 'function': {
+                'name': 'generate_image', 'arguments': json.dumps({'prompt': '一只猫的QQ头像'})}}, ctx)
+            self.assertTrue(generated.ok)
+            resource_id = generated.data['image_resource_id']
+            self.assertNotEqual(resource_id, artifact_id)
+            changed = await self.call(ctx, {'image_resource_id': resource_id})
+        self.assertTrue(changed.ok)
+        self.assertEqual(changed.data['artifact_id'], artifact_id)
+        self.generated_reader.assert_awaited_once_with(artifact_id)
+        submitted = self.setter.await_args.args[0]
+        with Image.open(BytesIO(submitted)) as image:
+            self.assertEqual(image.getpixel((0, 0)), (255, 0, 0))
+
+    async def test_resources_from_other_run_wrong_kind_or_mixed_source_are_rejected(self):
+        ctx = self.context(images=(self.image,))
+        wrong = ctx.add_resource({'kind': 'dataset', 'artifact_id': 'a' * 32})
+        generated = ctx.add_resource({'kind': 'generated_image', 'artifact_id': 'a' * 32})
+        for args, context in (
+            ({'image_resource_id': wrong}, ctx),
+            ({'image_resource_id': generated}, self.context()),
+            ({'image_resource_id': generated, 'image_index': 1}, ctx),
+            ({'image_resource_id': 'b' * 32}, ctx),
+        ):
+            self.assertFalse((await self.call(context, args)).ok)
+        self.generated_reader.assert_not_awaited()
+        self.setter.assert_not_awaited()
+
+    async def test_expired_or_failed_generated_image_never_changes_avatar(self):
+        ctx = self.context()
+        resource = ctx.add_resource({'kind': 'generated_image', 'artifact_id': 'a' * 32})
+        self.generated_reader.side_effect = FileNotFoundError('generated image unavailable')
+        result = await self.call(ctx, {'image_resource_id': resource})
+        self.assertFalse(result.ok)
+        self.setter.assert_not_awaited()
+
+    async def test_failed_generation_does_not_publish_a_reusable_resource(self):
+        service = Mock(generate_image=AsyncMock(side_effect=RuntimeError('generation failed')))
+        register_application_tools(self.registry, service=service, catalogs={})
+        ctx = self.context()
+        ctx.disclosed.add('generate_image')
+        result = await execute(self.registry, {'id': 'generate', 'type': 'function', 'function': {
+            'name': 'generate_image', 'arguments': json.dumps({'prompt': '一只猫'})}}, ctx)
+        self.assertFalse(result.ok)
+        self.assertEqual(ctx.resources, {})
+        self.setter.assert_not_awaited()
 
     async def test_current_then_quoted_images_and_duplicate_references(self):
         output = BytesIO()
