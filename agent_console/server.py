@@ -35,6 +35,7 @@ from .remote import BridgeUnavailable, RemoteBridge, RemoteState
 from .roleplay import RoleplayService
 from .replies import ReplyComposer, ReplyPolicy
 from .identity import local_principal
+from .webpages import WebPageFetcher, WebPageLimits
 from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
 
 
@@ -106,6 +107,7 @@ def create_app(*, config_path=None):
     image_store = ImageStore(
         root / "file_transfer/agent_inputs", ImageLimits(**config.get("images", {}))
     )
+    webpages = WebPageFetcher(WebPageLimits(**config.get("webpages", {})))
 
     @asynccontextmanager
     async def lifespan(app):
@@ -389,6 +391,9 @@ def create_app(*, config_path=None):
         try:
             prompt = await app.state.current_prompt(query=message)
             role_name = (await app.state.roles.manage(app.state.principal))["selected"]["name"]
+            page_context = await webpages.prepare([("message", message)])
+            if page_context.report:
+                await log_request("request.webpages", page_context.report)
             if body.session_id in active_sessions:
                 raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
         except Exception as exc:
@@ -402,6 +407,7 @@ def create_app(*, config_path=None):
             run_id=run_id,
             user_message=message,
             images=images,
+            context_messages=page_context.messages,
             conversation_id=body.session_id,
             principal=principal,
             system_prompt=prompt,

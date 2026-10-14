@@ -17,6 +17,7 @@ from agent_console.remote import ProcessBridge, RemoteState
 from agent_console.replies import ReplyComposer, ReplyPolicy
 from agent_console.roleplay import RoleplayService
 from agent_console.tasks import TaskScheduler
+from agent_console.webpages import WebPageFetcher, WebPageLimits
 from agent_console.tools.application import register_application_tools
 from agent_console.tools.roleplay import register_roleplay_tools
 from .output import QQOutput
@@ -86,6 +87,7 @@ class QQAgentService:
         self.clock = Clock()
         self._start_lock = asyncio.Lock()
         self.runtime = None
+        self.webpages = WebPageFetcher(WebPageLimits(**config.get("webpages", {})))
         self.image_store = ImageStore(self.root / config.get("image_directory", "data/agent_inputs"), ImageLimits(**config.get("images", {})))
 
     async def start(self):
@@ -241,6 +243,11 @@ class QQAgentService:
                         + json.dumps(quote, ensure_ascii=False)}]
             content.extend(image.content_part() for image in quoted_images)
             context_messages = ({"role":"user", "content":content},)
+        page_sources = [("message", question)]
+        if quoted_message and quoted_message.get("available"):
+            page_sources.append(("quote", quoted_message.get("text", "")))
+        page_context = await self.webpages.prepare(page_sources)
+        context_messages += page_context.messages
         request = RunRequest(
             question, "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id), principal,
             system_prompt=prompt, required_tools=("search_chat_history", "discover_tools") if "chat.read" in principal.scopes else ("discover_tools",),

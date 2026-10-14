@@ -276,6 +276,10 @@
         "搜索",
         "实时信息",
         "网页",
+        "网页链接",
+        "阅读文章",
+        "网页摘要",
+        "fetch",
         "资料来源",
         "id",
         "映射",
@@ -291,6 +295,10 @@
         {
           "path": "agent_console/capabilities.py",
           "symbol": "Capabilities.web_search"
+        },
+        {
+          "path": "agent_console/webpages.py",
+          "symbol": "WebPageFetcher.prepare"
         },
         {
           "path": "agent_console/tools/reference_data.py",
