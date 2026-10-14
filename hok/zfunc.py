@@ -487,6 +487,11 @@ def chat_prepare_reply(result):
     return result
 
 
+async def agent_set_bot_avatar(image_bytes):
+    from .utils.qq_profiles import set_bot_avatar
+    return await set_bot_avatar(image_bytes)
+
+
 async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=True):
     """QQBot owns live member lookup and avatar retrieval; the agent receives a snapshot."""
     from .utils.qq_profiles import load_group_member_profile
@@ -541,7 +546,8 @@ async def agent_runtime_start():
     service = QQAgentService(root=project_root, config=config, admin_id=confs["QQBot"]["super_qid"],
                              bot_id=confs["QQBot"]["bot_qid"],
                              sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
-                             member_profile_reader=agent_read_group_member_profile)
+                             member_profile_reader=agent_read_group_member_profile,
+                             bot_avatar_setter=agent_set_bot_avatar)
     dmc.qq_agent_service = service
     try:
         await service.start()

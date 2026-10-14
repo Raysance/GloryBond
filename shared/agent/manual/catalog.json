@@ -515,11 +515,14 @@
         "群成员",
         "昵称",
         "名片",
-        "群等级"
+        "群等级",
+        "换头像",
+        "设置头像"
       ],
       "tools": [
         "read_group_member_profile",
-        "lookup_reference_data"
+        "lookup_reference_data",
+        "set_bot_avatar"
       ],
       "code": [
         {
@@ -529,6 +532,10 @@
         {
           "path": "hok/utils/qq_profiles.py",
           "symbol": "load_group_member_profile"
+        },
+        {
+          "path": "qq_agent/avatar.py",
+          "symbol": "register_bot_avatar_tool.change"
         }
       ],
       "parent": "conversation",
@@ -1777,6 +1784,34 @@
         "path": "shared/agent/manual/chapters/memory_update_rules.md",
         "heading": null
       }
+    },
+    {
+      "id": "profiles_avatar_write",
+      "title": "更换机器人头像",
+      "parent": "profiles",
+      "summary": "管理员使用本次消息或引用图片更换机器人自身QQ头像；权限、图片选择和失败边界",
+      "keywords": [
+        "换头像",
+        "设置头像",
+        "更换头像"
+      ],
+      "tools": [
+        "set_bot_avatar"
+      ],
+      "document": {
+        "path": "shared/agent/manual/chapters/profiles.md",
+        "heading": "更换机器人头像"
+      },
+      "code": [
+        {
+          "path": "qq_agent/avatar.py",
+          "symbol": "register_bot_avatar_tool.change"
+        },
+        {
+          "path": "hok/utils/qq_profiles.py",
+          "symbol": "set_bot_avatar"
+        }
+      ]
     }
   ],
   "version": 2,

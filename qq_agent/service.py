@@ -24,6 +24,7 @@ from agent_console.tools.application import register_application_tools
 from agent_console.tools.roleplay import register_roleplay_tools
 from .output import QQOutput
 from .member_profiles import register_member_profile_tool
+from .avatar import register_bot_avatar_tool
 
 
 def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memory=True,
@@ -31,7 +32,9 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
     user, group = str(user_id), str(group_id) if group_id else None
     if not user.isdigit() or (group and not group.isdigit()):
         raise ValueError("QQ入口必须提供真实用户和群身份")
-    scopes = set(LOCAL_SCOPES) - {"chat.read", "chat.cross_group", "qq.profile.read"}
+    scopes = set(LOCAL_SCOPES) - {"chat.read", "chat.cross_group", "qq.profile.read", "qq.avatar.write"}
+    if user == str(admin_id):
+        scopes.add("qq.avatar.write")
     if group:
         scopes.update({"chat.read", "qq.profile.read"})
     elif user == str(admin_id):
@@ -81,12 +84,14 @@ class QQFinalizer:
 
 class QQAgentService:
     def __init__(self, *, root, config, admin_id, sender, prepare_reply, store_artifact, formatter,
-                 bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None):
+                 bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
+                 bot_avatar_setter=None):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
         self.bridge_factory, self.model_factory = bridge_factory, model_factory
         self.member_profile_reader = member_profile_reader
+        self.bot_avatar_setter = bot_avatar_setter
         self.clock = Clock()
         self._start_lock = asyncio.Lock()
         self.runtime = None
@@ -114,6 +119,8 @@ class QQAgentService:
                 if self.member_profile_reader is not None:
                     register_member_profile_tool(registry, reader=self.member_profile_reader,
                                                  store_image=self.store_tool_image, now=self.clock.now)
+                if self.bot_avatar_setter is not None:
+                    register_bot_avatar_tool(registry, setter=self.bot_avatar_setter, image_store=self.image_store)
                 options = {
                     "api_key": remote["private"]["api_key"], "base_url": self.public["base_url"],
                     "model": self.public["model"], "thinking": self.config.get("thinking", False),

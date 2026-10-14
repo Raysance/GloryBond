@@ -24,7 +24,7 @@
 - `hok/ztime.py`：时间工具与日期处理统一入口；任何时间计算、格式化、时间窗口判断都应调用这里的接口；代表局查询中的自然语言日期及区间统一由 `parse_representative_battle_date()`、`parse_representative_battle_date_range()` 解析，群聊历史检索时间边界统一由 `parse_chat_time_bound()` 解析。
 - `hok/zutil.py`：基础工具集；统一导入常用库与通用小工具（不要在各处散落重复 import 与重复工具实现）。
 - `hok/utils/message_sender.py`：发送消息统一入口；任何对外消息发送必须调用此模块的函数接口（禁止绕开直接调用底层适配器发送）。
-- `hok/utils/qq_profiles.py`：只读 QQ 适配器边界，通过真实 bot 校验群成员列表并读取指定成员的新资料，不发送消息。`business/qq_profiles.py` 只对白名单字段、身份一致性和未知值做归一化；头像 HTTP 下载经 `zapi.qq_avatar_bytes()` 转发给 `api_adapters/qq_profiles.py`，不在业务层请求网络。配置来自 `QQProfiles`，由 `zstatic.qq_profile_config` 暴露。
+- `hok/utils/qq_profiles.py`：QQ 资料与账号适配器边界，通过真实 bot 校验群成员列表并读取指定成员的新资料，不发送消息。`business/qq_profiles.py` 只对白名单字段、身份一致性和未知值做归一化；头像 HTTP 下载经 `zapi.qq_avatar_bytes()` 转发给 `api_adapters/qq_profiles.py`，不在业务层请求网络。配置来自 `QQProfiles`，由 `zstatic.qq_profile_config` 暴露。
 - `hok/zapi.py`：外部 API 的兼容门面，从 api_adapters 导出业务函数。业务文案只使用单轮文本/图片接口；不提供第二套 agent 的工具或 Responses 编排入口。QQ 与网页模型协议由 `agent_console/provider.py` 适配，多轮编排由独立内核负责。
 - `hok/api_adapters/`：按外部服务封装协议、签名、响应解析与重试；不读取 Redis。业务 AI 文案使用已配置 ChatAPI 单轮文本接口，图片与原有 Ark 文案接口继续保留。agent 的 DeepSeek 工具链与原生图片在外部 provider 处理，统一关闭工具链 thinking。阿里云 OpenSearch 与官方游戏请求显式禁用环境代理直连，Steam/APIMart 经配置的 Clash 代理，缺少代理时不回退直连。
 - `hok/zkpl.py`：KPL 数据统一入口；仅 `get_match_list_json()` 与 `get_match_detail_json()` 负责获取赛程和完整比赛数据，其他 KPL 转换与兼容接口必须调用二者。
@@ -245,3 +245,5 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - 旧聊天兼容入口、注册器、schema、角色包、绘图 worker、诊断、JSON/主动/被动/摘要缓存和过时开关均已删除。不要恢复第二套聊天实现。历史数据库/Redis 数据未由代码清理删除；`forget_me` 只按可信入口清除本人长期事实及当前 QQ 会话上下文，不删除归档、日志、角色偏好或其他会话。
 
 - 部署恢复使用 `deployment/scripts/restore_application.sh`，先按旧 HEAD 与目标版本的删除列表移除源文件，再 reset/restore；禁止仅 reset 导致已退休模块遗留为可导入的未跟踪文件。历史目录继续排除，复制内核备份由 sync_agent_runtime.sh 负责。
+
+- `qq_agent/avatar.py` 注册 `set_bot_avatar`，仅可信入口确认的 `QQBot.super_qid` 获得 `qq.avatar.write`（群/私聊均可），Web 与普通用户不授予。图片只取本次消息和已校验引用中的 attachment，直接图片在前，按1起始序号选择，不接受模型 URL/路径/身份。经 `zfunc.agent_set_bot_avatar` 调用 `utils/qq_profiles.set_bot_avatar`，向配置绑定机器人提交 base64 像素，兼容远程 NapCat。写操作通过共享诊断器处理，超时结果未知且禁止自动重放；内核不增加 QQ 专用逻辑。

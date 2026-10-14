@@ -1,7 +1,20 @@
-"""Read-only QQ adapter boundary; no business decisions or message sending."""
+"""QQ profile/account adapter boundary; no business decisions or message sending."""
 
+import base64
 import nonebot
 from ..zstatic import confs
+
+
+async def set_bot_avatar(image_bytes):
+    """Submit verified pixels to the configured bot, including remote NapCat."""
+    if not isinstance(image_bytes, bytes) or not image_bytes:
+        raise ValueError("机器人头像必须提供已验证的非空图片字节")
+    bot_id = str(confs["QQBot"]["bot_qid"])
+    bot = nonebot.get_bot(bot_id)
+    if str(bot.self_id) != bot_id:
+        raise ValueError("QQ适配器账号与配置机器人不一致")
+    await bot.call_api("set_qq_avatar", file="base64://" + base64.b64encode(image_bytes).decode("ascii"))
+    return {"bot_id": bot_id}
 
 
 async def load_group_member_profile(group_id, user_id):
