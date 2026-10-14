@@ -7,12 +7,13 @@ from io import BytesIO
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 import httpx
 from PIL import Image
 
 from agent_runtime import AgentRuntime
 from qq_agent.service import QQAgentService, qq_principal
+from qq_agent.member_profiles import register_member_profile_tool
 from agent_console.remote import RemoteBridge
 
 
@@ -28,6 +29,16 @@ def call(name, args, identifier):
 
 
 class IdentityTests(unittest.TestCase):
+    def test_bot_identity_is_bound_without_replacing_sender_or_authority(self):
+        principal = qq_principal('100', '200', '', admin_id='999', references=REFERENCES, bot_id='300')
+        self.assertEqual(principal.attributes['bot'], {'user_id': '300'})
+        self.assertEqual(principal.user_id, '100')
+        self.assertEqual(principal.attributes['identity']['player_key'], 'example_user_10')
+        self.assertNotIn('chat.cross_group', principal.scopes)
+        self.assertEqual(principal.attributes['delivery']['recipient_id'], '200')
+        with self.assertRaises(ValueError):
+            qq_principal('100', '200', '', admin_id='999', references=REFERENCES, bot_id='example_user_10')
+
     def test_admin_default_group_is_a_query_hint_not_a_group_event_or_destination(self):
         for user, group in [('999', None), ('999', '200'), ('101', None)]:
             principal = qq_principal(user, group, '', admin_id='999', references=REFERENCES,
@@ -141,10 +152,31 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             return {"artifact_id": identifier, "path": "/tmp/test.png"}
 
         self.gateway = QQAgentService(root=ROOT, config={"log_directory": self.tmp.name, "image_directory": self.tmp.name},
-                                      admin_id="999", sender=send, prepare_reply=prepare, store_artifact=artifact,
+                                      admin_id="999", bot_id="300", sender=send, prepare_reply=prepare, store_artifact=artifact,
                                       formatter=lambda text: text, bridge_factory=Bridge, model_factory=Model)
         await self.gateway.start()
         self.addAsyncCleanup(self.gateway.close)
+
+    async def test_bot_avatar_request_uses_bound_bot_and_keeps_sender_history(self):
+        reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '300', 'nickname': '机器人'},
+                                         'avatar_bytes': None, 'avatar_error': '头像暂不可用'})
+        register_member_profile_tool(self.gateway.runtime.registry, reader=reader,
+                                     store_image=self.gateway.store_tool_image, now=self.gateway.clock.now)
+        self.reply_text = '我的头像暂时读取失败。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['机器人头像', 'QQ头像']}, 'h')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['references']}, 'd')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('read_group_member_profile', {'target': 'bot'}, 'p')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        await self.gateway.chat(user_text='你的QQ头像是什么？', user_id='100', nickname='提问者', group_id='200')
+        reader.assert_awaited_once_with(group_id='200', user_id='300', include_avatar=True)
+        prompt = self.gateway.model.requests[0].messages[0]['content']
+        self.assertIn('机器人QQ为 300', prompt)
+        self.assertIn('本次提问者QQ为 100', prompt)
+        self.assertIn("target='bot'", prompt)
+        self.assertEqual(self.dialogue['qq_g_200_100'][-1]['content'], self.reply_text)
+        self.assertTrue(all(delivery['recipient_id'] == '200' for _, delivery in self.sent))
 
     async def test_admin_private_query_uses_configured_default_without_changing_private_history(self):
         self.gateway.config['admin_private_default_group_id'] = '2000000001'

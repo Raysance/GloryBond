@@ -108,7 +108,8 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         self.registry = ToolRegistry()
         register_member_profile_tool(self.registry, reader=self.reader,
                                      store_image=self.service.store_tool_image, now=Clock().now)
-        self.principal = Principal('100', frozenset({'qq.profile.read'}), {'chat': {'group_id': '200'}})
+        self.principal = Principal('100', frozenset({'qq.profile.read'}),
+                                   {'chat': {'group_id': '200'}, 'bot': {'user_id': '300'}})
 
     def context(self, principal=None, **request):
         ctx = ToolContext(RunRequest('看看我的群资料和头像', 's', principal or self.principal, **request), AsyncMock())
@@ -123,6 +124,45 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         reference = result.data['model_images'][0]['image_url']['url']
         self.assertEqual(self.service.image_store.load(reference.removeprefix('attachment://'))[1], png())
         self.assertNotIn('avatar_bytes', result.data)
+
+    async def test_bot_target_reads_bound_bot_pixels_instead_of_caller(self):
+        self.reader.return_value['profile'] = PROFILES.normalize_group_member_profile(
+            {**RECORD, 'user_id': 300, 'nickname': '机器人'}, '200', '300')
+        result = await execute(self.registry, tool_call({'target': 'bot'}), self.context())
+        self.assertTrue(result.ok)
+        self.reader.assert_awaited_once_with(group_id='200', user_id='300', include_avatar=True)
+        self.assertEqual(result.data['target'], 'bot')
+        reference = result.data['model_images'][0]['image_url']['url']
+        self.assertEqual(self.service.image_store.load(reference.removeprefix('attachment://'))[1], png())
+
+    async def test_bot_target_cannot_override_bound_identity_or_group(self):
+        for arguments in ({'target': 'bot', 'user_id': '100'}, {'target': 'bot', 'group_id': '201'}):
+            with self.subTest(arguments=arguments):
+                result = await execute(self.registry, tool_call(arguments), self.context())
+                self.assertFalse(result.ok)
+        self.reader.assert_not_awaited()
+
+    async def test_bot_target_fails_without_valid_entry_identity(self):
+        for bot in ({}, {'user_id': 'example_user_10'}, {'user_id': '0'}):
+            with self.subTest(bot=bot):
+                principal = Principal('100', self.principal.scopes, {'chat': {'group_id': '200'}, 'bot': bot})
+                result = await execute(self.registry, tool_call({'target': 'bot'}), self.context(principal))
+                self.assertFalse(result.ok)
+                self.assertIn('未绑定', result.error)
+        self.reader.assert_not_awaited()
+
+    async def test_bot_target_uses_admin_default_group_and_retains_private_permission_limits(self):
+        admin = Principal('999', frozenset({'qq.profile.read', 'chat.cross_group'}),
+                          {'chat': {'all_groups': True, 'default_group_id': '200'}, 'bot': {'user_id': '300'}})
+        self.reader.return_value['profile']['user_id'] = '300'
+        result = await execute(self.registry, tool_call({'target': 'bot', 'include_avatar': False}), self.context(admin))
+        self.assertTrue(result.ok)
+        self.reader.assert_awaited_once_with(group_id='200', user_id='300', include_avatar=False)
+        self.reader.reset_mock()
+        private = Principal('100', frozenset(), {'chat': {}, 'bot': {'user_id': '300'}})
+        result = await execute(self.registry, tool_call({'target': 'bot'}), self.context(private))
+        self.assertEqual(result.code, 'PERMISSION_DENIED')
+        self.reader.assert_not_awaited()
 
     async def test_cross_group_and_private_denied_before_backend(self):
         result = await execute(self.registry, tool_call({'group_id': '201'}), self.context())
@@ -185,11 +225,19 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(wire), 1)
 
     async def test_react_tool_observation_reaches_model_as_real_pixels_and_is_not_dialogue(self):
+        await self.check_react_avatar_pixels({})
+
+    async def test_react_bot_avatar_observation_selects_vision_with_real_pixels(self):
+        self.reader.return_value['profile']['user_id'] = '300'
+        await self.check_react_avatar_pixels({'target': 'bot'})
+        self.reader.assert_awaited_once_with(group_id='200', user_id='300', include_avatar=True)
+
+    async def check_react_avatar_pixels(self, arguments):
         observed = []
         def transport(request):
             payload = json.loads(request.content)
             observed.append(payload)
-            delta = {'tool_calls': [{'index': 0, **tool_call()}]} if len(observed) == 1 else {'content': '资料已读取，头像是红色。'}
+            delta = {'tool_calls': [{'index': 0, **tool_call(arguments)}]} if len(observed) == 1 else {'content': '资料已读取，头像是红色。'}
             frame = {'choices': [{'delta': delta, 'finish_reason': 'tool_calls' if len(observed) == 1 else 'stop'}]}
             return httpx.Response(200, text='data: ' + json.dumps(frame) + '\n\ndata: [DONE]\n\n')
         state, sink = State(), Sink()

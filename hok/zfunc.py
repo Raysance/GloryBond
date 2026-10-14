@@ -539,6 +539,7 @@ async def agent_runtime_start():
                                  identity_names=identities, aliases=[a for values in nameref.values() for a in values])
 
     service = QQAgentService(root=project_root, config=config, admin_id=confs["QQBot"]["super_qid"],
+                             bot_id=confs["QQBot"]["bot_qid"],
                              sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
                              member_profile_reader=agent_read_group_member_profile)
     dmc.qq_agent_service = service
