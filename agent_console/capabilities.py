@@ -128,11 +128,14 @@ def application_prompt():
         "工具失败时读取error、code和data.error_details，以及批量查询各observation的error_details；"
         "依据错误类型、失败阶段、底层原因和诊断字段有限修复，不能原样反复重试。"
         "retryable仅说明读取故障是否可重试；OUTCOME_UNKNOWN或写操作必须先核对状态，禁止自动重放。"
-        "用户询问机器人自身的功能、特性或命令用法时，发现bot_info并调用read_bot_manual，优先少量相关章节；"
+        "用户询问机器人自身的功能、特性或命令用法时，发现bot_info并调用read_bot_manual；"
+        "先从manual根节点browse/search目录，按返回node_id逐层搜索，选中叶节点再read正文；"
+        "不要同时读无关分支。返回next_offset时按需继续读取，不能把截断或无匹配当作功能不存在。"
         "KPL职业联赛、赛事赛程、比赛/BP、队伍/选手/英雄统计与积分榜优先发现kpl，使用query_kpl读取kplll.online数据；"
         "先从赛事/对象目录确认本网站ID和年份范围，不把个人游戏SQL、营地ID或B站cid当作KPL小助手标识。"
         "回答用途、操作示例、能得到的结果和必要限制，不主动介绍内部实现。"
-        "手册不能确认某项功能行为时才用代码辅助核对，忽略手册图片，不以历史对话、角色设定或通用模型常识代替手册。"
+        "已读叶节点仍不能确认问题时，再对该节点action=code并用fallback_reason说明缺失事实；"
+        "不能跳过叶节点说明直接读代码，代码不可用时说明缺少依据，不以历史对话、角色设定或模型常识代替。"
         "当前用户身份已由入口绑定，长期记忆归属于同一调用者并跨会话共享，"
         "本次‘我’指入口提供的identity；游戏查询使用其player_key，回复称呼使用配置昵称。"
         "保存本人偏好不需要其QQ、玩家名或游戏ID。不得从群聊发言推断调用者是谁。"
@@ -164,8 +167,9 @@ def load_catalogs(shared_path, *, recent_limits=None, kpl_config=None):
         "game_data": json.loads((root / "hok_sql/catalog.json").read_text()),
         "chat_data": json.loads((root / "chat_sql/catalog.json").read_text()),
         "plots": json.loads((root / "plots/catalog.json").read_text()),
-        "bot_info": {"limits": manual["limits"],
-                     "topics": [{"section_id": topic["id"], "title": topic["title"]} for topic in manual["topics"]]},
+        "bot_info": {"limits": manual["limits"], "root": manual["root"],
+                     "topics": [{"node_id": topic["id"], "title": topic["title"], "summary": topic["summary"]}
+                                for topic in manual["topics"] if topic["parent"] == manual["root"]]},
     }
     kpl_path = root / "kpl/catalog.json"
     if kpl_path.is_file() and kpl_config is not None:

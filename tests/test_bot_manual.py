@@ -1,5 +1,4 @@
-"""Retrieve only useful handbook evidence and approved, bounded code fragments."""
-
+"""Scoped tree retrieval, independent docs and gated source fallback."""
 import copy
 import json
 from pathlib import Path
@@ -10,206 +9,240 @@ from unittest.mock import AsyncMock, patch
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.bot_manual import BotManual, handbook_text
+from agent_console.bot_manual import BotManual, handbook_text, load_manual_documents
 from agent_console.capabilities import Capabilities, application_prompt, load_catalogs
 from agent_console.remote import RemoteBridge
 from agent_console import remote_worker
 from agent_console.tools.application import register_application_tools
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
-
 ROOT = Path(__file__).parents[1]
 SHARED = ROOT / 'shared/agent'
 CATALOG = json.loads((SHARED / 'manual/catalog.json').read_text())
-HANDBOOK = (SHARED / 'manual/handbook.md').read_text()
+DOCUMENTS = load_manual_documents(ROOT, CATALOG)
 
 
 class ManualTests(unittest.TestCase):
     def setUp(self):
-        self.manual = BotManual(ROOT, copy.deepcopy(CATALOG), HANDBOOK)
+        self.catalog = copy.deepcopy(CATALOG)
+        self.documents = dict(DOCUMENTS)
+        self.manual = BotManual(ROOT, self.catalog, self.documents)
 
-    def test_relevant_chapters_are_ranked_and_empty_query_is_an_overview(self):
-        for question, expected in [('你能记住我喜欢玩的英雄吗？', 'memory'),
-                                   ('引用一张图片再@你，可以读取动态表情吗？', 'vision'),
-                                   ('每隔10秒提醒一次支持吗？', 'tasks'),
-                                   ('你的头像是什么，怎样读取机器人资料？', 'profiles'),
-                                   ('管理员私聊默认查询哪个群？', 'permissions')]:
-            with self.subTest(question=question):
-                result = self.manual.read(query=question, limit=1)
-                self.assertEqual(result['topics'][0]['section_id'], expected)
-                self.assertFalse(result['code'])
-        self.assertEqual(self.manual.read()['topics'][0]['section_id'], 'overview')
-        self.assertEqual(self.manual.read(query='zzzz_unlisted_feature')['topics'], [])
+    def test_root_only_returns_paginated_child_cards_and_discovery_is_brief(self):
+        result = self.manual.read()
+        self.assertEqual([n['node_id'] for n in result['topics']], ['conversation', 'game', 'creation'])
+        self.assertEqual(result['next_offset'], 3)
+        self.assertTrue(all('content' not in n for n in result['topics']))
+        more = self.manual.read(offset=3)
+        self.assertEqual(len(more['topics']), 3)
+        self.assertIsNone(more['next_offset'])
+        discovery = load_catalogs(SHARED)['bot_info']
+        self.assertEqual(len(discovery['topics']), 6)
+        self.assertNotIn('code_positions', json.dumps(discovery))
+        self.assertNotIn('metrics_power_formula', json.dumps(discovery))
 
-    def test_named_function_stays_relevant_when_unrelated_chapters_add_common_terms(self):
-        expanded = HANDBOOK.replace('## 图表、创作图片与计算', ('今天的比赛怎么查，今天查询数据，今天查看结果。' * 40)
-                                    + '\n\n## 图表、创作图片与计算')
-        manual = BotManual(ROOT, copy.deepcopy(CATALOG), expanded)
-        self.assertEqual(manual.read(query='今天的代表局怎么查？', limit=1)['topics'][0]['section_id'], 'representative')
-        self.assertEqual(manual.read(query='介绍KPL赛事与数据的用法', limit=1)['topics'][0]['section_id'], 'kpl')
+    def test_questions_follow_scoped_paths_to_precise_leaves(self):
+        for question, path in [('底蕴怎么算', ['manual','game','metrics','metrics_power_formula']),
+                               ('图片生成API', ['manual','creation','plots','plots_image_service'])]:
+            for parent, child in zip(path, path[1:]):
+                with self.subTest(question=question, parent=parent):
+                    self.assertEqual(self.manual.read(action='search', node_id=parent, query=question, limit=1)['topics'][0]['node_id'], child)
+            result = self.manual.read(action='read', node_id=path[-1])
+            self.assertTrue(result['topics'][0]['content'])
+            self.assertEqual(result['code'], [])
+            self.assertEqual([i['node_id'] for i in result['breadcrumb']], path)
 
-    def test_every_declared_source_resolves_without_importing_or_executing_code(self):
-        for topic in CATALOG['topics']:
-            with self.subTest(section=topic['id']):
-                result = self.manual.read(section_id=topic['id'], include_code=True)
-                self.assertTrue(result['code'])
-                for source in result['code']:
-                    self.assertNotIn('unavailable', source, source)
-                    self.assertEqual(source['evidence'], 'deployed_source')
-                    self.assertGreaterEqual(source['end_line'], source['start_line'])
-                    self.assertLessEqual(len(source['content']), CATALOG['limits']['max_code_excerpt_chars'])
+    def test_other_subtree_growth_does_not_change_feature_search(self):
+        path = 'shared/agent/manual/chapters/emoji.md'
+        self.documents[path] += '\n底蕴怎么算，MVP战斗力评分。' * 500
+        expanded = BotManual(ROOT, self.catalog, self.documents)
+        original = self.manual.read(action='search', node_id='metrics', query='底蕴怎么算')
+        self.assertEqual(expanded.read(action='search', node_id='metrics', query='底蕴怎么算')['topics'], original['topics'])
+        absent = self.manual.read(action='search', node_id='metrics', query='APIMart API')
+        self.assertTrue(absent['not_found'])
+        self.assertEqual(absent['topics'], [])
+        self.assertTrue(absent['node']['code_positions'])
 
-    def test_budgets_and_invalid_queries_fail_explicitly(self):
-        for options in ({'limit': True}, {'limit': 6}, {'query': 'x' * 401},
-                        {'include_code': 'yes'}, {'section_id': '../../.env'}):
-            with self.subTest(options=options), self.assertRaises(ValueError):
-                self.manual.read(**options)
-        self.manual.limits.update(max_handbook_chars=30, max_code_chars=200, max_code_references=1)
-        result = self.manual.read(section_id='tasks', include_code=True)
-        self.assertLessEqual(sum(len(item['content']) for item in result['topics']), 30)
-        self.assertTrue(result['topics'][0]['truncated'])
-        self.assertEqual(len(result['code']), 1)
-        self.assertEqual(result['code_omitted'], 1)
-        self.assertTrue(result['code_truncated'])
-        self.assertLessEqual(sum(len(item.get('content', '')) for item in result['code']), 200)
+    def test_functional_details_and_source_citations_are_specific(self):
+        for node, phrase in [('metrics_power_formula', '固定基准8'), ('metrics_power_scope', '不是按个人单人底蕴排序'),
+                             ('metrics_contribution', '团队贡献系数'), ('metrics_game_time', '大厅'),
+                             ('heroes_sample_rules', '至少2场'), ('representative_rules', '300至7200'),
+                             ('plots_image_service', 'gpt-image-2'), ('history_query_rules', '匹配0局'),
+                             ('history_window_limits', '15分钟'), ('memory_update_rules', '最多100条')]:
+            with self.subTest(node=node):
+                result = self.manual.read(action='read', node_id=node)
+                self.assertIn(phrase, result['topics'][0]['content'])
+                source = result['topics'][0]['source']
+                self.assertIn('/chapters/', source['path'])
+                self.assertGreaterEqual(source['end_line'], source['start_line'])
+                self.assertNotIn('ReAct', result['topics'][0]['content'])
 
-    def test_secret_files_traversal_and_symlinks_are_never_read(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / '.env').write_text('secret-unreadable')
-            (root / 'redirect.py').symlink_to(root / '.env')
-            for path in ('.env', 'config.yaml', '../private.py', '/tmp/private.py', 'redirect.py'):
-                with self.subTest(path=path):
-                    catalog = copy.deepcopy(CATALOG)
-                    catalog['topics'][0]['code'] = [{'path': path, 'symbol': 'f'}]
-                    reader = BotManual(root, catalog, HANDBOOK)
-                    with patch.object(Path, 'open', side_effect=AssertionError('private file read')):
-                        result = reader.read(section_id='overview', include_code=True)
-                    self.assertTrue(result['code'][0]['unavailable'])
-                    self.assertNotIn('secret-unreadable', json.dumps(result))
+    def test_every_declared_source_resolves_and_focus_extracts_the_formula(self):
+        for node in self.catalog['topics']:
+            for reference in node.get('code', []):
+                with self.subTest(node=node['id'], reference=reference):
+                    result = self.manual._source(reference, 6000)
+                    self.assertEqual(result['evidence'], 'deployed_source')
+                    self.assertLessEqual(len(result['content']), self.catalog['limits']['max_code_excerpt_chars'])
+        result = self.manual.read(action='code', node_id='metrics_power_formula', fallback_reason='检查公式权重')
+        self.assertIn('pow(equiv_star, 0.3)', result['code'][0]['content'])
+        self.assertEqual(result['code'][0]['focus'], 'single_level')
 
-    def test_source_cache_refreshes_and_redacts_without_executing_file(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'example.py'
-            path.write_text('raise RuntimeError("must not execute")\ndef sample():\n    return "private-secret-value", "sk-abcdefghijklmnop"\n')
+    def test_cycles_missing_parents_and_branch_documents_are_rejected(self):
+        for change in ['cycle','parent','branch_doc','duplicate','missing_heading']:
             catalog = copy.deepcopy(CATALOG)
-            catalog['topics'][0]['code'] = [{'path': 'example.py', 'symbol': 'sample'}]
-            reader = BotManual(directory, catalog, HANDBOOK, secrets=['private-secret-value'])
-            first = reader.read(section_id='overview', include_code=True)
-            self.assertNotIn('private-secret-value', json.dumps(first))
-            self.assertNotIn('sk-abcdefghijklmnop', json.dumps(first))
-            with patch.object(Path, 'open', side_effect=AssertionError('cached file reread')):
-                self.assertEqual(reader.read(section_id='overview', include_code=True)['code'], first['code'])
-            path.write_text('def sample():\n    return "new implementation"\n')
-            second = reader.read(section_id='overview', include_code=True)
-            self.assertIn('new implementation', second['code'][0]['content'])
-            self.assertNotEqual(second['code'][0]['version'], first['code'][0]['version'])
+            nodes = {n['id']:n for n in catalog['topics']}
+            if change == 'cycle': nodes['game']['parent'] = 'metrics'
+            elif change == 'parent': nodes['game']['parent'] = 'missing'
+            elif change == 'branch_doc': nodes['game']['document'] = nodes['metrics_power_formula']['document']
+            elif change == 'duplicate': catalog['topics'].append(copy.deepcopy(nodes['game']))
+            else: nodes['metrics_power_formula']['document']['heading'] = '不存在的标题'
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                BotManual(ROOT, catalog, DOCUMENTS)
 
-    def test_missing_source_is_marked_and_handbook_still_returns(self):
-        catalog = copy.deepcopy(CATALOG)
-        catalog['topics'][0]['code'] = [{'path': 'not_present.py', 'symbol': 'missing'}]
-        result = BotManual(ROOT, catalog, HANDBOOK).read(section_id='overview', include_code=True)
-        self.assertTrue(result['topics'][0]['content'])
+    def test_documents_reject_private_paths_and_symlinks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = root/'shared/agent/manual/chapters'
+            directory.mkdir(parents=True)
+            (root/'.env').write_text('must-not-read')
+            (directory/'redirect.md').symlink_to(root/'.env')
+            for path in ['.env','config.yaml','../private.md','/tmp/private.md','shared/agent/manual/chapters/redirect.md']:
+                catalog = copy.deepcopy(CATALOG)
+                catalog['topics'] = [{'document': {'path': path}}]
+                with self.subTest(path=path), patch.object(Path, 'open', side_effect=AssertionError('private file read')), self.assertRaises(ValueError):
+                    load_manual_documents(root, catalog)
+
+    def test_code_rejects_private_paths_and_missing_source_is_explicit(self):
+        node = next(n for n in self.catalog['topics'] if n['id']=='metrics_power_formula')
+        for path in ['.env','config.yaml','../private.py','/tmp/private.py']:
+            node['code'] = [{'path':path,'symbol':'f'}]
+            with self.subTest(path=path), patch.object(Path,'open',side_effect=AssertionError('private file read')):
+                result = self.manual.read(action='code',node_id=node['id'],fallback_reason='未找到规则说明')
+            self.assertTrue(result['code'][0]['unavailable'])
+        node['code']=[{'path':'not_present.py','symbol':'f'}]
+        result=self.manual.read(action='code',node_id=node['id'],fallback_reason='未找到规则说明')
         self.assertTrue(result['code'][0]['unavailable'])
-        self.assertNotIn(str(ROOT), json.dumps(result))
+        self.assertNotIn(str(ROOT),json.dumps(result))
 
-    def test_portable_worker_uses_the_supplied_handbook_and_current_target_source(self):
-        bridge = RemoteBridge('test', str(ROOT), 'python', SHARED)
-        bootstrap = bridge._bootstrap_arguments()
-        namespace = {}
-        exec(compile(bootstrap['bot_manual_reader'], 'portable_bot_manual', 'exec'), namespace)
-        reader = namespace['BotManual'](ROOT, bootstrap['bot_manual_catalog'], bootstrap['bot_manual_handbook'])
-        with patch.dict(remote_worker.CONTEXT, {'store': object(), 'bot_manual': reader}, clear=True):
-            result = remote_worker.dispatch({'op': 'bot_manual', 'section_id': 'profiles', 'include_code': True})
-        self.assertIn('你的头像是什么', result['topics'][0]['content'])
-        self.assertNotIn('target=bot', result['topics'][0]['content'])
-        self.assertTrue(any("args.target == \"bot\"" in item.get('content', '') for item in result['code']))
-        self.assertNotIn('code', load_catalogs(SHARED)['bot_info']['topics'][0])
+    def test_source_refreshes_without_execution_and_secrets_are_redacted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'example.py'
+            path.write_text('raise RuntimeError("do not execute")\ndef sample():\n    return "private-secret-value", "sk-abcdefghijklmnop"\n')
+            node=next(n for n in self.catalog['topics'] if n['id']=='metrics_power_formula')
+            node['code']=[{'path':'example.py','symbol':'sample'}]
+            reader=BotManual(directory,self.catalog,DOCUMENTS,secrets=['private-secret-value'])
+            first=reader.read(action='code',node_id=node['id'],fallback_reason='核对计算细节')
+            self.assertNotIn('private-secret-value',json.dumps(first))
+            self.assertNotIn('sk-abcdefghijklmnop',json.dumps(first))
+            path.write_text('def sample():\n    return "updated"\n')
+            second=reader.read(action='code',node_id=node['id'],fallback_reason='核对计算细节')
+            self.assertIn('updated',second['code'][0]['content'])
+            self.assertNotEqual(first['code'][0]['version'],second['code'][0]['version'])
 
-    def test_functional_commands_are_found_without_architecture_or_obsolete_instructions(self):
-        cases = [('怎么生成表情包，模板001怎么用？', 'emoji', '#emoji 001'),
-                 ('总览拿手英雄用哪个字母？', 'metrics', '#总览k-14'),
-                 ('如何订阅B站的UP主？', 'subscriptions', '#订阅B站'),
-                 ('今天的代表局怎么查？', 'representative', '#代表局')]
-        for question, section, example in cases:
-            with self.subTest(question=question):
-                result = self.manual.read(query=question, limit=1)
-                self.assertEqual(result['topics'][0]['section_id'], section)
-                self.assertIn(example, result['topics'][0]['content'])
-                self.assertEqual(result['code'], [])
-        self.assertNotIn('architecture', self.manual.topics)
-        for technical in ('ReAct', 'Redis', 'PostgreSQL', 'AST', 'empty_cache', 'remember_memory'):
-            self.assertNotIn(technical, HANDBOOK)
+    def test_content_budgets_paginate_and_stale_version_cannot_read_code(self):
+        self.manual.limits['max_handbook_chars']=30
+        first=self.manual.read(action='read',node_id='metrics_power_formula')
+        second=self.manual.read(action='read',node_id='metrics_power_formula',offset=first['next_offset'])
+        self.assertEqual(len(first['topics'][0]['content']),30)
+        self.assertTrue(second['topics'][0]['truncated'])
+        with patch.object(Path,'open',side_effect=AssertionError('code read before version check')), self.assertRaises(ValueError):
+            self.manual.read(action='code',node_id='metrics_power_formula',fallback_reason='公式缺少说明',expected_version='stale')
+        for options in [{'limit':True},{'limit':6},{'offset':True},{'query':'x'*401},{'node_id':'../../.env'},
+                        {'action':'code','node_id':'metrics'},{'action':'code','node_id':'metrics_power_formula'}]:
+            with self.subTest(options=options),self.assertRaises(ValueError): self.manual.read(**options)
 
-    def test_markdown_and_html_images_are_not_model_inputs_or_search_evidence(self):
-        examples = '''普通说明和 #我的战绩。
-![秘密图片关键词](https://media.invalid/one.png)
-[![缩略图](https://media.invalid/two.png)](https://media.invalid/full.png)
-![引用图片][shot]
+    def test_images_and_fenced_headings_are_not_search_evidence(self):
+        example='![秘密图片关键词](https://media.invalid/one.png)\n<img src="https://media.invalid/two.png" alt="私密图"/>\n```text\n### 虚假的新章节\n```\n可见说明'
+        self.assertNotIn('media.invalid',handbook_text(example))
+        path='shared/agent/manual/chapters/metrics_power_formula.md'
+        self.documents[path]+='\n'+example
+        reader=BotManual(ROOT,self.catalog,self.documents)
+        result=reader.read(action='read',node_id='metrics_power_formula')
+        self.assertIn('可见说明',result['topics'][0]['content'])
+        self.assertNotIn('秘密图片关键词',json.dumps(result))
+        self.assertNotIn('media.invalid',json.dumps(result))
 
-[shot]: https://media.invalid/three.png
-<div><img src="https://media.invalid/four.png" alt="内部截图"/>可见说明</div>
-<picture><source srcset="https://media.invalid/five.webp"/><img src="https://media.invalid/six.png"/></picture>
-'''
-        projected = handbook_text(examples)
-        self.assertIn('#我的战绩', projected)
-        self.assertIn('可见说明', projected)
-        self.assertNotIn('media.invalid', projected)
-        self.assertNotIn('秘密图片关键词', projected)
-        handbook = HANDBOOK.replace('## 功能速查\n', '## 功能速查\n' + examples)
-        result = BotManual(ROOT, CATALOG, handbook).read(section_id='overview')
-        self.assertNotIn('media.invalid', json.dumps(result))
-        self.assertNotIn('model_images', result)
-
-    def test_readme_headings_keep_citations_and_fenced_headings_do_not_create_sections(self):
-        handbook = HANDBOOK.replace('## AI 聊天\n', '## AI 聊天\n\n```text\n## 只是一个代码例子\n```\n')
-        result = BotManual(ROOT, CATALOG, handbook).read(section_id='chat')
-        self.assertIn('## 只是一个代码例子', result['topics'][0]['content'])
-        line = result['topics'][0]['source']['start_line']
-        self.assertEqual(handbook.splitlines()[line - 1], '## AI 聊天')
+    def test_bootstrap_ships_declared_documents_and_worker_reads_supplied_tree(self):
+        bridge=RemoteBridge('test',str(ROOT),'python',SHARED)
+        args=bridge._bootstrap_arguments()
+        namespace={}
+        exec(compile(args['bot_manual_reader'],'portable_manual','exec'),namespace)
+        reader=namespace['BotManual'](ROOT,args['bot_manual_catalog'],args['bot_manual_documents'])
+        with patch.dict(remote_worker.CONTEXT,store=object(),bot_manual=reader,clear=True):
+            result=remote_worker.dispatch({'op':'bot_manual','action':'read','node_id':'plots_image_service'})
+        self.assertIn('APIMart',result['topics'][0]['content'])
+        self.assertNotIn('bot_manual_handbook',args)
 
 
 class ManualToolTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.reader = BotManual(ROOT, CATALOG, HANDBOOK)
-        self.bridge = AsyncMock()
-        self.bridge.call.side_effect = lambda op, **args: self.reader.read(**args) if op == 'bot_manual' else None
-        self.registry = ToolRegistry()
-        register_application_tools(self.registry, service=Capabilities(self.bridge), catalogs=load_catalogs(SHARED))
+        self.reader=BotManual(ROOT,CATALOG,DOCUMENTS)
+        self.bridge=AsyncMock()
+        self.bridge.call.side_effect=lambda op,**args:self.reader.read(**args) if op=='bot_manual' else None
+        self.registry=ToolRegistry()
+        register_application_tools(self.registry,service=Capabilities(self.bridge),catalogs=load_catalogs(SHARED))
 
-    async def test_metadata_tool_is_discovered_then_used_without_group_permission(self):
-        model = ScriptedModel([
-            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['bot_info']}, 'd')]},
-            {'role': 'assistant', 'content': '', 'tool_calls': [call('read_bot_manual', {'query': '机器人怎样读取自己的头像？', 'limit': 1, 'include_code': True}, 'm')]},
-            {'role': 'assistant', 'content': 'QQ使用绑定机器人身份读取头像，本地Web尚未注入实时资料读取器。'},
-        ])
-        state, sink = State(), Sink()
-        runtime = AgentRuntime(model=model, registry=self.registry, state=state, output=sink, clock=Clock())
-        result = await runtime.run(RunRequest('你能看自己的QQ头像吗？', 's', Principal('user'),
-            system_prompt=application_prompt(), required_tools=('discover_tools',)))
-        self.assertIn('本地Web', result['text'])
-        self.assertNotIn('read_bot_manual', [item['function']['name'] for item in model.schemas[0]])
-        self.assertIn('read_bot_manual', [item['function']['name'] for item in model.schemas[1]])
-        observation = next(event['data']['result'] for event in sink.events
-                           if event['kind'] == 'tool.result' and event['data']['name'] == 'read_bot_manual')
-        self.assertTrue(observation['ok'])
-        profile = next(item for item in observation['data']['tool_availability'] if item['name'] == 'read_group_member_profile')
-        self.assertFalse(profile['registered'])
-        self.assertFalse(profile['authorized'])
-        self.assertEqual([event['kind'] for event in sink.events].count('tool.result'), 2)
-
-    async def test_tool_rejects_arbitrary_files_and_marks_current_channel_permissions(self):
-        ctx = ToolContext(RunRequest('手册', 's', Principal('user', attributes={'delivery': {'platform': 'qq'}})), AsyncMock())
+    def context(self):
+        ctx=ToolContext(RunRequest('手册','s',Principal('user',attributes={'delivery':{'platform':'qq'}})),AsyncMock())
         ctx.disclosed.add('read_bot_manual')
-        rejected = await execute(self.registry, call('read_bot_manual', {'path': '.env'}, 'bad'), ctx)
-        self.assertEqual(rejected.code, 'INVALID_ARGUMENTS')
+        return ctx
+
+    async def test_code_requires_complete_read_of_same_leaf_and_explicit_missing_fact(self):
+        ctx=self.context()
+        args={'action':'code','node_id':'metrics_power_formula','fallback_reason':'核对新增权重'}
+        result=await execute(self.registry,call('read_bot_manual',args),ctx)
+        self.assertFalse(result.ok)
         self.bridge.call.assert_not_awaited()
-        result = await execute(self.registry, call('read_bot_manual', {'section_id': 'permissions'}, 'ok'), ctx)
+        read=await execute(self.registry,call('read_bot_manual',{'action':'read','node_id':'metrics_power_formula'}),ctx)
+        self.assertTrue(read.ok)
+        for invalid in [{'action':'code','node_id':'plots_image_service','fallback_reason':'未知API'},
+                        {'action':'code','node_id':'metrics_power_formula'}]:
+            self.assertFalse((await execute(self.registry,call('read_bot_manual',invalid),ctx)).ok)
+        result=await execute(self.registry,call('read_bot_manual',args),ctx)
         self.assertTrue(result.ok)
-        self.assertEqual(result.data['current_channel'], 'qq')
-        self.assertTrue(all(item['registered'] and not item['authorized'] for item in result.data['tool_availability']
-                            if item['name'] != 'read_group_member_profile'))
+        self.assertIn('single_level',result.data['code'][0]['content'])
+        self.assertEqual(result.data['current_channel'],'qq')
+        self.assertFalse((await execute(self.registry,call('read_bot_manual',args),self.context())).ok)
+
+    async def test_skipping_a_body_page_cannot_enable_fallback(self):
+        self.reader.limits['max_handbook_chars']=100
+        ctx=self.context()
+        async def read(offset):
+            return await execute(self.registry,call('read_bot_manual',{'action':'read','node_id':'metrics_power_formula','offset':offset}),ctx)
+        first=await read(0)
+        await read(100000)
+        code={'action':'code','node_id':'metrics_power_formula','fallback_reason':'公式缺失'}
+        self.assertFalse((await execute(self.registry,call('read_bot_manual',code),ctx)).ok)
+        offset=first.data['next_offset']
+        while offset is not None:
+            page=await read(offset);offset=page.data['next_offset']
+        self.assertTrue((await execute(self.registry,call('read_bot_manual',code),ctx)).ok)
+
+    async def test_react_discovery_navigation_read_then_code_produces_bounded_observations(self):
+        steps=[{'categories':['bot_info']}, {'action':'search','query':'底蕴怎么算'},
+               {'action':'search','query':'底蕴怎么算','node_id':'game'},
+               {'action':'search','query':'底蕴怎么算','node_id':'metrics'},
+               {'action':'read','node_id':'metrics_power_formula'},
+               {'action':'code','node_id':'metrics_power_formula','fallback_reason':'核对当前公式权重是否一致'}]
+        replies=[{'role':'assistant','content':'','tool_calls':[call('discover_tools' if i==0 else 'read_bot_manual',args,str(i))]}
+                 for i,args in enumerate(steps)]
+        replies.append({'role':'assistant','content':'底蕴按公式与有效样本计算。'})
+        model=ScriptedModel(replies);state=State();sink=Sink()
+        runtime=AgentRuntime(model=model,registry=self.registry,state=state,output=sink,clock=Clock())
+        await runtime.run(RunRequest('底蕴怎么算','s',Principal('u'),system_prompt=application_prompt()))
+        observations=[e['data']['result'] for e in state.events if e['kind']=='tool.result']
+        self.assertTrue(all(o['ok'] for o in observations))
+        for observation in observations[1:4]:
+            self.assertTrue(all('content' not in topic for topic in observation['data']['topics']))
+        self.assertEqual(observations[4]['data']['code'],[])
+        self.assertTrue(observations[5]['data']['code'])
+        self.assertNotIn('APIMart',json.dumps(observations[4]['data']))
+
+    async def test_arbitrary_path_parameters_are_rejected_before_rpc(self):
+        result=await execute(self.registry,call('read_bot_manual',{'path':'.env'}),self.context())
+        self.assertEqual(result.code,'INVALID_ARGUMENTS')
+        self.bridge.call.assert_not_awaited()
 
 
-if __name__ == '__main__':
-    unittest.main()
+if __name__=='__main__': unittest.main()

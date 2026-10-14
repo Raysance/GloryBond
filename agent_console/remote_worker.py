@@ -211,7 +211,7 @@ def bootstrap(args):
     manual_namespace = {}
     exec(compile(args["bot_manual_reader"], "portable_bot_manual", "exec"), manual_namespace)
     CONTEXT["bot_manual"] = manual_namespace["BotManual"](
-        root, args["bot_manual_catalog"], args["bot_manual_handbook"],
+        root, args["bot_manual_catalog"], args["bot_manual_documents"],
         secrets=[model["api_key"], *(value for name, value in env.items()
                   if any(word in name.upper() for word in ("KEY", "TOKEN", "PASSWORD", "SECRET", "DSN")))],
     )

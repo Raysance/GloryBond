@@ -8,6 +8,7 @@ import shlex
 import yaml
 
 from .tool_errors import RemoteToolError, exception_details, redact_error
+from .bot_manual import load_manual_documents
 
 
 class BridgeUnavailable(ConnectionError):
@@ -63,6 +64,7 @@ class RemoteBridge:
         )
 
     def _bootstrap_arguments(self):
+        manual_catalog = json.loads((self.shared_path / "manual/catalog.json").read_text())
         catalogs = {
             domain: json.loads((self.shared_path / domain / "catalog.json").read_text())
             for domain in ("hok_sql", "chat_sql")
@@ -97,8 +99,8 @@ class RemoteBridge:
             reference_builder=(
                 Path(__file__).with_name("tools") / "reference_data.py"
             ).read_text(),
-            bot_manual_catalog=json.loads((self.shared_path / "manual/catalog.json").read_text()),
-            bot_manual_handbook=(self.shared_path / "manual/handbook.md").read_text(),
+            bot_manual_catalog=manual_catalog,
+            bot_manual_documents=load_manual_documents(self.shared_path.parents[1], manual_catalog),
             bot_manual_reader=Path(__file__).with_name("bot_manual.py").read_text(),
             use_process_environment=getattr(self, "use_process_environment", False),
         )
