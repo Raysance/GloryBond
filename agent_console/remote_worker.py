@@ -498,26 +498,43 @@ def memory(args):
         }
     if action == "forget":
         return {"deleted": bool(store.hdel(key, args["memory_id"]))}
-    memory_id = args.get("memory_id") or uuid4().hex
+    if action != "remember":
+        raise ValueError("未知记忆操作")
+    helpers = CONTEXT["memory"]
+    targets = helpers["replacement_memory_ids"](args.get("memory_id", ""), args.get("supersedes", []))
+    proposed_id = targets[0] if targets else uuid4().hex
     for _ in range(3):
         with store.pipeline() as pipe:
             try:
                 pipe.watch(key)
-                existing = pipe.hget(key, memory_id)
-                if args.get("memory_id") and not existing:
-                    raise ValueError("记忆不存在")
-                if not existing and pipe.hlen(key) >= 100:
-                    raise ValueError("记忆数量已到上限")
-                record = CONTEXT["memory"]["prepare_fact_memory"](
+                raw_records = pipe.hgetall(key)
+                records = {row["memory_id"]: row for row in helpers["parse_fact_memories"](raw_records)}
+                if any(identifier not in records or (identifier not in raw_records and identifier.encode() not in raw_records)
+                       for identifier in targets):
+                    raise ValueError("记忆不存在或不可更新")
+                memory_id = proposed_id
+                existing = records.get(memory_id)
+                timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                record = helpers["prepare_fact_memory"](
                     args["content"],
                     memory_id=memory_id,
-                    timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    existing=json.loads(existing) if existing else None,
+                    timestamp=timestamp, existing=existing,
                 )
+                if not targets:
+                    duplicate = next((row for row in records.values() if row["content"] == record["content"]), None)
+                    if duplicate:
+                        return {"saved": True, "changed": False, "memory": duplicate, "superseded": []}
+                removed = [identifier for identifier in targets if identifier != memory_id]
+                if existing and existing["content"] == record["content"] and not removed:
+                    return {"saved": True, "changed": False, "memory": existing, "superseded": []}
+                if not existing and len(raw_records) - len(removed) >= 100:
+                    raise ValueError("记忆数量已到上限")
                 pipe.multi()
                 pipe.hset(key, memory_id, json.dumps(record, ensure_ascii=False))
+                if removed:
+                    pipe.hdel(key, *removed)
                 pipe.execute()
-                return {"saved": True, "memory": record}
+                return {"saved": True, "changed": True, "memory": record, "superseded": removed}
             except redis.WatchError:
                 continue
     raise RuntimeError("记忆并发更新，请重试")

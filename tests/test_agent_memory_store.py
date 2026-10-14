@@ -8,17 +8,19 @@ from agent_console.tools import memory
 
 class Store:
     def __init__(self):
-        self.hashes, self.values = {}, {}
+        self.hashes, self.values, self.transactions = {}, {}, []
     def hget(self, key, field):
         return self.hashes.get(key, {}).get(field)
     def hvals(self, key):
         return list(self.hashes.get(key, {}).values())
+    def hgetall(self, key):
+        return dict(self.hashes.get(key, {}))
     def hlen(self, key):
         return len(self.hashes.get(key, {}))
     def hset(self, key, field, value):
         self.hashes.setdefault(key, {})[field] = value
-    def hdel(self, key, field):
-        return bool(self.hashes.get(key, {}).pop(field, None))
+    def hdel(self, key, *fields):
+        return sum(bool(self.hashes.get(key, {}).pop(field, None)) for field in fields)
     def delete(self, *keys):
         count=0
         for key in keys:
@@ -41,13 +43,18 @@ class Pipeline:
         return self.store.hget(*args)
     def hlen(self, *args):
         return self.store.hlen(*args)
+    def hgetall(self, *args):
+        return self.store.hgetall(*args)
     def multi(self):
         pass
     def hset(self, *args):
-        self.pending.append(args)
+        self.pending.append(('hset', args))
+    def hdel(self, *args):
+        self.pending.append(('hdel', args))
     def execute(self):
-        for args in self.pending:
-            self.store.hset(*args)
+        self.store.transactions.append(list(self.pending))
+        for operation, args in self.pending:
+            getattr(self.store, operation)(*args)
 
 
 class MemoryStoreTests(unittest.TestCase):
@@ -82,3 +89,82 @@ class MemoryStoreTests(unittest.TestCase):
         self.assertNotIn(target,self.store.values)
         self.assertIn(private,self.store.values)
         self.assertEqual(self.call('102','recall')['total'],1)
+
+    def test_correction_replaces_conflicting_facts_atomically_and_preserves_other_preferences(self):
+        first = self.call('101', 'remember', content='主玩辅助')['memory']
+        conflict = self.call('101', 'remember', content='喜欢打辅助位置')['memory']
+        unrelated = self.call('101', 'remember', content='喜欢简短回复')['memory']
+        result = self.call('101', 'remember', content='一直主玩中路，不是辅助', memory_id=first['memory_id'],
+                           supersedes=[conflict['memory_id'], conflict['memory_id'], first['memory_id']])
+        self.assertTrue(result['changed'])
+        self.assertEqual(result['memory']['memory_id'], first['memory_id'])
+        self.assertEqual(result['memory']['created_at'], first['created_at'])
+        self.assertEqual(result['superseded'], [conflict['memory_id']])
+        self.assertEqual([operation for operation, args in self.store.transactions[-1]], ['hset', 'hdel'])
+        self.assertEqual({row['content'] for row in self.call('101', 'recall')['memories']},
+                         {'一直主玩中路，不是辅助', unrelated['content']})
+
+    def test_invalid_cross_user_or_secret_replacement_never_partially_modifies_facts(self):
+        mine = self.call('101', 'remember', content='主玩辅助')['memory']
+        other = self.call('102', 'remember', content='喜欢安琪拉')['memory']
+        before = dict(self.store.hashes['hok:memory:facts:101'])
+        for removed in ['missing', other['memory_id'], 'legacy-old', 'invalid:id']:
+            with self.subTest(removed=removed), self.assertRaises(ValueError):
+                self.call('101', 'remember', content='主玩中路', memory_id=mine['memory_id'], supersedes=[removed])
+            self.assertEqual(self.store.hashes['hok:memory:facts:101'], before)
+        with self.assertRaises(ValueError):
+            self.call('101', 'remember', content='sk-test-private-credential-12345', memory_id=mine['memory_id'])
+        self.assertEqual(self.store.hashes['hok:memory:facts:101'], before)
+        self.assertEqual(self.call('102', 'recall')['memories'], [other])
+
+    def test_duplicate_writes_are_idempotent_and_correction_works_at_capacity(self):
+        for number in range(100):
+            self.call('101', 'remember', content=f'事实{number}')
+        record = self.call('101', 'recall')['memories'][0]
+        duplicate = self.call('101', 'remember', content=' ' + record['content'] + ' ')
+        self.assertFalse(duplicate['changed'])
+        self.assertEqual(duplicate['memory'], record)
+        self.assertEqual(self.call('101', 'recall')['total'], 100)
+        with self.assertRaises(ValueError):
+            self.call('101', 'remember', content='超限新事实')
+        updated = self.call('101', 'remember', content='纠正后的事实', supersedes=[record['memory_id']])
+        self.assertEqual(updated['memory']['memory_id'], record['memory_id'])
+        self.assertEqual(self.call('101', 'recall')['total'], 100)
+        same = self.call('101', 'remember', content='纠正后的事实', memory_id=record['memory_id'])
+        self.assertFalse(same['changed'])
+
+
+class MemoryToolIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_implicit_correction_tools_update_owned_facts_and_log_replacements(self):
+        from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
+        from agent_console.capabilities import Capabilities, application_prompt
+        from agent_console.tools.application import register_application_tools
+        from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
+        store = Store()
+        with patch.dict(worker.CONTEXT, store=store, memory=memory.__dict__):
+            first = worker.memory({'user_id': '101', 'action': 'remember', 'content': '主玩辅助'})['memory']
+            second = worker.memory({'user_id': '101', 'action': 'remember', 'content': '常用辅助位'})['memory']
+            class Bridge:
+                async def call(self, operation, **args):
+                    self_case.assertEqual(operation, 'memory')
+                    return worker.memory(args)
+            self_case = self
+            registry = ToolRegistry()
+            register_application_tools(registry, service=Capabilities(Bridge()), catalogs={})
+            model = ScriptedModel([
+                {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['memory']}, 'd')]},
+                {'role': 'assistant', 'content': '', 'tool_calls': [call('recall_memory', {'query': '辅助位置'}, 'r')]},
+                {'role': 'assistant', 'content': '', 'tool_calls': [call('remember_memory',
+                    {'content': '一直主玩中路，不是辅助', 'memory_id': first['memory_id'], 'supersedes': [second['memory_id']]}, 'm')]},
+                {'role': 'assistant', 'content': '明白了，你一直主玩中路，已更新。'},
+            ])
+            state = State()
+            runtime = AgentRuntime(model=model, registry=registry, state=state, output=Sink(), clock=Clock())
+            question = '你理解错了，我一直主玩中路，不是辅助。'
+            await runtime.run(RunRequest(question, 'correction', Principal('101', frozenset({'memory.use'})),
+                                         system_prompt=application_prompt(), required_tools=('discover_tools',)))
+            facts = worker.memory({'user_id': '101', 'action': 'recall'})['memories']
+        self.assertEqual([row['content'] for row in facts], ['一直主玩中路，不是辅助'])
+        self.assertIn(second['memory_id'], json.dumps(state.events))
+        self.assertIn('superseded', json.dumps(state.events))
+        self.assertEqual(state.dialogue[0]['content'], question)

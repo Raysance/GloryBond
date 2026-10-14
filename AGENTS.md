@@ -238,7 +238,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - 独立内核变更必须先在私有仓库提交并推送，再更新父仓库 submodule 指针。首次克隆执行 `git submodule update --init --recursive`。部署固定检出 gitlink commit，不使用 `--remote` 跟随分支；现有部署用 `deployment/scripts/sync_agent_runtime.sh` 将旧复制目录备份后安装软链接，保留其他业务数据。
 - DeepSeekModel 实现可选 `StructuredModelPort.complete_request(ModelRequest)`，正确传递内核选择的命名 tool_choice；所有含工具或继续工具链的请求统一关闭 thinking，不在强制轮和自动轮间切换思考协议。独立内核不识别 DeepSeek 或工具名称。
 
-- `agent_console/tools/memory.py` 维护当前使用的纯事实校验、BM25 与多 query RRF；worker 由外部适配器传入源码，不从 Hok 旧记忆模块提取。存储和可信身份继续由 worker/适配器处理，不进入内核。
+- `agent_console/tools/memory.py` 维护纯事实校验、BM25、多 query RRF、`memory_policy_prompt()` 及替换 ID 校验；worker 由外部适配器传入源码，不从 Hok 旧记忆模块提取。记忆不只由“记住”触发：当前用户明确纠正认知、澄清稳定背景/约定或提供与旧记忆/先前推断冲突的稳定信息时，由同一 ReAct 模型语义判断，发现 memory、召回相关记录后保存/更新，不新增关键词判定器或额外意图分类模型。当前用户自己的最新说明优先于过时个人记忆；客观事实纠正先核验，未核实说法只保留用户归属，不能覆盖权威身份、配置或查询证据。只说“不对”而缺少新信息时澄清，短期状态、疑问、假设、玩笑、引用/网页/工具原话及无直接用户新说明的后台任务不自动存为本人事实；nomem 和 memory.use 权限继续有效。`remember_memory.memory_id` 原位更新并保留 created_at；`supersedes` 只接受同一用户已查到的同一事实冲突/重复旧 ID，在 worker 的 WATCH/MULTI 事务内校验全部目标、写新事实并删除其余旧记录，任一目标缺失、越权、只读或无效时整次不写，不能先删后存。相同正文新增或无变化更新幂等，返回 changed=false；新事实与未删除记忆共用原有100条上限。部分纠正保留旧记录中不受影响的内容，条件/时期不同且可同时成立的信息不强行合并。实际保存/替换状态保留在 tool observation 与运行日志，成功后才能确认，存储、权限、时间和身份不进入内核。
 - 旧聊天兼容入口、注册器、schema、角色包、绘图 worker、诊断、JSON/主动/被动/摘要缓存和过时开关均已删除。不要恢复第二套聊天实现。历史数据库/Redis 数据未由代码清理删除；`forget_me` 只按可信入口清除本人长期事实及当前 QQ 会话上下文，不删除归档、日志、角色偏好或其他会话。
 
 - 部署恢复使用 `deployment/scripts/restore_application.sh`，先按旧 HEAD 与目标版本的删除列表移除源文件，再 reset/restore；禁止仅 reset 导致已退休模块遗留为可导入的未跟踪文件。历史目录继续排除，复制内核备份由 sync_agent_runtime.sh 负责。

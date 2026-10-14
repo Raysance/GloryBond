@@ -6,6 +6,46 @@ from collections import Counter
 from typing import List
 
 
+def memory_policy_prompt():
+    """Application memory policy; semantic decisions remain in the tool loop."""
+    return (
+        "长期记忆由当前用户直接表达的信息触发，不要求必须出现‘记住’。"
+        "用户明确纠正你的认知、澄清个人背景或使用约定，或描述与旧记忆/先前推断冲突的稳定新信息时，"
+        "应发现memory能力，先用recall_memory查相关旧记录，再调用remember_memory保存或更新。"
+        "例如‘不是辅助，我一直主玩中路’、‘现在不喜欢安琪拉，主玩小乔了’，都应按新说明更新；"
+        "你的原先推断没有对应记忆时，可以新增有依据的纠正事实。"
+        "只存清晰、对后续对话有用的事实/偏好/使用约定，不存整段对话、仅一次的短期状态。"
+        "先判断是否真的冲突：长期喜欢安琪拉与今天这局想试小乔可以同时成立，换一个话题/对象不代表偏好变化。"
+        "‘今天这局想玩小乔试试’只影响本次回答，不调用remember_memory，不把它推成今后主玩小乔，"
+        "也不靠补上日期/‘以后想尝试’把临时信息伪装成长期记忆。"
+        "‘现在主玩小乔，不再喜欢安琪拉’才明确改变稳定认知，应更新；"
+        "‘你刚才猜我是辅助，其实我一直主玩中路’明确澄清稳定背景，也应更新。"
+        "只说‘不对’而未提供新信息时先澄清，不把否定词本身写进记忆；疑问、假设、玩笑和引用也不当作本人新事实。"
+        "当前用户自己的稳定偏好与背景以最新明确说明为准，旧记忆不是不可纠正的真相。"
+        "外部客观事实的纠正需核验依据；未核实时只能保留为该用户的说法/约定，不能作为通用真相或覆盖权威身份映射和查询结果。"
+        "更新已查到的旧记录必须传memory_id并写完整的新事实，保留不受本次纠正影响的内容；"
+        "同一事实还有多条冲突/重复旧记录时，把其余已查询的ID放入supersedes，原子替换，不能先删后存。"
+        "确需保存的稳定信息若新旧说法因时期/条件不同可同时成立，就保留时间或条件，不删除无关记忆。已有等价记忆不要重复新增。"
+        "只在当前用户具备memory.use时操作，nomem请求和没有直接用户新说明的后台任务不自动写记忆。"
+        "工具成功后才能简短确认更新，本轮回答也采用已澄清的新信息；失败时不要声称已记住。"
+    )
+
+
+def replacement_memory_ids(memory_id, supersedes):
+    """Validate replacement targets without inferring semantic contradictions."""
+    if not isinstance(supersedes, (list, tuple)) or len(supersedes) > 20:
+        raise ValueError("chat_memory: invalid supersedes list")
+    targets = []
+    for identifier in ([memory_id] if memory_id else []) + list(supersedes):
+        if not isinstance(identifier, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", identifier):
+            raise ValueError("chat_memory: invalid memory_id")
+        if identifier.startswith("legacy-"):
+            raise ValueError("chat_memory: legacy memories are read-only")
+        if identifier not in targets:
+            targets.append(identifier)
+    return targets
+
+
 def recent_history_limits(config=None):
     """Configuration defaults shared by tool schemas and the portable worker."""
     limits = {

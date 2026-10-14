@@ -151,6 +151,9 @@
       "title": "记住偏好与清除记忆",
       "keywords": [
         "长期记忆",
+        "纠正认知",
+        "理解错了",
+        "偏好变化",
         "记住",
         "偏好",
         "忘记",
@@ -168,6 +171,10 @@
         {
           "path": "agent_console/tools/memory.py",
           "symbol": "prepare_fact_memory"
+        },
+        {
+          "path": "agent_console/tools/memory.py",
+          "symbol": "memory_policy_prompt"
         },
         {
           "path": "qq_agent/service.py",
