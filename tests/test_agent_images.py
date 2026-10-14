@@ -251,6 +251,23 @@ class ImageAPITests(unittest.TestCase):
 
 
 class ProviderImageTests(unittest.IsolatedAsyncioTestCase):
+    async def test_only_explicit_channel_proxy_is_used_for_model_requests(self):
+        options = []
+        client = httpx.AsyncClient
+        frame = {'choices': [{'delta': {'content': 'OK'}, 'finish_reason': 'stop'}]}
+        def factory(**kwargs):
+            options.append(dict(kwargs))
+            kwargs.pop('proxy')
+            return client(transport=httpx.MockTransport(lambda request: httpx.Response(
+                200, text='data: ' + json.dumps(frame) + '\n\ndata: [DONE]\n\n')), **kwargs)
+        with patch('agent_console.provider.httpx.AsyncClient', side_effect=factory):
+            for proxy in ('http://configured-proxy.invalid:7890', ''):
+                model = DeepSeekModel(api_key='test-key', base_url='https://model.invalid', model='test', proxy_url=proxy)
+                result = await model.complete([{'role': 'user', 'content': 'test'}], [], AsyncMock())
+                self.assertEqual(result['message']['content'], 'OK')
+        self.assertEqual([item['proxy'] for item in options], ['http://configured-proxy.invalid:7890', None])
+        self.assertTrue(all(item['trust_env'] is False for item in options))
+
     async def test_streaming_protocol_selects_vision_for_current_and_historical_images(
         self,
     ):

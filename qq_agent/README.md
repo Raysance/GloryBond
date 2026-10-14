@@ -43,6 +43,14 @@ QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响
 `search_chat_history`，再 `discover_tools`；普通私聊只强制发现工具。未披露或未授权
 工具不能执行。DeepSeek 工具链统一关闭 thinking，原生图片使用配置中的 vision_model。
 
+当前 QQ 的文字、视觉、回复整理与联网角色生成均暂时使用 ZenMux
+`https://zenmux.ai/api/v1` 的 `deepseek/deepseek-v4.1-flash`。远程 `ChatAPI.api_key_env`
+与本地 Web 均引用现有 `.env` 中的 `LLM_API_KEY`；业务单轮文案也使用该 ChatAPI。
+显式 `HOK_CHAT_API_KEY` 仍可覆盖，但部署启动环境不得遗留旧供应商配置。
+指定密钥缺失时拒绝启动，不把官方旧密钥发给 ZenMux。
+远程通过 `ChatAPI.proxy_url` 指定服务器已有的 Clash，工具循环、回复整理、角色生成
+和业务文案均使用该显式代理；不继承环境代理。本地 Web 仍按自己的 llm 配置直连。
+
 询问机器人的功能、特性、命令或实现时，可发现 `bot_info` 并调用 `read_bot_manual`。
 它按问题检索 `shared/agent/manual/handbook.md` 的少量相关章节；`section_id` 可精确
 追问，`include_code=true` 可读取目录声明的关联函数摘录。结果含来源行号、版本和
@@ -104,7 +112,7 @@ QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响
 
 动态表情支持 NapCat 的 `image` GIF 地址以及带 URL 的 `mface` / `marketface` / `face`，
 直接发送与引用均走同一图片输入流程。动画按顺序抽取最多 4 帧并生成带帧号的 PNG
-拼图，送给配置中的 `deepseek-v4-flash`；只分析实际提供的帧。原 GIF 保留，实际模型
+拼图，送给配置中的 `deepseek/deepseek-v4.1-flash`；只分析实际提供的帧。原 GIF 保留，实际模型
 拼图单独保存并关联原图与帧号，运行记录可以还原发送的确切像素。只有表情 ID 而
 没有可读取图片地址时会标明未读取。抽样数量、动画帧数上限在 `QQAgent.images` 调整。
 

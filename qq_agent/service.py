@@ -111,8 +111,9 @@ class QQAgentService:
                 options = {
                     "api_key": remote["private"]["api_key"], "base_url": self.public["base_url"],
                     "model": self.public["model"], "thinking": self.config.get("thinking", False),
+                    "proxy_url": self.public.get("proxy_url", ""),
                     "max_tokens": self.config.get("max_tokens", 4096),
-                    "vision_model": self.config.get("vision_model", "deepseek-v4-flash"), "image_store": self.image_store,
+                    "vision_model": self.config.get("vision_model") or self.public["model"], "image_store": self.image_store,
                 }
                 self.model = self.model_factory(**options)
                 self.roles = RoleplayService(bridge=self.state_bridge, capabilities=service, model=self.model,

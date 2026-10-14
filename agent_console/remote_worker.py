@@ -220,6 +220,7 @@ def bootstrap(args):
         "public": {
             "model": model["model"],
             "base_url": model["base_url"],
+            "proxy_url": model["proxy_url"],
             "database": "PostgreSQL / hok_chat_reader",
             "memory": "Redis DB0",
             "sandbox": "bubblewrap / Linux",

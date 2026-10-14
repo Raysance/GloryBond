@@ -12,14 +12,16 @@ local_debugger/.venv/bin/python -m agent_console
 
 然后打开 http://127.0.0.1:8765/ 。首次缺少环境时，先执行 `python3 local_debugger/setup_env.py`。端口可用 `--port` 覆盖，其他非密钥设置在根 `config.yaml` 的 `LocalAgent`。
 
-本地 Web 当前通过 `LocalAgent.llm` 使用 `https://zenmux.ai/api/v1`，文字使用 `deepseek/deepseek-v4-flash`，图片使用支持视觉输入的 `deepseek/deepseek-v4.1-flash`。密钥只放在现有 `.env` 的 `LLM_API_KEY`；`api_key_env` 保存该变量名，进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。ReAct、回复整理和联网角色生成使用相同本地端点，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接，QQ 的 ChatAPI 配置不变。未提供本地密钥时拒绝启动，不回退发送服务器密钥。删除 `LocalAgent.llm` 并重启即可恢复原服务器模型配置。
+本地 Web 与远程 QQ 当前暂时统一使用 `https://zenmux.ai/api/v1`，文字和图片均显式调用 `deepseek/deepseek-v4.1-flash`。密钥只放在现有 `.env` 的 `LLM_API_KEY`；本地 `LocalAgent.llm.api_key_env` 和远程 `ChatAPI.api_key_env` 都引用该变量。进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。ReAct、回复整理、联网角色生成及远程业务单轮文案使用对应渠道的相同端点和模型，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接。未提供配置的密钥时拒绝启动，不回退发送其他供应商旧密钥。删除 `LocalAgent.llm` 并重启即可继承服务器当前模型配置；切回其他供应商需同步修改端点、模型和密钥变量。
 
-首次克隆先运行 `git submodule update --init --recursive`。需要已配置并能免交互连接的 `ssh Aliyun`。启动时通过 SSH 读取运行中的服务器配置和 API 源码，不上传项目、不部署 HTTP 服务、不修改数据库 schema。模型在本地直连 DeepSeek；查询、记忆、搜索、图片及 Python 执行通过外部 SSH 适配器调用。
+首次克隆先运行 `git submodule update --init --recursive`。需要已配置并能免交互连接的 `ssh Aliyun`。启动时通过 SSH 读取运行中的服务器配置和 API 源码，不上传项目、不部署 HTTP 服务、不修改数据库 schema。模型在本地调用已配置的 ZenMux；查询、记忆、搜索、图片及 Python 执行通过外部 SSH 适配器调用。
+
+当前本地 `LocalAgent.llm.proxy_url` 为空，模型直连；远程 `ChatAPI.proxy_url` 使用服务器已有 Clash。模型客户端只采用对应渠道的显式代理，禁用环境代理继承。本地端点覆盖不继承远程的 loopback 代理地址。
 
 ## 功能
 
 - 真实 DeepSeek 流式正文及接口返回的 `reasoning_content`。所有工具链统一关闭 thinking；无工具独立请求可开启思考，界面不伪造思考过程。
-- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时使用 `LocalAgent.vision_model: deepseek-v4-flash`，同一 ReAct 循环继续调用工具并支持图片追问；纯文本继续使用服务器模型配置。官方将该旧名称路由到当前 Flash 模型，见 [官方模型说明](https://api-docs.deepseek.com/) 和 [图片输入文档](https://api-docs.deepseek.com/guides/vision/)。
+- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时使用 `LocalAgent.llm.vision_model`，同一 ReAct 循环继续调用工具并支持图片追问；当前文字和视觉均为 `deepseek/deepseek-v4.1-flash`。模型支持视觉输入，见 [ZenMux 模型说明](https://zenmux.ai/deepseek/deepseek-v4.1-flash)。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。
 - 当前适配器强制先检索历史、再发现所需能力，避免模型把未披露工具误报为不可用。记忆由入口绑定当前会话调用者，保存本人偏好无需提供 QQ 或玩家名。
 - 当消息指代不清或相关性检索缺乏当前话题依据时，可按需发现 `chat_history` 并调用 `read_recent_chat_history`。默认读取最近 15 分钟、最多 20 条已归档发言，窗口最多 60 分钟、数量最多 50 条，每条返回最多 600 字的带截断标记摘录。按时间顺序展示不同发言者及引用 ID，不用于总体统计或长期事实记忆。本地调试有跨群权限，调用时须指定一个目标群，避免混入无关群聊；QQ 普通群自动绑定当前群。配置统一来自服务器 `config.yaml#AgentHistory`，有效限制同步到模型工具 schema，修改后重启适配器。

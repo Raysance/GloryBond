@@ -78,6 +78,7 @@ def local_model_settings(config, remote, *, environment):
             "base_url": remote["public"]["base_url"],
             "model": remote["public"]["model"],
             "vision_model": config.get("vision_model", remote["public"]["model"]),
+            "proxy_url": remote["public"].get("proxy_url", ""),
         }
     base_url, key_name = overrides.get("base_url"), overrides.get("api_key_env")
     if not base_url or not key_name:
@@ -89,6 +90,7 @@ def local_model_settings(config, remote, *, environment):
     return {
         "api_key": key, "base_url": base_url, "model": model,
         "vision_model": overrides.get("vision_model", model),
+        "proxy_url": overrides.get("proxy_url", ""),
     }
 
 
@@ -125,7 +127,7 @@ def create_app(*, config_path=None):
             for connection in (bridge, state_bridge):
                 if model_settings["api_key"] not in connection.secrets:
                     connection.secrets.append(model_settings["api_key"])
-            public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model")})
+            public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model", "proxy_url")})
             model = DeepSeekModel(
                 **model_settings,
                 thinking=config.get("thinking", True),

@@ -19,11 +19,13 @@ class DeepSeekModel:
         vision_model=None,
         image_store=None,
         response_format=None,
+        proxy_url=None,
     ):
         self.api_key, self.base_url, self.model = api_key, base_url.rstrip("/"), model
         self.thinking, self.max_tokens = thinking, max_tokens
         self.vision_model, self.image_store = vision_model or model, image_store
         self.response_format = response_format
+        self.proxy_url = proxy_url or None
 
     async def complete_request(self, request, on_delta):
         return await self.complete(
@@ -64,9 +66,9 @@ class DeepSeekModel:
                     await on_delta(kind, pending[kind])
                     pending[kind] = ""
 
-        # Match the deployed adapter: direct requests and no ambient proxies.
+        # Use only the channel's configured proxy; never ambient proxy settings.
         async with httpx.AsyncClient(
-            trust_env=False, timeout=httpx.Timeout(120, connect=15)
+            trust_env=False, proxy=self.proxy_url, timeout=httpx.Timeout(120, connect=15)
         ) as client:
             async with client.stream(
                 "POST",

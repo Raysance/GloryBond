@@ -91,6 +91,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             async def start(self):
                 return {"private": {"api_key": "test-key"}, "public": {
                     "model": "test-model", "base_url": "https://example.invalid",
+                    "proxy_url": "http://configured-proxy.invalid:7890",
                     "references": REFERENCES, "season_start": "2026-01-01",
                 }}
 
@@ -130,6 +131,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         class Model:
             def __init__(self, **options):
                 self.reply = bool(options.get("response_format"))
+                self.options = options
                 self.requests = []
 
             async def complete(self, messages, tools, delta):
@@ -156,6 +158,10 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                                       formatter=lambda text: text, bridge_factory=Bridge, model_factory=Model)
         await self.gateway.start()
         self.addAsyncCleanup(self.gateway.close)
+
+    async def test_model_uses_configured_remote_proxy_and_model_as_vision_fallback(self):
+        self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
+        self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
 
     async def test_bot_avatar_request_uses_bound_bot_and_keeps_sender_history(self):
         reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '300', 'nickname': '机器人'},

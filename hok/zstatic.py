@@ -56,7 +56,13 @@ def _build_chat_api_config(config, environment):
     }.items():
         raw_value = environment[env_name] if env_name in environment else config.get("ChatAPI", {}).get(key)
         values[key] = str(raw_value or "").strip()
-    if not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
+    key_name = config.get("ChatAPI", {}).get("api_key_env")
+    if key_name:
+        if "HOK_CHAT_API_KEY" not in environment:
+            values["api_key"] = str(environment.get(key_name) or "").strip()
+        if not values["api_key"]:
+            raise ValueError(f"ChatAPI model key is not configured: {key_name}")
+    elif not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
         values["api_key"] = str(config.get("QQBot", {}).get("deepseek_key") or "").strip()
     return values
 
