@@ -36,6 +36,7 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(principal.attributes['identity']['player_key'], 'example_user_10')
         self.assertNotIn('chat.cross_group', principal.scopes)
         self.assertEqual(principal.attributes['delivery']['recipient_id'], '200')
+        self.assertEqual(principal.attributes['delivery']['mention_user_id'], '100')
         with self.assertRaises(ValueError):
             qq_principal('100', '200', '', admin_id='999', references=REFERENCES, bot_id='example_user_10')
 
@@ -238,11 +239,13 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         result = await self.gateway.chat(user_text="记住我喜欢安琪拉，每10秒发一条消息，共3次。", user_id="101", nickname="B", group_id="200", message_id=300)
         self.assertEqual(len(self.sent), 2)
         self.assertEqual(result["text"], "记住了。10秒一条，发3次。")
-        self.assertTrue(all(delivery == {"platform": "qq", "channel": "group", "recipient_id": "200"} for _, delivery in self.sent))
+        self.assertTrue(all(delivery == {"platform": "qq", "channel": "group", "recipient_id": "200",
+                                       "mention_user_id": "101"} for _, delivery in self.sent))
         self.assertTrue(all(args["user_id"] == "101" for op, args in self.calls if op == "memory"))
         task = next(args for op, args in self.calls if op == "task_create")
         self.assertEqual(task["principal"]["user_id"], "101")
         self.assertEqual(task["principal"]["attributes"]["delivery"]["recipient_id"], "200")
+        self.assertEqual(task["principal"]["attributes"]["delivery"]["mention_user_id"], "101")
         self.assertEqual(task["session_id"], "qq_g_200_101")
         self.assertEqual(next(args for op, args in self.calls if op == "search_history")["exclude_message_id"], 300)
         self.assertEqual(self.gateway.model.requests[0].tool_choice["function"]["name"], "search_chat_history")

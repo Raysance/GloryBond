@@ -54,7 +54,8 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
     attributes = {
         "identity": identity,
         "chat": chat,
-        "delivery": {"platform": "qq", "channel": "group" if group else "private", "recipient_id": group or user},
+        "delivery": {"platform": "qq", "channel": "group" if group else "private", "recipient_id": group or user,
+                     **({"mention_user_id": user} if group else {})},
     }
     if bot_id is not None:
         bot = str(bot_id)

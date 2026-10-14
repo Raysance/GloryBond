@@ -40,7 +40,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
             packet = {"text": "回复", "artifacts": []}
             self.assertEqual(await received["prepare_reply"](packet), packet)
             self.assertEqual(await received["store_artifact"]("a" * 32, b"pixels"), {"path": "trusted.png"})
-            destination = {"platform": "qq", "channel": "group", "recipient_id": "200"}
+            destination = {"platform": "qq", "channel": "group", "recipient_id": "200", "mention_user_id": "101"}
             await received["sender"](packet, destination)
             prepare.assert_called_once_with(packet)
             store.assert_called_once_with("a" * 32, b"pixels")

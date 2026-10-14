@@ -196,6 +196,55 @@ class CollageTests(unittest.TestCase):
 
 
 class ChatMessageTests(unittest.TestCase):
+    def sender(self):
+        with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda function: function)):
+            return import_hok_module("utils.message_sender")
+
+    def test_group_mentions_trusted_requester_before_text_images_and_trace(self):
+        from nonebot.adapters.onebot.v11 import Message
+        sender = self.sender()
+        packet = {"text": "回复 [CQ:at,qq=all]", "mention_user_id": "999",
+                  "artifacts": [{"path": "/tmp/trusted.png"}], "trace_url": "https://hok.example.com/chat-trace"}
+        with patch.object(sender, "_enqueue_payload") as enqueue:
+            # Replies may finish out of order; each destination keeps its caller.
+            for user in ('102', '101'):
+                sender.add_chat_result_msg(packet, destination={"platform": "qq", "channel": "group",
+                    "recipient_id": "200", "mention_user_id": user})
+        for call, user in zip(enqueue.call_args_list, ('102', '101')):
+            payload = call.args[0]
+            message = Message(payload['content'])
+            self.assertEqual([part.type for part in message], ['at', 'text', 'image', 'text'])
+            self.assertEqual(message[0].data['qq'], user)
+            self.assertTrue(message[1].data['text'].startswith(' 回复'))
+            self.assertIn('[CQ:at,qq=all]', message[1].data['text'])
+            self.assertEqual(payload['toid'], 200)
+        self.assertEqual(packet['text'], '回复 [CQ:at,qq=all]')
+
+    def test_private_reply_and_unbound_legacy_destination_do_not_guess_mentions(self):
+        from nonebot.adapters.onebot.v11 import Message
+        sender = self.sender()
+        for destination in [
+            {'platform': 'qq', 'channel': 'private', 'recipient_id': '101', 'mention_user_id': '102'},
+            {'platform': 'qq', 'channel': 'group', 'recipient_id': '200'},
+        ]:
+            with self.subTest(destination=destination), patch.object(sender, '_enqueue_payload') as enqueue:
+                sender.add_chat_result_msg({'text': '回复'}, destination=destination,
+                                           event=SimpleNamespace(group_id=300, user_id=999))
+            self.assertEqual([part.type for part in Message(enqueue.call_args.args[0]['content'])], ['text'])
+
+    def test_event_group_mention_and_invalid_target_validation(self):
+        from nonebot.adapters.onebot.v11 import Message
+        sender = self.sender()
+        with patch.object(sender, '_enqueue_payload') as enqueue:
+            sender.add_chat_result_msg({'text': '回复'}, event=SimpleNamespace(group_id=200, get_user_id=lambda: '101'))
+        self.assertEqual(Message(enqueue.call_args.args[0]['content'])[0].data, {'qq': '101'})
+        for target in ('all', '[CQ:at,qq=all]', -1, 0, True, 101.5):
+            with self.subTest(target=target), patch.object(sender, '_enqueue_payload') as enqueue:
+                with self.assertRaises(ValueError):
+                    sender.add_chat_result_msg({'text': '回复'}, destination={'platform': 'qq', 'channel': 'group',
+                        'recipient_id': '200', 'mention_user_id': target})
+                enqueue.assert_not_called()
+
     def test_text_chart_and_footer_enqueue_exactly_one_message(self):
         from nonebot.adapters.onebot.v11 import Message
 

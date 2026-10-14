@@ -179,8 +179,27 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
 
 
 def add_chat_result_msg(result, *, event=None, destination=None):
-    """Queue one QQ message; only trusted artifacts can create image segments."""
-    message = Message(MessageSegment.text(str(result["text"])))
+    """Queue an AI reply with a native mention bound by the trusted QQ entry."""
+    mention_id = None
+    if destination is not None:
+        if destination.get("platform") != "qq" or destination.get("channel") not in {"group", "private"}:
+            raise ValueError("Invalid trusted QQ destination")
+        if destination["channel"] == "group":
+            mention_id = destination.get("mention_user_id")
+    elif event is not None and getattr(event, "group_id", None):
+        mention_id = getattr(event, "user_id", None)
+        if mention_id is None and hasattr(event, "get_user_id"):
+            mention_id = event.get_user_id()
+    message = Message()
+    if mention_id is not None:
+        if isinstance(mention_id, bool) or not isinstance(mention_id, (str, int)):
+            raise ValueError("Invalid trusted QQ mention target")
+        mention_id = _normalize_target_id(mention_id)
+        if type(mention_id) is not int or mention_id <= 0:
+            raise ValueError("Invalid trusted QQ mention target")
+        message += MessageSegment.at(str(mention_id))
+        message += MessageSegment.text(" ")
+    message += MessageSegment.text(str(result["text"]))
     for artifact in result.get("artifacts", []):
         message += MessageSegment.image(artifact["path"])
     if result.get("trace_url"):
@@ -188,8 +207,6 @@ def add_chat_result_msg(result, *, event=None, destination=None):
     elif result.get("trace_error"):
         message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
     if destination is not None:
-        if destination.get("platform") != "qq" or destination.get("channel") not in {"group", "private"}:
-            raise ValueError("Invalid trusted QQ destination")
         return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"])
     return add_msg(message, event=event)
 
