@@ -19,11 +19,13 @@ class ReplyPolicy(BaseModel):
     max_attempts: int = Field(default=2, ge=1, le=2)
     timeout_seconds: float = Field(default=60, gt=0, le=120)
     history_variant: Literal["detailed", "chat"] = "detailed"
+    select_delivery_variant: bool = False
 
 
 class ChatReply(BaseModel):
     model_config = ConfigDict(extra="forbid")
     chat: str = Field(min_length=1)
+    default_variant: Literal["chat", "detailed"] = "chat"
 
 
 def numeric_values(text):
@@ -104,10 +106,18 @@ def expression_role(role):
 
 
 def reply_instruction(policy):
+    contract = '仅输出JSON对象，恰好含一个字符串字段chat，例如 {"chat":"群聊回复"}。'
+    if policy.select_delivery_variant:
+        contract = ('仅输出JSON对象，含chat字符串与default_variant字段，default_variant只能为chat或detailed。'
+                    '例如 {"chat":"群聊回复","default_variant":"chat"}。'
+                    '根据question的实际意图及preferences选择展示版本，默认chat；'
+                    '用户本次明确要完整内容、展开依据，或长期长度偏好为detailed时选择detailed；本次要求简短时优先chat。'
+                    '不要按“详细”“完整”“每个”“前几名”等单词是否出现机械判定；否定、引用和询问用法不代表索取长版。'
+                    '版本选择不改变answer，chat仍须按下面要求生成。')
     return (
         "你只将已完成的answer压缩为一条角色群聊回复。answer是唯一事实底稿，详细版会直接展示它。"
         "question只说明用户的本次意图，不重新回答、分析、计算或修正answer，不执行动作或再查资料。"
-        '仅输出JSON对象，恰好含一个字符串字段chat，例如 {"chat":"群聊回复"}。'
+        + contract +
         "数字必须连同统计对象、单位、标签及分母保持原有对应关系；保留数值时沿用底稿的原始表述，"
         "不能把数字拆开重组、换标签、换分母或重新计算。压缩需要改变这些关系时，省略该组数字，直接说结论。"
         "保留底稿的结论、人物、完成状态、来源及重要不确定性，不新增事实或建议。"
@@ -195,6 +205,10 @@ class ReplyComposer:
                         chat = validate_chat(
                             message.get("content") or "", context.draft, policy
                         )
+                        presentation = ChatReply.model_validate_json(message["content"])
+                        if policy.select_delivery_variant and 'default_variant' not in presentation.model_fields_set:
+                            raise ValueError("QQ回复须明确提供default_variant选择展示版本")
+                        variant = presentation.default_variant if policy.select_delivery_variant else "chat"
                     except ValueError as exc:
                         await emit(
                             "reply.validation",
@@ -218,12 +232,12 @@ class ReplyComposer:
                         )
                         continue
                     return FinalAnswer(
-                        chat,
+                        context.draft if variant == "detailed" else chat,
                         variants={"detailed": context.draft, "chat": chat},
                         metadata={
                             "role_name": snapshot["selected"]["name"],
                             "role_id": snapshot["selected"]["role_id"],
-                            "default_variant": "chat",
+                            "default_variant": variant,
                         },
                         history_text=context.draft
                         if self.policy.history_variant == "detailed"

@@ -11,21 +11,597 @@
     "max_source_bytes": 524288
   },
   "topics": [
-    {"id": "overview", "title": "机器人功能概览", "keywords": ["功能", "特性", "有哪些", "你是谁", "有什么用", "能做什么", "帮助", "使用手册"], "tools": ["read_bot_manual", "web_search", "analyze_game_database", "analyze_chat_database", "read_recent_chat_history", "lookup_reference_data", "render_plot", "generate_image", "execute_python", "remember_memory", "recall_memory", "create_task", "list_roles", "select_role", "add_role_from_web", "set_reply_preferences", "read_group_member_profile"], "code": [{"path": "qq_agent/service.py", "symbol": "QQAgentService.start"}]},
-    {"id": "chat", "title": "聊天触发与命令路由", "keywords": ["怎么用", "聊天", "触发", "直接@", "艾特", "井号", "前缀", "common_expr", "替换"], "tools": [], "code": [{"path": "hok/event_rules.py", "symbol": "judge_direct_ai_request"}, {"path": "hok/event_rules.py", "symbol": "is_direct_bot_mention"}, {"path": "hok/event_handlers/chat.py", "symbol": "prepare_chat_request"}]},
-    {"id": "vision", "title": "图片、引用和动态表情", "keywords": ["图片", "看图", "识图", "视觉", "引用", "回复图片", "动态表情", "emoji", "gif", "视频"], "tools": [], "code": [{"path": "hok/event_handlers/chat.py", "symbol": "read_quoted_message"}, {"path": "qq_agent/service.py", "symbol": "QQAgentService.chat"}, {"path": "agent_console/provider.py", "symbol": "DeepSeekModel.complete_request"}]},
-    {"id": "history", "title": "上下文与群聊历史", "keywords": ["上下文", "前文", "聊天记录", "群聊", "最近发言", "时间窗口", "多少条", "分人", "历史检索", "sql"], "tools": ["search_chat_history", "read_recent_chat_history", "analyze_chat_database"], "code": [{"path": "agent_console/remote_worker.py", "symbol": "recent_history"}, {"path": "agent_console/remote.py", "symbol": "RemoteState.load_dialogue"}]},
-    {"id": "memory", "title": "长期记忆与清除", "keywords": ["长期记忆", "记住", "偏好", "忘记", "清除记忆", "nomem", "保存", "持久化"], "tools": ["remember_memory", "recall_memory", "forget_memory"], "code": [{"path": "agent_console/tools/memory.py", "symbol": "prepare_fact_memory"}, {"path": "qq_agent/service.py", "symbol": "QQAgentService.clear_memory"}]},
-    {"id": "roles", "title": "角色扮演与回复风格", "keywords": ["角色", "扮演", "语气", "性格", "简洁", "详细", "回复风格", "偏好", "联网增加角色"], "tools": ["list_roles", "select_role", "add_role_from_web", "set_reply_preferences"], "code": [{"path": "agent_console/replies.py", "symbol": "source_packet"}, {"path": "qq_agent/service.py", "symbol": "QQFinalizer.finalize"}]},
-    {"id": "profiles", "title": "QQ资料与机器人头像", "keywords": ["头像", "你的头像", "我的头像", "机器人身份", "qq号", "qid", "资料", "群成员", "昵称", "名片", "群等级"], "tools": ["read_group_member_profile", "lookup_reference_data"], "code": [{"path": "qq_agent/member_profiles.py", "symbol": "register_member_profile_tool.read"}, {"path": "hok/utils/qq_profiles.py", "symbol": "load_group_member_profile"}]},
-    {"id": "tasks", "title": "定时任务与多次回复", "keywords": ["定时", "提醒", "每隔", "周期", "后台", "任务", "取消", "多次回复", "分段消息"], "tools": ["create_task", "list_tasks", "cancel_task", "emit_message"], "code": [{"path": "agent_console/tools/application.py", "symbol": "TaskArgs"}, {"path": "agent_console/tasks.py", "symbol": "TaskScheduler.perform"}]},
-    {"id": "search", "title": "联网搜索与参考映射", "keywords": ["联网", "搜索", "实时信息", "网页", "资料来源", "id", "映射", "别名", "名称对应"], "tools": ["web_search", "list_reference_catalogs", "lookup_reference_data"], "code": [{"path": "agent_console/capabilities.py", "symbol": "Capabilities.web_search"}, {"path": "agent_console/tools/reference_data.py", "symbol": "ReferenceData.lookup"}]},
-    {"id": "plots", "title": "绘图、图片生成与Python", "keywords": ["图表", "绘图", "统计图", "图片生成", "画图", "配色", "主题", "python", "沙箱", "代码执行"], "tools": ["list_plot_templates", "render_plot", "generate_image", "execute_python"], "code": [{"path": "agent_console/tools/application.py", "symbol": "register_application_tools.plot"}, {"path": "agent_console/tools/application.py", "symbol": "register_application_tools.python"}]},
-    {"id": "permissions", "title": "群权限与管理员私聊", "keywords": ["权限", "授权", "白名单", "管理员", "私聊", "跨群", "默认群", "禁用", "休眠", "维修"], "tools": ["analyze_chat_database", "read_recent_chat_history", "read_group_member_profile"], "code": [{"path": "qq_agent/service.py", "symbol": "qq_principal"}, {"path": "agent_console/remote_worker.py", "symbol": "trusted_scope"}]},
-    {"id": "games", "title": "王者战绩、排名和在线状态", "keywords": ["王者", "战绩", "战报", "历史查询", "代表局", "巅峰排名", "排行榜", "在线", "预言", "底蕴", "时长"], "tools": ["analyze_game_database", "render_plot"], "code": [{"path": "hok/event_handlers/player_reports.py", "symbol": "online_reply"}, {"path": "hok/event_handlers/representative.py", "symbol": "representative_query_reply"}]},
-    {"id": "heroes", "title": "英雄资料、梯度与荣耀战力", "keywords": ["英雄", "梯度", "荣耀战力", "地区", "今日英雄", "常用英雄", "技能", "胜率"], "tools": ["analyze_game_database", "lookup_reference_data"], "code": [{"path": "hok/event_handlers/hero.py", "symbol": "honor_power_reply"}, {"path": "hok/business/hero_tier.py", "symbol": "hero_tier_query_process"}]},
-    {"id": "subscriptions", "title": "B站订阅与定时战报", "keywords": ["b站", "bilibili", "up", "订阅", "最新视频", "取消订阅", "每日战报", "推送"], "tools": [], "code": [{"path": "hok/event_handlers/bili_video.py", "symbol": "subscribe_reply"}, {"path": "hok/zscheduler.py", "symbol": "notify_msg"}]},
-    {"id": "logs", "title": "记录、调试轨迹与用量", "keywords": ["记录", "日志", "log", "轨迹", "chattrace", "token", "用量", "保存位置", "远程", "本地"], "tools": [], "code": [{"path": "agent_console/local_logs.py", "symbol": "LocalEventLog"}]},
-    {"id": "architecture", "title": "内核、适配器和模型协议", "keywords": ["架构", "内核", "react", "独立模块", "扩展", "工具调用", "deepseek", "模型", "实现", "源码"], "tools": ["read_bot_manual"], "code": [{"path": "qq_agent/service.py", "symbol": "QQAgentService.start"}, {"path": "agent_console/provider.py", "symbol": "DeepSeekModel.complete_request"}]}
+    {
+      "id": "overview",
+      "title": "功能速查",
+      "keywords": [
+        "功能",
+        "特性",
+        "有哪些",
+        "你是谁",
+        "有什么用",
+        "能做什么",
+        "帮助",
+        "使用手册"
+      ],
+      "tools": [
+        "read_bot_manual",
+        "web_search",
+        "analyze_game_database",
+        "analyze_chat_database",
+        "read_recent_chat_history",
+        "lookup_reference_data",
+        "render_plot",
+        "generate_image",
+        "execute_python",
+        "remember_memory",
+        "recall_memory",
+        "create_task",
+        "list_roles",
+        "select_role",
+        "add_role_from_web",
+        "set_reply_preferences",
+        "read_group_member_profile"
+      ],
+      "code": [
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQAgentService.start"
+        }
+      ]
+    },
+    {
+      "id": "chat",
+      "title": "AI 聊天",
+      "keywords": [
+        "怎么用",
+        "聊天",
+        "触发",
+        "直接@",
+        "艾特",
+        "井号",
+        "前缀",
+        "common_expr",
+        "替换"
+      ],
+      "tools": [],
+      "code": [
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQFinalizer.finalize"
+        },
+        {
+          "path": "hok/event_rules.py",
+          "symbol": "judge_direct_ai_request"
+        },
+        {
+          "path": "hok/event_rules.py",
+          "symbol": "is_direct_bot_mention"
+        },
+        {
+          "path": "hok/event_handlers/chat.py",
+          "symbol": "prepare_chat_request"
+        }
+      ]
+    },
+    {
+      "id": "vision",
+      "title": "图片、引用和动态表情",
+      "keywords": [
+        "图片",
+        "看图",
+        "识图",
+        "视觉",
+        "引用",
+        "回复图片",
+        "动态表情",
+        "emoji",
+        "gif",
+        "视频"
+      ],
+      "tools": [],
+      "code": [
+        {
+          "path": "hok/event_handlers/chat.py",
+          "symbol": "read_quoted_message"
+        },
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQAgentService.chat"
+        },
+        {
+          "path": "agent_console/provider.py",
+          "symbol": "DeepSeekModel.complete_request"
+        }
+      ]
+    },
+    {
+      "id": "history",
+      "title": "群聊背景查询",
+      "keywords": [
+        "上下文",
+        "前文",
+        "聊天记录",
+        "群聊",
+        "最近发言",
+        "时间窗口",
+        "多少条",
+        "分人",
+        "历史检索",
+        "sql"
+      ],
+      "tools": [
+        "search_chat_history",
+        "read_recent_chat_history",
+        "analyze_chat_database"
+      ],
+      "code": [
+        {
+          "path": "agent_console/remote_worker.py",
+          "symbol": "recent_history"
+        },
+        {
+          "path": "agent_console/remote.py",
+          "symbol": "RemoteState.load_dialogue"
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "title": "记住偏好与清除记忆",
+      "keywords": [
+        "长期记忆",
+        "记住",
+        "偏好",
+        "忘记",
+        "清除记忆",
+        "nomem",
+        "保存",
+        "持久化"
+      ],
+      "tools": [
+        "remember_memory",
+        "recall_memory",
+        "forget_memory"
+      ],
+      "code": [
+        {
+          "path": "agent_console/tools/memory.py",
+          "symbol": "prepare_fact_memory"
+        },
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQAgentService.clear_memory"
+        }
+      ]
+    },
+    {
+      "id": "roles",
+      "title": "角色与回复风格",
+      "keywords": [
+        "角色",
+        "扮演",
+        "语气",
+        "性格",
+        "简洁",
+        "详细",
+        "回复风格",
+        "偏好",
+        "联网增加角色"
+      ],
+      "tools": [
+        "list_roles",
+        "select_role",
+        "add_role_from_web",
+        "set_reply_preferences"
+      ],
+      "code": [
+        {
+          "path": "agent_console/replies.py",
+          "symbol": "source_packet"
+        },
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQFinalizer.finalize"
+        }
+      ]
+    },
+    {
+      "id": "profiles",
+      "title": "QQ资料与头像",
+      "keywords": [
+        "头像",
+        "你的头像",
+        "我的头像",
+        "机器人身份",
+        "qq号",
+        "qid",
+        "资料",
+        "群成员",
+        "昵称",
+        "名片",
+        "群等级"
+      ],
+      "tools": [
+        "read_group_member_profile",
+        "lookup_reference_data"
+      ],
+      "code": [
+        {
+          "path": "qq_agent/member_profiles.py",
+          "symbol": "register_member_profile_tool.read"
+        },
+        {
+          "path": "hok/utils/qq_profiles.py",
+          "symbol": "load_group_member_profile"
+        }
+      ]
+    },
+    {
+      "id": "tasks",
+      "title": "定时提醒与多次消息",
+      "keywords": [
+        "定时",
+        "提醒",
+        "每隔",
+        "周期",
+        "后台",
+        "任务",
+        "取消",
+        "多次回复",
+        "分段消息"
+      ],
+      "tools": [
+        "create_task",
+        "list_tasks",
+        "cancel_task",
+        "emit_message"
+      ],
+      "code": [
+        {
+          "path": "agent_console/tools/application.py",
+          "symbol": "TaskArgs"
+        },
+        {
+          "path": "agent_console/tasks.py",
+          "symbol": "TaskScheduler.perform"
+        }
+      ]
+    },
+    {
+      "id": "search",
+      "title": "联网查询",
+      "keywords": [
+        "联网",
+        "搜索",
+        "实时信息",
+        "网页",
+        "资料来源",
+        "id",
+        "映射",
+        "别名",
+        "名称对应"
+      ],
+      "tools": [
+        "web_search",
+        "list_reference_catalogs",
+        "lookup_reference_data"
+      ],
+      "code": [
+        {
+          "path": "agent_console/capabilities.py",
+          "symbol": "Capabilities.web_search"
+        },
+        {
+          "path": "agent_console/tools/reference_data.py",
+          "symbol": "ReferenceData.lookup"
+        }
+      ]
+    },
+    {
+      "id": "plots",
+      "title": "图表、创作图片与计算",
+      "keywords": [
+        "图表",
+        "绘图",
+        "统计图",
+        "图片生成",
+        "画图",
+        "配色",
+        "主题",
+        "python",
+        "沙箱",
+        "代码执行"
+      ],
+      "tools": [
+        "list_plot_templates",
+        "render_plot",
+        "generate_image",
+        "execute_python"
+      ],
+      "code": [
+        {
+          "path": "agent_console/tools/application.py",
+          "symbol": "register_application_tools.plot"
+        },
+        {
+          "path": "agent_console/tools/application.py",
+          "symbol": "register_application_tools.python"
+        }
+      ]
+    },
+    {
+      "id": "permissions",
+      "title": "使用范围",
+      "keywords": [
+        "权限",
+        "授权",
+        "白名单",
+        "管理员",
+        "私聊",
+        "跨群",
+        "默认群",
+        "禁用",
+        "休眠",
+        "维修"
+      ],
+      "tools": [
+        "analyze_chat_database",
+        "read_recent_chat_history",
+        "read_group_member_profile"
+      ],
+      "code": [
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "qq_principal"
+        },
+        {
+          "path": "agent_console/remote_worker.py",
+          "symbol": "trusted_scope"
+        }
+      ]
+    },
+    {
+      "id": "games",
+      "title": "战绩、排行与在线状态",
+      "keywords": [
+        "战绩",
+        "战报",
+        "排行",
+        "巅峰排名",
+        "历史查询",
+        "在线",
+        "steam",
+        "对局",
+        "代表局"
+      ],
+      "tools": [
+        "analyze_game_database",
+        "render_plot"
+      ],
+      "code": [
+        {
+          "path": "hok/business/player_report.py",
+          "symbol": "extract_single_history_query"
+        },
+        {
+          "path": "hok/event_handlers/player_reports.py",
+          "symbol": "online_reply"
+        },
+        {
+          "path": "hok/event_handlers/history_query.py",
+          "symbol": "history_query_reply"
+        }
+      ]
+    },
+    {
+      "id": "heroes",
+      "title": "英雄表现、梯度与荣耀战力",
+      "keywords": [
+        "英雄",
+        "梯度",
+        "荣耀战力",
+        "地区",
+        "今日英雄",
+        "常用英雄",
+        "技能",
+        "胜率"
+      ],
+      "tools": [
+        "analyze_game_database",
+        "lookup_reference_data"
+      ],
+      "code": [
+        {
+          "path": "hok/event_handlers/hero.py",
+          "symbol": "hero_statistics_reply"
+        },
+        {
+          "path": "hok/event_handlers/hero.py",
+          "symbol": "honor_power_reply"
+        },
+        {
+          "path": "hok/business/hero_tier.py",
+          "symbol": "hero_tier_query_process"
+        }
+      ]
+    },
+    {
+      "id": "subscriptions",
+      "title": "视频订阅与自动推送",
+      "keywords": [
+        "b站",
+        "bilibili",
+        "up",
+        "订阅",
+        "最新视频",
+        "取消订阅",
+        "每日战报",
+        "推送"
+      ],
+      "tools": [],
+      "code": [
+        {
+          "path": "hok/event_handlers/bili_video.py",
+          "symbol": "subscribe_reply"
+        },
+        {
+          "path": "hok/zscheduler.py",
+          "symbol": "notify_msg"
+        }
+      ]
+    },
+    {
+      "id": "logs",
+      "title": "查看完整回复与运行记录",
+      "keywords": [
+        "记录",
+        "日志",
+        "log",
+        "轨迹",
+        "chattrace",
+        "token",
+        "用量",
+        "保存位置",
+        "远程",
+        "本地"
+      ],
+      "tools": [],
+      "code": [
+        {
+          "path": "agent_console/local_logs.py",
+          "symbol": "LocalEventLog"
+        }
+      ]
+    },
+    {
+      "id": "faq",
+      "title": "常见问题",
+      "keywords": [
+        "怎么用",
+        "没有回复",
+        "不记得",
+        "冷却",
+        "失败",
+        "模型",
+        "常见问题",
+        "帮助"
+      ],
+      "tools": [
+        "read_bot_manual"
+      ],
+      "code": [
+        {
+          "path": "hok/event_rules.py",
+          "symbol": "judge_qid_blocked"
+        },
+        {
+          "path": "hok/event_rules.py",
+          "symbol": "judge_bot_addressed"
+        }
+      ]
+    },
+    {
+      "id": "metrics",
+      "title": "数据分析与指标解释",
+      "keywords": [
+        "分析",
+        "评分",
+        "趋势",
+        "底蕴",
+        "预言",
+        "时长",
+        "贡献",
+        "受益受害",
+        "拿手英雄",
+        "组队",
+        "总览",
+        "观战",
+        "ob"
+      ],
+      "tools": [
+        "analyze_game_database",
+        "render_plot"
+      ],
+      "code": [
+        {
+          "path": "hok/event_handlers/activity.py",
+          "symbol": "battle_power_reply"
+        },
+        {
+          "path": "hok/business/battle_detail.py",
+          "symbol": "view_process"
+        },
+        {
+          "path": "hok/business/battle_metrics.py",
+          "symbol": "calculate_battle_contribution_factor"
+        }
+      ]
+    },
+    {
+      "id": "emoji",
+      "title": "表情包生成",
+      "keywords": [
+        "表情包",
+        "emoji",
+        "模板",
+        "001",
+        "贴纸",
+        "参考图"
+      ],
+      "tools": [
+        "generate_image"
+      ],
+      "code": [
+        {
+          "path": "hok/event_handlers/emoji.py",
+          "symbol": "parse_emoji_request"
+        },
+        {
+          "path": "hok/event_handlers/emoji.py",
+          "symbol": "generate_emoji"
+        }
+      ]
+    },
+    {
+      "id": "poke",
+      "title": "戳一戳互动",
+      "keywords": [
+        "戳一戳",
+        "互动",
+        "戳机器人",
+        "冷却",
+        "实力评估"
+      ],
+      "tools": [],
+      "code": [
+        {
+          "path": "hok/event_handlers/poke.py",
+          "symbol": "group_poke_reply"
+        }
+      ]
+    },
+    {
+      "id": "representative",
+      "title": "代表局",
+      "keywords": [
+        "代表局",
+        "昨天代表局",
+        "日期",
+        "高光",
+        "糟糕",
+        "极端",
+        "比赛回看"
+      ],
+      "tools": [
+        "analyze_game_database"
+      ],
+      "code": [
+        {
+          "path": "hok/event_handlers/representative.py",
+          "symbol": "representative_query_reply"
+        }
+      ]
+    }
   ]
 }

@@ -72,7 +72,7 @@ _blocked=on_message(rule=Rule(judge_bot_addressed,check_repair,judge_unsuper),pr
 _direct_chat=on_message(rule=judge_direct_ai_request,priority=3,block=True)
 
 _show_code=on_fullmatch("code",rule=judge_to_me,priority=3, block=True)
-_forget_me=on_keyword({"清除记忆"},rule=judge_to_me,priority=3, block=True)
+_forget_me=on_fullmatch(("#清除记忆", "＃清除记忆"),rule=judge_to_me,priority=3, block=True)
 _manual=on_fullmatch("#帮助",rule=judge_to_me,priority=3, block=True)
 _peak_rank=on_fullmatch(
     ("#巅峰排名", "＃巅峰排名", "#巅峰排行", "＃巅峰排行"),

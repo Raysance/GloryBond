@@ -1,4 +1,6 @@
 import unittest
+import ast
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -22,6 +24,19 @@ class EventStub:
 
 
 class EventRoutingTests(unittest.IsolatedAsyncioTestCase):
+    def test_clear_memory_only_matches_complete_commands_not_questions_about_the_feature(self):
+        source = (Path(__file__).parents[1] / 'hok/zevent.py').read_text()
+        tree = ast.parse(source)
+        declaration = next(node.value for node in tree.body if isinstance(node, ast.Assign)
+                           and any(isinstance(target, ast.Name) and target.id == '_forget_me' for target in node.targets))
+        self.assertEqual(declaration.func.id, 'on_fullmatch')
+        commands = ast.literal_eval(declaration.args[0])
+        for text, executes in [('#清除记忆', True), ('＃清除记忆', True),
+                               ('#清除记忆怎么用？', False), ('#别清除记忆，先告诉我保存了什么', False),
+                               ('#请介绍清除记忆这个功能', False)]:
+            with self.subTest(text=text):
+                self.assertEqual(text in commands, executes)
+
     async def test_hash_prefix_routes_to_bot(self):
         self.assertTrue(await EVENT_RULES.judge_to_me(EventStub("#查询")))
         self.assertTrue(await EVENT_RULES.judge_to_me(EventStub("＃查询")))

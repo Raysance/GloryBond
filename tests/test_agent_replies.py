@@ -76,6 +76,10 @@ def response(chat=CHAT):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_unknown_delivery_variant_cannot_select_an_arbitrary_output(self):
+        with self.assertRaises(ValueError):
+            validate_chat(json.dumps({'chat': CHAT, 'default_variant': 'private'}), DETAIL, ReplyPolicy())
+
     def test_numbers_percentage_conversion_and_links_are_preserved(self):
         policy = ReplyPolicy()
         chat = validate_chat(response()["content"], DETAIL, policy)
@@ -135,6 +139,24 @@ class ValidationTests(unittest.TestCase):
 
 
 class ComposerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_qq_variant_selection_requires_a_valid_explicit_choice(self):
+        invalid = response()
+        valid = response()
+        value = json.loads(valid['content'])
+        value['default_variant'] = 'detailed'
+        valid['content'] = json.dumps(value, ensure_ascii=False)
+        model = ScriptedModel([invalid, valid])
+        events = []
+        async def emit(kind, data, **kwargs):
+            events.append(kind)
+        answer = await ReplyComposer(model=model, roles=Roles(),
+                                     policy=ReplyPolicy(select_delivery_variant=True)).finalize(context(), emit)
+        self.assertEqual(answer.text, DETAIL)
+        self.assertEqual(answer.variants['chat'], CHAT)
+        self.assertEqual(answer.metadata['default_variant'], 'detailed')
+        self.assertIn('reply.validation', events)
+        self.assertEqual(len(model.requests), 2)
+
     async def test_json_mode_wire_request_is_tool_free_and_preserves_usage(self):
         observed = []
 

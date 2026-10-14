@@ -79,6 +79,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.events, self.dialogue, self.calls, self.sent = {}, {}, [], []
         self.script = []
         self.reply_text = "记住了。10秒一条，发3次。"
+        self.reply_variant = None
         test = self
 
         class Bridge:
@@ -135,7 +136,10 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.requests = []
 
             async def complete(self, messages, tools, delta):
-                return {"message": {"role": "assistant", "content": json.dumps({"chat": test.reply_text}, ensure_ascii=False)}}
+                value = {"chat": test.reply_text}
+                if test.reply_variant is not None:
+                    value['default_variant'] = test.reply_variant
+                return {"message": {"role": "assistant", "content": json.dumps(value, ensure_ascii=False)}}
 
             async def complete_request(self, request, delta):
                 self.requests.append(request)
@@ -162,6 +166,25 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_uses_configured_remote_proxy_and_model_as_vision_fallback(self):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
+
+    async def test_reply_delivery_uses_model_intent_instead_of_question_keywords(self):
+        composer = self.gateway.runtime.finalizer.composer
+        composer.policy = composer.policy.model_copy(update={'select_delivery_variant': True})
+        draft = '事实底稿：机器人支持查询近期群聊，但只读取授权范围。'
+        self.reply_text = '可以查近期群聊，范围受当前会话权限限制。'
+        cases = [('不用详细解释，简短说能否逐一统计所有玩家。', 'chat', self.reply_text),
+                 ('Please show the full explanation and supporting evidence.', 'detailed', draft)]
+        for question, variant, expected in cases:
+            with self.subTest(question=question):
+                self.reply_variant = variant
+                self.script = [
+                    {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['bot_info']}, 'd')]},
+                    {'role': 'assistant', 'content': draft},
+                ]
+                result = await self.gateway.chat(user_text=question, user_id='101', nickname='用户')
+                self.assertEqual(result['text'], expected)
+                self.assertEqual(self.dialogue['qq_p_101'][-1]['content'], expected)
+                self.assertEqual(result['variants']['detailed'], draft)
 
     async def test_bot_avatar_request_uses_bound_bot_and_keeps_sender_history(self):
         reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '300', 'nickname': '机器人'},

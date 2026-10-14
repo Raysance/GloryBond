@@ -70,9 +70,9 @@ class QQFinalizer:
     async def finalize(self, context, emit):
         answer = await self.composer.finalize(context, emit)
         variants = {key: self.formatter(text) for key, text in answer.variants.items()}
-        detailed = bool(re.search(r"详细|完整|每个|逐一|全部名单|所有玩家|前\s*\d+\s*名", context.request.user_message))
-        text = variants.get("detailed" if detailed else "chat", self.formatter(answer.text))
-        return FinalAnswer(text, variants, {**answer.metadata, "default_variant": "detailed" if detailed else "chat"}, text)
+        variant = answer.metadata.get("default_variant", "chat")
+        text = variants.get(variant, self.formatter(answer.text))
+        return FinalAnswer(text, variants, answer.metadata, text)
 
 
 class QQAgentService:

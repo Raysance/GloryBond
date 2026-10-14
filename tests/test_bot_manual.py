@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.bot_manual import BotManual
+from agent_console.bot_manual import BotManual, handbook_text
 from agent_console.capabilities import Capabilities, application_prompt, load_catalogs
 from agent_console.remote import RemoteBridge
 from agent_console import remote_worker
@@ -114,9 +114,52 @@ class ManualTests(unittest.TestCase):
         reader = namespace['BotManual'](ROOT, bootstrap['bot_manual_catalog'], bootstrap['bot_manual_handbook'])
         with patch.dict(remote_worker.CONTEXT, {'store': object(), 'bot_manual': reader}, clear=True):
             result = remote_worker.dispatch({'op': 'bot_manual', 'section_id': 'profiles', 'include_code': True})
-        self.assertIn('target=bot', result['topics'][0]['content'])
+        self.assertIn('你的头像是什么', result['topics'][0]['content'])
+        self.assertNotIn('target=bot', result['topics'][0]['content'])
         self.assertTrue(any("args.target == \"bot\"" in item.get('content', '') for item in result['code']))
         self.assertNotIn('code', load_catalogs(SHARED)['bot_info']['topics'][0])
+
+    def test_functional_commands_are_found_without_architecture_or_obsolete_instructions(self):
+        cases = [('怎么生成表情包，模板001怎么用？', 'emoji', '#emoji 001'),
+                 ('总览拿手英雄用哪个字母？', 'metrics', '#总览k-14'),
+                 ('如何订阅B站的UP主？', 'subscriptions', '#订阅B站'),
+                 ('今天的代表局怎么查？', 'representative', '#代表局')]
+        for question, section, example in cases:
+            with self.subTest(question=question):
+                result = self.manual.read(query=question, limit=1)
+                self.assertEqual(result['topics'][0]['section_id'], section)
+                self.assertIn(example, result['topics'][0]['content'])
+                self.assertEqual(result['code'], [])
+        self.assertNotIn('architecture', self.manual.topics)
+        for technical in ('ReAct', 'Redis', 'PostgreSQL', 'AST', 'empty_cache', 'remember_memory'):
+            self.assertNotIn(technical, HANDBOOK)
+
+    def test_markdown_and_html_images_are_not_model_inputs_or_search_evidence(self):
+        examples = '''普通说明和 #我的战绩。
+![秘密图片关键词](https://media.invalid/one.png)
+[![缩略图](https://media.invalid/two.png)](https://media.invalid/full.png)
+![引用图片][shot]
+
+[shot]: https://media.invalid/three.png
+<div><img src="https://media.invalid/four.png" alt="内部截图"/>可见说明</div>
+<picture><source srcset="https://media.invalid/five.webp"/><img src="https://media.invalid/six.png"/></picture>
+'''
+        projected = handbook_text(examples)
+        self.assertIn('#我的战绩', projected)
+        self.assertIn('可见说明', projected)
+        self.assertNotIn('media.invalid', projected)
+        self.assertNotIn('秘密图片关键词', projected)
+        handbook = HANDBOOK.replace('## 功能速查\n', '## 功能速查\n' + examples)
+        result = BotManual(ROOT, CATALOG, handbook).read(section_id='overview')
+        self.assertNotIn('media.invalid', json.dumps(result))
+        self.assertNotIn('model_images', result)
+
+    def test_readme_headings_keep_citations_and_fenced_headings_do_not_create_sections(self):
+        handbook = HANDBOOK.replace('## AI 聊天\n', '## AI 聊天\n\n```text\n## 只是一个代码例子\n```\n')
+        result = BotManual(ROOT, CATALOG, handbook).read(section_id='chat')
+        self.assertIn('## 只是一个代码例子', result['topics'][0]['content'])
+        line = result['topics'][0]['source']['start_line']
+        self.assertEqual(handbook.splitlines()[line - 1], '## AI 聊天')
 
 
 class ManualToolTests(unittest.IsolatedAsyncioTestCase):
