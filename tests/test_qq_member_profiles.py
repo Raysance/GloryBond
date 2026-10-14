@@ -142,6 +142,18 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         self.reader.return_value['profile']['user_id'] = '101'
         self.assertFalse((await execute(self.registry, tool_call(), self.context())).ok)
 
+    async def test_admin_profile_defaults_to_entry_group_and_can_explicitly_override(self):
+        admin = Principal('999', frozenset({'qq.profile.read', 'chat.cross_group'}),
+                          {'chat': {'all_groups': True, 'default_group_id': '2000000001'}})
+        self.reader.return_value['profile']['group_id'] = '2000000001'
+        result = await execute(self.registry, tool_call({'user_id': '100', 'include_avatar': False}), self.context(admin))
+        self.assertTrue(result.ok)
+        self.reader.assert_awaited_with(group_id='2000000001', user_id='100', include_avatar=False)
+        self.reader.return_value['profile']['group_id'] = '200'
+        result = await execute(self.registry, tool_call({'user_id': '100', 'group_id': '200', 'include_avatar': False}), self.context(admin))
+        self.assertTrue(result.ok)
+        self.reader.assert_awaited_with(group_id='200', user_id='100', include_avatar=False)
+
     async def test_picture_budget_includes_current_quoted_images_and_keeps_text(self):
         from agent_console.image_inputs import ImageLimits
         self.service.image_store.limits = ImageLimits(max_images=1)

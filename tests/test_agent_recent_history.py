@@ -26,7 +26,7 @@ class Database:
     def cursor(self):
         return self
 
-    def execute(self, sql, params):
+    def execute(self, sql, params=None):
         self.calls.append((sql, params))
 
     def fetchall(self):
@@ -101,6 +101,17 @@ class RecentHistoryWorkerTests(unittest.TestCase):
         connection.assert_called_once_with("300")
         self.assertNotIn("message_id<>%s", db.calls[0][0])
         self.assertEqual(result["scope"], "selected_group")
+
+    def test_admin_default_group_applies_to_window_without_private_id_exclusion(self):
+        self.principal = {'user_id': '100', 'all_groups': True, 'default_group_id': '2000000001',
+                          'scopes': ['chat.read', 'chat.cross_group']}
+        db = Database()
+        result, connection = self.read(db, exclude_message_id='42')
+        connection.assert_called_once_with('2000000001')
+        self.assertEqual(result['group_id'], '2000000001')
+        self.assertNotIn('message_id<>%s', db.calls[0][0])
+        _, connection = self.read(Database(), group_id='300')
+        connection.assert_called_once_with('300')
 
 
 class RecentHistoryToolTests(unittest.IsolatedAsyncioTestCase):

@@ -21,13 +21,14 @@ class Capabilities:
         self.bridge = bridge
         self.state_bridge = state_bridge or bridge
 
-    async def search_history(self, queries, ctx):
+    async def search_history(self, queries, ctx, *, group_id=None):
         return await self.bridge.call(
             "search_history",
             queries=queries,
             original_query=ctx.request.user_message,
             principal=remote_chat_identity(ctx.principal),
             exclude_message_id=ctx.request.metadata.get("message_id"),
+            **({"group_id": group_id} if group_id is not None else {}),
         )
 
     async def recent_history(self, args, ctx):
@@ -37,12 +38,13 @@ class Capabilities:
             exclude_message_id=ctx.request.metadata.get("message_id"),
         )
 
-    async def analyze(self, domain, queries, ctx):
+    async def analyze(self, domain, queries, ctx, *, group_id=None):
         return await self.bridge.call(
             "analyze",
             domain=domain,
             queries=queries,
             principal=remote_chat_identity(ctx.principal),
+            **({"group_id": group_id} if group_id is not None else {}),
         )
 
     async def web_search(self, query, max_results):
@@ -110,6 +112,7 @@ def remote_chat_identity(principal):
         "scopes": sorted(principal.scopes),
         "group_id": chat.get("group_id"),
         "all_groups": bool(chat.get("all_groups")),
+        **({"default_group_id": chat["default_group_id"]} if chat.get("default_group_id") else {}),
     }
 
 

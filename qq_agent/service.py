@@ -23,7 +23,8 @@ from .output import QQOutput
 from .member_profiles import register_member_profile_tool
 
 
-def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memory=True):
+def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memory=True,
+                 admin_private_default_group_id=None):
     user, group = str(user_id), str(group_id) if group_id else None
     if not user.isdigit() or (group and not group.isdigit()):
         raise ValueError("QQ入口必须提供真实用户和群身份")
@@ -43,9 +44,15 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
         identity["player_key"] = keys[0]
     elif keys:
         identity["player_keys"] = keys
+    chat = {"group_id": group, "all_groups": not group and user == str(admin_id)}
+    if chat["all_groups"] and admin_private_default_group_id is not None:
+        default_group = str(admin_private_default_group_id)
+        if not re.fullmatch(r"[1-9][0-9]{0,19}", default_group):
+            raise ValueError("管理员私聊默认群配置无效")
+        chat["default_group_id"] = default_group
     return Principal(user, frozenset(scopes), {
         "identity": identity,
-        "chat": {"group_id": group, "all_groups": not group and user == str(admin_id)},
+        "chat": chat,
         "delivery": {"platform": "qq", "channel": "group" if group else "private", "recipient_id": group or user},
     })
 
@@ -126,6 +133,11 @@ class QQAgentService:
         self.catalogs["references"] = snapshot["directory"]
         if "chat.cross_group" in principal.scopes:
             scope = "已验证管理员私聊，允许查询已归档群聊；查询范围由入口授权。"
+            default_group = principal.attributes.get("chat", {}).get("default_group_id")
+            if default_group:
+                scope += (f"未指定群时默认查询群 {default_group}。只有用户指定其他群时才覆盖工具的group_id；"
+                          "群聊检索和SQL可用group_id='*'明确查询全部已归档群，近期发言及成员资料只读一个群。"
+                          "当前渠道仍是私聊，默认查询群不会改变消息发送目标。")
         elif "chat.read" in principal.scopes:
             scope = "群聊检索和群聊SQL仅限当前群。"
         else:
@@ -191,7 +203,8 @@ class QQAgentService:
         await self.start()
         snapshot = await self.bridge.call("reference_snapshot")
         principal = qq_principal(user_id, group_id, nickname, admin_id=self.admin_id,
-                                 references=snapshot, use_memory=use_memory)
+                                 references=snapshot, use_memory=use_memory,
+                                 admin_private_default_group_id=self.config.get("admin_private_default_group_id"))
         question = str(user_text) or ("请结合引用的消息回复。" if quoted_message else
                                      "请分析这些图片。" if image_urls else "请回应这次招呼。")
         prompt = await self.current_prompt(principal, question)

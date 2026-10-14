@@ -8,7 +8,7 @@ class MemberProfileArgs(BaseModel):
     user_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$",
         description="目标 QQ，省略表示当前调用者；名称或别名先通过参考映射确定，不猜测身份")
     group_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$",
-        description="群请求默认当前群；已授权管理员私聊必须指定一个目标群")
+        description="群请求默认当前群；管理员私聊省略使用入口默认群，也可明确指定其他群")
     include_avatar: bool = Field(default=True, strict=True, description="是否同时读取头像像素供视觉模型理解")
 
 
@@ -20,8 +20,10 @@ def register_member_profile_tool(registry, *, reader, store_image, now):
             if args.group_id and args.group_id != current_group:
                 raise PermissionError("群成员资料只能读取入口绑定的当前群")
             group = current_group
-        elif chat.get("all_groups") and "chat.cross_group" in ctx.principal.scopes and args.group_id:
-            group = args.group_id
+        elif chat.get("all_groups") and "chat.cross_group" in ctx.principal.scopes:
+            group = args.group_id or str(chat.get("default_group_id") or "")
+            if not group:
+                raise ValueError("管理员私聊没有默认群，请指定一个目标群")
         else:
             raise PermissionError("读取群成员资料需要可信群范围；管理员私聊须指定目标群")
         user = args.user_id or ctx.principal.user_id
@@ -55,6 +57,6 @@ def register_member_profile_tool(registry, *, reader, store_image, now):
         args_model=MemberProfileArgs, handler=read, initially_visible=False, effect="read", timeout=45,
         description="读取机器人可访问群中一个成员的实时 QQ 资料：昵称、群名片、群角色、头衔、群等级、"
                     "QQ 填写的地区/性别/年龄及入群和最后发言时间；可附带头像像素供模型直接理解。"
-                    "user_id 省略读取本人；昵称需先查询参考映射。普通群仅当前群，管理员私聊须指定群。"
+                    "user_id 省略读取本人；昵称需先查询参考映射。普通群仅当前群，管理员私聊省略群号使用入口默认群。"
                     "验证目标确为群成员后读取，缺失字段为 null，头像失败仍保留文字资料；不能拿历史发言冒充实时资料。",
     )

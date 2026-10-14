@@ -269,14 +269,20 @@ def db_connection(scope=None):
     return conn
 
 
-def trusted_scope(principal):
-    if principal.get("all_groups") and "chat.cross_group" in principal.get(
-        "scopes", []
-    ):
-        return "*"
-    if principal.get("group_id"):
-        return str(principal["group_id"])
-    raise PermissionError("请求没有可信群聊范围")
+def trusted_scope(principal, requested_group=None):
+    current_group = str(principal.get("group_id") or "")
+    requested = str(requested_group or "")
+    if current_group:
+        if requested and requested != current_group:
+            raise PermissionError("群请求只能读取入口绑定的当前群")
+        selected = current_group
+    elif principal.get("all_groups") and "chat.cross_group" in principal.get("scopes", []):
+        selected = requested or str(principal.get("default_group_id") or "*")
+    else:
+        raise PermissionError("请求没有可信群聊范围")
+    if selected != "*" and not re.fullmatch(r"[0-9]{1,20}", selected):
+        raise ValueError("无效群号")
+    return selected
 
 
 def expand_semantic_views(sql):
@@ -336,7 +342,7 @@ def analyze(args):
                 json_root_owners=owners,
             )
         )
-    scope = trusted_scope(args["principal"]) if domain == "chat" else None
+    scope = trusted_scope(args["principal"], args.get("group_id")) if domain == "chat" else None
     results = []
     limits = CONTEXT["cfg"].get("AgentSQL", {})
     row_limit = min(500, limits.get("max_rows", 200))
@@ -392,7 +398,8 @@ def analyze(args):
 
 
 def search_history(args):
-    with db_connection(trusted_scope(args["principal"])) as conn:
+    scope = trusted_scope(args["principal"], args.get("group_id"))
+    with db_connection(scope) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT group_id,message_id,user_id,reply_to_message_id,source_timestamp AS timestamp,message_text AS text FROM hok.chat_history_messages ORDER BY source_timestamp"
@@ -410,9 +417,8 @@ def search_history(args):
         "messages": hits,
         "archive_messages": len(rows),
         "queries": queries,
-        "scope": "all_saved_groups"
-        if args["principal"].get("all_groups")
-        else "current_group",
+        "scope": "all_saved_groups" if scope == "*" else "current_group" if group else "selected_group",
+        "group_id": None if scope == "*" else scope,
     }
 
 
@@ -423,19 +429,9 @@ def recent_history(args):
     if "chat.read" not in scopes:
         raise PermissionError("当前请求没有群聊读取权限")
     current_group = str(principal.get("group_id") or "")
-    requested_group = str(args.get("group_id") or "")
-    if current_group:
-        if requested_group and requested_group != current_group:
-            raise PermissionError("普通群聊只能读取入口绑定的当前群")
-        group = current_group
-    elif principal.get("all_groups") and "chat.cross_group" in scopes:
-        if not requested_group:
-            raise ValueError("跨群读取需要指定一个目标群，可使用已检索记录中的group_id")
-        group = requested_group
-    else:
-        raise PermissionError("当前请求没有可信群聊范围")
-    if not re.fullmatch(r"[0-9]{1,20}", group):
-        raise ValueError("无效群号")
+    group = trusted_scope(principal, args.get("group_id"))
+    if group == "*":
+        raise ValueError("跨群读取需要指定一个目标群，可使用已检索记录中的group_id")
     limits = CONTEXT["memory"]["recent_history_limits"](CONTEXT["cfg"].get("AgentHistory"))
     minutes = args.get("window_minutes", limits["window_minutes"])
     limit = args.get("limit", limits["limit"])

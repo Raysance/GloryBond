@@ -28,6 +28,17 @@ def call(name, args, identifier):
 
 
 class IdentityTests(unittest.TestCase):
+    def test_admin_default_group_is_a_query_hint_not_a_group_event_or_destination(self):
+        for user, group in [('999', None), ('999', '200'), ('101', None)]:
+            principal = qq_principal(user, group, '', admin_id='999', references=REFERENCES,
+                                     admin_private_default_group_id='2000000001')
+            if user == '999' and group is None:
+                self.assertEqual(principal.attributes['chat']['default_group_id'], '2000000001')
+                self.assertIsNone(principal.attributes['chat']['group_id'])
+                self.assertEqual(principal.attributes['delivery'], {'platform': 'qq', 'channel': 'private', 'recipient_id': '999'})
+            else:
+                self.assertNotIn('default_group_id', principal.attributes['chat'])
+
     def test_group_never_gets_cross_group_authority_even_for_admin(self):
         group = qq_principal("999", "200", "admin", admin_id="999", references=REFERENCES)
         self.assertIn("chat.read", group.scopes)
@@ -56,6 +67,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.tmp.cleanup)
         self.events, self.dialogue, self.calls, self.sent = {}, {}, [], []
         self.script = []
+        self.reply_text = "记住了。10秒一条，发3次。"
         test = self
 
         class Bridge:
@@ -110,7 +122,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.requests = []
 
             async def complete(self, messages, tools, delta):
-                return {"message": {"role": "assistant", "content": json.dumps({"chat": "记住了。10秒一条，发3次。"}, ensure_ascii=False)}}
+                return {"message": {"role": "assistant", "content": json.dumps({"chat": test.reply_text}, ensure_ascii=False)}}
 
             async def complete_request(self, request, delta):
                 self.requests.append(request)
@@ -133,6 +145,22 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                                       formatter=lambda text: text, bridge_factory=Bridge, model_factory=Model)
         await self.gateway.start()
         self.addAsyncCleanup(self.gateway.close)
+
+    async def test_admin_private_query_uses_configured_default_without_changing_private_history(self):
+        self.gateway.config['admin_private_default_group_id'] = '2000000001'
+        self.reply_text = '默认群已确认。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['默认群', '群信息']}, 'h')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['chat_history']}, 'd')]},
+            {'role': 'assistant', 'content': '默认群已确认。'},
+        ]
+        await self.gateway.chat(user_text='默认查询哪个群？', user_id='999', nickname='管理员', message_id=42)
+        search = next(args for op, args in self.calls if op == 'search_history')
+        self.assertEqual(search['principal']['default_group_id'], '2000000001')
+        self.assertIsNone(search['principal']['group_id'])
+        self.assertIn('qq_p_999', self.dialogue)
+        self.assertTrue(all(delivery['channel'] == 'private' and delivery['recipient_id'] == '999' for _, delivery in self.sent))
+        self.assertIn('2000000001', self.gateway.model.requests[0].messages[0]['content'])
 
     async def test_real_engine_binds_memory_tasks_and_multiple_messages_to_sender(self):
         self.assertIsInstance(self.gateway.runtime, AgentRuntime)
