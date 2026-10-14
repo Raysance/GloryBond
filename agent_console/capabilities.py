@@ -52,6 +52,9 @@ class Capabilities:
             "web_search", query=query, max_results=max_results
         )
 
+    async def kpl_query(self, args):
+        return await self.bridge.call("kpl_query", **args)
+
     async def execute_python(self, code, data):
         return await self.bridge.call("python", code=code, data=data)
 
@@ -123,6 +126,8 @@ def application_prompt():
     return (
         "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
         "用户询问机器人自身的功能、特性或命令用法时，发现bot_info并调用read_bot_manual，优先少量相关章节；"
+        "KPL职业联赛、赛事赛程、比赛/BP、队伍/选手/英雄统计与积分榜优先发现kpl，使用query_kpl读取kplll.online数据；"
+        "先从赛事/对象目录确认本网站ID和年份范围，不把个人游戏SQL、营地ID或B站cid当作KPL小助手标识。"
         "回答用途、操作示例、能得到的结果和必要限制，不主动介绍内部实现。"
         "手册不能确认某项功能行为时才用代码辅助核对，忽略手册图片，不以历史对话、角色设定或通用模型常识代替手册。"
         "当前用户身份已由入口绑定，长期记忆归属于同一调用者并跨会话共享，"
@@ -148,10 +153,10 @@ def chat_required_tools():
     return ("search_chat_history", "discover_tools")
 
 
-def load_catalogs(shared_path, *, recent_limits=None):
+def load_catalogs(shared_path, *, recent_limits=None, kpl_config=None):
     root = Path(shared_path)
     manual = json.loads((root / "manual/catalog.json").read_text())
-    return {
+    result = {
         "chat_history": {"recent_limits": recent_history_limits(recent_limits)},
         "game_data": json.loads((root / "hok_sql/catalog.json").read_text()),
         "chat_data": json.loads((root / "chat_sql/catalog.json").read_text()),
@@ -159,3 +164,7 @@ def load_catalogs(shared_path, *, recent_limits=None):
         "bot_info": {"limits": manual["limits"],
                      "topics": [{"section_id": topic["id"], "title": topic["title"]} for topic in manual["topics"]]},
     }
+    kpl_path = root / "kpl/catalog.json"
+    if kpl_path.is_file() and kpl_config is not None:
+        result["kpl"] = {**json.loads(kpl_path.read_text()), "config": kpl_config}
+    return result

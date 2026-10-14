@@ -168,6 +168,10 @@ def bootstrap(args):
         api=api_namespace,
         memory=mem_namespace,
     )
+    kpl_namespace = {}
+    exec(compile(args["kpl_client"], "portable_kpl_client", "exec"), kpl_namespace)
+    CONTEXT.update(kpl_client=kpl_namespace["query_kpl_data"], kpl_catalog=args["kpl_catalog"],
+                   kpl_config=kpl_namespace["validate_kpl_config"]({**args["kpl_config"], **cfg.get("AgentKPL", {})}))
     task_timing = {}
     exec(compile(args["task_timing"], "task_timing", "exec"), task_timing)
     CONTEXT["task_timing"] = task_timing
@@ -228,6 +232,7 @@ def bootstrap(args):
             "season_start": static.get("this_season_start_date"),
             "sql_limits": cfg.get("AgentSQL", {}),
             "recent_history_limits": mem_namespace["recent_history_limits"](cfg.get("AgentHistory")),
+            "kpl_config": CONTEXT["kpl_config"],
             "references": references,
             "source": "运行进程环境 + 服务器 config.yaml / API 源码",
             "search": bool(search_cfg["api_key"]),
@@ -706,6 +711,8 @@ def dispatch(args):
         return search_history(args)
     if op == "recent_history":
         return recent_history(args)
+    if op == "kpl_query":
+        return CONTEXT["kpl_client"](CONTEXT["kpl_catalog"], CONTEXT["kpl_config"], args)
     if op == "bot_manual":
         return CONTEXT["bot_manual"].read(**{key: value for key, value in args.items() if key != "op"})
     if op == "reference_snapshot":

@@ -9,6 +9,7 @@ from .observations import project_sql_result
 from .plotting import PlotArgs, build_plot_code
 from .memory import recent_history_limits
 from .bot_manual import register_bot_manual_tool
+from .kpl import register_kpl_tool
 
 
 class Args(BaseModel):
@@ -143,6 +144,8 @@ class CancelTaskArgs(Args):
 
 
 def register_application_tools(registry, *, service, catalogs):
+    if "kpl" in catalogs:
+        register_kpl_tool(registry, service=service, catalog=catalogs["kpl"])
     if "bot_info" in catalogs:
         register_bot_manual_tool(registry, service=service, catalog=catalogs["bot_info"])
     history_limits = recent_history_limits(catalogs.get("chat_history", {}).get("recent_limits"))
@@ -292,7 +295,7 @@ def register_application_tools(registry, *, service, catalogs):
     specs = [
         (
             "discover_tools",
-            "按任务需要披露能力。类别：chat_history、chat_data、game_data、references、internet、python、plots、images、memory、tasks。",
+            "按任务需要披露能力。类别：chat_history、chat_data、game_data、kpl（KPL职业赛数据）、references、internet、python、plots、images、memory、tasks。",
             DiscoverArgs,
             discover,
             "core",

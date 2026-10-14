@@ -102,7 +102,8 @@ class QQAgentService:
                 remote = await self.bridge.start()
                 await self.state_bridge.start()
                 self.public = remote["public"]
-                self.catalogs = load_catalogs(shared, recent_limits=self.public.get("recent_history_limits"))
+                self.catalogs = load_catalogs(shared, recent_limits=self.public.get("recent_history_limits"),
+                                              kpl_config=self.public.get("kpl_config"))
                 self.catalogs["references"] = self.public["references"]["directory"]
                 self.local_log = LocalEventLog(self.root / self.config.get("log_directory", "log/qq_agent"), redactor=self.bridge.redact)
                 service = Capabilities(self.bridge, self.state_bridge)

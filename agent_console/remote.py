@@ -5,6 +5,7 @@ import base64
 import json
 from pathlib import Path
 import shlex
+import yaml
 
 
 class BridgeUnavailable(ConnectionError):
@@ -24,6 +25,7 @@ class RemoteBridge:
         self._bootstrap_args = None
         self._closed = False
         self.response_timeout = 190
+        self.kpl_config = None
 
     async def _spawn_worker(self):
         source = Path(__file__).with_name("remote_worker.py").read_text()
@@ -65,6 +67,10 @@ class RemoteBridge:
             root=self.root, catalogs=catalogs, definitions=definitions,
             validator=validator.read_text(),
             memory_tools=(Path(__file__).with_name("tools") / "memory.py").read_text(),
+            kpl_catalog=json.loads((self.shared_path / "kpl/catalog.json").read_text()),
+            kpl_client=Path(__file__).with_name("kpl_client.py").read_text(),
+            kpl_config=self.kpl_config if self.kpl_config is not None else yaml.safe_load(
+                (self.shared_path.parents[1] / "config.yaml").read_text())["AgentKPL"],
             sandbox_runner=Path(__file__).with_name("sandbox_worker.py").read_text(),
             plot_renderer=Path(__file__).with_name("plot_renderer.py").read_text(),
             plot_catalog=json.loads(

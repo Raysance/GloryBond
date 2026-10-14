@@ -122,7 +122,12 @@ class BotManual:
                 inverse = math.log(1 + (len(self.documents) - self.frequency[term] + .5) / (self.frequency[term] + .5))
                 score += inverse * count * 2.2 / (count + 1.2 * (.25 + .75 * sum(document.values()) / self.average_length))
             scores[key] = score
-        ordered = sorted(scores, key=lambda key: -scores[key])
+        # A named function should keep its own chapter even when unrelated
+        # chapters add common date/usage terms and change corpus-wide IDF.
+        normalized_query = "".join(query.casefold().split())
+        title_hits = {key for key, topic in self.topics.items()
+                      if "".join(topic["title"].casefold().split()) in normalized_query}
+        ordered = sorted(scores, key=lambda key: (key in title_hits, scores[key]), reverse=True)
         hits = [key for key in ordered if scores[key] > 0]
         return hits[:limit] if hits else ([self.catalog["overview"]] if not query.strip() else [])
 

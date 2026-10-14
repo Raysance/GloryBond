@@ -41,7 +41,8 @@
         "select_role",
         "add_role_from_web",
         "set_reply_preferences",
-        "read_group_member_profile"
+        "read_group_member_profile",
+        "query_kpl"
       ],
       "code": [
         {
@@ -316,6 +317,39 @@
         {
           "path": "agent_console/tools/reference_data.py",
           "symbol": "ReferenceData.lookup"
+        }
+      ]
+    },
+    {
+      "id": "kpl",
+      "title": "KPL赛事与数据",
+      "keywords": [
+        "KPL",
+        "职业联赛",
+        "职业赛",
+        "KPL小助手",
+        "kplll.online",
+        "赛事数据",
+        "KPL赛程",
+        "KPL统计",
+        "KPL英雄胜率",
+        "KPL选手",
+        "MVP次数",
+        "BP",
+        "战队积分",
+        "英雄组合"
+      ],
+      "tools": [
+        "query_kpl"
+      ],
+      "code": [
+        {
+          "path": "agent_console/kpl_client.py",
+          "symbol": "query_kpl_data"
+        },
+        {
+          "path": "agent_console/tools/kpl.py",
+          "symbol": "register_kpl_tool"
         }
       ]
     },

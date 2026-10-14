@@ -97,9 +97,8 @@ def local_model_settings(config, remote, *, environment):
 
 def create_app(*, config_path=None):
     root = Path(__file__).resolve().parents[1]
-    config = yaml.safe_load(Path(config_path or root / "config.yaml").read_text()).get(
-        "LocalAgent", {}
-    )
+    document = yaml.safe_load(Path(config_path or root / "config.yaml").read_text())
+    config = document.get("LocalAgent", {})
     token = secrets.token_urlsafe(32)
     shared = root / "shared/agent"
     public = {}
@@ -118,6 +117,7 @@ def create_app(*, config_path=None):
             shared,
         )
         state_bridge = RemoteBridge(bridge.host, bridge.root, bridge.python, shared)
+        bridge.kpl_config = state_bridge.kpl_config = document.get("AgentKPL")
         try:
             remote = await bridge.start()
             await state_bridge.start()
@@ -137,7 +137,8 @@ def create_app(*, config_path=None):
                 image_store=image_store,
             )
             registry = ToolRegistry()
-            catalogs = load_catalogs(shared, recent_limits=public.get("recent_history_limits"))
+            catalogs = load_catalogs(shared, recent_limits=public.get("recent_history_limits"),
+                                     kpl_config=public.get("kpl_config"))
             catalogs["references"] = public["references"]["directory"]
             register_application_tools(
                 registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs

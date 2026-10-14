@@ -41,6 +41,13 @@ class ManualTests(unittest.TestCase):
         self.assertEqual(self.manual.read()['topics'][0]['section_id'], 'overview')
         self.assertEqual(self.manual.read(query='zzzz_unlisted_feature')['topics'], [])
 
+    def test_named_function_stays_relevant_when_unrelated_chapters_add_common_terms(self):
+        expanded = HANDBOOK.replace('## 图表、创作图片与计算', ('今天的比赛怎么查，今天查询数据，今天查看结果。' * 40)
+                                    + '\n\n## 图表、创作图片与计算')
+        manual = BotManual(ROOT, copy.deepcopy(CATALOG), expanded)
+        self.assertEqual(manual.read(query='今天的代表局怎么查？', limit=1)['topics'][0]['section_id'], 'representative')
+        self.assertEqual(manual.read(query='介绍KPL赛事与数据的用法', limit=1)['topics'][0]['section_id'], 'kpl')
+
     def test_every_declared_source_resolves_without_importing_or_executing_code(self):
         for topic in CATALOG['topics']:
             with self.subTest(section=topic['id']):
