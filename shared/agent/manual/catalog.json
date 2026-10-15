@@ -1838,7 +1838,9 @@
         "我的X订阅",
         "X最新内容",
         "热门回复",
-        "英文翻译"
+        "英文翻译",
+        "推送格式",
+        "推送时间"
       ],
       "document": {
         "path": "shared/agent/manual/chapters/subscriptions.md",
@@ -1856,6 +1858,10 @@
         {
           "path": "hok/business/x_subscription.py",
           "symbol": "post_card"
+        },
+        {
+          "path": "hok/zfunc.py",
+          "symbol": "_x_render_message"
         }
       ]
     }

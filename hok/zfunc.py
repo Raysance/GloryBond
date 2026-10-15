@@ -1058,6 +1058,7 @@ def _x_render_message(bundle):
     from .tools.gen_x_post import render_x_post_images
     from .zfile import save_x_post_images, pil_image_from_bytes
     from .zapi import x_get_media_bytes
+    from .ztime import current_datetime_text
     from nonebot.adapters.onebot.v11 import MessageSegment
 
     images = []
@@ -1080,7 +1081,8 @@ def _x_render_message(bundle):
                 pass
     paths = save_x_post_images(render_x_post_images(bundle, images, reply_images))
     post = bundle['post']
-    text = f"https://x.com/{post['username']}/status/{post['id']}\n"
+    name = post.get('name') or post['username']
+    text = f"{name} · {current_datetime_text()}\n\n{post.get('text') or ''}\n\n"
     return str(MessageSegment.text(text)) + '\n'.join(str(MessageSegment.image(f"file://{path}")) for path in paths)
 
 

@@ -186,6 +186,23 @@ class RedisStub:
         return list(self.hashes.get(key, {}).values())
 
 
+class XMessageTests(unittest.TestCase):
+    def test_push_header_preserves_original_text_without_interpreting_cq_segments(self):
+        from nonebot.adapters.onebot.v11 import Message
+        files = import_hok_module('zfile')
+        clock = import_hok_module('ztime')
+        post = {'id': '11', 'name': 'Tibo', 'username': 'thsottiaux',
+                'created_at': '2026-10-13T23:32:43Z',
+                'text': 'We propose [CQ:at,qq=1] & a new function.\nSecond line.'}
+        with patch.object(clock, 'current_datetime_text', return_value='2026-10-15 11:22:33'), \
+             patch.object(RENDER, 'render_x_post_images', return_value=[]), \
+             patch.object(files, 'save_x_post_images', return_value=['/tmp/x_post_preview_0.png']):
+            message = Message(ZFUNC._x_render_message({'post': post, 'replies': []}))
+        self.assertEqual([segment.type for segment in message], ['text', 'image'])
+        self.assertEqual(message[0].data['text'], f"Tibo · 2026-10-15 11:22:33\n\n{post['text']}\n\n")
+        self.assertEqual(message[1].data['file'], 'file:///tmp/x_post_preview_0.png')
+
+
 class XStorageTests(unittest.TestCase):
     def test_subscription_hash_keeps_simultaneous_users_and_cursor_roundtrips(self):
         with patch.object(ZFUNC.dmc, 'redis_deamon', RedisStub()):
