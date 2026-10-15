@@ -1,7 +1,7 @@
 """AI daily editorial layout and scheduled workflow, without transport or state IO."""
 
 from ..zstatic import ai_daily_config, confs
-from ..ztime import current_epoch_seconds, epoch_to_text, parse_chat_time_bound
+from ..ztime import current_epoch_seconds, epoch_to_text
 from ..tools.chat_text import normalize_qq_text
 
 
@@ -9,18 +9,11 @@ def _text(value):
     return normalize_qq_text(str(value or "")).strip()
 
 
-def _timestamp(value):
-    return epoch_to_text(parse_chat_time_bound(value), timezone_name=ai_daily_config["timezone"])
-
-
-def _links(item):
-    links = item.get("links") or {}
-    result = []
-    for key, label in (("original", "原文"), ("aihot", "AIHOT")):
-        url = str(links.get(key) or "").strip()
-        if url.startswith(("https://", "http://")) and not any(char.isspace() for char in url):
-            result.append(f"{label}：{url}")
-    return result
+def _original_link(item):
+    url = str((item.get("links") or {}).get("original") or "").strip()
+    if url.startswith(("https://", "http://")) and not any(char.isspace() for char in url):
+        return f"原文：{url}"
+    return ""
 
 
 def _split_node(text, limit):
@@ -35,55 +28,46 @@ def _split_node(text, limit):
         yield text
 
 
+def _overview_node(date, items, limit):
+    """Keep every numbered takeaway in the first node, shortening only long titles."""
+    heading = f"AI 日报 · {date}\n\n今日要点"
+    if not items:
+        return heading + "\n\n本期无新增资讯。"
+    prefixes = [f"\n\n{index:02d}｜" for index in range(1, len(items) + 1)]
+    title_budget = (limit - len(heading) - sum(map(len, prefixes))) // len(items)
+    if title_budget < 8:
+        raise ValueError("AI_DAILY_LAYOUT: complete overview cannot fit in the first node")
+    lines = [heading]
+    for prefix, item in zip(prefixes, items):
+        title = " ".join(_text(item["title"]).split())
+        if len(title) > title_budget:
+            title = title[:title_budget - 1] + "…"
+        lines.append(prefix + title)
+    return "".join(lines)
+
+
 def build_daily_nodes(report):
-    """Use upstream editorial order; separate overview, numbered articles and flashes."""
-    sections, flashes, seen = [], [], set()
+    """Start with all takeaways; expand the same numbers with text and original links."""
+    items, seen = [], set()
     for section in report["sections"]:
-        unique = []
         for item in section["items"]:
             identity = item["links"].get("original") or item["title"]
             if identity not in seen:
                 seen.add(identity)
-                unique.append(item)
-        if unique:
-            sections.append((section["label"], unique))
+                items.append(item)
     for item in report["flashes"]:
         identity = item["links"].get("original") or item["title"]
         if identity not in seen:
             seen.add(identity)
-            flashes.append(item)
-    total = sum(len(items) for _, items in sections)
-    blocks = [f"AI 领域日报 · {report['date']}\n"
-              f"统计区间：{_timestamp(report['windowStart'])} 至 {_timestamp(report['windowEnd'])}（北京时间）\n"
-              f"日报生成：{_timestamp(report['generatedAt'])}\n"
-              f"本期 {total} 条重点动态 · {len(flashes)} 条快讯\n"
-              "阅读顺序：今日导读 → 分类动态 → 快讯 → 来源"]
-    lead = report.get("lead") or {}
-    if lead.get("title") or lead.get("leadParagraph"):
-        blocks.append("今日导读\n" + _text(lead.get("title")) + "\n\n" + _text(lead.get("leadParagraph")))
-    number = 0
-    for label, items in sections:
-        for index, item in enumerate(items, 1):
-            number += 1
-            blocks.append(f"{_text(label)} · {index}/{len(items)}\n\n"
-                          f"{number:02d}｜{_text(item['title'])}\n\n"
-                          f"{_text(item['summary'])}\n\n"
-                          f"来源：{_text(item['source']['name'])}\n" + "\n".join(_links(item)))
-    for index, item in enumerate(flashes, 1):
-        published = _timestamp(item.get("publishedAt")) if item.get("publishedAt") else "未知"
-        blocks.append(f"行业快讯 · {index}/{len(flashes)}\n\n"
-                      f"{index:02d}｜{_text(item['title'])}\n\n"
-                      f"来源：{_text(item['source']['name'])}\n发布时间：{published}（北京时间）\n"
-                      + "\n".join(_links(item)))
-    if not total and not flashes:
-        blocks.append("本期无新增资讯，具体覆盖区间见首页。")
-    blocks.append("来源与阅读说明\n\n数据来源：AIHOT\n" + "\n".join(_links(report))
-                  + "\n\n按 AIHOT 日报原有分类与顺序整理。摘要为来源报道的归纳，"
-                  "数字、模型能力、融资与政策等信息请结合原文核实；本日报未逐条独立核验。")
+            items.append(item)
     limit = int(ai_daily_config["node_max_chars"])
     if limit < 200:
         raise ValueError("AI_DAILY_LAYOUT: node_max_chars must be at least 200")
-    nodes = [part for block in blocks for part in _split_node(block, limit)]
+    nodes = [_overview_node(report["date"], items, limit)]
+    for index, item in enumerate(items, 1):
+        parts = [f"{index:02d}｜{_text(item['title'])}", _text(item.get("summary")), _original_link(item)]
+        block = "\n\n".join(part for part in parts if part)
+        nodes.extend(_split_node(block, limit))
     if len(nodes) > int(ai_daily_config["max_nodes"]):
         raise ValueError(f"AI_DAILY_LAYOUT: {len(nodes)} nodes exceed configured limit")
     return nodes

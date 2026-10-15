@@ -1127,7 +1127,7 @@
       "id": "ai_daily",
       "title": "AI 领域日报",
       "parent": "subscriptions",
-      "summary": "每天北京时间09:00发送AIHOT当日AI日报，合并转发呈现导读、分类动态、快讯及原文链接。",
+      "summary": "每天北京时间09:00发送AI日报，首条汇总全部编号要点，后续按相同编号展开正文和原文链接。",
       "keywords": [
         "AI日报",
         "AI早报",

@@ -83,23 +83,44 @@ class AihotAdapterTests(unittest.TestCase):
 
 
 class DailyLayoutTests(unittest.TestCase):
-    def test_editorial_order_sources_numbering_and_beijing_time(self):
+    def test_first_node_summarizes_every_following_point_with_matching_numbers(self):
         nodes = BUSINESS.build_daily_nodes(report_fixture())
-        self.assertIn("2026-10-14 08:00:00 至 2026-10-15 08:00:00", nodes[0])
-        self.assertTrue(nodes[1].startswith("今日导读"))
-        self.assertIn("01｜新模型上线", nodes[2])
-        self.assertIn("原文：https://example.com/new-model", nodes[2])
-        self.assertIn("AIHOT：https://aihot.news/items/example", nodes[2])
-        self.assertIn("2026-10-15 02:30:00", nodes[3])
-        self.assertIn("数据来源：AIHOT", nodes[-1])
+        self.assertTrue(nodes[0].startswith("AI 日报 · 2026-10-15\n\n今日要点"))
+        self.assertIn("01｜新模型上线", nodes[0])
+        self.assertIn("02｜开源框架更新", nodes[0])
+        self.assertTrue(nodes[1].startswith("01｜新模型上线"))
+        self.assertTrue(nodes[2].startswith("02｜开源框架更新"))
+        self.assertIn("支持更长上下文。", nodes[1])
+        self.assertIn("原文：https://example.com/new-model", nodes[1])
+        self.assertEqual(len(nodes), 3)
+        for metadata in ("AIHOT", "aihot.news", "统计区间", "日报生成", "阅读顺序", "来源：", "发布时间", "今日导读"):
+            self.assertNotIn(metadata, "\n".join(nodes))
 
     def test_duplicate_news_is_not_repeated_as_flash_and_empty_issue_is_explicit(self):
         report = report_fixture()
         report["flashes"].append(copy.deepcopy(report["sections"][0]["items"][0]))
         nodes = BUSINESS.build_daily_nodes(report)
-        self.assertIn("1 条重点动态 · 1 条快讯", nodes[0])
+        self.assertEqual(nodes[0].count("01｜"), 1)
+        self.assertEqual(nodes[0].count("02｜"), 1)
+        self.assertNotIn("03｜", nodes[0])
+        self.assertEqual(len(nodes), 3)
         report.update(sections=[], flashes=[], lead=None)
-        self.assertIn("本期无新增资讯", "\n".join(BUSINESS.build_daily_nodes(report)))
+        self.assertEqual(BUSINESS.build_daily_nodes(report), ["AI 日报 · 2026-10-15\n\n今日要点\n\n本期无新增资讯。"])
+
+    def test_large_overview_stays_in_first_node_and_covers_every_full_detail(self):
+        report = report_fixture()
+        report["flashes"] = []
+        item = report["sections"][0]["items"][0]
+        report["sections"][0]["items"] = [dict(item, title=f"第{index}项研究" + "完整描述" * 40,
+                                                   links={"original": f"https://example.com/{index}"})
+                                                  for index in range(1, 21)]
+        with patch.dict(BUSINESS.ai_daily_config, node_max_chars=400):
+            nodes = BUSINESS.build_daily_nodes(report)
+        self.assertLessEqual(len(nodes[0]), 400)
+        self.assertEqual(nodes[0].count("｜"), 20)
+        self.assertIn("20｜第20项研究", nodes[0])
+        for index, item in enumerate(report["sections"][0]["items"], 1):
+            self.assertTrue(nodes[index].startswith(f"{index:02d}｜{item['title']}"))
 
     def test_long_content_splits_without_losing_body_or_silently_exceeding_budget(self):
         report = report_fixture()
@@ -129,7 +150,7 @@ class DailyWorkflowTests(unittest.TestCase):
         self.enqueue.assert_called_once()
         self.assertEqual(self.enqueue.call_args.kwargs["group_qid"], BUSINESS.confs["QQBot"]["group_qid"])
         self.assertTrue(self.enqueue.call_args.kwargs["delivery_id"].endswith(":2026-10-15"))
-        self.assertEqual(len(self.enqueue.call_args.args[0]), 5)
+        self.assertEqual(len(self.enqueue.call_args.args[0]), 3)
 
     def test_queued_sent_or_failed_edition_is_not_refetched_after_restart(self):
         for status in ("queued", "sent", "failed"):
