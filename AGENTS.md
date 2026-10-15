@@ -43,6 +43,8 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `zfunc.chat_prepare_reply()` 合并图表并发布运行记录；合图失败保留原图，发布失败保留正常回答。`zfile.combine_chat_plot_images()` 默认两列合图。`chat_publish_trace()` 使用共享 `WebArtifacts.make_hash()` 生成 16 位随机 hex，写 DB0 `hok:web:artifact:<token>`，TTL 默认 7 天；网页 `/chat-trace?key=...` 接受新 16 位 key，已有 48 位链接保留至自然过期。输出 PNG 为 `chat_plot_<32位hex>.png`，遵守现有产物清理周期。
 - QQAgent 预算与输入/输出规则统一来自 `config.yaml#QQAgent`；默认 10 轮、16 次工具、300 秒、4 张输入图片。工具执行仍要求每个调用产生 observation，渐进披露与授权由共享注册表控制。
 
+- 分批回答由外部 application_prompt 与 emit_message 描述引导：信息较多、多子问题、步骤和对比可按完整语义块交付，保持当前角色/偏好，不按字数机械切割、不逐句刷屏、不重复全文。QQOutput 与 Web EventBroker 在输出接受后通过 DeliveryHistory 按 run_id 收集 partial；最终整理只处理未发送的最后一段，保存直接对话时按顺序合并已发送分批正文与当前最终 history_text。progress/notification 不入此回答历史，并发隔离，run.end 清理；内核与双版本展示协议不变，失败/取消的已发送内容继续保留在运行日志。
+
 ### 1.1 Tools（`hok/tools/`）
 
 `hok/tools/` 目录用于放置可复用、可抽象的“工具”模块：

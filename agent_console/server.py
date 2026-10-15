@@ -35,7 +35,7 @@ from .image_inputs import ImageLimits, ImageStore
 from .local_logs import LocalEventLog
 from .remote import BridgeUnavailable, RemoteBridge, RemoteState
 from .roleplay import RoleplayService
-from .replies import ReplyComposer, ReplyPolicy
+from .replies import DeliveryHistory, ReplyComposer, ReplyPolicy
 from .identity import local_principal
 from .webpages import WebPageFetcher, WebPageLimits
 from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
@@ -47,6 +47,7 @@ class EventBroker:
         self.event_projector = event_projector
         self.local_log = local_log
         self.events = {}
+        self.delivery_history = DeliveryHistory()
         self.condition = asyncio.Condition()
 
     async def publish(self, event):
@@ -58,6 +59,7 @@ class EventBroker:
         async with self.condition:
             self.events.setdefault(event["session_id"], []).append(clean)
             self.condition.notify_all()
+            self.delivery_history.record(clean)
 
 
 class ChatInput(BaseModel):
@@ -186,6 +188,7 @@ def create_app(*, config_path=None):
                     model=reply_model,
                     roles=roles,
                     policy=ReplyPolicy(**config.get("reply", {})),
+                    delivery_history=broker.delivery_history,
                 ),
             )
             app.state.bridge, app.state.runtime, app.state.broker = (

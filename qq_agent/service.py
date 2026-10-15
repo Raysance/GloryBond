@@ -71,15 +71,17 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
 
 
 class QQFinalizer:
-    def __init__(self, composer, formatter):
+    def __init__(self, composer, formatter, delivery_history=None):
         self.composer, self.formatter = composer, formatter
+        self.delivery_history = delivery_history
 
     async def finalize(self, context, emit):
         answer = await self.composer.finalize(context, emit)
         variants = {key: self.formatter(text) for key, text in answer.variants.items()}
         variant = answer.metadata.get("default_variant", "chat")
         text = variants.get(variant, self.formatter(answer.text))
-        return FinalAnswer(text, variants, answer.metadata, text)
+        result = FinalAnswer(text, variants, answer.metadata, text)
+        return self.delivery_history.preserve(result, context.request, self.formatter) if self.delivery_history else result
 
 
 class QQAgentService:
@@ -142,7 +144,8 @@ class QQAgentService:
                 composer = ReplyComposer(model=reply_model, roles=self.roles,
                                          policy=ReplyPolicy(**{**self.config.get("reply", {}), "history_variant": "chat"}))
                 self.runtime = AgentRuntime(model=self.model, registry=registry, state=self.state, output=self.output,
-                                            clock=self.clock, finalizer=QQFinalizer(composer, self.formatter))
+                                            clock=self.clock, finalizer=QQFinalizer(composer, self.formatter,
+                                                                                 self.output.delivery_history))
                 self.scheduler = TaskScheduler(runtime=self.runtime, bridge=self.state_bridge, state=self.state,
                                                output=self.output, clock=self.clock, prompt_factory=self.current_prompt, channel="qq")
             except BaseException:

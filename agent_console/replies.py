@@ -3,12 +3,37 @@
 import asyncio
 import json
 import re
+from dataclasses import replace
 from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent_runtime import FinalAnswer
+
+
+class DeliveryHistory:
+    """Preserve accepted answer parts without reloading tool/model transcripts."""
+
+    def __init__(self):
+        self.parts = {}
+
+    def record(self, event):
+        run = event["run_id"]
+        data = event.get("data", {})
+        if event["kind"] == "output.message" and data.get("kind") == "partial":
+            text = data.get("text", "")
+            if isinstance(text, str) and text.strip():
+                self.parts.setdefault(run, []).append(text)
+        elif event["kind"] == "run.end":
+            self.parts.pop(run, None)
+
+    def preserve(self, answer, request, formatter=lambda text: text):
+        parts = self.parts.get(request.run_id, [])
+        if not parts:
+            return answer
+        return replace(answer, history_text="\n\n".join(
+            [*(formatter(text) for text in parts), answer.history_text or answer.text]))
 
 
 class ReplyPolicy(BaseModel):
@@ -135,9 +160,13 @@ def reply_instruction(policy):
 
 
 class ReplyComposer:
-    def __init__(self, *, model, roles, policy=None):
+    def __init__(self, *, model, roles, policy=None, delivery_history=None):
         self.model, self.roles = model, roles
         self.policy = policy or ReplyPolicy()
+        self.delivery_history = delivery_history
+
+    def preserve_history(self, answer, context):
+        return self.delivery_history.preserve(answer, context.request) if self.delivery_history else answer
 
     async def finalize(self, context, emit):
         try:
@@ -231,7 +260,7 @@ class ReplyComposer:
                             ]
                         )
                         continue
-                    return FinalAnswer(
+                    return self.preserve_history(FinalAnswer(
                         context.draft if variant == "detailed" else chat,
                         variants={"detailed": context.draft, "chat": chat},
                         metadata={
@@ -242,7 +271,7 @@ class ReplyComposer:
                         history_text=context.draft
                         if self.policy.history_variant == "detailed"
                         else chat,
-                    )
+                    ), context)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -250,7 +279,7 @@ class ReplyComposer:
                 "reply.failure", {"error": str(exc)[:1000], "type": type(exc).__name__}
             )
             await emit("run.warning", {"error": "回复整理未完成，保留原始回答。"})
-            return FinalAnswer(
+            return self.preserve_history(FinalAnswer(
                 context.draft,
                 variants={
                     "detailed": context.draft,
@@ -258,4 +287,4 @@ class ReplyComposer:
                 },
                 metadata={"default_variant": "chat", "degraded": True},
                 history_text=context.draft,
-            )
+            ), context)

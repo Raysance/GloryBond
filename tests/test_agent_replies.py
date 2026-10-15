@@ -13,6 +13,7 @@ from agent_runtime import FinalizationContext, Principal, RunRequest
 from agent_console.replies import (
     ReplyComposer,
     ReplyPolicy,
+    DeliveryHistory,
     expression_role,
     source_packet,
     validate_chat,
@@ -362,6 +363,41 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
+
+
+class StagedDeliveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_web_delivery_history_keeps_parts_out_of_expression_input_and_variants(self):
+        from types import SimpleNamespace
+        from agent_console.server import EventBroker
+        ctx = context()
+        broker = EventBroker(SimpleNamespace(redact=lambda value: value))
+        part = '第一部分：统计的适用范围有限。'
+        await broker.publish({'run_id': ctx.request.run_id, 'session_id': 'session',
+                              'kind': 'output.message', 'data': {'kind': 'partial', 'text': part}})
+        model = ScriptedModel([response()])
+        composer = ReplyComposer(model=model, roles=Roles(), delivery_history=broker.delivery_history)
+        answer = await composer.finalize(ctx, AsyncMock())
+        self.assertEqual(answer.history_text, part + '\n\n' + DETAIL)
+        self.assertEqual(answer.variants['detailed'], DETAIL)
+        self.assertEqual(answer.text, CHAT)
+        self.assertNotIn(part, json.dumps(model.requests, ensure_ascii=False))
+        await broker.publish({'run_id': ctx.request.run_id, 'session_id': 'session',
+                              'kind': 'run.end', 'data': {'status': 'completed'}})
+        self.assertEqual(broker.delivery_history.parts, {})
+
+    async def test_concurrent_run_isolation_and_failure_fallback_preserve_only_answer_parts(self):
+        ctx = context()
+        history = DeliveryHistory()
+        for run, kind, text in ((ctx.request.run_id, 'partial', '已发送的依据。'),
+                                 ('other', 'partial', '别人的回答'),
+                                 (ctx.request.run_id, 'progress', '正在生成'),
+                                 (ctx.request.run_id, 'notification', '定时提醒')):
+            history.record({'run_id': run, 'kind': 'output.message', 'data': {'kind': kind, 'text': text}})
+        composer = ReplyComposer(model=ScriptedModel([{'role': 'assistant', 'content': 'invalid'}]),
+                                 roles=Roles(), policy=ReplyPolicy(max_attempts=1), delivery_history=history)
+        answer = await composer.finalize(ctx, AsyncMock())
+        self.assertTrue(answer.metadata['degraded'])
+        self.assertEqual(answer.history_text, '已发送的依据。\n\n' + DETAIL)
 
 
 if __name__ == "__main__":

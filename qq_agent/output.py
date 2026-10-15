@@ -2,6 +2,7 @@
 
 import base64
 from .trace import build_trace
+from agent_console.replies import DeliveryHistory
 
 
 class QQOutput:
@@ -10,6 +11,7 @@ class QQOutput:
         self.sender, self.prepare_reply, self.store_artifact = sender, prepare_reply, store_artifact
         self.event_projector = event_projector or (lambda e: e)
         self.events, self.artifacts, self.finals, self.results = {}, {}, {}, {}
+        self.delivery_history = DeliveryHistory()
 
     async def publish(self, event):
         clean = self.bridge.redact(self.event_projector(event))
@@ -48,3 +50,4 @@ class QQOutput:
                 await self.sender(prepared, delivery)
                 if event.get("metadata", {}).get("origin") != "background":
                     self.results[run] = prepared
+        self.delivery_history.record(event)

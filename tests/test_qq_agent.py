@@ -250,8 +250,33 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(next(args for op, args in self.calls if op == "search_history")["exclude_message_id"], 300)
         self.assertEqual(self.gateway.model.requests[0].tool_choice["function"]["name"], "search_chat_history")
         self.assertEqual(self.gateway.model.requests[1].tool_choice["function"]["name"], "discover_tools")
-        self.assertEqual(self.dialogue["qq_g_200_101"][-1]["content"], result["text"])
+        self.assertEqual(self.dialogue["qq_g_200_101"][-1]["content"],
+                         "记忆已保存，正在设置提醒。\n\n" + result["text"])
         self.assertGreater(result["trace"]["summary"]["token_usage"]["total_tokens"], 0)
+
+    async def test_information_dense_answer_delivers_ordered_parts_and_preserves_followup_context(self):
+        first, second = "先说结论：这个方案可以用，但需要满足条件。", "具体步骤：先确认数据范围，再比较相同口径的结果。"
+        self.reply_text = "最后留意样本范围，别把局部结果当成全量。"
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['references']}, 'd')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('emit_message', {'text': first}, 'p1')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('emit_message', {'text': second}, 'p2')]},
+            {'role': 'assistant', 'content': '最后留意样本范围，别把局部结果当成全量。'},
+        ]
+        result = await self.gateway.chat(user_text='把方案和操作步骤都说清楚，可以分几条发。',
+                                         user_id='101', nickname='B')
+        self.assertEqual([packet['text'] for packet, _ in self.sent], [first, second, result['text']])
+        saved = self.dialogue['qq_p_101'][-1]['content']
+        self.assertEqual(saved, '\n\n'.join([first, second, result['text']]))
+        self.assertFalse(self.gateway.output.delivery_history.parts)
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['references']}, 'd2')]},
+            {'role': 'assistant', 'content': '第一步是确认数据范围。'},
+        ]
+        await self.gateway.chat(user_text='你刚才说的第一步是什么？', user_id='101', nickname='B')
+        messages = self.gateway.model.requests[-2].messages
+        self.assertTrue(any(message.get('role') == 'assistant' and message.get('content') == saved
+                            for message in messages))
 
     async def test_private_has_no_group_tool_and_qq_runner_is_separate(self):
         self.script = [
