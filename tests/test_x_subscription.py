@@ -187,6 +187,29 @@ class RedisStub:
 
 
 class XMessageTests(unittest.TestCase):
+    def test_long_message_is_shortened_without_changing_the_full_card_source(self):
+        from nonebot.adapters.onebot.v11 import Message
+        files = import_hok_module('zfile')
+        original = 'A sentence with useful details. ' * 300 + 'END_OF_ORIGINAL'
+        post = {'id': '11', 'name': 'Tibo', 'username': 'thsottiaux', 'text': original}
+        with patch.object(RENDER, 'render_x_post_images', return_value=[]) as render, \
+             patch.object(files, 'save_x_post_images', return_value=['/tmp/x_post_preview_0.png']):
+            message = Message(ZFUNC._x_render_message({'post': post, 'replies': []}))
+        self.assertIn('…（全文见图）', message[0].data['text'])
+        self.assertNotIn('END_OF_ORIGINAL', message[0].data['text'])
+        self.assertEqual(render.call_args.args[0]['post']['text'], original)
+        self.assertEqual(post['text'], original)
+        self.assertEqual(message[1].type, 'image')
+
+    def test_long_translation_preserves_both_input_and_output_tails(self):
+        original = 'English content. ' * 400 + 'SOURCE_TAIL'
+        translated = '中文' * 4000 + '译文结尾'
+        rows = [{'id': '11', 'text': original, 'lang': 'en'}]
+        with patch.object(ZAPI, 'ai_api', return_value=json.dumps({'11': translated})) as translate:
+            BUSINESS._translate(rows)
+        self.assertIn('SOURCE_TAIL', translate.call_args.args[0])
+        self.assertEqual(rows[0]['translation'], translated)
+
     def test_push_header_preserves_original_text_without_interpreting_cq_segments(self):
         from nonebot.adapters.onebot.v11 import Message
         files = import_hok_module('zfile')
@@ -302,6 +325,21 @@ class XRouteTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn('NotoSansSC',str(path))
         finally:
             os.chdir(previous)
+
+    def test_long_original_is_complete_across_card_pages(self):
+        from PIL import ImageDraw
+        drawn = []
+        original_text = ImageDraw.ImageDraw.text
+        def capture(draw, xy, text, *args, **kwargs):
+            drawn.append(text)
+            return original_text(draw, xy, text, *args, **kwargs)
+        source = 'A paragraph with the full source.\n' * 210 + 'UNIQUE_ORIGINAL_TAIL'
+        with patch.object(ImageDraw.ImageDraw, 'text', new=capture):
+            images = RENDER.render_x_post_images({'post': {'id': '11', 'username': 'author', 'text': source}})
+        self.assertGreater(len(source), 6000)
+        self.assertGreater(len(images), 1)
+        self.assertIn('UNIQUE_ORIGINAL_TAIL', '\n'.join(drawn))
+        self.assertTrue(all(image.height <= 8000 for image in images))
 
 
 if __name__ == '__main__':

@@ -40,12 +40,9 @@ def render_x_post_images(bundle, media_images=(), reply_media_images=None):
     heading, monogram = font(27, 600), font(30, 500)
     ink, muted, faint, green = '#192D2A', '#697B76', '#8C9B96', '#328C76'
     measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
-    limit = int(config['max_text_chars'])
 
     def wrapped(text, face, available=text_width):
         text = str(text or '').strip()
-        if len(text) > limit:
-            text = text[:limit] + '…（见原帖）'
         lines = []
         for paragraph in text.split('\n'):
             line = ''

@@ -1840,7 +1840,9 @@
         "热门回复",
         "英文翻译",
         "推送格式",
-        "推送时间"
+        "推送时间",
+        "长帖",
+        "全文见图"
       ],
       "document": {
         "path": "shared/agent/manual/chapters/subscriptions.md",

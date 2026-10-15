@@ -1055,6 +1055,7 @@ def _x_refresh_lock(token):
 
 
 def _x_render_message(bundle):
+    from .business.x_subscription import post_text_preview
     from .tools.gen_x_post import render_x_post_images
     from .zfile import save_x_post_images, pil_image_from_bytes
     from .zapi import x_get_media_bytes
@@ -1082,7 +1083,8 @@ def _x_render_message(bundle):
     paths = save_x_post_images(render_x_post_images(bundle, images, reply_images))
     post = bundle['post']
     name = post.get('name') or post['username']
-    text = f"{name} · {current_datetime_text()}\n\n{post.get('text') or ''}\n\n"
+    preview = post_text_preview(post.get('text'), x_subscription_config['message_preview_max_chars'])
+    text = f"{name} · {current_datetime_text()}\n\n{preview}\n\n"
     return str(MessageSegment.text(text)) + '\n'.join(str(MessageSegment.image(f"file://{path}")) for path in paths)
 
 
