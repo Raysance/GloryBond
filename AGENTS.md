@@ -112,7 +112,8 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 ### AI 日报补充
 
 - `api_adapters/aihot.py` 只读请求 AIHOT `/api/v1/dailies/latest`，不需要密钥，不接入聊天工具链；禁用环境代理和重定向，限制超时与响应字节，校验版本、日期、时间窗口、分类和来源。429/503 不进行即时重试。
-- `business/ai_daily.py` 首条节点用统一编号汇总本期全部要点，后续按相同编号展开标题、摘要及原文链接；保留上游资讯顺序，快讯共用编号并去重。不展示生成时间、统计窗口、分类计数、信源名称、聚合站链接或单独来源说明。首条总览必须保持单节点并覆盖所有要点，必要时仅压缩总览标题；详情长节点拆分但不截断，空日报明确说明。只允许当日版本，旧版本/异常不向群发送日报。配置统一来自 `config.yaml#AIDaily`，默认每天北京时间09:00向 `QQBot.group_qid` 推送。
+- `business/ai_daily.py` 将单条合并转发整理为“今日看点 → 应用详情 → 前沿观察”。首条只归纳日常学习、创作与普通工作中可直接使用的应用资讯，法律、金融、研究、模型参数和深度工程内容留在后半部，不进入首页概要；没有应用动态时不拿专业内容填充。按编辑顺序统一编号，详情保留原始标题、摘要及原文链接，快讯共用编号并去重；不展示生成时间、统计窗口、信源名称、聚合站链接、单独来源说明或面向人群/遵循指令等元叙述。首条总览保持单节点，必要时只压缩要点，详情长节点拆分但不截断。
+- 日报编辑提示词由 `business/ai_prompts.ai_daily_editorial_prompt()` 组装，资料独立放在 user 消息中；`ai_daily._request_editorial()` 只通过已有 `zapi.ai_api()` 单轮请求结构化分类、排序和应用要点。只接受原始条目 ID，完整覆盖且无重复/未知 ID；application + daily 才可进入首页，其他话题强制放后半部。模型不能替换详情、来源链接或发送目的地。编辑超时/结构异常时不入队，不回退为未分类概要。配置统一在 `config.yaml#AIDaily`，默认每天北京时间09:00向 `QQBot.group_qid` 推送。
 - 定时任务仅在 `zscheduler.ai_daily_push` 注册，异步线程调用 `zfunc.ai_daily_check_and_push()`；不另起轮询，不替换原06:00游戏新闻任务。失败经统一出口通知管理员。
 - `utils/message_sender.add_group_forward_msg()` 负责原生合并转发节点、机器人署名及纯文本转义；日报标题与节点展示署名默认统一为 `Next Signal`，分别读取 `AIDaily.title` / `sender_name`。标题随队列持久化，消费时映射为 `send_group_forward_msg` 的 `source` / `prompt`，不含标题的旧队列继续兼容。真实返回 `message_id` 后才标记发送成功，失败不终止转发消费，也不拆成多条群消息刷屏。
 - `zfunc.enqueue_forward_message()` 在 DB0 原子完成入队及防重复预留；`hok:message:forward:delivery:ai_daily:<群>:<日期>` 保存 queued/sent/failed，默认7天。失败/未知结果不盲目重放；跨部署防重复，状态写入失败保留 queued，不冒充成功。手册与检索树同步维护在 `shared/agent/manual/`。

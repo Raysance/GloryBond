@@ -1154,7 +1154,7 @@
       "id": "ai_daily",
       "title": "AI 领域日报",
       "parent": "subscriptions",
-      "summary": "Next Signal AI日报，每天北京时间09:00发送，首条汇总全部编号要点，后续展开正文和原文链接。",
+      "summary": "Next Signal AI日报，每天09:00发送，先读应用动态与日常使用要点，再看模型、研究、工程和行业资讯。",
       "keywords": [
         "AI日报",
         "AI早报",
@@ -1162,7 +1162,10 @@
         "AIHOT",
         "每天九点",
         "合并转发",
-        "Next Signal"
+        "Next Signal",
+        "今日看点",
+        "前沿观察",
+        "应用动态"
       ],
       "tools": [],
       "document": {
@@ -1177,6 +1180,14 @@
         {
           "path": "hok/business/ai_daily.py",
           "symbol": "build_daily_nodes"
+        },
+        {
+          "path": "hok/business/ai_daily.py",
+          "symbol": "_request_editorial"
+        },
+        {
+          "path": "hok/business/ai_prompts.py",
+          "symbol": "ai_daily_editorial_prompt"
         },
         {
           "path": "hok/zscheduler.py",
