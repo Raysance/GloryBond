@@ -627,7 +627,12 @@
         "提醒他人",
         "定时艾特",
         "不艾特",
-        "定时私发"
+        "定时私发",
+        "定时查询",
+        "业务函数",
+        "调用函数",
+        "梯度图",
+        "循环调用"
       ],
       "tools": [
         "create_task",
@@ -635,7 +640,10 @@
         "cancel_task",
         "emit_message",
         "set_reply_mention",
-        "send_group_member_private_message"
+        "send_group_member_private_message",
+        "search_hok_functions",
+        "describe_hok_function",
+        "call_hok_function"
       ],
       "code": [
         {
@@ -649,10 +657,22 @@
         {
           "path": "qq_agent/mentions.py",
           "symbol": "QQCapabilities.create_task"
+        },
+        {
+          "path": "qq_agent/business_functions.py",
+          "symbol": "build_hok_function_catalog"
+        },
+        {
+          "path": "agent_console/function_calls.py",
+          "symbol": "FunctionCatalog"
+        },
+        {
+          "path": "agent_console/capabilities.py",
+          "symbol": "Capabilities.create_task"
         }
       ],
       "parent": "automation",
-      "summary": "延迟或周期发送提醒；同群成员可查看创建者并取消本群任务，引用定时消息可按真实发送回执查询来源或取消；其他群、私聊及网页会话隔离。群提醒可指定原生@当前群其他成员或不@，选择随新任务保存。明确要求时可到时执行群成员私发动作，不改变已有普通任务目的地。"
+      "summary": "延迟或周期发送提醒；同群成员可查看创建者并取消本群任务，引用定时消息可按真实发送回执查询来源或取消；其他群、私聊及网页会话隔离。群提醒可指定原生@当前群其他成员或不@，选择随新任务保存。明确要求时可到时执行群成员私发动作，不改变已有普通任务目的地。 QQ定时查询可按需调用已登记的在线、战报、英雄、底蕴与时长等业务函数并返回图文；同轮调用去重，禁止业务重入AI及后台派生任务。"
     },
     {
       "id": "tasks_1",

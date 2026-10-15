@@ -263,6 +263,58 @@ agent_register_tool(
 工具类别会自动进入发现描述。权限和可调用函数由应用注册，不允许模型传入任意
 Python 模块或函数名。注册新的 scope 时，入口还必须显式授予该 scope。
 
+### 按需调用现有业务函数
+
+QQ 前台聊天及定时 `agent` 任务共用 `hok_business` 类别。模型先用
+`search_hok_functions` 按用途或分类分页找函数，再用 `describe_hok_function`
+读取选中函数的参数，最后 `call_hok_function(name, arguments)` 执行。始终只有这
+三个通用工具，不为每个业务函数注入独立定义，也不在创建任务时保存完整定义。
+后台执行仍由同一 ReAct 模型选择工具；这不是绕过模型的确定性函数调度任务。
+
+`qq_agent/business_functions.py` 初始显式登记17个现有函数，覆盖在线状态、单日战报、
+巅峰排名、英雄战力/常用英雄/统计/梯度、本人今日英雄、评分趋势、观战截图、底蕴、
+游戏时长及代表局。只返回正式结果，旧接口的调试载荷、玩家内部参数和本地图片路径
+不进入 observation。图片经 zfile 校验、快照为标准 PNG，沿用原运行记录和统一消息
+出口。本人今日英雄绑定真实调用者，不允许指定他人或绕过每日限制。当前本地 Web
+没有注入该业务目录，不会为此在 worker 中初始化 NoneBot 或使用业务写数据库账号。
+
+扩展默认绑定可在 `build_hok_function_catalog()` 增加一个 `add()`，声明已有 zfunc
+函数、参数、结果投影及必要的可信参数绑定。稳定扩展也可在服务启动后、现有启动
+hook 中登记，不需要增加模型工具或修改内核。例如：
+
+```python
+from pydantic import Field
+from agent_console.function_calls import FunctionArgs, FunctionOutput
+from hok import zfunc
+
+class PowerSummaryArgs(FunctionArgs):
+    days: int = Field(default=7, ge=1, le=30, strict=True)
+
+def power_summary(args, context):
+    player = context.principal.attributes.get("identity", {}).get("player_key")
+    if player not in zfunc.userlist:
+        raise ValueError("当前用户没有唯一绑定玩家")
+    return FunctionOutput(text=zfunc.recent_power_process(player, days=args.days))
+
+zfunc.agent_register_function(
+    name="my_power_summary", description="查询本人最近若干天的底蕴摘要",
+    category="power", args_model=PowerSummaryArgs, handler=power_summary,
+    scopes=("game.read",), effect="read",
+)
+```
+
+登记来自可信应用代码，运行时登记重启后需由该启动 hook 重新执行。新增 scope
+必须由入口显式授权；写操作声明 `effect="write"` 并审核用户授权与真实目的地，不能
+把身份、权限或输出群号交给模型填写。禁止自动扫描全部 zfunc 函数、执行模型模块
+路径或放开内部 Redis、全局推送、管理及 agent 入口。
+
+循环保护包括本轮相同调用只执行一次、失败和取消不重放、拒绝业务调用重入 AI/
+注册/调度、后台任务拒绝创建子任务。定时重复使用原任务的周期及次数。
+`QQAgent.business_functions` 统一控制启用、每轮调用次数（默认8）、单次等待
+（默认60秒）和文字结果大小（默认12000字）。旧渲染器共用文件名，因此全目录
+同时只执行一个调用；忙时明确拒绝。同步函数超时或取消后线程可能仍在运行，
+执行槽会保留到实际完成，不接受再次并发执行；写操作超时标为结果未知。
+
 测试使用脚本模型和捕获发送器，不向实际 QQ 群发送测试消息：
 
 ```bash

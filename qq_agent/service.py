@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import sys
+from uuid import uuid4
 import httpx
 
 from agent_runtime import AgentRuntime, Budget, FinalAnswer, Principal, RunRequest
@@ -22,6 +23,7 @@ from agent_console.tasks import TaskScheduler
 from agent_console.webpages import WebPageFetcher, WebPageLimits
 from agent_console.tools.application import register_application_tools
 from agent_console.tools.roleplay import register_roleplay_tools
+from agent_console.function_calls import assert_outside_function, register_function_tools
 from .output import QQOutput
 from .member_profiles import register_member_profile_tool
 from .avatar import register_bot_avatar_tool
@@ -90,7 +92,8 @@ class QQFinalizer:
 class QQAgentService:
     def __init__(self, *, root, config, admin_id, sender, prepare_reply, store_artifact, formatter,
                  bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
-                 bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None):
+                 bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None,
+                 business_functions=None, business_image_loader=None):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
@@ -99,6 +102,8 @@ class QQAgentService:
         self.bot_avatar_setter = bot_avatar_setter
         self.generated_image_reader = generated_image_reader
         self.private_message_sender = private_message_sender
+        self.business_functions = business_functions
+        self.business_image_loader = business_image_loader
         self.clock = Clock()
         self._start_lock = asyncio.Lock()
         self.runtime = None
@@ -106,6 +111,7 @@ class QQAgentService:
         self.image_store = ImageStore(self.root / config.get("image_directory", "data/agent_inputs"), ImageLimits(**config.get("images", {})))
 
     async def start(self):
+        assert_outside_function()
         async with self._start_lock:
             if self.runtime:
                 return
@@ -153,6 +159,9 @@ class QQAgentService:
                                        event_projector=self.image_store.project_event, mentions=self.mentions,
                                        context_bridge=self.state_bridge,
                                        context_timeout_seconds=self.config.get("group_context_timeout_seconds", 10))
+                if self.business_functions is not None and self.config.get("business_functions", {}).get("enabled", True):
+                    register_function_tools(registry, catalog=self.business_functions,
+                        publish_image=self.publish_business_image, format_text=lambda text: self.formatter(self.bridge.redact(text)))
                 reply_model = self.model_factory(**{**options, "thinking": False, "response_format": {"type": "json_object"}})
                 composer = ReplyComposer(model=reply_model, roles=self.roles,
                                          policy=ReplyPolicy(**{**self.config.get("reply", {}), "history_variant": "chat"}))
@@ -191,7 +200,11 @@ class QQAgentService:
                        "用户说‘我的QQ资料或头像’时，使用target='user'且省略user_id。"
                        "实际QQ头像必须读取图片像素后描述，角色设定中的外貌不代表QQ头像。"
                        if bot_id else "")
-        return (application_prompt() + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
+        business_prompt = ("现有王者/Steam业务功能可发现hok_business，先search_hok_functions按用途搜索，"
+                           "只describe需要的函数，再call_hok_function；定时agent任务也可使用。"
+                           "不扫描全部函数定义，不反复调用相同参数，不递归AI或创建子任务。"
+                           if self.business_functions is not None and self.config.get("business_functions", {}).get("enabled", True) else "")
+        return (application_prompt() + business_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
                 "用户明确要求给群成员私发消息时，发现chat_delivery并调用send_group_member_private_message；"
                 "这是独立发送动作，不改变正常回复会话或任务目的地；QQ返回消息ID后才能确认成功，不能声称对方已读。"
                 "要求私发的正文只经私发工具发送，正常群回复只确认状态，不重复私发正文。"
@@ -204,6 +217,19 @@ class QQAgentService:
                 "实时群成员资料与头像通过references类别的资料工具读取，名称映射不能代替实时资料。"
                 + scope + bot_context + "\n本次时间：" + self.clock.now() + "\n本赛季起始：" + str(self.public.get("season_start"))
                 + "\n" + reference_prompt(snapshot) + await self.roles.context(principal, query))
+
+    async def publish_business_image(self, path, ctx):
+        if self.business_image_loader is None:
+            raise ValueError("未配置业务图片读取接口")
+        identifier = uuid4().hex
+        artifact = await self.business_image_loader(path, identifier)
+        key = (ctx.request.run_id, identifier)
+        self.output.local_artifacts[key] = artifact
+        try:
+            await ctx.emit("output.artifact", {"artifact_id": identifier, "mime": "image/png"})
+        finally:
+            self.output.local_artifacts.pop(key, None)
+        return {"artifact_id": identifier, "mime": "image/png"}
 
     async def input_images(self, urls):
         limits = self.image_store.limits

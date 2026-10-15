@@ -679,6 +679,8 @@ async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=T
 
 async def agent_runtime_start():
     """Bind QQ IO to the shared, externally maintained ReAct runtime."""
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
     from qq_agent import QQAgentService
     from .zfile import store_agent_artifact
     from .tools.chat_text import normalize_qq_text, format_chat_reply
@@ -712,13 +714,22 @@ async def agent_runtime_start():
         return format_chat_reply(normalize_qq_text(text), player_names=names,
                                  identity_names=identities, aliases=[a for values in nameref.values() for a in values])
 
+    from qq_agent.business_functions import build_hok_function_catalog
+
+    async def load_business_image(path, identifier):
+        from .zfile import store_business_agent_image
+        return await asyncio.to_thread(store_business_agent_image, path, identifier)
+
     service = QQAgentService(root=project_root, config=config, admin_id=confs["QQBot"]["super_qid"],
                              bot_id=confs["QQBot"]["bot_qid"],
                              sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
                              member_profile_reader=agent_read_group_member_profile,
                              bot_avatar_setter=agent_set_bot_avatar,
                              generated_image_reader=agent_read_generated_image,
-                             private_message_sender=agent_send_group_member_private_message)
+                             private_message_sender=agent_send_group_member_private_message,
+                             business_functions=build_hok_function_catalog(globals(), player_keys=tuple(userlist), player_aliases=nameref,
+                                 policy=config.get("business_functions")),
+                             business_image_loader=load_business_image)
     dmc.qq_agent_service = service
     try:
         await service.start()
@@ -739,20 +750,35 @@ async def agent_clear_memory(user_id, group_id=None):
 
 
 async def agent_task_tick():
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
     if dmc.qq_agent_service is not None:
         await dmc.qq_agent_service.tick()
 
 
 async def agent_runtime_stop():
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
     if dmc.qq_agent_service is not None:
         await dmc.qq_agent_service.close()
         dmc.qq_agent_service = None
 
 
 def agent_register_tool(**spec):
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
     if dmc.qq_agent_service is None:
         raise RuntimeError("Register agent tools after runtime startup")
     dmc.qq_agent_service.runtime.registry.register(**spec)
+
+
+def agent_register_function(**spec):
+    """Extend the lazy business catalogue after startup, without new model tools."""
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
+    if dmc.qq_agent_service is None:
+        raise RuntimeError("Register business functions after runtime startup")
+    dmc.qq_agent_service.business_functions.register(**spec)
 
 
 def chat_publish_trace(trace, artifacts=()):

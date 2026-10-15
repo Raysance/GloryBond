@@ -63,6 +63,19 @@ def load_agent_artifact_image(identifier):
     return {"raw": path.read_bytes(), "width": width, "height": height}
 
 
+def store_business_agent_image(path, identifier):
+    """Snapshot a trusted business renderer image into the agent output layout."""
+    from pathlib import Path
+
+    source = Path(path).resolve(strict=True)
+    directory = Path(temp_path).resolve()
+    if not source.is_relative_to(directory) or not source.is_file():
+        raise ValueError("业务图片必须来自现有产物目录")
+    if source.stat().st_size > 32 * 1024**2:
+        raise ValueError("业务图片超过大小上限")
+    return store_agent_artifact(identifier, source.read_bytes())
+
+
 def store_agent_artifact(identifier, raw):
     """Save validated agent output as a trace-compatible PNG in file_transfer."""
     import io

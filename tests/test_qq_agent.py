@@ -178,6 +178,33 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
 
+    async def test_lazy_business_image_uses_trusted_local_output_and_bound_destination(self):
+        from agent_console.function_calls import FunctionArgs, FunctionCatalog, FunctionOutput
+        await self.gateway.close()
+        catalog = FunctionCatalog()
+        catalog.register(name="query_chart", description="查询图表", category="visuals",
+            args_model=FunctionArgs, handler=lambda args, ctx: FunctionOutput(text="真实图表", images=["/source/chart.png"]))
+        self.gateway.business_functions = catalog
+        self.gateway.business_image_loader = AsyncMock(side_effect=lambda path, identifier:
+            {"artifact_id": identifier, "path": "/trusted/chat_plot_" + identifier + ".png"})
+        await self.gateway.start()
+        self.reply_text = "图表已生成。"
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("search_chat_history", {"queries": ["图表", "趋势"]}, "h")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["hok_business"]}, "d")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("describe_hok_function", {"name": "query_chart"}, "s")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("call_hok_function", {"name": "query_chart"}, "c")]},
+            {"role": "assistant", "content": "真实图表"},
+        ]
+        await self.gateway.chat(user_text="画图", user_id="100", nickname="用户", group_id="200")
+        self.gateway.business_image_loader.assert_awaited_once()
+        packet, delivery = self.sent[-1]
+        self.assertEqual(len(packet["artifacts"]), 1)
+        self.assertTrue(packet["artifacts"][0]["path"].startswith("/trusted/chat_plot_"))
+        self.assertEqual(delivery["recipient_id"], "200")
+        self.assertNotIn("/source/chart.png", json.dumps(packet["trace"]))
+        self.assertFalse(self.gateway.output.local_artifacts)
+
     async def test_quoted_reminder_can_be_attributed_and_cancelled_by_another_group_member(self):
         from agent_console import remote_worker as worker
         from agent_console.task_timing import normalized_task_action, next_task_time

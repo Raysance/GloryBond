@@ -14,6 +14,7 @@ class QQOutput:
         self.sender, self.prepare_reply, self.store_artifact = sender, prepare_reply, store_artifact
         self.event_projector = event_projector or (lambda e: e)
         self.events, self.artifacts, self.finals, self.results = {}, {}, {}, {}
+        self.local_artifacts = {}
         self.delivery_history = DeliveryHistory()
         self.mentions = mentions
         self.context_bridge = context_bridge or bridge
@@ -60,10 +61,12 @@ class QQOutput:
             raise ValueError("QQ output has no trusted destination")
         kind, data = event["kind"], event["data"]
         if kind == "output.artifact":
-            encoded = await self.bridge.call("artifact", artifact_id=data["artifact_id"])
-            if not encoded:
-                raise ValueError("图片产物不存在或已过期")
-            artifact = await self.store_artifact(data["artifact_id"], base64.b64decode(encoded, validate=True))
+            artifact = self.local_artifacts.pop((run, data["artifact_id"]), None)
+            if artifact is None:
+                encoded = await self.bridge.call("artifact", artifact_id=data["artifact_id"])
+                if not encoded:
+                    raise ValueError("图片产物不存在或已过期")
+                artifact = await self.store_artifact(data["artifact_id"], base64.b64decode(encoded, validate=True))
             self.artifacts.setdefault(run, []).append(artifact)
         elif kind == "output.message":
             if data.get("kind") == "final":

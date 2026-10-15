@@ -32,6 +32,7 @@ class QQCapabilities(Capabilities):
         self.mentions = mentions
 
     async def create_task(self, args, ctx):
+        self.validate_task_creation(ctx)
         principal = asdict(ctx.principal)
         attributes = principal["attributes"]
         attributes["delivery"] = self.mentions.delivery(ctx.request.run_id, attributes["delivery"])
