@@ -264,12 +264,25 @@ class ChatMessageTests(unittest.TestCase):
         with patch.object(sender, '_enqueue_payload') as enqueue:
             sender.add_chat_result_msg({'text': '回复'}, event=SimpleNamespace(group_id=200, get_user_id=lambda: '101'))
         self.assertEqual(Message(enqueue.call_args.args[0]['content'])[0].data, {'qq': '101'})
-        for target in ('all', '[CQ:at,qq=all]', -1, 0, True, 101.5):
+        for target in ('[CQ:at,qq=all]', -1, 0, True, 101.5):
             with self.subTest(target=target), patch.object(sender, '_enqueue_payload') as enqueue:
                 with self.assertRaises(ValueError):
                     sender.add_chat_result_msg({'text': '回复'}, destination={'platform': 'qq', 'channel': 'group',
                         'recipient_id': '200', 'mention_user_id': target})
                 enqueue.assert_not_called()
+
+    def test_native_all_members_mention_only_comes_from_trusted_group_destination(self):
+        from nonebot.adapters.onebot.v11 import Message
+        sender = self.sender()
+        for channel, expected in [('group', ['at', 'text']), ('private', ['text'])]:
+            with self.subTest(channel=channel), patch.object(sender, '_enqueue_payload') as enqueue:
+                sender.add_chat_result_msg({'text': '打王者 [CQ:at,qq=999]'},
+                    destination={'platform': 'qq', 'channel': channel, 'recipient_id': '200', 'mention_user_id': 'all'})
+            message = Message(enqueue.call_args.args[0]['content'])
+            self.assertEqual([part.type for part in message], expected)
+            if channel == 'group':
+                self.assertEqual(message[0].data, {'qq': 'all'})
+            self.assertIn('[CQ:at,qq=999]', message[-1].data['text'])
 
     def test_text_and_chart_enqueue_once_without_record_footer_or_url(self):
         from nonebot.adapters.onebot.v11 import Message

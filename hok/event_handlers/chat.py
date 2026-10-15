@@ -232,6 +232,9 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         and str(_field(segment, "data", {}).get("qq")) != str(getattr(event, "self_id", ""))))
     if mentioned_users:
         text += "\n[本次消息提及的群成员QQ：" + "、".join(mentioned_users) + "]"
+    if any(_field(segment, "type") == "at" and _field(segment, "data", {}).get("qq") == "all"
+           for segment in segments):
+        text += "\n[本次消息包含原生@全体成员]"
     for segment in segments:
         kind = _field(segment, "type")
         if kind in {"image", "mface", "marketface", "face"} and not image_urls([segment]):

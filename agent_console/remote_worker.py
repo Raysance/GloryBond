@@ -761,7 +761,14 @@ def task_summary(task):
     identity = principal.get("attributes", {}).get("identity", {})
     return {**{key: task[key] for key in ("task_id", "kind", "instruction", "message", "status",
                 "runs", "max_runs", "interval_seconds", "next_run_at") if key in task},
+            **task_schedule_details(task),
             "creator": {"user_id": principal.get("user_id"), "name": identity.get("name")}}
+
+
+def task_schedule_details(task):
+    """Project the persisted timestamp into an unambiguous user-facing time."""
+    return {"next_run_at_text": datetime.datetime.fromtimestamp(
+        task["next_run_at"], datetime.timezone(datetime.timedelta(hours=8))).isoformat()}
 
 
 def dispatch(args):
@@ -857,7 +864,7 @@ def dispatch(args):
             pipe.set(STATE_PREFIX + "task:" + task_id, json.dumps(task))
             pipe.zadd(task_index(task), {task_id: task["next_run_at"]})
             pipe.execute()
-        return task
+        return {**task, **task_schedule_details(task)}
     if op == "task_list":
         principal = args.get("principal", {})
         group = task_group({"session_id": session, "principal": principal})

@@ -354,6 +354,42 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.sent[-1][1]['mention_user_id'])
         self.assertFalse(self.gateway.mentions.targets)
 
+    async def test_daily_absolute_time_all_members_task_restores_native_mention_without_mentioning_creator(self):
+        from types import SimpleNamespace
+        from local_debugger import import_hok_module
+        from qq_agent.mentions import register_reply_mention_tool
+        from nonebot.adapters.onebot.v11 import Message
+        reader = AsyncMock()
+        register_reply_mention_tool(self.gateway.runtime.registry, mentions=self.gateway.mentions, reader=reader)
+        self.reply_text = '已安排。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['打王者', '提醒']}, 's')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['chat_delivery', 'tasks']}, 'd')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('set_reply_mention', {'user_id': 'all'}, 'at')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('create_task', {
+                'kind': 'message', 'message': '到点了，打王者。', 'run_at': '2026-10-16T21:30:00+08:00',
+                'interval_seconds': 86400, 'max_runs': 365}, 't')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        await self.gateway.chat(user_text='每天21:30提醒全群打王者', user_id='101', nickname='甲', group_id='200')
+        created = next(args for op, args in self.calls if op == 'task_create')
+        self.assertEqual(created['principal']['user_id'], '101')
+        self.assertEqual(created['principal']['attributes']['delivery']['mention_user_id'], 'all')
+        self.assertIsNone(created['delay_seconds'])
+        reader.assert_not_called()
+        self.assertFalse(self.gateway.mentions.targets)
+        task = json.loads(json.dumps({**created, 'task_id': 'a' * 32, 'runs': 0, 'lease_token': 'lease'}, default=list))
+        await self.gateway.scheduler.perform(task)
+        packet, destination = self.sent[-1]
+        self.assertEqual(destination['mention_user_id'], 'all')
+        with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda function: function)):
+            sender = import_hok_module('utils.message_sender')
+        with patch.object(sender, '_enqueue_payload') as enqueue:
+            sender.add_chat_result_msg(packet, destination=destination, task_id=task['task_id'])
+        message = Message(enqueue.call_args.args[0]['content'])
+        self.assertEqual([part.data['qq'] for part in message if part.type == 'at'], ['all'])
+        self.assertNotIn('[CQ:at', json.dumps(self.dialogue))
+
     async def test_reply_delivery_uses_model_intent_instead_of_question_keywords(self):
         composer = self.gateway.runtime.finalizer.composer
         composer.policy = composer.policy.model_copy(update={'select_delivery_variant': True})

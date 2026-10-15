@@ -26,7 +26,9 @@ QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响
 
 群聊 AI 回复默认原生 @ 本次提问者。`qq_agent/mentions.py` 注册 `chat_delivery`
 类别的 `set_reply_mention`，由同一 ReAct 模型按本次意思选择其他当前群成员，或传
-`user_id=null` 明确不 @。目标通过注入的实时资料读取器验证群成员身份后，按 run_id
+`user_id=all` 原生 @全体成员、`user_id=null` 明确不 @。要求提醒全群时先选择 all，
+只说在群里发送不代表 @全体。个人目标通过实时资料读取器验证群成员身份，all 仅限当前群，
+实际效果受 QQ 权限与额度限制。本次消息里的原生 @全体也保留为输入资料。选择按 run_id
 覆盖后续分段与最终消息的 `delivery.mention_user_id`；多个请求交错完成互不影响。
 `QQCapabilities.create_task` 将校验后的选择保存到新任务的 delivery，保持创建者、
 权限、群和会话不变；设置后新建任务才继承，已有任务不被修改。run.end 释放覆盖。

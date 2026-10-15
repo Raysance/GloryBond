@@ -346,9 +346,10 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
     if mention_id is not None:
         if isinstance(mention_id, bool) or not isinstance(mention_id, (str, int)):
             raise ValueError("Invalid trusted QQ mention target")
-        mention_id = _normalize_target_id(mention_id)
-        if type(mention_id) is not int or mention_id <= 0:
-            raise ValueError("Invalid trusted QQ mention target")
+        if mention_id != "all":
+            mention_id = _normalize_target_id(mention_id)
+            if type(mention_id) is not int or mention_id <= 0:
+                raise ValueError("Invalid trusted QQ mention target")
         message += MessageSegment.at(str(mention_id))
         message += MessageSegment.text(" ")
     message += MessageSegment.text(str(result["text"]))

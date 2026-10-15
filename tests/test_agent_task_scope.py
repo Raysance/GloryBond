@@ -78,6 +78,22 @@ class TaskScopeTests(unittest.TestCase):
             self.assertNotIn("principal", json.dumps(result))
             self.assertNotIn("private-lease", json.dumps(result))
 
+    def test_absolute_time_is_persisted_indexed_and_reported_consistently(self):
+        task = self.create(run_at="1970-01-01T08:03:00+08:00")
+        stored = json.loads(self.store.get(worker.STATE_PREFIX + "task:" + task["task_id"]))
+        self.assertEqual(stored["next_run_at"], 180)
+        self.assertEqual(self.store.indexes[worker.STATE_PREFIX + "tasks:qq"][task["task_id"]], 180)
+        self.assertEqual(task["next_run_at_text"], "1970-01-01T08:03:00+08:00")
+        self.assertEqual(self.request("task_list")["tasks"][0]["next_run_at_text"], task["next_run_at_text"])
+
+    def test_invalid_start_time_does_not_write_or_index_task(self):
+        for args in ({"run_at": "1970-01-01T08:03:00+08:00", "delay_seconds": 1},
+                     {"run_at": "1970-01-01T08:01:40+08:00"}):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                self.create(**args)
+        self.assertFalse(self.store.values)
+        self.assertFalse(self.store.indexes)
+
     def test_another_member_cancels_same_group_task_without_changing_creator_or_delivery(self):
         task = self.create()
         before = task["principal"]

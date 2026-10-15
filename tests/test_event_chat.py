@@ -71,7 +71,7 @@ class ChatEventTests(unittest.TestCase):
             event.reply = {'message_id': '42', 'message_type': 'group', 'group_id': 200,
                            'sender': {'user_id': '30'}, 'message': '[CQ:at,qq=40]引用里的提及'}
             request = CHAT_HANDLER.prepare_chat_request(event, {}, True)
-            self.assertEqual(request['user_text'], '提醒他休息\n[本次消息提及的群成员QQ：20]')
+            self.assertEqual(request['user_text'], '提醒他休息\n[本次消息提及的群成员QQ：20]\n[本次消息包含原生@全体成员]')
             self.assertEqual(request['user_id'], '1001')
 
     def test_native_and_cq_dynamic_faces_supply_deduplicated_pixels(self):

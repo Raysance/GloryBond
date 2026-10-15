@@ -78,9 +78,22 @@ class MentionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             await spec.handler(spec.args_model(user_id=None), ToolContext(RunRequest('提醒', 'qq_p_999', principal('999', None)), None))
         self.assertFalse(mentions.targets)
-        for target in ('all', '-1', 'example_user_10', '[CQ:at,qq=100]', True, 100):
+        for target in ('-1', 'example_user_10', '[CQ:at,qq=100]', True, 100):
             with self.subTest(target=target), self.assertRaises(ValueError):
                 spec.args_model(user_id=target)
+
+    async def test_all_members_requires_current_group_and_does_not_lookup_a_fake_member(self):
+        mentions, registry, reader = ReplyMentions(), ToolRegistry(), AsyncMock()
+        register_reply_mention_tool(registry, mentions=mentions, reader=reader)
+        spec = registry.tools['set_reply_mention']
+        request = RunRequest('提醒全群', 'qq_g_200_101', principal())
+        await spec.handler(spec.args_model(user_id='all'), ToolContext(request, None))
+        self.assertEqual(mentions.delivery(request.run_id, principal().attributes['delivery'])['mention_user_id'], 'all')
+        reader.assert_not_called()
+        for user in ('101', '999'):
+            with self.assertRaises(PermissionError):
+                await spec.handler(spec.args_model(user_id='all'),
+                    ToolContext(RunRequest('提醒全群', 'qq_p_' + user, principal(user, None)), None))
 
     async def test_concurrent_runs_deliver_selected_default_and_no_mention_independently(self):
         mentions = ReplyMentions()

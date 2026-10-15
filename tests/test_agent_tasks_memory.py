@@ -1,6 +1,7 @@
 """Regression coverage for undiscovered personal tools and scheduled delivery."""
 
 import dataclasses
+from datetime import datetime
 import json
 import unittest
 
@@ -13,6 +14,31 @@ from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 
 class TimingTests(unittest.TestCase):
+    def test_absolute_time_avoids_model_delay_arithmetic_and_anchors_daily_cadence(self):
+        now = datetime.fromisoformat("2026-10-15T21:27:16+08:00").timestamp()
+        for run_at in ("2026-10-15T21:30:00+08:00", "2026-10-15T13:30:00Z"):
+            with self.subTest(run_at=run_at):
+                args = TaskArgs(kind="message", message="打王者", run_at=run_at,
+                                interval_seconds=86400, max_runs=365)
+                task = normalized_task_action(args.model_dump(), now)
+                self.assertEqual(task["next_run_at"] - now, 164)
+                self.assertEqual(next_task_time(task, task["next_run_at"] + 2),
+                                 datetime.fromisoformat("2026-10-16T21:30:00+08:00").timestamp())
+
+    def test_absolute_and_relative_start_times_are_mutually_exclusive(self):
+        args = {"kind": "message", "message": "x", "run_at": "2026-10-15T21:30:00+08:00", "delay_seconds": 0}
+        with self.assertRaisesRegex(ValueError, "只能选择一种"):
+            TaskArgs(**args)
+        with self.assertRaisesRegex(ValueError, "只能选择一种"):
+            normalized_task_action(args, 100)
+
+    def test_invalid_naive_past_and_too_distant_dates_are_rejected(self):
+        now = datetime.fromisoformat("2026-10-15T21:30:00+08:00").timestamp()
+        for run_at in ("21:30", "2026-10-15", "2026-10-15T21:30:00", "2026-02-30T21:30:00+08:00",
+                       "2026-10-15T21:29:59+08:00", "2026-10-15T21:30:00+08:00", "2028-10-15T21:30:00+08:00"):
+            with self.subTest(run_at=run_at), self.assertRaises(ValueError):
+                normalized_task_action({"kind": "message", "message": "x", "run_at": run_at}, now)
+
     def test_ten_second_three_delivery_request_is_supported(self):
         args = TaskArgs(
             kind="message", message="第{run}条消息", interval_seconds=10, max_runs=3

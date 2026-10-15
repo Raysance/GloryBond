@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
 from agent_runtime.models import ToolResult
+from ..task_timing import parse_task_run_at
 from .observations import project_sql_result
 from .plotting import PlotArgs, build_plot_code
 from .memory import recent_history_limits
@@ -128,13 +129,22 @@ class TaskArgs(Args):
         default=None,
         ge=0,
         le=31536000,
-        description="首次执行延迟；省略时周期任务延迟一个周期，单次任务立即执行",
+        description="相对首次执行延迟秒数，与run_at互斥；两者均省略时周期任务延迟一个周期，单次任务立即执行",
+    )
+    run_at: str | None = Field(
+        default=None,
+        max_length=64,
+        description="具体首次执行日期时间，ISO 8601且必须含时区，例如2026-10-15T21:30:00+08:00；与delay_seconds互斥。指定几点时优先用此字段，不心算延迟；必须在未来一年内",
     )
     interval_seconds: int | None = Field(default=None, ge=1, le=31536000)
     max_runs: int = Field(default=1, ge=1, le=1000)
 
     @model_validator(mode="after")
     def require_action(self):
+        if self.run_at is not None:
+            if self.delay_seconds is not None:
+                raise ValueError("run_at与delay_seconds只能选择一种")
+            parse_task_run_at(self.run_at)
         if self.kind == "message" and not (self.message or "").strip():
             raise ValueError("message任务必须提供message")
         if self.kind == "agent" and not self.instruction.strip():
@@ -472,7 +482,7 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "create_task",
-            "创建当前会话的定时任务。固定文字通知用kind=message直接发送，不再请求模型；查询/推理用kind=agent。周期最短1秒，max_runs为实际执行次数，省略delay_seconds时第一次在一个周期后执行。",
+            "创建当前会话的定时任务。具体日期/几点使用含时区run_at，由程序计算；多久后使用delay_seconds，二选一。确认时以返回的next_run_at_text为准，不宣称会自动校准时间。固定文字通知用kind=message；查询/推理用kind=agent。周期最短1秒，max_runs为实际执行次数；两种首次时间均省略时周期任务等待一个周期。",
             TaskArgs,
             task,
             "tasks",
