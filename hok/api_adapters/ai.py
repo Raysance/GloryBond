@@ -33,19 +33,19 @@ class AIRequestError(RuntimeError):
         self.request_id = getattr(error, "request_id", None)
 
 
-def _chat_completion_create(input_items, temperature=None, timeout=30, thinking=None):
+def _chat_completion_create(input_items, temperature=None, timeout=30, thinking=None, response_format=None):
     """Call the configured provider without inheriting ambient proxy settings."""
     if chat_api_config.get('fallback'):
         try:
-            return _chat_completion_stream(input_items, chat_api_config, temperature, timeout, thinking)
+            return _chat_completion_stream(input_items, chat_api_config, temperature, timeout, thinking, response_format)
         except Exception as error:
             if not provider_unavailable(error):
                 raise
-            return _chat_completion_stream(input_items, chat_api_config['fallback'], temperature, timeout, thinking)
-    return _chat_completion_single(input_items, temperature, timeout, thinking)
+            return _chat_completion_stream(input_items, chat_api_config['fallback'], temperature, timeout, thinking, response_format)
+    return _chat_completion_single(input_items, temperature, timeout, thinking, response_format)
 
 
-def _chat_completion_stream(input_items, provider, temperature, timeout, thinking):
+def _chat_completion_stream(input_items, provider, temperature, timeout, thinking, response_format=None):
     """Bound the wait for real output even when the server sends keepalive lines."""
     messages = [{'role': 'user', 'content': input_items}] if isinstance(input_items, str) else [dict(item) for item in input_items]
     payload = {'model': provider['model'], 'messages': messages, 'stream': True,
@@ -54,6 +54,8 @@ def _chat_completion_stream(input_items, provider, temperature, timeout, thinkin
         payload['temperature'] = temperature
     if thinking is not None:
         payload['thinking'] = {'type': 'enabled' if thinking else 'disabled'}
+    if response_format:
+        payload['response_format'] = response_format
     configure_chat_payload(payload, provider.get('protocol', 'deepseek'))
     first_timeout = min(timeout, provider.get('first_token_timeout_seconds', timeout))
     total_timeout = min(timeout, provider.get('timeout_seconds', timeout))
@@ -95,7 +97,7 @@ def _chat_completion_stream(input_items, provider, temperature, timeout, thinkin
                               'usage': usage, 'finish_reason': finish}}
 
 
-def _chat_completion_single(input_items, temperature=None, timeout=30, thinking=None):
+def _chat_completion_single(input_items, temperature=None, timeout=30, thinking=None, response_format=None):
     """Keep the existing single-provider SDK path for configurations without failover."""
     missing = [key for key in ("base_url", "api_key", "model") if not chat_api_config.get(key)]
     if missing:
@@ -113,6 +115,8 @@ def _chat_completion_single(input_items, temperature=None, timeout=30, thinking=
         request["temperature"] = temperature
     if thinking is not None:
         request['extra_body'] = {'thinking': {'type': 'enabled' if thinking else 'disabled'}}
+    if response_format:
+        request['response_format'] = response_format
     request_payload = {key: value for key, value in request.items() if key != "timeout"}
     response_payload = None
     try:
@@ -147,10 +151,11 @@ def _chat_completion_result(response, request_payload, response_payload, status_
     return {"content": message.content or "", **diagnostics}
 
 
-def ai_api(user_query,temperature,timeout=20,thinking=None): # 配置的普通聊天模型
+def ai_api(user_query,temperature,timeout=20,thinking=None,response_format=None): # 配置的普通聊天模型
     log_message("VISIT: ai_api_common")
     try:
-        return _chat_completion_create(user_query, temperature=temperature, timeout=timeout, thinking=thinking)["content"]
+        return _chat_completion_create(user_query, temperature=temperature, timeout=timeout, thinking=thinking,
+                                       response_format=response_format)["content"]
     except Exception as e:
         raise Exception("chat_api_error: "+str(e)) from e
 

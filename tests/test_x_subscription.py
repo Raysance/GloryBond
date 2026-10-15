@@ -123,8 +123,9 @@ class XBusinessTests(unittest.TestCase):
     def test_replies_and_translation_are_in_card_and_failures_are_visible(self):
         replies = {'replies':[{'id':'9','text':'Great','lang':'en','likes':3}], 'sample_size':50}
         with patch.object(ZAPI, 'x_get_replies', return_value=replies), \
-             patch.object(ZAPI, 'ai_api', return_value='{"11":"你好", "9":"很棒"}'):
+             patch.object(ZAPI, 'ai_api', return_value='{"11":"你好", "9":"很棒"}') as translate:
             card = json.loads(BUSINESS.post_card(self.user, {'id':'11','text':'Hello','lang':'en'}))
+        self.assertEqual(translate.call_args.kwargs['response_format'], {'type': 'json_object'})
         self.assertEqual(card['post']['translation'], '你好')
         self.assertEqual(card['replies'][0]['translation'], '很棒')
         self.assertIn('50', card['note'])

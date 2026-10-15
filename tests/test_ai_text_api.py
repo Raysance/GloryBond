@@ -24,12 +24,14 @@ class TextAPITests(unittest.TestCase):
                                  'model': 'kimi-k3', 'protocol': 'bailian_kimi'}}
         with patch.object(API, 'chat_api_config', provider), patch.object(API, 'DefaultHttpxClient',
                 side_effect=lambda **kw: original(transport=httpx.MockTransport(handler), **kw)):
-            self.assertEqual(API.ai_api('translate', temperature=.1, thinking=False), '译文')
+            self.assertEqual(API.ai_api('translate', temperature=.1, thinking=False,
+                                        response_format={'type': 'json_object'}), '译文')
         self.assertEqual(requests[1].headers['authorization'], 'Bearer backup-secret')
         body = json.loads(requests[1].content)
         self.assertTrue(body['stream'])
         self.assertNotIn('thinking', body)
         self.assertNotIn('temperature', body)
+        self.assertEqual(body['response_format'], {'type': 'json_object'})
 
     def test_translation_can_disable_thinking_and_use_its_own_timeout(self):
         bodies=[]
@@ -41,8 +43,10 @@ class TextAPITests(unittest.TestCase):
             return httpx.Client(transport=httpx.MockTransport(handler),trust_env=False)
         with patch.object(API,'chat_api_config',{'api_key':'secret','base_url':'https://example.test/v1','model':'test','proxy_url':''}), \
              patch.object(API,'DefaultHttpxClient',side_effect=client):
-            self.assertEqual(ZAPI.ai_api('translate',temperature=0.1,timeout=60,thinking=False),'译文')
+            self.assertEqual(ZAPI.ai_api('translate',temperature=0.1,timeout=60,thinking=False,
+                                        response_format={'type':'json_object'}),'译文')
         self.assertEqual(bodies[0]['thinking'],{'type':'disabled'})
+        self.assertEqual(bodies[0]['response_format'],{'type':'json_object'})
         self.assertNotIn('timeout',bodies[0])
 
     def test_text_helpers_use_configured_direct_provider_without_agent_protocol(self):

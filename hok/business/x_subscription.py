@@ -36,7 +36,8 @@ def _translate(rows):
     )
     try:
         result = str(ai_api(prompt, temperature=0.1, timeout=x_subscription_config['translation_timeout_seconds'],
-                            thinking=x_subscription_config['translation_thinking'])).strip()
+                            thinking=x_subscription_config['translation_thinking'],
+                            response_format={'type': 'json_object'})).strip()
         if result.startswith("```"):
             result = result.split("\n", 1)[1].rsplit("```", 1)[0]
         translated = json.loads(result)
