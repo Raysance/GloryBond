@@ -25,6 +25,7 @@ from .api_adapters.bilibili import (
 )
 from .api_adapters.steam import steam_api_recent_games, steam_api_user_status
 from .api_adapters.qq_profiles import qq_avatar_bytes
+from .api_adapters.aihot import aihot_latest_daily
 from .api_adapters.x import x_get_user, x_get_posts, x_get_replies, x_username, x_get_media_bytes
 from .api_adapters.tianyuanzhiyi import (
     tianyuanzhiyi_hero_avatars_api,
@@ -34,6 +35,7 @@ from .api_adapters.tianyuanzhiyi import (
 from .api_adapters.wzry import WzryOfficialAPI, wzry_get_official
 
 __all__ = [
+    "aihot_latest_daily",
     "x_get_user", "x_get_posts", "x_get_replies", "x_username", "x_get_media_bytes",
     "BilibiliEsportsAPI",
     "BilibiliVideoAPI",

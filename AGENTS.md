@@ -109,6 +109,14 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 ## 2. 配置与变量的来源（必须遵守）
 
+### AI 日报补充
+
+- `api_adapters/aihot.py` 只读请求 AIHOT `/api/v1/dailies/latest`，不需要密钥，不接入聊天工具链；禁用环境代理和重定向，限制超时与响应字节，校验版本、日期、时间窗口、分类和来源。429/503 不进行即时重试。
+- `business/ai_daily.py` 保留上游导读、分类和顺序，按资讯生成编号节点、摘要、来源及原文链接；长节点拆分但不截断，快讯去重，空日报明确说明。只允许当日版本，旧版本/异常不向群发送日报。配置统一来自 `config.yaml#AIDaily`，默认每天北京时间09:00向 `QQBot.group_qid` 推送。
+- 定时任务仅在 `zscheduler.ai_daily_push` 注册，异步线程调用 `zfunc.ai_daily_check_and_push()`；不另起轮询，不替换原06:00游戏新闻任务。失败经统一出口通知管理员。
+- `utils/message_sender.add_group_forward_msg()` 负责原生合并转发节点、机器人署名及纯文本转义；队列消费调用 `send_group_forward_msg`，真实返回 `message_id` 后才标记发送成功，失败不终止转发消费，也不拆成多条群消息刷屏。
+- `zfunc.enqueue_forward_message()` 在 DB0 原子完成入队及防重复预留；`hok:message:forward:delivery:ai_daily:<群>:<日期>` 保存 queued/sent/failed，默认7天。失败/未知结果不盲目重放；跨部署防重复，状态写入失败保留 queued，不冒充成功。手册与检索树同步维护在 `shared/agent/manual/`。
+
 ### X 订阅补充
 
 - `event_handlers/x_subscription.py` 解析 X 账号订阅、取消、本人列表、最新内容及管理员检查命令；`event_rules.py` 独立判断 X 命令并从 B站通用订阅路由中排除，`zevent.py` 仅注册入口并通过统一消息出口回复。

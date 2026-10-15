@@ -24,6 +24,7 @@ REDIS_KEY_X_SUBSCRIPTIONS = "hok:x:subscriptions"
 REDIS_KEY_X_CURSORS = "hok:x:cursors"
 REDIS_KEY_X_SEEN_PREFIX = "hok:x:seen:"
 REDIS_KEY_X_PUSH_LOCK = "hok:lock:x:push"
+REDIS_KEY_FORWARD_DELIVERY_PREFIX = "hok:message:forward:delivery:"
 
 
 def _runtime_path(env_name, default_path):
@@ -162,6 +163,7 @@ chat_readonly_dsn = str(
 agent_plot_config = confs.get("AgentPlots", {})
 qq_profile_config = confs.get("QQProfiles", {})
 x_subscription_config = confs.get("XSubscriptions", {})
+ai_daily_config = confs.get("AIDaily", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")

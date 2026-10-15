@@ -32,6 +32,7 @@
 
 - [定时提醒与多次消息](chapters/tasks.md)
 - [视频订阅与自动推送](chapters/subscriptions.md)
+- [AI 领域日报](chapters/subscriptions.md#ai-领域日报)
 - [戳一戳互动](chapters/poke.md)
 
 ## 权限、记录与常见问题

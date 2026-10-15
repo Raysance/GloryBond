@@ -121,6 +121,35 @@ async def _handle_group_poke(bot, msg_json):
 
 
 
+async def _handle_group_forward(bot, payload):
+    from ..zfunc import finish_forward_delivery
+    from ..zutil import log_message
+
+    delivery_id = payload.get("delivery_id")
+    status = "sent"
+    try:
+        result = await bot.send_group_forward_msg(
+            group_id=_normalize_target_id(payload["toid"]), messages=payload["messages"],
+        )
+        if not isinstance(result, dict) or not result.get("message_id"):
+            raise RuntimeError("GROUP_FORWARD_RESULT: missing message_id; delivery outcome unknown")
+    except Exception as error:
+        status = "failed"
+        log_message(f"GROUP_FORWARD_FAILED: group={payload.get('toid')} delivery={delivery_id} error={error!r}")
+        try:
+            add_msg(f"GROUP_FORWARD_FAILED: group={payload.get('toid')} delivery={delivery_id} "
+                    f"error={error!r}；未确认发送成功，请检查机器人日志。",
+                    msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        except Exception as notice_error:
+            log_message(f"GROUP_FORWARD_NOTICE_FAILED: delivery={delivery_id} error={notice_error!r}")
+    if delivery_id:
+        try:
+            finish_forward_delivery(delivery_id, status)
+        except Exception as error:
+            # The QQ call may already have succeeded. Never enqueue the report again here.
+            log_message(f"GROUP_FORWARD_STATE_FAILED: delivery={delivery_id} status={status} error={error!r}")
+
+
 async def message_sender_loop():
     while True:
         last_ts = getattr(dmc, "last_msg_send_ts", 0)
@@ -146,6 +175,10 @@ async def message_sender_loop():
             await _handle_group_poke(bot, msg_json)
             dmc.last_msg_send_ts = time.time()
             continue
+        if msg_json.get("kind") == "group_forward":
+            await _handle_group_forward(bot, msg_json)
+            dmc.last_msg_send_ts = time.time()
+            continue
         msg_type = msg_json.get("type")
         to_id = msg_json.get("toid")
         msg_raw = msg_json.get("content", "")
@@ -168,6 +201,25 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
         "toid": resolved_id,
         "content": _stringify_message_content(content),
     }
+    return _enqueue_payload(payload)
+
+
+def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", delivery_id=None, delivery_ttl=604800):
+    """Queue one native merged-forward message; external content stays literal text."""
+    group_id = _normalize_target_id(group_qid or confs["QQBot"]["group_qid"])
+    if type(group_id) is not int or group_id <= 0:
+        raise ValueError("Invalid group forward target")
+    if not text_nodes or any(not isinstance(text, str) or not text.strip() for text in text_nodes):
+        raise ValueError("Group forward requires non-empty text nodes")
+    messages = [{"type": "node", "data": {
+        "name": str(sender_name), "uin": str(confs["QQBot"]["bot_qid"]),
+        "content": [{"type": "text", "data": {"text": text}}],
+    }} for text in text_nodes]
+    payload = {"kind": "group_forward", "type": "group", "toid": group_id, "messages": messages}
+    if delivery_id:
+        from ..zfunc import enqueue_forward_message
+        payload["delivery_id"] = delivery_id
+        return enqueue_forward_message(payload, delivery_id=delivery_id, ttl=delivery_ttl)
     return _enqueue_payload(payload)
 
 

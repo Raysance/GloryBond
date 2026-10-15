@@ -249,6 +249,22 @@ async def x_subscription_push():
         log_message("X_SUBSCRIPTION_PUSH: " + str(result["errors"]))
 
 
+@scheduler.scheduled_job(
+    "cron", hour=ai_daily_config.get("hour", 9), minute=ai_daily_config.get("minute", 0),
+    second=0, timezone=ai_daily_config.get("timezone", "Asia/Shanghai"),
+    id="ai_daily_push", max_instances=1, coalesce=True, misfire_grace_time=3600,
+)
+async def ai_daily_push():
+    from .zfunc import ai_daily_check_and_push
+
+    try:
+        result = await asyncio.to_thread(ai_daily_check_and_push)
+        log_message("AI_DAILY_PUSH: " + str(result))
+    except Exception as error:
+        log_message(f"AI_DAILY_PUSH_FAILED: {error!r}")
+        add_msg(f"AI_DAILY_PUSH_FAILED: {error!r}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
 def _fetch_news_impl():
     from .zapi import ark_api
     from .ztime import date_r

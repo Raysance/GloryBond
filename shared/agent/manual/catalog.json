@@ -67,7 +67,7 @@
       "id": "automation",
       "title": "提醒、订阅与互动",
       "parent": "manual",
-      "summary": "定时提醒与多次消息、视频订阅与自动推送、戳一戳互动",
+      "summary": "定时提醒与多次消息、视频与X账号订阅、AI领域日报、自动推送、戳一戳互动",
       "keywords": [],
       "tools": [],
       "code": []
@@ -1091,7 +1091,10 @@
         "推特",
         "twitter",
         "英文翻译",
-        "热门回复"
+        "热门回复",
+        "AI日报",
+        "AI早报",
+        "早上九点"
       ],
       "tools": [],
       "code": [
@@ -1105,7 +1108,7 @@
         }
       ],
       "parent": "automation",
-      "summary": "B站 UP 视频与 X 账号内容订阅、图片自动推送、热门回复和英文翻译，以及每日战报与赛事通知。"
+      "summary": "B站与X账号订阅、自动推送、AI领域日报、每日战报与赛事通知。"
     },
     {
       "id": "subscriptions_1",
@@ -1119,6 +1122,39 @@
         "path": "shared/agent/manual/chapters/subscriptions.md",
         "heading": "B站 UP订阅"
       }
+    },
+    {
+      "id": "ai_daily",
+      "title": "AI 领域日报",
+      "parent": "subscriptions",
+      "summary": "每天北京时间09:00发送AIHOT当日AI日报，合并转发呈现导读、分类动态、快讯及原文链接。",
+      "keywords": [
+        "AI日报",
+        "AI早报",
+        "人工智能新闻",
+        "AIHOT",
+        "每天九点",
+        "合并转发"
+      ],
+      "tools": [],
+      "document": {
+        "path": "shared/agent/manual/chapters/subscriptions.md",
+        "heading": "AI 领域日报"
+      },
+      "code": [
+        {
+          "path": "hok/business/ai_daily.py",
+          "symbol": "ai_daily_check_and_push"
+        },
+        {
+          "path": "hok/business/ai_daily.py",
+          "symbol": "build_daily_nodes"
+        },
+        {
+          "path": "hok/zscheduler.py",
+          "symbol": "ai_daily_push"
+        }
+      ]
     },
     {
       "id": "subscriptions_2",

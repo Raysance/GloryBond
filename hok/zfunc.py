@@ -7,6 +7,45 @@ _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
 _GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
+def _forward_delivery_key(delivery_id):
+    if not re.fullmatch(r"[A-Za-z0-9:_-]{1,160}", str(delivery_id or "")):
+        raise ValueError("Invalid forward delivery ID")
+    return REDIS_KEY_FORWARD_DELIVERY_PREFIX + delivery_id
+
+
+def forward_delivery_status(delivery_id):
+    return dmc.redis_deamon.get(_forward_delivery_key(delivery_id))
+
+
+def enqueue_forward_message(payload, *, delivery_id, ttl):
+    """Atomically reserve an edition and persist its entire outbound message in DB0."""
+    key = _forward_delivery_key(delivery_id)
+    if int(ttl) <= 0:
+        raise ValueError("Forward delivery TTL must be positive")
+    return dmc.redis_deamon.eval(
+        "if redis.call('exists', KEYS[1]) == 1 then return 0 end "
+        "redis.call('lpush', KEYS[2], ARGV[1]); "
+        "redis.call('set', KEYS[1], 'queued', 'EX', ARGV[2]); return 1",
+        2, key, REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, json.dumps(payload, ensure_ascii=False), int(ttl),
+    )
+
+
+def finish_forward_delivery(delivery_id, status):
+    """Record the real adapter outcome; a failed/unknown send is not replayed blindly."""
+    if status not in {"sent", "failed"}:
+        raise ValueError("Invalid forward delivery status")
+    return dmc.redis_deamon.eval(
+        "if redis.call('get', KEYS[1]) == 'queued' then "
+        "return redis.call('set', KEYS[1], ARGV[1], 'KEEPTTL') end return 0",
+        1, _forward_delivery_key(delivery_id), status,
+    )
+
+
+def ai_daily_check_and_push():
+    from .business.ai_daily import ai_daily_check_and_push as impl
+    return impl()
+
+
 def _redis_get_json(key, default=None):
     raw = dmc.redis_deamon.get(key)
     if not raw:
