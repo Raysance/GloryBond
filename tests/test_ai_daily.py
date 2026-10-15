@@ -85,7 +85,7 @@ class AihotAdapterTests(unittest.TestCase):
 class DailyLayoutTests(unittest.TestCase):
     def test_first_node_summarizes_every_following_point_with_matching_numbers(self):
         nodes = BUSINESS.build_daily_nodes(report_fixture())
-        self.assertTrue(nodes[0].startswith("AI 日报 · 2026-10-15\n\n今日要点"))
+        self.assertTrue(nodes[0].startswith("Next Signal · 2026-10-15\n\n今日要点"))
         self.assertIn("01｜新模型上线", nodes[0])
         self.assertIn("02｜开源框架更新", nodes[0])
         self.assertTrue(nodes[1].startswith("01｜新模型上线"))
@@ -105,7 +105,7 @@ class DailyLayoutTests(unittest.TestCase):
         self.assertNotIn("03｜", nodes[0])
         self.assertEqual(len(nodes), 3)
         report.update(sections=[], flashes=[], lead=None)
-        self.assertEqual(BUSINESS.build_daily_nodes(report), ["AI 日报 · 2026-10-15\n\n今日要点\n\n本期无新增资讯。"])
+        self.assertEqual(BUSINESS.build_daily_nodes(report), ["Next Signal · 2026-10-15\n\n今日要点\n\n本期无新增资讯。"])
 
     def test_large_overview_stays_in_first_node_and_covers_every_full_detail(self):
         report = report_fixture()
@@ -149,6 +149,8 @@ class DailyWorkflowTests(unittest.TestCase):
         self.assertEqual(result["status"], "queued")
         self.enqueue.assert_called_once()
         self.assertEqual(self.enqueue.call_args.kwargs["group_qid"], BUSINESS.confs["QQBot"]["group_qid"])
+        self.assertEqual(self.enqueue.call_args.kwargs["title"], "Next Signal")
+        self.assertEqual(self.enqueue.call_args.kwargs["sender_name"], "Next Signal")
         self.assertTrue(self.enqueue.call_args.kwargs["delivery_id"].endswith(":2026-10-15"))
         self.assertEqual(len(self.enqueue.call_args.args[0]), 3)
 
@@ -184,10 +186,24 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
     def test_external_cq_is_only_text_and_sender_is_configured_bot(self):
         text = "内容[CQ:at,qq=all][CQ:image,file=https://untrusted.example/a.png]"
         with patch.object(SENDER, "_enqueue_payload", return_value=1) as queue:
-            SENDER.add_group_forward_msg([text], group_qid="123")
-        node = queue.call_args.args[0]["messages"][0]["data"]
+            SENDER.add_group_forward_msg([text], group_qid="123", title="Next Signal", sender_name="Next Signal")
+        payload = queue.call_args.args[0]
+        self.assertEqual(payload["title"], "Next Signal")
+        node = payload["messages"][0]["data"]
+        self.assertEqual(node["name"], "Next Signal")
         self.assertEqual(node["uin"], str(SENDER.confs["QQBot"]["bot_qid"]))
         self.assertEqual(node["content"], [{"type": "text", "data": {"text": text}}])
+
+    async def test_custom_card_title_reaches_adapter_and_old_queued_messages_still_work(self):
+        bot = SimpleNamespace(send_group_forward_msg=AsyncMock(return_value={"message_id": 123}))
+        for title in ("Next Signal", None):
+            payload = {"toid": 123, "messages": []}
+            if title:
+                payload["title"] = title
+            await SENDER._handle_group_forward(bot, payload)
+            kwargs = bot.send_group_forward_msg.call_args.kwargs
+            self.assertEqual(kwargs.get("source"), title)
+            self.assertEqual(kwargs.get("prompt"), title)
 
     async def test_records_only_confirmed_success_and_contains_adapter_failures(self):
         for response in ({"message_id": 123}, {}, RuntimeError("QQ rejected")):

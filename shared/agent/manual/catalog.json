@@ -1120,7 +1120,8 @@
         "热门回复",
         "AI日报",
         "AI早报",
-        "早上九点"
+        "早上九点",
+        "Next Signal"
       ],
       "tools": [],
       "code": [
@@ -1153,14 +1154,15 @@
       "id": "ai_daily",
       "title": "AI 领域日报",
       "parent": "subscriptions",
-      "summary": "每天北京时间09:00发送AI日报，首条汇总全部编号要点，后续按相同编号展开正文和原文链接。",
+      "summary": "Next Signal AI日报，每天北京时间09:00发送，首条汇总全部编号要点，后续展开正文和原文链接。",
       "keywords": [
         "AI日报",
         "AI早报",
         "人工智能新闻",
         "AIHOT",
         "每天九点",
-        "合并转发"
+        "合并转发",
+        "Next Signal"
       ],
       "tools": [],
       "document": {

@@ -30,7 +30,7 @@ def _split_node(text, limit):
 
 def _overview_node(date, items, limit):
     """Keep every numbered takeaway in the first node, shortening only long titles."""
-    heading = f"AI 日报 · {date}\n\n今日要点"
+    heading = f"{_text(ai_daily_config['title'])} · {date}\n\n今日要点"
     if not items:
         return heading + "\n\n本期无新增资讯。"
     prefixes = [f"\n\n{index:02d}｜" for index in range(1, len(items) + 1)]
@@ -88,6 +88,7 @@ def ai_daily_check_and_push():
         raise ValueError(f"AI_DAILY_STALE: expected={today} received={report['date']}")
     nodes = build_daily_nodes(report)
     queued = add_group_forward_msg(nodes, group_qid=confs["QQBot"]["group_qid"],
-                                   sender_name=ai_daily_config["sender_name"], delivery_id=delivery_id,
+                                   sender_name=ai_daily_config["sender_name"], title=ai_daily_config["title"],
+                                   delivery_id=delivery_id,
                                    delivery_ttl=int(ai_daily_config["delivery_ttl_seconds"]))
     return {"status": "queued" if queued else "duplicate", "date": today, "nodes": len(nodes)}

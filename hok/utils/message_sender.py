@@ -128,8 +128,12 @@ async def _handle_group_forward(bot, payload):
     delivery_id = payload.get("delivery_id")
     status = "sent"
     try:
+        card_options = {}
+        if payload.get("title"):
+            card_options = {"source": payload["title"], "prompt": payload["title"]}
         result = await bot.send_group_forward_msg(
             group_id=_normalize_target_id(payload["toid"]), messages=payload["messages"],
+            **card_options,
         )
         if not isinstance(result, dict) or not result.get("message_id"):
             raise RuntimeError("GROUP_FORWARD_RESULT: missing message_id; delivery outcome unknown")
@@ -204,7 +208,7 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
     return _enqueue_payload(payload)
 
 
-def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", delivery_id=None, delivery_ttl=604800):
+def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", title=None, delivery_id=None, delivery_ttl=604800):
     """Queue one native merged-forward message; external content stays literal text."""
     group_id = _normalize_target_id(group_qid or confs["QQBot"]["group_qid"])
     if type(group_id) is not int or group_id <= 0:
@@ -216,6 +220,10 @@ def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人"
         "content": [{"type": "text", "data": {"text": text}}],
     }} for text in text_nodes]
     payload = {"kind": "group_forward", "type": "group", "toid": group_id, "messages": messages}
+    if title is not None:
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError("Group forward title must be non-empty text")
+        payload["title"] = title.strip()
     if delivery_id:
         from ..zfunc import enqueue_forward_message
         payload["delivery_id"] = delivery_id
