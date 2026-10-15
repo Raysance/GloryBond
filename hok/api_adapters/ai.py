@@ -425,4 +425,4 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
 
         sleep_seconds(poll_interval_seconds)
 
-    raise Exception(f"apimart_task_query_error: timeout last_status={last_status} task_id={task_id}")
+    raise TimeoutError(f"apimart_task_query_error: timeout last_status={last_status} task_id={task_id}; result unknown")

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import time
 from .tools.memory import memory_policy_prompt, recent_history_limits
+from .timeouts import IMAGE_TASK_TIMEOUT_SECONDS
 
 
 class Clock:
@@ -59,7 +60,8 @@ class Capabilities:
         return await self.bridge.call("python", code=code, data=data)
 
     async def generate_image(self, prompt, size):
-        return await self.bridge.call("image", prompt=prompt, size=size)
+        return await self.bridge.call("image", prompt=prompt, size=size,
+                                      task_timeout_seconds=IMAGE_TASK_TIMEOUT_SECONDS)
 
     async def memory(self, action, ctx, **args):
         return await self.state_bridge.call(

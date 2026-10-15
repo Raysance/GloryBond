@@ -1797,7 +1797,7 @@
       "id": "plots_image_service",
       "parent": "plots",
       "title": "创作图片的服务、模型与返回方式",
-      "summary": "创作图片使用APIMart的图片生成服务，公开接口为 https://api.apimart.ai/v1/images/generations 。当前配置初始模型为gpt-image-2，实际模型可由运行设置调整；这是生图服务，与负责文字聊天和图片理解的DeepSeek V4.1",
+      "summary": "创作图片使用APIMart和可配置的gpt-image-2模型；每次生成1张图，默认等待600秒，每隔2分钟报告仍在处理。说明生图服务、超时、取消与防重复提交规则。",
       "keywords": [
         "生图",
         "图片生成",
@@ -1805,7 +1805,10 @@
         "APIMart",
         "服务",
         "模型",
-        "gpt-image-2"
+        "gpt-image-2",
+        "超时",
+        "进度",
+        "等待"
       ],
       "code": [
         {
@@ -1815,6 +1818,14 @@
         {
           "path": "agent_console/remote_worker.py",
           "symbol": "dispatch"
+        },
+        {
+          "path": "agent_console/tools/application.py",
+          "symbol": "register_application_tools.image"
+        },
+        {
+          "path": "agent_console/timeouts.py",
+          "symbol": "application_budget"
         }
       ],
       "document": {

@@ -8,7 +8,8 @@ import sys
 from uuid import uuid4
 import httpx
 
-from agent_runtime import AgentRuntime, Budget, FinalAnswer, Principal, RunRequest
+from agent_runtime import AgentRuntime, FinalAnswer, Principal, RunRequest
+from agent_console.timeouts import application_budget
 from agent_console.tools.diagnostics import DiagnosticToolRegistry
 from agent_console.tool_errors import redact_error
 from agent_console.capabilities import Clock, application_prompt, load_catalogs, reference_prompt
@@ -169,7 +170,8 @@ class QQAgentService:
                                             clock=self.clock, finalizer=QQFinalizer(composer, self.formatter,
                                                                                  self.output.delivery_history))
                 self.scheduler = TaskScheduler(runtime=self.runtime, bridge=self.state_bridge, state=self.state,
-                                               output=self.output, clock=self.clock, prompt_factory=self.current_prompt, channel="qq")
+                                               output=self.output, clock=self.clock, prompt_factory=self.current_prompt, channel="qq",
+                                               budget=application_budget(self.config.get("budget")))
             except BaseException:
                 await self.state_bridge.close()
                 await self.bridge.close()
@@ -329,7 +331,7 @@ class QQAgentService:
         request = RunRequest(
             question, "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id), principal,
             system_prompt=prompt, required_tools=("search_chat_history", "discover_tools") if "chat.read" in principal.scopes else ("discover_tools",),
-            budget=Budget(**self.config.get("budget", {})), images=images,
+            budget=application_budget(self.config.get("budget")), images=images,
             context_messages=context_messages,
             metadata={"delivery": principal.attributes["delivery"], "message_id": message_id},
         )

@@ -21,6 +21,7 @@ from agent_runtime import AgentRuntime, RunRequest
 from .tools.diagnostics import DiagnosticToolRegistry
 from .tool_errors import redact_error
 from .tasks import TaskScheduler
+from .timeouts import application_budget
 from .tools.application import register_application_tools
 from .capabilities import (
     Capabilities,
@@ -234,6 +235,7 @@ def create_app(*, config_path=None):
                 output=broker,
                 clock=Clock(),
                 prompt_factory=current_prompt,
+                budget=application_budget(config.get("budget")),
             )
             app.state.task_scheduler = task_scheduler
             scheduler = asyncio.create_task(task_scheduler.run())
@@ -413,6 +415,7 @@ def create_app(*, config_path=None):
         request = RunRequest(
             run_id=run_id,
             user_message=message,
+            budget=application_budget(config.get("budget")),
             images=images,
             context_messages=page_context.messages,
             conversation_id=body.session_id,

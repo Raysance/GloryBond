@@ -9,6 +9,7 @@ import yaml
 
 from .tool_errors import RemoteToolError, exception_details, redact_error
 from .bot_manual import load_manual_documents
+from .timeouts import IMAGE_RPC_TIMEOUT_SECONDS
 
 
 class BridgeUnavailable(ConnectionError):
@@ -194,7 +195,8 @@ class RemoteBridge:
         try:
             self.process.stdin.write(request)
             await self.process.stdin.drain()
-            line = await asyncio.wait_for(self.process.stdout.readline(), self.response_timeout)
+            timeout = IMAGE_RPC_TIMEOUT_SECONDS if op == "image" else self.response_timeout
+            line = await asyncio.wait_for(self.process.stdout.readline(), timeout)
             if not line:
                 raise EOFError("worker closed stdout")
             payload = json.loads(line)

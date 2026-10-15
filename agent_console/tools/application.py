@@ -1,5 +1,6 @@
 """Application tools for the local HOK console; never part of the agent kernel."""
 
+import asyncio
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
@@ -11,6 +12,7 @@ from .plotting import PlotArgs, build_plot_code
 from .memory import recent_history_limits
 from .bot_manual import register_bot_manual_tool
 from .kpl import register_kpl_tool
+from ..timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS
 
 
 class Args(BaseModel):
@@ -242,7 +244,20 @@ def register_application_tools(registry, *, service, catalogs):
             "output.message",
             {"kind": "progress", "text": "正在生成图片，完成后会发送产物。"},
         )
-        result = await service.generate_image(args.prompt, args.size)
+        pending = asyncio.create_task(service.generate_image(args.prompt, args.size))
+        try:
+            while True:
+                done, _ = await asyncio.wait({pending}, timeout=IMAGE_PROGRESS_INTERVAL_SECONDS)
+                if done:
+                    result = pending.result()
+                    break
+                await ctx.emit("output.message", {
+                    "kind": "progress", "text": "生图请求仍在处理中，正在等待结果，请稍候。",
+                })
+        finally:
+            if not pending.done():
+                pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
         await ctx.emit(
             "output.artifact", {k: v for k, v in result.items() if k != "request"}
         )
@@ -443,7 +458,7 @@ def register_application_tools(registry, *, service, catalogs):
             image,
             "images",
             ("image.generate",),
-            180,
+            IMAGE_TOOL_TIMEOUT_SECONDS,
             "external_write",
         ),
         (

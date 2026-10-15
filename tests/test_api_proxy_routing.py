@@ -107,6 +107,18 @@ class ClashProxyRoutingTests(unittest.TestCase):
         for call in self.calls:
             self.assert_clash_call(call)
 
+    def test_image_poll_timeout_keeps_unknown_outcome_without_resubmission(self):
+        self.responses.extend([
+            FakeResponse({"code": 200, "data": [{"task_id": "task-1"}]}),
+            FakeResponse({"code": 200, "data": {"status": "processing"}}),
+        ])
+        with patch.dict(AI.confs, {"QQBot": {"apimart_key": "test-key"}}), \
+                patch.object(AI, "sleep_seconds"), \
+                self.assertRaisesRegex(TimeoutError, "result unknown"):
+            AI.apimart_images_generate(prompt="test", reference_image_url="", size="1:1",
+                                      resolution="1K", task_timeout_seconds=2, task_poll_interval_seconds=2)
+        self.assertEqual([call["method"] for call in self.calls], ["POST", "GET"])
+
     def test_missing_clash_proxy_refuses_request(self):
         with patch.object(PROXY, "clash_proxy_url", ""):
             with self.assertRaisesRegex(ValueError, "Clash proxy configuration missing"):

@@ -828,6 +828,7 @@ def dispatch(args):
             reference_image_url="",
             size=args.get("size", "1:1"),
             resolution="1K",
+            task_timeout_seconds=args.get("task_timeout_seconds", 600),
         )
         response = CONTEXT["api"]["clash_request"]("GET", result["url"], timeout=60)
         response.raise_for_status()
@@ -926,7 +927,7 @@ def dispatch(args):
                         continue
                     task.update(
                         status="running",
-                        lease_until=time.time() + 600,
+                        lease_until=time.time() + max(600, args.get("lease_seconds", 1500)),
                         lease_token=uuid4().hex,
                     )
                     pipe.multi()

@@ -105,6 +105,14 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply['value'], 'next')
         self.assertEqual(self.bridge.spawns, 2)
 
+    async def test_only_image_rpc_uses_longer_deadline(self):
+        self.bridge.response_timeout = 0.02
+        with patch('agent_console.remote.IMAGE_RPC_TIMEOUT_SECONDS', 0.3):
+            result = await self.bridge.call('image', delay=0.05, value='picture')
+            self.assertEqual(result['value'], 'picture')
+            with self.assertRaises(BridgeUnavailable):
+                await self.bridge.call('read', delay=0.05)
+
     async def test_cancelled_caller_cannot_shift_next_response(self):
         request = asyncio.create_task(self.bridge.call('read', delay=0.1, value='cancelled'))
         await asyncio.sleep(0.01)

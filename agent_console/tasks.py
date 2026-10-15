@@ -5,9 +5,10 @@ from dataclasses import replace
 
 from agent_runtime.models import Principal, RunRequest
 from agent_runtime.runtime.output import EventOutput
+from .timeouts import application_budget
 
 
-def task_request(task, *, system_prompt=""):
+def task_request(task, *, system_prompt="", budget=None):
     identity = dict(task["principal"])
     identity["scopes"] = frozenset(identity["scopes"])
     # Read existing console task records without changing their stored identity.
@@ -23,6 +24,7 @@ def task_request(task, *, system_prompt=""):
         conversation_id=task["session_id"],
         principal=Principal(**identity),
         system_prompt=system_prompt,
+        budget=budget or application_budget(),
         required_tools=tuple(
             dict.fromkeys([*task.get("required_tools", ()), "discover_tools"])
         ),
@@ -36,16 +38,18 @@ def task_request(task, *, system_prompt=""):
 class TaskScheduler:
     """Application scheduler; fixed deliveries use the same event/output ports."""
 
-    def __init__(self, *, runtime, bridge, state, output, clock, prompt_factory, channel=None):
+    def __init__(self, *, runtime, bridge, state, output, clock, prompt_factory, channel=None, budget=None):
         self.runtime, self.bridge = runtime, bridge
         self.state, self.output, self.clock = state, output, clock
         self.prompt_factory = prompt_factory
         self.active = {}
         self.active_run_ids = set()
         self.channel = channel
+        self.budget = budget or application_budget()
 
     async def tick(self):
-        for task in await self.bridge.call("task_due", channel=self.channel):
+        for task in await self.bridge.call("task_due", channel=self.channel,
+                                          lease_seconds=max(600, self.budget.timeout_seconds + 300)):
             if task["task_id"] not in self.active:
                 job = asyncio.create_task(self.perform(task))
                 self.active[task["task_id"]] = job
@@ -73,7 +77,7 @@ class TaskScheduler:
             ):
                 return
             if task.get("kind", "agent") == "message":
-                request = task_request(task)
+                request = task_request(task, budget=self.budget)
                 self.active_run_ids.add(request.run_id)
                 emitter = EventOutput(request, self.state, self.output, self.clock)
                 started = self.clock.monotonic()
@@ -109,7 +113,7 @@ class TaskScheduler:
                 )
                 failed = False
             else:
-                request = task_request(task)
+                request = task_request(task, budget=self.budget)
                 request = replace(
                     request,
                     system_prompt=await self.prompt_factory(
