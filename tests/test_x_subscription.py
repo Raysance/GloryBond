@@ -200,6 +200,7 @@ class XMessageTests(unittest.TestCase):
         self.assertEqual(render.call_args.args[0]['post']['text'], original)
         self.assertEqual(post['text'], original)
         self.assertEqual(message[1].type, 'image')
+        self.assertEqual(message[-1].data['text'], '\n\nhttps://x.com/thsottiaux/status/11')
 
     def test_long_translation_preserves_both_input_and_output_tails(self):
         original = 'English content. ' * 400 + 'SOURCE_TAIL'
@@ -221,9 +222,10 @@ class XMessageTests(unittest.TestCase):
              patch.object(RENDER, 'render_x_post_images', return_value=[]), \
              patch.object(files, 'save_x_post_images', return_value=['/tmp/x_post_preview_0.png']):
             message = Message(ZFUNC._x_render_message({'post': post, 'replies': []}))
-        self.assertEqual([segment.type for segment in message], ['text', 'image'])
+        self.assertEqual([segment.type for segment in message], ['text', 'image', 'text'])
         self.assertEqual(message[0].data['text'], f"Tibo · 2026-10-15 11:22:33\n\n{post['text']}\n\n")
         self.assertEqual(message[1].data['file'], 'file:///tmp/x_post_preview_0.png')
+        self.assertEqual(message[2].data['text'], '\n\nhttps://x.com/thsottiaux/status/11')
 
 
 class XStorageTests(unittest.TestCase):

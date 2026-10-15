@@ -1085,7 +1085,9 @@ def _x_render_message(bundle):
     name = post.get('name') or post['username']
     preview = post_text_preview(post.get('text'), x_subscription_config['message_preview_max_chars'])
     text = f"{name} · {current_datetime_text()}\n\n{preview}\n\n"
-    return str(MessageSegment.text(text)) + '\n'.join(str(MessageSegment.image(f"file://{path}")) for path in paths)
+    pictures = '\n'.join(str(MessageSegment.image(f"file://{path}")) for path in paths)
+    link = f"\n\nhttps://x.com/{post['username']}/status/{post['id']}"
+    return str(MessageSegment.text(text)) + pictures + str(MessageSegment.text(link))
 
 
 def _x_send_message(message):

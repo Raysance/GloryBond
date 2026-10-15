@@ -1842,7 +1842,8 @@
         "推送格式",
         "推送时间",
         "长帖",
-        "全文见图"
+        "全文见图",
+        "原帖链接"
       ],
       "document": {
         "path": "shared/agent/manual/chapters/subscriptions.md",
