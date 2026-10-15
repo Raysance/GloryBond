@@ -801,7 +801,7 @@ async def f_chat(bot,event):
     from .zfunc import agent_chat
 
     request = prepare_chat_request(event, common_expr, dmc.use_mem)
-    request["quoted_message"] = await read_quoted_message(event, bot.get_msg)
+    request["quoted_message"] = await read_quoted_message(event, bot.get_msg, bot.get_forward_msg)
     if request["group_id"]:
         add_group_poke_task(
             request["user_id"],

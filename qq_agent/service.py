@@ -264,6 +264,13 @@ class QQAgentService:
         prompt = await self.current_prompt(principal, question)
         current_sources = list(dict.fromkeys(image_urls))
         quoted_sources = list(dict.fromkeys(quoted_message.get("image_urls", ()))) if quoted_message and quoted_message.get("available") else []
+        omitted_quote_images = 0
+        if quoted_message and quoted_message.get("forward_expanded"):
+            remaining = max(0, self.image_store.limits.max_images - len(current_sources))
+            extra_sources = [source for source in quoted_sources if source not in current_sources]
+            selected = set(current_sources + extra_sources[:remaining])
+            omitted_quote_images = sum(source not in selected for source in quoted_sources)
+            quoted_sources = [source for source in quoted_sources if source in selected]
         sources = list(dict.fromkeys(current_sources + quoted_sources))
         loaded = await self.input_images(sources) if sources else ()
         media = dict(zip(sources, loaded))
@@ -272,8 +279,11 @@ class QQAgentService:
                                                self.config.get("group_context_timeout_seconds", 10))
         if quoted_message:
             quote = {key:value for key, value in quoted_message.items() if key != "image_urls"}
+            if omitted_quote_images:
+                quote["omitted_images"] = omitted_quote_images
+                quote["text"] += "\n[引用图片数量超过本轮输入上限，部分图片未读取；仅以实际附上的图片为准]"
             quoted_images = tuple(media[source] for source in quoted_sources if source not in current_sources)
-            if quoted_images:
+            if quoted_images and not omitted_quote_images:
                 quote["text"] = (str(quote.get("text", ""))
                                  .replace("[image消息，未读取内容]", "[引用图片，像素已附上]")
                                  .replace("[动态表情，像素待读取]", "[引用表情，像素已附上]"))

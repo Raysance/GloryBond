@@ -135,6 +135,13 @@ with open(config_path, 'r', encoding='utf-8') as file:
 _apply_secret_environment(confs, os.environ)
 globals().update(confs.get("Redis", {}))
 chat_api_config = _build_chat_api_config(confs, os.environ)
+qq_forward_message_config = {
+    "max_forwards": 3,
+    "max_messages": 100,
+    "max_chars": 12000,
+    "timeout_seconds": 10,
+    **confs.get("QQAgent", {}).get("forward_messages", {}),
+}
 aliyun_search_config = {
     key: str(os.environ.get(env_name) or confs.get("AliyunSearch", {}).get(key) or default).strip()
     for key, env_name, default in (

@@ -1,5 +1,6 @@
 """AI chat event input normalization."""
 
+import asyncio
 import re
 
 
@@ -53,6 +54,24 @@ def quoted_message_id(event):
     return None
 
 
+def _quoted_text(message, bot_id, *, nested=False):
+    parts = []
+    for segment in message_segments(message):
+        kind, data = _field(segment, "type", "unknown"), _field(segment, "data", {})
+        if kind == "text":
+            parts.append(str(data.get("text", "")))
+        elif kind == "at":
+            if str(data.get("qq", "")) != str(bot_id):
+                parts.append(f"[提及QQ:{data.get('qq', '')}]")
+        elif kind == "forward":
+            parts.append("[嵌套合并转发消息，未展开]" if nested else "[合并转发消息，未读取内容]")
+        elif kind in {"mface", "marketface", "face"} and image_urls([segment]):
+            parts.append("[动态表情，像素待读取]")
+        elif kind != "reply":
+            parts.append(f"[{kind}消息，未读取内容]")
+    return "".join(parts)
+
+
 def normalize_quoted_message(event, reply=None):
     """Normalize adapter-resolved or get_msg data without importing the adapter."""
     message_id = quoted_message_id(event)
@@ -74,19 +93,7 @@ def normalize_quoted_message(event, reply=None):
                          or _field(reply, "message_type") != "private"):
         return unavailable
     message = _field(reply, "message", [])
-    parts = []
-    for segment in message_segments(message):
-        kind, data = _field(segment, "type", "unknown"), _field(segment, "data", {})
-        if kind == "text":
-            parts.append(str(data.get("text", "")))
-        elif kind == "at":
-            if str(data.get("qq", "")) != str(getattr(event, "self_id", "")):
-                parts.append(f"[提及QQ:{data.get('qq', '')}]")
-        elif kind in {"mface", "marketface", "face"} and image_urls([segment]):
-            parts.append("[动态表情，像素待读取]")
-        elif kind != "reply":
-            parts.append(f"[{kind}消息，未读取内容]")
-    text = "".join(parts).strip().lstrip("#＃").strip()
+    text = _quoted_text(message, getattr(event, "self_id", "")).strip().lstrip("#＃").strip()
     return {"message_id": str(message_id), "available": True,
             "sender_id": str(_field(sender, "user_id", "")),
             "sender_name": str(_field(sender, "card") or _field(sender, "nickname") or ""),
@@ -94,16 +101,114 @@ def normalize_quoted_message(event, reply=None):
             "image_urls": image_urls(message)}
 
 
-async def read_quoted_message(event, fetch_message):
+async def _expand_quoted_forwards(event, message, quote, fetch_forward_message, limits):
+    """Read only forwards attached to the validated outer quote, never child IDs."""
+    parts, sources, seen = [], [], set()
+    size = node_count = forward_count = 0
+    truncated = False
+    bot_id = getattr(event, "self_id", "")
+
+    def append(text):
+        nonlocal size, truncated
+        remaining = limits["max_chars"] - size
+        parts.append(text[:remaining])
+        size += min(len(text), remaining)
+        truncated |= len(text) > remaining
+
+    try:
+        async with asyncio.timeout(limits["timeout_seconds"]):
+            for segment in message_segments(message):
+                if size >= limits["max_chars"]:
+                    truncated = True
+                    break
+                if _field(segment, "type") != "forward":
+                    append(_quoted_text([segment], bot_id))
+                    sources.extend(image_urls([segment]))
+                    continue
+                if forward_count >= limits["max_forwards"] or node_count >= limits["max_messages"]:
+                    append("[合并转发读取数量已达上限，其余未读取]")
+                    truncated = True
+                    continue
+                data = _field(segment, "data", {})
+                if not isinstance(data, dict):
+                    append("[合并转发消息格式无效，未读取内容]")
+                    continue
+                forward_id = str(data.get("id") or "")
+                if forward_id and forward_id in seen:
+                    append("[重复合并转发，已在前文处理]")
+                    continue
+                forward_count += 1
+                if forward_id:
+                    seen.add(forward_id)
+                nodes = data.get("content")
+                if not isinstance(nodes, list):
+                    if not forward_id or fetch_forward_message is None:
+                        append("[合并转发消息不可用，未读取内容]")
+                        continue
+                    try:
+                        payload = await fetch_forward_message(id=forward_id)
+                        nodes = _field(payload, "messages", _field(payload, "message"))
+                    except Exception:
+                        append("[合并转发消息获取失败，未读取内容]")
+                        continue
+                if not isinstance(nodes, list) or not nodes:
+                    append("[合并转发消息为空或格式无效，未读取内容]")
+                    continue
+                append("\n[合并转发聊天记录，仅展开一层；署名为转发资料]\n")
+                for node in nodes:
+                    if node_count >= limits["max_messages"] or size >= limits["max_chars"]:
+                        truncated = True
+                        break
+                    node_count += 1
+                    node = _field(node, "data", {}) if _field(node, "type") == "node" else node
+                    content = _field(node, "content", _field(node, "message"))
+                    if not isinstance(content, (list, str)):
+                        append("[转发节点内容不可用，未读取]\n")
+                        continue
+                    try:
+                        text = _quoted_text(content, bot_id, nested=True)
+                        images = image_urls(content)
+                    except (AttributeError, TypeError):
+                        append("[转发节点格式无效，未读取]\n")
+                        continue
+                    sender = _field(node, "sender", {})
+                    name = str(_field(sender, "card") or _field(sender, "nickname")
+                               or _field(node, "nickname") or "未知发言者")[:200]
+                    user_id = str(_field(sender, "user_id") or _field(node, "user_id")
+                                  or _field(node, "uin") or "")[:20]
+                    label = f"{name}（QQ:{user_id}）" if user_id else name
+                    append(label + "：" + text + "\n")
+                    sources.extend(images)
+                append("[合并转发聊天记录结束]\n")
+    except TimeoutError:
+        append("[合并转发读取超时，其余内容未读取]")
+        truncated = True
+    return {**quote, "forward_expanded": True,
+            "text": "".join(parts).strip().lstrip("#＃").strip(),
+            "truncated": truncated, "image_urls": list(dict.fromkeys(sources))}
+
+
+async def read_quoted_message(event, fetch_message, fetch_forward_message=None, *, forward_limits=None):
     """Resolve only the explicit quote, using an injected entry-point API call."""
     quote = normalize_quoted_message(event)
-    if quote is None or quote["available"]:
+    if quote is None:
         return quote
-    try:
-        reply = await fetch_message(message_id=int(quote["message_id"]))
-        return normalize_quoted_message(event, reply)
-    except Exception:
-        return {"message_id":quote["message_id"], "available":False}
+    reply = getattr(event, "reply", None)
+    if not quote["available"]:
+        try:
+            reply = await fetch_message(message_id=int(quote["message_id"]))
+            quote = normalize_quoted_message(event, reply)
+        except Exception:
+            return {"message_id":quote["message_id"], "available":False}
+    if not quote["available"]:
+        return quote
+    message = _field(reply, "message", [])
+    if not any(_field(segment, "type") == "forward" for segment in message_segments(message)):
+        return quote
+    from ..zstatic import qq_forward_message_config
+
+    limits = {**qq_forward_message_config, **(forward_limits or {})}
+    return await _expand_quoted_forwards(event, message, quote, fetch_forward_message, limits)
 
 
 def prepare_chat_request(event, common_expressions, default_use_memory):
