@@ -46,5 +46,9 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
             prepare.assert_called_once_with(packet)
             store.assert_called_once_with("a" * 32, b"pixels")
             send.assert_called_once_with(packet, destination=destination)
+            send.reset_mock()
+            background = {**packet, "task_id": "a" * 32}
+            await received["sender"](background, destination)
+            send.assert_called_once_with(background, destination=destination, task_id="a" * 32)
             await FUNCS.agent_runtime_stop()
             self.assertIsNone(FUNCS.dmc.qq_agent_service)

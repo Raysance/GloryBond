@@ -178,6 +178,58 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
 
+    async def test_quoted_reminder_can_be_attributed_and_cancelled_by_another_group_member(self):
+        from agent_console import remote_worker as worker
+        from agent_console.task_timing import normalized_task_action, next_task_time
+        from tests.test_agent_task_scope import TaskStore, principal
+        from local_debugger import import_hok_module
+        from types import SimpleNamespace
+        funcs = import_hok_module("zfunc")
+        store = TaskStore()
+        original_call = self.gateway.state_bridge.call
+
+        async def task_call(op, **args):
+            if op in {"task_list", "task_cancel"}:
+                self.calls.append((op, copy.deepcopy(args)))
+                return worker.dispatch({"op": op, **args})
+            return await original_call(op, **args)
+
+        with patch.dict(worker.CONTEXT, store=store, task_timing={
+                "normalized_task_action": normalized_task_action, "next_task_time": next_task_time}), \
+                patch.object(funcs.dmc, "redis_deamon", store), \
+                patch.object(self.gateway.state_bridge, "call", side_effect=task_call):
+            task = worker.dispatch({"op": "task_create", "session_id": "qq_g_200_102", "principal": principal("102"),
+                "kind": "message", "message": "休息一下", "interval_seconds": 60, "max_runs": 3})
+            await self.gateway.output.send({"text": "休息一下"}, principal("102")["attributes"]["delivery"],
+                {"id": "event", "run_id": "reminder", "session_id": "qq_g_200_102", "time": "now",
+                 "metadata": {"origin": "background", "task_id": task["task_id"]}})
+            sender_packet, destination = self.sent.pop()
+            with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
+                sender = import_hok_module("utils.message_sender")
+            with patch.object(sender, "_enqueue_payload") as queue:
+                sender.add_chat_result_msg(sender_packet, destination=destination, task_id=sender_packet["task_id"])
+                payload = queue.call_args.args[0]
+            await sender._send_queued_message(SimpleNamespace(send_group_msg=AsyncMock(return_value={"message_id": 42})), payload)
+            self.reply_text = "这条提醒由创建者102设置，已取消。"
+            self.script = [
+                {"role": "assistant", "content": "", "tool_calls": [
+                    call("search_chat_history", {"queries": ["定时提醒", "休息"]}, "s")]},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    call("discover_tools", {"categories": ["tasks"]}, "d")]},
+                {"role": "assistant", "content": "", "tool_calls": [call("list_tasks", {"message_id": "42"}, "l")]},
+                {"role": "assistant", "content": "", "tool_calls": [call("cancel_task", {"task_id": task["task_id"]}, "c")]},
+                {"role": "assistant", "content": self.reply_text},
+            ]
+            await self.gateway.chat(user_text="这条谁设置的？取消这个定时任务", user_id="101", nickname="甲", group_id="200",
+                quoted_message={"available": True, "message_id": "42", "sender_id": "300", "text": "休息一下"})
+        stored = json.loads(store.get(worker.STATE_PREFIX + "task:" + task["task_id"]))
+        self.assertEqual((stored["status"], stored["principal"]["user_id"]), ("cancelled", "102"))
+        listed = next(args for op, args in self.calls if op == "task_list")
+        self.assertEqual((listed["message_id"], listed["principal"]["user_id"]), ("42", "101"))
+        observation = next(m for m in self.gateway.model.requests[-1].messages if m.get("tool_call_id") == "l")
+        self.assertIn('"user_id": "102"', observation["content"])
+        self.assertEqual(self.sent[-1][1]["recipient_id"], "200")
+
     async def test_private_message_tool_is_registered_and_receipt_does_not_redirect_normal_reply(self):
         await self.gateway.close()
         self.gateway.member_profile_reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '100'}})

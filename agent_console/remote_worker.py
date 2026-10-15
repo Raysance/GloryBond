@@ -744,6 +744,34 @@ def task_index(task):
     return STATE_PREFIX + ("tasks:qq" if delivery.get("platform") == "qq" else "tasks")
 
 
+def task_group(task):
+    """Require agreement between the persisted QQ session, creator and destination."""
+    match = re.fullmatch(r"qq_g_([1-9][0-9]{0,19})_([1-9][0-9]{0,19})", task.get("session_id", ""))
+    principal = task.get("principal", {})
+    attributes = principal.get("attributes", {})
+    delivery = attributes.get("delivery", {})
+    if (match and str(principal.get("user_id")) == match[2]
+            and str(attributes.get("chat", {}).get("group_id")) == match[1]
+            and delivery.get("platform") == "qq" and delivery.get("channel") == "group"
+            and str(delivery.get("recipient_id")) == match[1]):
+        return match[1]
+    return None
+
+
+def task_access(task, session, principal):
+    group = task_group({"session_id": session, "principal": principal})
+    return (task_group(task) == group if group else task.get("session_id") == session)
+
+
+def task_summary(task):
+    """Expose scheduling details and creator, never execution credentials or permissions."""
+    principal = task.get("principal", {})
+    identity = principal.get("attributes", {}).get("identity", {})
+    return {**{key: task[key] for key in ("task_id", "kind", "instruction", "message", "status",
+                "runs", "max_runs", "interval_seconds", "next_run_at") if key in task},
+            "creator": {"user_id": principal.get("user_id"), "name": identity.get("name")}}
+
+
 def dispatch(args):
     op = args["op"]
     if op == "bootstrap":
@@ -839,19 +867,35 @@ def dispatch(args):
             pipe.execute()
         return task
     if op == "task_list":
+        principal = args.get("principal", {})
+        group = task_group({"session_id": session, "principal": principal})
+        if args.get("message_id") is not None:
+            if not group:
+                raise PermissionError("引用定时消息来源查询仅限当前QQ群")
+            message_id = str(args["message_id"])
+            if not re.fullmatch(r"-?[0-9]{1,20}", message_id):
+                raise ValueError("无效的QQ消息ID")
+            link = json.loads(store.get(STATE_PREFIX + "task_message:" + group + ":" + str(int(message_id))) or "{}")
+            task_id = link.get("task_id", "")
+            task = json.loads(store.get(STATE_PREFIX + "task:" + task_id) or "{}") if re.fullmatch(r"[a-f0-9]{32}", task_id) else {}
+            matched = bool(task and task_group(task) == group)
+            return {"tasks": [task_summary(task)] if matched else [], "group_id": group,
+                    "message_lookup": {"message_id": message_id, "matched": matched,
+                        **({} if matched else {"reason": "没有可验证的发送回执关联，无法确认创建者或任务"})}}
         tasks = []
         for key in store.scan_iter(STATE_PREFIX + "task:*"):
             task = json.loads(store.get(key) or "{}")
-            if task.get("session_id") == session:
-                tasks.append(task)
-        return {"tasks": tasks}
+            if task_access(task, session, principal):
+                tasks.append(task_summary(task))
+        return {"tasks": tasks, "scope": "group" if group else "session",
+                **({"group_id": group} if group else {})}
     if op == "task_cancel":
         key = STATE_PREFIX + "task:" + args["task_id"]
         with store.pipeline() as pipe:
             pipe.watch(key)
             task = json.loads(pipe.get(key) or "{}")
-            if task.get("session_id") != session:
-                raise PermissionError("任务不属于当前会话")
+            if not task_access(task, session, args.get("principal", {})):
+                raise PermissionError("任务不属于当前群或当前会话")
             task.update(status="cancelled", revision=task["revision"] + 1)
             pipe.multi()
             pipe.set(key, json.dumps(task))

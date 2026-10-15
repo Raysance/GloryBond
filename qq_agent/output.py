@@ -31,6 +31,11 @@ class QQOutput:
     async def send(self, packet, delivery, event):
         if self.mentions:
             delivery = self.mentions.delivery(event["run_id"], delivery)
+        metadata = event.get("metadata", {})
+        task_id = metadata.get("task_id") if metadata.get("origin") == "background" else None
+        packet = {key: value for key, value in packet.items() if key != "task_id"}
+        if task_id:
+            packet["task_id"] = task_id
         await self.sender(packet, delivery)
         if delivery.get("channel") == "group":
             try:

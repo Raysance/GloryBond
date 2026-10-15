@@ -645,6 +645,21 @@ async def agent_read_generated_image(identifier):
     return await asyncio.to_thread(load_agent_artifact_image, identifier)
 
 
+def agent_record_task_message(*, group_id, message_id, task_id):
+    """Link an actual QQ send receipt to a task without changing its creator."""
+    if (not re.fullmatch(r"[1-9][0-9]{0,19}", str(group_id))
+            or not re.fullmatch(r"-?[0-9]{1,20}", str(message_id)) or int(message_id) == 0
+            or not re.fullmatch(r"[a-f0-9]{32}", str(task_id))):
+        raise ValueError("Invalid task message receipt")
+    task = json.loads(dmc.redis_deamon.get(REDIS_KEY_AGENT_TASK_PREFIX + task_id) or "{}")
+    delivery = task.get("principal", {}).get("attributes", {}).get("delivery", {})
+    if (delivery.get("platform") != "qq" or delivery.get("channel") != "group"
+            or str(delivery.get("recipient_id")) != str(group_id)):
+        raise ValueError("Task message group does not match its bound destination")
+    key = REDIS_KEY_AGENT_TASK_MESSAGE_PREFIX + str(group_id) + ":" + str(int(message_id))
+    return dmc.redis_deamon.set(key, json.dumps({"task_id": task_id}), ex=qq_task_message_link_ttl_seconds)
+
+
 async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=True):
     """QQBot owns live member lookup and avatar retrieval; the agent receives a snapshot."""
     from .utils.qq_profiles import load_group_member_profile
@@ -681,7 +696,8 @@ async def agent_runtime_start():
         config["image_directory"] = os.path.join(data_root, "agent_inputs")
 
     async def send(packet, delivery):
-        return add_chat_result_msg({**packet, "text": format_text(packet["text"])}, destination=delivery)
+        return add_chat_result_msg({**packet, "text": format_text(packet["text"])}, destination=delivery,
+                                   **({"task_id": packet["task_id"]} if packet.get("task_id") else {}))
 
     async def prepare(packet):
         return await asyncio.to_thread(chat_prepare_reply, packet)

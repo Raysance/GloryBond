@@ -75,14 +75,17 @@ class Capabilities:
             **args,
         )
 
-    async def list_tasks(self, ctx):
+    async def list_tasks(self, ctx, *, message_id=None):
         return await self.state_bridge.call(
-            "task_list", session_id=ctx.request.conversation_id
+            "task_list", session_id=ctx.request.conversation_id,
+            principal=dataclasses.asdict(ctx.principal),
+            **({"message_id": message_id} if message_id is not None else {}),
         )
 
     async def cancel_task(self, task_id, ctx):
         return await self.state_bridge.call(
-            "task_cancel", session_id=ctx.request.conversation_id, task_id=task_id
+            "task_cancel", session_id=ctx.request.conversation_id, task_id=task_id,
+            principal=dataclasses.asdict(ctx.principal),
         )
 
     async def reference_catalogs(self, ctx):

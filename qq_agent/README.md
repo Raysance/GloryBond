@@ -57,7 +57,7 @@ QQ明确拒绝时报告失败，不自动重试。工具参数、结果与失败
 15分钟/20条/每条600字配置，合并当前群不同成员归档和机器人已入队回复，并按时间
 排序后保留最新窗口。读取总等待由 `QQAgent.group_context_timeout_seconds` 控制，
 默认10秒；故障保留可用来源并标记缺失。背景仅作为本轮 user context，不改个人
-`qq_g_<群>_<QQ>` 会话，不跨群共享，不写本人长期事实，也不放宽任务列表或取消权限。
+`qq_g_<群>_<QQ>` 会话，不跨群共享，不写本人长期事实。任务查看和取消独立按当前群范围校验。
 `QQOutput` 在消息出口接受后将正文和真实 @ 目标记录到 DB0
 `hok:agent_runtime:console:qq_group_replies:<群>`，最多保留 `AgentHistory.max_limit`
 条摘录，TTL 7天；没有额外复制被动群发言，私聊不进入该记录。新版本从启用后开始记录
@@ -184,6 +184,14 @@ QQ入口已自动提供当前群小窗口，现有背景足够时不重复调用
 `tasks`，分别领取。调度 hook 和 tick 只注册在 `hok/zscheduler.py`。固定文字任务
 直接发送，不额外调用模型；agent 任务复用相同内核，并读取当前角色与偏好。
 任务使用持久租约；入队后异常重启可能导致重复通知，不承诺 exactly-once。
+群内所有成员可查看和取消发往本群的 AI 任务，列表显式返回创建者 QQ 与创建时保存的名称；
+创建者与提醒的 @ 对象相互独立。其他群、私聊与网页任务不共享，私聊管理员的默认群也不扩大任务范围。
+`list_tasks(message_id=...)` 支持用当前群引用的 QQ 消息 ID 精确查询任务，再调用 `cancel_task`。
+QQOutput 只从后台事件 metadata 绑定 task_id，经统一消息队列透传；消费时取得真实 QQ message_id 后，
+通过 `zfunc.agent_record_task_message` 将关联写 DB0 `hok:agent_runtime:console:task_message:<群>:<消息ID>`。
+关联默认保留30天，可由 `QQAgent.task_message_link_ttl_seconds` 调整；保存失败只记录错误，不重发消息。
+旧消息、过期或没有回执的消息明确返回无法确认，不按相似文字或 @ 对象猜测。列表仅投影调度字段与创建者，
+不向同群其他成员披露执行权限、租约、会话标识或个人记忆，取消不改变任务创建者与发送目的地。
 
 ## 回复与日志
 

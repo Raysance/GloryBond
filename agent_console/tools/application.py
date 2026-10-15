@@ -77,6 +77,11 @@ class ForgetArgs(Args):
     memory_id: str = Field(min_length=1, max_length=80)
 
 
+class ListTasksArgs(Args):
+    message_id: str | None = Field(default=None, pattern=r"^-?[0-9]{1,20}$",
+        description="可填本群被引用定时消息的QQ消息ID，按真实发送回执精确查对应任务和创建者；不按相似文案猜测")
+
+
 class EmitArgs(Args):
     text: str = Field(min_length=1, max_length=5000)
 
@@ -259,7 +264,7 @@ def register_application_tools(registry, *, service, catalogs):
         return await service.create_task(args.model_dump(), ctx)
 
     async def tasks(args, ctx):
-        return await service.list_tasks(ctx)
+        return await service.list_tasks(ctx, message_id=args.message_id)
 
     async def cancel_task(args, ctx):
         return await service.cancel_task(args.task_id, ctx)
@@ -480,8 +485,8 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "list_tasks",
-            "查看当前会话的后台任务。",
-            EmptyArgs,
+            "查看后台任务及创建者。QQ群内所有成员可查看本群任务；私聊/Web仅当前会话。引用定时消息时传message_id精确查来源，没有回执关联不能猜创建者。",
+            ListTasksArgs,
             tasks,
             "tasks",
             ("task.use",),
@@ -490,7 +495,7 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "cancel_task",
-            "取消当前会话的任务，后续触发将停止。",
+            "取消后台任务，后续触发将停止。QQ群内所有成员可取消本群任务；私聊/Web仅当前会话。引用消息时先list_tasks(message_id)取得对应task_id。",
             CancelTaskArgs,
             cancel_task,
             "tasks",

@@ -26,6 +26,8 @@ REDIS_KEY_X_CURSORS = "hok:x:cursors"
 REDIS_KEY_X_SEEN_PREFIX = "hok:x:seen:"
 REDIS_KEY_X_PUSH_LOCK = "hok:lock:x:push"
 REDIS_KEY_FORWARD_DELIVERY_PREFIX = "hok:message:forward:delivery:"
+REDIS_KEY_AGENT_TASK_PREFIX = "hok:agent_runtime:console:task:"
+REDIS_KEY_AGENT_TASK_MESSAGE_PREFIX = "hok:agent_runtime:console:task_message:"
 
 
 def _runtime_path(env_name, default_path):
@@ -135,6 +137,7 @@ with open(config_path, 'r', encoding='utf-8') as file:
 _apply_secret_environment(confs, os.environ)
 globals().update(confs.get("Redis", {}))
 chat_api_config = _build_chat_api_config(confs, os.environ)
+qq_task_message_link_ttl_seconds = confs.get("QQAgent", {}).get("task_message_link_ttl_seconds", 2592000)
 qq_forward_message_config = {
     "max_forwards": 3,
     "max_messages": 100,

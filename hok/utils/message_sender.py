@@ -1,4 +1,5 @@
 from ..zstatic import REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, confs
+from ..zutil import re, log_message
 from .. import zdynamic as dmc
 import nonebot
 import asyncio
@@ -156,6 +157,26 @@ async def _handle_forward_msg(bot, payload):
             log_message(f"FORWARD_STATE_FAILED: delivery={delivery_id} status={status} error={error!r}")
 
 
+async def _send_queued_message(bot, payload):
+    msg_type, to_id = payload.get("type"), payload.get("toid")
+    message = Message(payload.get("content", ""))
+    if msg_type == "group":
+        result = await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=message)
+        if payload.get("task_id"):
+            try:
+                from ..zfunc import agent_record_task_message
+                saved = await asyncio.to_thread(agent_record_task_message, group_id=to_id,
+                    message_id=result.get("message_id") if isinstance(result, dict) else None,
+                    task_id=payload["task_id"])
+                if not saved:
+                    raise RuntimeError("Task receipt association was not saved")
+            except Exception as exc:
+                log_message(f"TASK_MESSAGE_RECEIPT_SAVE_FAILED: task_id={payload['task_id']} error={type(exc).__name__}")
+        return result
+    if msg_type == "private":
+        return await bot.send_private_msg(user_id=_normalize_target_id(to_id), message=message)
+
+
 async def message_sender_loop():
     while True:
         last_ts = getattr(dmc, "last_msg_send_ts", 0)
@@ -185,19 +206,12 @@ async def message_sender_loop():
             await _handle_forward_msg(bot, msg_json)
             dmc.last_msg_send_ts = time.time()
             continue
-        msg_type = msg_json.get("type")
-        to_id = msg_json.get("toid")
-        msg_raw = msg_json.get("content", "")
-        msg_content = Message(msg_raw)
-        if msg_type == "group":
-            await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=msg_content)
-        elif msg_type == "private":
-            await bot.send_private_msg(user_id=_normalize_target_id(to_id), message=msg_content)
+        await _send_queued_message(bot, msg_json)
         dmc.last_msg_send_ts = time.time()
 
 
 
-def add_msg(content, *, event=None, msg_type=None, to_id=None):
+def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None):
     resolved_type, resolved_id = _resolve_destination(event=event, msg_type=msg_type, to_id=to_id)
     resolved_id = _normalize_target_id(resolved_id)
     if resolved_type not in {"group", "private"} or resolved_id is None:
@@ -207,6 +221,10 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
         "toid": resolved_id,
         "content": _stringify_message_content(content),
     }
+    if task_id is not None and resolved_type == "group":
+        if not isinstance(task_id, str) or not re.fullmatch(r"[a-f0-9]{32}", task_id):
+            raise ValueError("Invalid trusted task ID")
+        payload["task_id"] = task_id
     return _enqueue_payload(payload)
 
 
@@ -312,7 +330,7 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
     return add_msg(message, event=event, msg_type=msg_type, to_id=to_id)
 
 
-def add_chat_result_msg(result, *, event=None, destination=None):
+def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
     """Queue an AI reply with a native mention validated by the QQ adapter."""
     mention_id = None
     if destination is not None:
@@ -342,8 +360,8 @@ def add_chat_result_msg(result, *, event=None, destination=None):
         elif result.get("trace_error"):
             message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
     if destination is not None:
-        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"])
-    return add_msg(message, event=event)
+        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"], task_id=task_id)
+    return add_msg(message, event=event, task_id=task_id)
 
 
 def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):
