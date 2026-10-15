@@ -17,6 +17,19 @@ FUNC = import_hok_module("zfunc")
 
 class TraceTests(unittest.TestCase):
 
+    def test_admin_summary_keeps_sender_identity_and_missing_usage_distinct_from_zero(self):
+        payload = {'session_id': 'qq_g_200_101', 'expires_in_seconds': 604800,
+                   'rounds': [{'response_meta': {'usage': None}}],
+                   'summary': {'token_usage': {'total_tokens': 0}}}
+        entry = TRACE.trace_index_entry(payload, 'a' * 16, 1000)
+        self.assertEqual((entry['group_id'], entry['user_id']), ('200', '101'))
+        self.assertIsNone(entry['total_tokens'])
+        self.assertTrue(entry['usage_incomplete'])
+        payload['rounds'].append({'response_meta': {'usage': {'total_tokens': 12}}})
+        entry = TRACE.trace_index_entry(payload, 'a' * 16, 1000)
+        self.assertEqual(entry['total_tokens'], 12)
+        self.assertTrue(entry['usage_incomplete'])
+
 
     def test_summary_aggregates_deepseek_cache_and_token_usage(self):
         rounds = [
@@ -51,9 +64,11 @@ class TraceTests(unittest.TestCase):
                  "request_payload": payload, "response_payload": response}]}
         sanitized = TRACE.public_value(trace)
         self.assertEqual(sanitized, trace)
-        with patch.object(FUNC.dmc.redis_deamon, "set", return_value=True) as save:
+        with patch.object(FUNC.dmc.redis_deamon, "pipeline") as transaction:
+            pipe = transaction.return_value.__enter__.return_value
+            pipe.execute.return_value = [True, 1, True, True]
             FUNC.chat_publish_trace(sanitized)
-        stored = json.loads(save.call_args.args[1])
+        stored = json.loads(pipe.set.call_args.args[1])
         self.assertEqual(stored["rounds"], trace["rounds"])
 
 
@@ -101,14 +116,25 @@ class TraceTests(unittest.TestCase):
 
     def test_expiring_publish_and_failed_storage(self):
         trace = {"kind": "chat_trace", "version": 1, "rounds": [], "question": "你好"}
-        with patch.object(FUNC.dmc.redis_deamon, "set", return_value=True) as save:
+        with patch.object(FUNC.dmc.redis_deamon, "pipeline") as transaction:
+            pipe = transaction.return_value.__enter__.return_value
+            pipe.execute.return_value = [True, 1, True, True]
             url = FUNC.chat_publish_trace(trace)
         token = url.rsplit("=", 1)[1]
         self.assertRegex(token, r"^[a-f0-9]{16}$")
-        self.assertEqual(save.call_args.args[0], FUNC.REDIS_KEY_WEB_ARTIFACT_PREFIX + token)
+        self.assertEqual(pipe.set.call_args.args[0], FUNC.REDIS_KEY_WEB_ARTIFACT_PREFIX + token)
         self.assertIn("/chat-trace?key=", url)
-        self.assertEqual(save.call_args.kwargs["ex"], 604800)
-        with patch.object(FUNC.dmc.redis_deamon, "set", return_value=False):
+        self.assertEqual(pipe.set.call_args.kwargs["ex"], 604800)
+        self.assertEqual(json.loads(pipe.set.call_args.args[1])['visibility'], 'admin')
+        entry = json.loads(pipe.lpush.call_args.args[1])
+        self.assertEqual(pipe.lpush.call_args.args[0], FUNC.REDIS_KEY_CHAT_TRACE_INDEX)
+        self.assertEqual(entry['key'], token)
+        self.assertEqual(entry['expires_at'] - entry['created_at'], 604800)
+        self.assertNotIn('rounds', entry)
+        pipe.ltrim.assert_called_once_with(FUNC.REDIS_KEY_CHAT_TRACE_INDEX, 0, 999)
+        transaction.assert_called_once_with(transaction=True)
+        with patch.object(FUNC.dmc.redis_deamon, "pipeline") as transaction:
+            transaction.return_value.__enter__.return_value.execute.return_value = [False]
             result = FUNC.chat_prepare_reply({"text": "已回答", "trace": trace, "artifacts": []})
         self.assertEqual(result["text"], "已回答")
         self.assertEqual(result["trace_error"], "RuntimeError")
@@ -213,7 +239,7 @@ class ChatMessageTests(unittest.TestCase):
         for call, user in zip(enqueue.call_args_list, ('102', '101')):
             payload = call.args[0]
             message = Message(payload['content'])
-            self.assertEqual([part.type for part in message], ['at', 'text', 'image', 'text'])
+            self.assertEqual([part.type for part in message], ['at', 'text', 'image'])
             self.assertEqual(message[0].data['qq'], user)
             self.assertTrue(message[1].data['text'].startswith(' 回复'))
             self.assertIn('[CQ:at,qq=all]', message[1].data['text'])
@@ -245,7 +271,7 @@ class ChatMessageTests(unittest.TestCase):
                         'recipient_id': '200', 'mention_user_id': target})
                 enqueue.assert_not_called()
 
-    def test_text_chart_and_footer_enqueue_exactly_one_message(self):
+    def test_text_and_chart_enqueue_once_without_record_footer_or_url(self):
         from nonebot.adapters.onebot.v11 import Message
 
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda function: function)):
@@ -258,10 +284,18 @@ class ChatMessageTests(unittest.TestCase):
         enqueue.assert_called_once()
         payload = enqueue.call_args.args[0]
         message = Message(payload["content"])
-        self.assertEqual([part.type for part in message], ["text", "image", "text"])
+        self.assertEqual([part.type for part in message], ["text", "image"])
         self.assertIn("untrusted", message[0].data["text"])
-        self.assertIn("运行记录：https://", message[-1].data["text"])
+        self.assertNotIn("运行记录", payload['content'])
+        self.assertNotIn("chat-trace", payload['content'])
         self.assertEqual(payload["toid"], 2)
+
+    def test_trace_failure_is_hidden_and_sources_remain_in_message_text(self):
+        sender = self.sender()
+        with patch.object(sender, '_enqueue_payload') as enqueue:
+            sender.add_chat_result_msg({'text': '原文 https://example.com/article', 'trace_error': 'RuntimeError'},
+                destination={'platform': 'qq', 'channel': 'private', 'recipient_id': '101'})
+        self.assertEqual(enqueue.call_args.args[0]['content'], '原文 https://example.com/article')
 
 
 if __name__ == "__main__":

@@ -130,6 +130,25 @@ class MentionTests(unittest.IsolatedAsyncioTestCase):
         business.call.assert_not_called()
         self.assertEqual(output.delivery_history.parts['a'], ['已经入队的正文'])
 
+    async def test_cancelled_run_keeps_trace_and_identity_without_sending_extra_message(self):
+        bridge = AsyncMock()
+        bridge.redact = lambda value: value
+        prepare = AsyncMock(side_effect=lambda packet: packet)
+        output = QQOutput(bridge=bridge, local_log=AsyncMock(), sender=AsyncMock(),
+            prepare_reply=prepare, store_artifact=AsyncMock())
+        event = {'id': 'start', 'run_id': 'a', 'session_id': 'qq_g_200_101', 'time': '2026-10-15T15:30:00+08:00',
+                 'kind': 'run.start', 'data': {'message': '帮我查一下'},
+                 'metadata': {'delivery': principal().attributes['delivery']}}
+        await output.publish(event)
+        await output.publish({**event, 'id': 'part', 'kind': 'output.message',
+                              'data': {'kind': 'partial', 'text': '已有部分结果'}})
+        await output.publish({**event, 'id': 'end', 'kind': 'run.end', 'data': {'status': 'cancelled'}})
+        output.sender.assert_awaited_once()
+        trace = prepare.call_args.args[0]['trace']
+        self.assertEqual((trace['run_id'], trace['session_id'], trace['status']), ('a', 'qq_g_200_101', 'cancelled'))
+        self.assertEqual(trace['question'], '帮我查一下')
+        self.assertEqual(trace['answer'], '已有部分结果')
+
 
 class Store:
     def __init__(self):

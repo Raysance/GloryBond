@@ -9,6 +9,7 @@ from apscheduler.util import timezone
 
 # Redis key schema shared by NBot and Web. All HOK data lives in DB0.
 REDIS_KEY_WEB_ARTIFACT_PREFIX = "hok:web:artifact:"
+REDIS_KEY_CHAT_TRACE_INDEX = "hok:chat:traces"
 REDIS_KEY_BATTLE_LIKED_IDS = "hok:battle:liked_ids"
 REDIS_KEY_BATTLE_SHARE_QUEUE = "hok:queue:battle:share"
 REDIS_KEY_BATTLE_ANALYZE_QUEUE = "hok:queue:battle:analyze"

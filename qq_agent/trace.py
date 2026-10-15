@@ -66,6 +66,7 @@ def build_trace(events, *, answer="", status="ok"):
     return {
         "kind": "chat_trace", "version": 1, "engine": "agent_runtime", "model": model,
         "question": start.get("data", {}).get("message", ""), "answer": answer,
+        "run_id": start.get("run_id", ""), "session_id": start.get("session_id", ""),
         "started_at": start.get("time", ""), "status": status,
         "duration_ms": end.get("data", {}).get("duration", 0) * 1000,
         "rounds": rounds, "schemas": schemas, "events": events,

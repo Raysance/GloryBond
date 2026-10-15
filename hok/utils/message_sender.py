@@ -262,10 +262,11 @@ def add_chat_result_msg(result, *, event=None, destination=None):
     message += MessageSegment.text(str(result["text"]))
     for artifact in result.get("artifacts", []):
         message += MessageSegment.image(artifact["path"])
-    if result.get("trace_url"):
-        message += MessageSegment.text("\n\n运行记录：" + result["trace_url"])
-    elif result.get("trace_error"):
-        message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
+    if confs.get("QQAgent", {}).get("show_trace_link", False):
+        if result.get("trace_url"):
+            message += MessageSegment.text("\n\n运行记录：" + result["trace_url"])
+        elif result.get("trace_error"):
+            message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
     if destination is not None:
         return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"])
     return add_msg(message, event=event)

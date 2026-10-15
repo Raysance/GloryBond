@@ -630,9 +630,10 @@ def agent_register_tool(**spec):
 
 
 def chat_publish_trace(trace, artifacts=()):
-    """Publish the sanitized execution record with a random, expiring bearer link."""
-    from .business.chat_trace import public_value
+    """Store an admin-only execution record and its bounded discovery index."""
+    from .business.chat_trace import public_value, trace_index_entry
     from .zfile import chat_plot_public_path
+    from .ztime import current_epoch_seconds
 
     token = WebArtifacts.make_hash()
     payload = public_value(trace, secrets=(chat_api_config.get("api_key"), chat_readonly_dsn))
@@ -641,10 +642,16 @@ def chat_publish_trace(trace, artifacts=()):
         for item in artifacts if (url := chat_plot_public_path(item.get("path", "")))
     ]
     payload["expires_in_seconds"] = max(60, int(getattr(dmc, "ChatTraceExpireSeconds", 604800)))
+    payload["visibility"] = "admin"
     serialized = json.dumps(payload, ensure_ascii=False)
-    saved = dmc.redis_deamon.set(f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{token}", serialized,
-                                 ex=payload["expires_in_seconds"])
-    if not saved:
+    entry = trace_index_entry(payload, token, current_epoch_seconds())
+    with dmc.redis_deamon.pipeline(transaction=True) as pipe:
+        pipe.set(f"{REDIS_KEY_WEB_ARTIFACT_PREFIX}{token}", serialized, ex=payload["expires_in_seconds"])
+        pipe.lpush(REDIS_KEY_CHAT_TRACE_INDEX, json.dumps(entry, ensure_ascii=False))
+        pipe.ltrim(REDIS_KEY_CHAT_TRACE_INDEX, 0, max(1, int(getattr(dmc, "ChatTraceMaxRecords", 1000))) - 1)
+        pipe.expire(REDIS_KEY_CHAT_TRACE_INDEX, payload["expires_in_seconds"])
+        saved = pipe.execute()
+    if not saved or not saved[0]:
         raise RuntimeError("chat_trace_publish_failed")
     return WebArtifacts.route_url("chat_trace", token)
 

@@ -70,13 +70,15 @@ class QQOutput:
             events = self.events.pop(run, [])
             artifacts = self.artifacts.pop(run, [])
             failed = data.get("status") == "failed"
+            text = final["text"] if final else "本次AI任务未完成，请稍后重试。" if failed else "\n\n".join(
+                e["data"].get("text", "") for e in events if e["kind"] == "output.message")
+            packet = {"text": text, "artifacts": artifacts,
+                      "trace": build_trace(events, answer=text,
+                          status="error" if failed else "cancelled" if data.get("status") == "cancelled" else "ok")}
+            if final and final.get("variants"):
+                packet["variants"] = final["variants"]
+            prepared = await self.prepare_reply(packet)
             if final or failed:
-                text = final["text"] if final else "本次AI任务未完成，运行记录中保留了错误和已取得的结果。"
-                packet = {"text": text, "artifacts": artifacts,
-                          "trace": build_trace(events, answer=text, status="error" if failed else "ok")}
-                if final and final.get("variants"):
-                    packet["variants"] = final["variants"]
-                prepared = await self.prepare_reply(packet)
                 await self.send(prepared, delivery, event)
                 if event.get("metadata", {}).get("origin") != "background":
                     self.results[run] = prepared
