@@ -59,6 +59,21 @@ class ChatEventTests(unittest.TestCase):
         self.assertTrue(request["use_memory"])
         self.assertNotIn("network", request)
 
+    def test_native_and_cq_mentions_preserve_current_target_but_exclude_bot_and_quote_author(self):
+        for message in (
+            [{'type': 'at', 'data': {'qq': '10'}}, {'type': 'at', 'data': {'qq': '20'}},
+             {'type': 'at', 'data': {'qq': '20'}}, {'type': 'at', 'data': {'qq': 'all'}}],
+            '[CQ:at,qq=10][CQ:at,qq=20][CQ:at,qq=20][CQ:at,qq=all]',
+        ):
+            event = FakeEvent('提醒他休息', group_id=200)
+            event.self_id = '10'
+            event.original_message = message
+            event.reply = {'message_id': '42', 'message_type': 'group', 'group_id': 200,
+                           'sender': {'user_id': '30'}, 'message': '[CQ:at,qq=40]引用里的提及'}
+            request = CHAT_HANDLER.prepare_chat_request(event, {}, True)
+            self.assertEqual(request['user_text'], '提醒他休息\n[本次消息提及的群成员QQ：20]')
+            self.assertEqual(request['user_id'], '1001')
+
     def test_native_and_cq_dynamic_faces_supply_deduplicated_pixels(self):
         sources = [{"type":"image", "data":{"url":"https://gxh.vip.qq.com/raw300.gif", "emoji_id":"abc"}},
             {"type":"mface", "data":{"url":"https://gxh.vip.qq.com/raw300.gif"}},

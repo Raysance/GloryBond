@@ -497,6 +497,43 @@ def recent_history(args):
     }
 
 
+def qq_group_reply_save(args):
+    delivery = args["delivery"]
+    match = re.fullmatch(r"qq_g_([1-9][0-9]{0,19})_([1-9][0-9]{0,19})", str(args["session_id"]))
+    if (not match or delivery.get("platform") != "qq" or delivery.get("channel") != "group"
+            or str(delivery.get("recipient_id")) != match[1]):
+        raise PermissionError("群回复记录必须来自绑定同一群的QQ会话")
+    limits = CONTEXT["memory"]["recent_history_limits"](CONTEXT["cfg"].get("AgentHistory"))
+    text = str(args["text"])
+    row = {"group_id": match[1], "requester_id": match[2], "message_id": str(args["event_id"]),
+           "mention_user_id": delivery.get("mention_user_id"),
+           "timestamp": datetime.datetime.fromisoformat(args["timestamp"]).timestamp(),
+           "text": text[:limits["max_message_chars"]], "text_truncated": len(text) > limits["max_message_chars"]}
+    key = STATE_PREFIX + "qq_group_replies:" + match[1]
+    with CONTEXT["store"].pipeline(transaction=True) as pipe:
+        pipe.rpush(key, json.dumps(row, ensure_ascii=False))
+        pipe.ltrim(key, -limits["max_limit"], -1)
+        pipe.expire(key, 604800)
+        pipe.execute()
+    return True
+
+
+def qq_group_replies(args):
+    principal = args["principal"]
+    group = str(principal.get("group_id") or "")
+    if "chat.read" not in principal.get("scopes", ()) or not group or trusted_scope(principal, group) != group:
+        raise PermissionError("共享群回复只能在当前群读取")
+    limits = CONTEXT["memory"]["recent_history_limits"](CONTEXT["cfg"].get("AgentHistory"))
+    end = time.time()
+    start = end - limits["window_minutes"] * 60
+    rows = [json.loads(raw) for raw in CONTEXT["store"].lrange(
+        STATE_PREFIX + "qq_group_replies:" + group, -limits["max_limit"], -1)]
+    rows = [row for row in rows if str(row.get("group_id")) == group and start <= row["timestamp"] <= end]
+    rows.sort(key=lambda row: (row["timestamp"], row["message_id"]))
+    return {"messages": rows[-limits["limit"]:], "group_id": group, "window_minutes": limits["window_minutes"],
+            "has_older_messages": len(rows) > limits["limit"], "notice": "仅含发送出口已接受的机器人回复摘录，不包含私聊或其他群。"}
+
+
 def memory(args):
     key = "hok:memory:facts:" + args["user_id"]
     store = CONTEXT["store"]
@@ -725,6 +762,10 @@ def dispatch(args):
         return search_history(args)
     if op == "recent_history":
         return recent_history(args)
+    if op == "qq_group_reply_save":
+        return qq_group_reply_save(args)
+    if op == "qq_group_replies":
+        return qq_group_replies(args)
     if op == "kpl_query":
         return CONTEXT["kpl_client"](CONTEXT["kpl_catalog"], CONTEXT["kpl_config"], args)
     if op == "bot_manual":

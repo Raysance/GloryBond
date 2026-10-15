@@ -231,7 +231,7 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
 
 
 def add_chat_result_msg(result, *, event=None, destination=None):
-    """Queue an AI reply with a native mention bound by the trusted QQ entry."""
+    """Queue an AI reply with a native mention validated by the QQ adapter."""
     mention_id = None
     if destination is not None:
         if destination.get("platform") != "qq" or destination.get("channel") not in {"group", "private"}:

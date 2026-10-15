@@ -1,19 +1,49 @@
 """Multiple deliveries through the injected, trusted QQ message sender."""
 
 import base64
+import asyncio
+import logging
 from .trace import build_trace
 from agent_console.replies import DeliveryHistory
 
 
 class QQOutput:
-    def __init__(self, *, bridge, local_log, sender, prepare_reply, store_artifact, event_projector=None):
+    def __init__(self, *, bridge, local_log, sender, prepare_reply, store_artifact, event_projector=None, mentions=None,
+                 context_bridge=None, context_timeout_seconds=10):
         self.bridge, self.local_log = bridge, local_log
         self.sender, self.prepare_reply, self.store_artifact = sender, prepare_reply, store_artifact
         self.event_projector = event_projector or (lambda e: e)
         self.events, self.artifacts, self.finals, self.results = {}, {}, {}, {}
         self.delivery_history = DeliveryHistory()
+        self.mentions = mentions
+        self.context_bridge = context_bridge or bridge
+        self.context_timeout_seconds = context_timeout_seconds
 
     async def publish(self, event):
+        try:
+            await self._publish(event)
+        finally:
+            if event["kind"] == "run.end":
+                self.delivery_history.parts.pop(event["run_id"], None)
+                if self.mentions:
+                    self.mentions.finish(event["run_id"])
+
+    async def send(self, packet, delivery, event):
+        if self.mentions:
+            delivery = self.mentions.delivery(event["run_id"], delivery)
+        await self.sender(packet, delivery)
+        if delivery.get("channel") == "group":
+            try:
+                async with asyncio.timeout(self.context_timeout_seconds):
+                    await self.context_bridge.call("qq_group_reply_save", session_id=event["session_id"],
+                        delivery=delivery, text=packet["text"], event_id=event["id"], timestamp=event["time"])
+            except Exception:
+                logging.getLogger(__name__).warning("QQ accepted reply context could not be saved")
+
+    async def _publish(self, event):
+        if self.mentions and event.get("metadata", {}).get("delivery"):
+            event = {**event, "metadata": {**event["metadata"], "delivery":
+                self.mentions.delivery(event["run_id"], event["metadata"]["delivery"])}}
         clean = self.bridge.redact(self.event_projector(event))
         await self.local_log.record(clean)
         run = event["run_id"]
@@ -34,7 +64,7 @@ class QQOutput:
             if data.get("kind") == "final":
                 self.finals[run] = data
             else:
-                await self.sender({"text": data["text"], "artifacts": []}, delivery)
+                await self.send({"text": data["text"], "artifacts": []}, delivery, event)
         elif kind == "run.end":
             final = self.finals.pop(run, None)
             events = self.events.pop(run, [])
@@ -47,7 +77,7 @@ class QQOutput:
                 if final and final.get("variants"):
                     packet["variants"] = final["variants"]
                 prepared = await self.prepare_reply(packet)
-                await self.sender(prepared, delivery)
+                await self.send(prepared, delivery, event)
                 if event.get("metadata", {}).get("origin") != "background":
                     self.results[run] = prepared
         self.delivery_history.record(event)

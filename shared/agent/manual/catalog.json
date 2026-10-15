@@ -141,9 +141,15 @@
         "井号",
         "前缀",
         "common_expr",
-        "替换"
+        "替换",
+        "指定艾特",
+        "不艾特",
+        "群上下文",
+        "换人接话"
       ],
-      "tools": [],
+      "tools": [
+        "set_reply_mention"
+      ],
       "code": [
         {
           "path": "hok/utils/message_sender.py",
@@ -164,10 +170,18 @@
         {
           "path": "hok/event_handlers/chat.py",
           "symbol": "prepare_chat_request"
+        },
+        {
+          "path": "qq_agent/mentions.py",
+          "symbol": "register_reply_mention_tool"
+        },
+        {
+          "path": "qq_agent/context.py",
+          "symbol": "group_context"
         }
       ],
       "parent": "conversation",
-      "summary": "用途\n与机器人讨论问题、连续追问、让它查询资料或分析数据。通常会用当前角色的语气给一段简短回复，也可以明确要求完整内容。\n使用示例\n@机器人 帮我分析一下我最近的安琪拉表现\n@机器人 用一句话说结论\n@机器人 把上面的依据也展开给我看\n返回内容与注意事项\n可能先收到“正在查询”等"
+      "summary": "AI 聊天、同群成员接话共享近期公共背景、按本次要求真正@其他当前群成员或不@；个人记忆与任务管理权限仍按本人隔离。"
     },
     {
       "id": "chat_1",
@@ -308,10 +322,14 @@
         {
           "path": "agent_console/remote.py",
           "symbol": "RemoteState.load_dialogue"
+        },
+        {
+          "path": "qq_agent/context.py",
+          "symbol": "group_context"
         }
       ],
       "parent": "conversation",
-      "summary": "用途\n找到之前的相关发言，或者在“刚才说的那个”“他们在聊什么”等问题缺少背景时，补读一小段近期群聊。\n使用示例\n@机器人 刚才大家在聊什么？\n@机器人 找一下昨天有人讨论安琪拉的发言\n@机器人 看看群里最近15分钟是谁说缺辅助\n返回内容与注意事项\n会返回相关发言或背景解释。近期"
+      "summary": "查询相关旧发言或近期窗口；QQ同群接话自动参考有界公共背景和机器人已入队回复，个人身份、记忆和任务权限继续隔离。"
     },
     {
       "id": "history_1",
@@ -592,13 +610,17 @@
         "任务",
         "取消",
         "多次回复",
-        "分段消息"
+        "分段消息",
+        "提醒他人",
+        "定时艾特",
+        "不艾特"
       ],
       "tools": [
         "create_task",
         "list_tasks",
         "cancel_task",
-        "emit_message"
+        "emit_message",
+        "set_reply_mention"
       ],
       "code": [
         {
@@ -608,10 +630,14 @@
         {
           "path": "agent_console/tasks.py",
           "symbol": "TaskScheduler.perform"
+        },
+        {
+          "path": "qq_agent/mentions.py",
+          "symbol": "QQCapabilities.create_task"
         }
       ],
       "parent": "automation",
-      "summary": "用途\n延迟发送提醒、按周期发送指定次数，或者定时查询后给你结果。\n使用示例\n@机器人 10分钟后提醒我休息\n@机器人 每隔10秒给我发一条消息，发三次\n@机器人 每小时查一次指定话题的最新消息，共查两次\n@机器人 看看我在这个会话里安排的任务\n@机器人 取消刚才的提醒任务\n返回内"
+      "summary": "延迟或周期发送提醒；群提醒可指定原生@当前群其他成员或不@，选择随新任务保存，任务管理仍限创建者本人。"
     },
     {
       "id": "tasks_1",

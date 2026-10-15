@@ -81,6 +81,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.script = []
         self.reply_text = "记住了。10秒一条，发3次。"
         self.reply_variant = None
+        self.group_messages, self.group_replies = {}, {}
         test = self
 
         class Bridge:
@@ -119,6 +120,15 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     return {"memories": []} if args["action"] == "recall" else {"saved": True}
                 if op == "search_history":
                     return {"messages": []}
+                if op == "recent_history":
+                    group = args['principal']['group_id']
+                    return {'messages': test.group_messages.get(group, [])}
+                if op == "qq_group_replies":
+                    return {'messages': test.group_replies.get(args['principal']['group_id'], [])}
+                if op == "qq_group_reply_save":
+                    test.group_replies.setdefault(args['delivery']['recipient_id'], []).append({
+                        'text': args['text'], 'timestamp': 2, 'mention_user_id': args['delivery'].get('mention_user_id')})
+                    return True
                 if op == "task_create":
                     return {"task_id": "t", "created": True, "max_runs": args["max_runs"]}
                 if op == "task_due":
@@ -167,6 +177,80 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_uses_configured_remote_proxy_and_model_as_vision_fallback(self):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
+
+    async def test_other_member_can_continue_public_topic_with_bot_replies_but_keeps_identity(self):
+        self.group_messages['200'] = [{'user_id': '101', 'text': '每小时提醒示例玩家65别内卷', 'timestamp': 1}]
+        self.reply_text = '已安排提醒示例玩家65。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['提醒', '内卷']}, 's')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['tasks']}, 'd')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        await self.gateway.chat(user_text='每小时提醒示例玩家65别内卷', user_id='101', nickname='甲', group_id='200')
+        self.reply_text = '示例玩家65别卷了，歇会儿。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['提醒', '刚才']}, 's2')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['tasks']}, 'd2')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        await self.gateway.chat(user_text='现在立刻提醒一下', user_id='102', nickname='乙', group_id='200', message_id='42')
+        messages = self.gateway.model.requests[-3].messages
+        background = next(m for m in messages if m['role'] == 'user' and '当前群近期公共对话' in str(m.get('content')))
+        self.assertEqual(background['role'], 'user')
+        self.assertIn('每小时提醒示例玩家65别内卷', background['content'])
+        self.assertIn('已安排提醒示例玩家65', background['content'])
+        self.assertNotIn('每小时提醒示例玩家65别内卷', json.dumps(self.dialogue['qq_g_200_102'], ensure_ascii=False))
+        self.assertEqual(self.sent[-1][1]['mention_user_id'], '102')
+        recent = [args for op, args in self.calls if op == 'recent_history'][-1]
+        self.assertEqual(recent['principal']['user_id'], '102')
+        self.assertEqual(recent['exclude_message_id'], '42')
+
+    async def test_selected_native_mention_is_inherited_by_task_without_changing_owner(self):
+        from qq_agent.mentions import register_reply_mention_tool
+        reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '100'}})
+        register_reply_mention_tool(self.gateway.runtime.registry, mentions=self.gateway.mentions, reader=reader)
+        self.reply_text = '示例玩家65别卷了。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['示例玩家65', '提醒']}, 's')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['chat_delivery', 'tasks']}, 'd')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('set_reply_mention', {'user_id': '100'}, 'at')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [
+                call('emit_message', {'text': '示例玩家65别卷了。'}, 'p'),
+                call('create_task', {'kind': 'message', 'message': '别卷了。', 'interval_seconds': 3600, 'max_runs': 2}, 't')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        await self.gateway.chat(user_text='现在和每小时at示例玩家65提醒别卷了', user_id='101', nickname='甲', group_id='200')
+        reader.assert_awaited_once_with(group_id='200', user_id='100', include_avatar=False)
+        self.assertTrue(all(destination['mention_user_id'] == '100' for _, destination in self.sent))
+        task = next(args for op, args in self.calls if op == 'task_create')
+        self.assertEqual(task['principal']['user_id'], '101')
+        self.assertEqual(task['session_id'], 'qq_g_200_101')
+        self.assertEqual(task['principal']['attributes']['delivery']['mention_user_id'], '100')
+        self.assertEqual(task['principal']['attributes']['delivery']['recipient_id'], '200')
+        self.assertEqual(task['principal']['attributes']['identity']['name'], '甲')
+        self.assertFalse(self.gateway.mentions.targets)
+        self.assertNotIn('[CQ:at', json.dumps(self.dialogue))
+
+    async def test_no_mention_task_retains_explicit_null_after_restart(self):
+        from agent_console.tasks import task_request
+        from qq_agent.mentions import register_reply_mention_tool
+        register_reply_mention_tool(self.gateway.runtime.registry, mentions=self.gateway.mentions, reader=AsyncMock())
+        self.reply_text = '已设置。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['提醒', '不at']}, 's')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['chat_delivery', 'tasks']}, 'd')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('set_reply_mention', {'user_id': None}, 'at')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('create_task', {'kind': 'message', 'message': '别卷了。', 'delay_seconds': 60}, 't')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        await self.gateway.chat(user_text='不at，每小时提醒一下', user_id='101', nickname='甲', group_id='200')
+        created = next(args for op, args in self.calls if op == 'task_create')
+        task = {**created, 'task_id': 't', 'runs': 0, 'max_runs': 1, 'lease_token': 'lease'}
+        task = json.loads(json.dumps(task, default=list))
+        self.assertIsNone(task_request(task).metadata['delivery']['mention_user_id'])
+        await self.gateway.scheduler.perform(task)
+        self.assertIsNone(self.sent[-1][1]['mention_user_id'])
+        self.assertFalse(self.gateway.mentions.targets)
 
     async def test_reply_delivery_uses_model_intent_instead_of_question_keywords(self):
         composer = self.gateway.runtime.finalizer.composer

@@ -121,6 +121,12 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         text = text.replace("nomem", "").strip()
 
     segments = message_segments(getattr(event, "original_message", None) or getattr(event, "message", None))
+    mentioned_users = list(dict.fromkeys(str(_field(segment, "data", {}).get("qq", ""))
+        for segment in segments if _field(segment, "type") == "at"
+        and re.fullmatch(r"[1-9][0-9]{0,19}", str(_field(segment, "data", {}).get("qq", "")))
+        and str(_field(segment, "data", {}).get("qq")) != str(getattr(event, "self_id", ""))))
+    if mentioned_users:
+        text += "\n[本次消息提及的群成员QQ：" + "、".join(mentioned_users) + "]"
     for segment in segments:
         kind = _field(segment, "type")
         if kind in {"image", "mface", "marketface", "face"} and not image_urls([segment]):
