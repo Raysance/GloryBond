@@ -88,7 +88,8 @@ def render_x_post_images(bundle, media_images=(), reply_media_images=None):
         return text_rows(source, main_font)
 
     post = bundle['post']
-    stamp = epoch_to_text(parse_chat_time_bound(post['created_at']), '%Y.%m.%d  %H:%M') if post.get('created_at') else ''
+    stamp = epoch_to_text(parse_chat_time_bound(post['created_at']), '%Y.%m.%d  %H:%M',
+                          timezone_name='Asia/Shanghai') if post.get('created_at') else ''
     rows = [{'kind':'author', 'name':post.get('name') or post.get('username') or '',
              'username':post.get('username') or '', 'stamp':stamp, 'main':True, 'height':px(94)}]
     rows += [space(32)] + bilingual_rows(post, body, original, label=True)

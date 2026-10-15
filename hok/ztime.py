@@ -5,6 +5,7 @@ from . import zdynamic as dmc
 import datetime
 from datetime import timedelta
 from dateutil import parser
+from zoneinfo import ZoneInfo
 
 
 def time_r(): # time_real
@@ -155,11 +156,25 @@ def epoch_ms_to_date(timestamp_ms):
     return datetime.datetime.fromtimestamp(int(timestamp_ms) / 1000).strftime("%Y-%m-%d")
 
 
-def epoch_to_text(timestamp, format_str="%Y-%m-%d %H:%M:%S"):
-    """Format an epoch-second value in the deployment host timezone."""
+def epoch_to_text(timestamp, format_str="%Y-%m-%d %H:%M:%S", timezone_name=None):
+    """Format epoch seconds in an explicit timezone or the deployment timezone."""
     if timestamp in (None, ""):
         return None
-    return datetime.datetime.fromtimestamp(int(timestamp)).strftime(format_str)
+    zone = ZoneInfo(timezone_name) if timezone_name else None
+    return datetime.datetime.fromtimestamp(int(timestamp), tz=zone).strftime(format_str)
+
+
+def time_ago_text(value):
+    """Describe an original timestamp relative to the current instant."""
+    timestamp = parse_chat_time_bound(value)
+    if timestamp is None:
+        return '时间未知'
+    elapsed = max(0, current_epoch_seconds() - timestamp)
+    for seconds, label in ((365 * 86400, '年'), (30 * 86400, '个月'), (86400, '天'),
+                           (3600, '小时'), (60, '分钟')):
+        if elapsed >= seconds:
+            return f'{elapsed // seconds}{label}前'
+    return '刚刚'
 
 
 def iso_text_without_timezone(value):

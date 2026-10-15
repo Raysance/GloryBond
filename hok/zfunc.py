@@ -1059,7 +1059,7 @@ def _x_render_message(bundle):
     from .tools.gen_x_post import render_x_post_images
     from .zfile import save_x_post_images, pil_image_from_bytes
     from .zapi import x_get_media_bytes
-    from .ztime import current_datetime_text
+    from .ztime import epoch_to_text, parse_chat_time_bound, time_ago_text
     from nonebot.adapters.onebot.v11 import MessageSegment
 
     images = []
@@ -1083,10 +1083,17 @@ def _x_render_message(bundle):
     paths = save_x_post_images(render_x_post_images(bundle, images, reply_images))
     post = bundle['post']
     name = post.get('name') or post['username']
-    preview = post_text_preview(post.get('text'), x_subscription_config['message_preview_max_chars'])
-    text = f"{name} · {current_datetime_text()}\n\n{preview}\n\n"
+    published = post.get('created_at')
+    if published:
+        timestamp = parse_chat_time_bound(published)
+        stamp = epoch_to_text(timestamp, timezone_name='Asia/Shanghai') + f'（{time_ago_text(timestamp)}）'
+    else:
+        stamp = '时间未知'
+    preview = post_text_preview(post.get('text'), x_subscription_config['message_preview_max_chars'],
+                                translation=post.get('translation'))
+    text = f"{name} · {stamp}\n{preview}\n"
     pictures = '\n'.join(str(MessageSegment.image(f"file://{path}")) for path in paths)
-    link = f"\n\nhttps://x.com/{post['username']}/status/{post['id']}"
+    link = f"\nhttps://x.com/{post['username']}/status/{post['id']}"
     return str(MessageSegment.text(text)) + pictures + str(MessageSegment.text(link))
 
 

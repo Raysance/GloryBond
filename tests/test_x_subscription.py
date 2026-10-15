@@ -200,7 +200,7 @@ class XMessageTests(unittest.TestCase):
         self.assertEqual(render.call_args.args[0]['post']['text'], original)
         self.assertEqual(post['text'], original)
         self.assertEqual(message[1].type, 'image')
-        self.assertEqual(message[-1].data['text'], '\n\nhttps://x.com/thsottiaux/status/11')
+        self.assertEqual(message[-1].data['text'], '\nhttps://x.com/thsottiaux/status/11')
 
     def test_long_translation_preserves_both_input_and_output_tails(self):
         original = 'English content. ' * 400 + 'SOURCE_TAIL'
@@ -211,21 +211,30 @@ class XMessageTests(unittest.TestCase):
         self.assertIn('SOURCE_TAIL', translate.call_args.args[0])
         self.assertEqual(rows[0]['translation'], translated)
 
-    def test_push_header_preserves_original_text_without_interpreting_cq_segments(self):
+    def test_push_uses_translated_preview_and_post_time_without_interpreting_cq_segments(self):
         from nonebot.adapters.onebot.v11 import Message
         files = import_hok_module('zfile')
         clock = import_hok_module('ztime')
         post = {'id': '11', 'name': 'Tibo', 'username': 'thsottiaux',
                 'created_at': '2026-10-13T23:32:43Z',
-                'text': 'We propose [CQ:at,qq=1] & a new function.\nSecond line.'}
-        with patch.object(clock, 'current_datetime_text', return_value='2026-10-15 11:22:33'), \
+                'text': 'We propose a new function.',
+                'translation': '我们新增 [CQ:at,qq=1] 功能。\n\n第二行。'}
+        with patch.object(clock, 'current_datetime_text', side_effect=AssertionError('must use post timestamp')), \
+             patch.object(clock, 'current_epoch_seconds', return_value=clock.parse_chat_time_bound('2026-10-14T23:32:43Z')), \
              patch.object(RENDER, 'render_x_post_images', return_value=[]), \
              patch.object(files, 'save_x_post_images', return_value=['/tmp/x_post_preview_0.png']):
             message = Message(ZFUNC._x_render_message({'post': post, 'replies': []}))
         self.assertEqual([segment.type for segment in message], ['text', 'image', 'text'])
-        self.assertEqual(message[0].data['text'], f"Tibo · 2026-10-15 11:22:33\n\n{post['text']}\n\n")
+        translated_preview = post['translation'].replace('\n\n', '\n')
+        self.assertEqual(message[0].data['text'], f"Tibo · 2026-10-14 07:32:43（1天前）\n{translated_preview}\n")
+        self.assertNotIn('\n\n', message[0].data['text'])
+        self.assertNotIn(post['text'], message[0].data['text'])
         self.assertEqual(message[1].data['file'], 'file:///tmp/x_post_preview_0.png')
-        self.assertEqual(message[2].data['text'], '\n\nhttps://x.com/thsottiaux/status/11')
+        self.assertEqual(message[2].data['text'], '\nhttps://x.com/thsottiaux/status/11')
+
+    def test_failed_translation_keeps_original_with_a_visible_notice(self):
+        preview = BUSINESS.post_text_preview('Original content.', 280, translation='翻译暂不可用')
+        self.assertEqual(preview, '翻译暂不可用\nOriginal content.')
 
 
 class XStorageTests(unittest.TestCase):

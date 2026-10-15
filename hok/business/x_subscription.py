@@ -19,9 +19,13 @@ def _mine(user_qid):
     return [row for row in _facade()._x_subscriptions() if row["user_qid"] == str(user_qid)]
 
 
-def post_text_preview(text, max_chars):
+def post_text_preview(text, max_chars, translation=None):
     """Keep the message compact without changing the full card source."""
-    text = str(text or '')
+    if translation and translation != '翻译暂不可用':
+        text = translation
+    elif translation == '翻译暂不可用':
+        text = f'翻译暂不可用\n{text or ""}'
+    text = '\n'.join(line for line in str(text or '').splitlines() if line.strip())
     limit = max(1, int(max_chars))
     if len(text) <= limit:
         return text
