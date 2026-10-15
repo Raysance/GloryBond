@@ -63,8 +63,7 @@ async def service_health_check():
         units = service_health_config.get("systemd_units", [])
 
         async def systemd():
-            rows = await asyncio.to_thread(zfile.service_health_systemd, units, timeout,
-                                           service_health_config.get("discover_systemd", True))
+            rows = await asyncio.to_thread(zfile.service_health_systemd, units, timeout)
             return [dict(name=name, category="服务器进程", status=status, detail=detail) for name, status, detail in rows]
 
         job("systemd", "服务器进程", systemd)

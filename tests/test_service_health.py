@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -20,6 +21,8 @@ ZDB = import_hok_module("zdb")
 ZFILE = import_hok_module("zfile")
 QQ = import_hok_module("utils.qq_profiles")
 RULES = import_hok_module("event_rules")
+with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
+    SENDER = import_hok_module("utils.message_sender")
 CLIENT = httpx.AsyncClient
 
 
@@ -234,16 +237,31 @@ class SystemProbeTests(unittest.TestCase):
         self.assertFalse(factory.call_args.kwargs["retry_on_timeout"])
         pool.disconnect.assert_called_once()
 
-    def test_systemd_reads_configured_and_discovers_other_failed_services(self):
-        results = [SimpleNamespace(returncode=0, stdout="sshd.service loaded active running SSH\nextra.service loaded failed failed extra\nold.service loaded inactive dead old\n"),
-                   SimpleNamespace(returncode=0, stdout="Id=hok-nbot.service\nLoadState=loaded\nActiveState=active\nSubState=running\n\nId=missing.service\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n")]
-        with patch("shutil.which", return_value="/bin/systemctl"), patch("subprocess.run", side_effect=results) as run:
+    def test_systemd_reads_only_bot_units_without_host_enumeration(self):
+        result = SimpleNamespace(returncode=0, stdout="Id=hok-nbot.service\nLoadState=loaded\nActiveState=active\nSubState=running\n\nId=missing.service\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n")
+        with patch("shutil.which", return_value="/bin/systemctl"), patch("subprocess.run", return_value=result) as run:
             report = ZFILE.service_health_systemd(["hok-nbot.service", "missing.service"])
         self.assertEqual({name: status for name, status, _ in report},
-                         {"hok-nbot.service": "ok", "missing.service": "warn", "sshd.service": "ok", "extra.service": "error"})
-        for call in run.call_args_list:
-            self.assertNotIn("shell", call.kwargs)
-            self.assertFalse(any(word in call.args[0] for word in ("start", "restart", "stop")))
+                         {"hok-nbot.service": "ok", "missing.service": "warn"})
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[0], ["systemctl", "show", "--no-pager",
+            "--property=Id,Names,LoadState,ActiveState,SubState", "--", "hok-nbot.service", "missing.service"])
+        self.assertNotIn("shell", run.call_args.kwargs)
+
+    def test_empty_bot_unit_list_does_not_query_host_services(self):
+        with patch("shutil.which", return_value="/bin/systemctl"), patch("subprocess.run") as run:
+            self.assertEqual(ZFILE.service_health_systemd([]), [])
+        run.assert_not_called()
+
+    def test_default_inventory_contains_only_bot_dependencies(self):
+        config = FUNCS.confs["ServiceHealth"]
+        self.assertEqual(set(config["systemd_units"]), {"hok-nbot.service", "hok-napcat.service",
+            "hok-web.service", "hok-temp-files-cleanup.timer", "clash.service", "nginx.service",
+            "redis.service", "postgresql-16.service"})
+        targets = BUSINESS.http_targets(FUNCS.confs, {}, {}, "", {})
+        server_targets = [row for row in targets if row["category"] == "服务器接口"]
+        self.assertTrue(any(row["name"] == "HOK 本机 Web" for row in server_targets))
+        self.assertFalse(any("个人网站" in row["name"] or "OAuth" in row["name"] for row in targets))
 
     def test_systemd_unavailable_and_rejects_shell_input(self):
         with patch("shutil.which", return_value=None):
@@ -270,6 +288,74 @@ class SystemProbeTests(unittest.TestCase):
         self.assertEqual(by_name["王者营地"]["proxy"], "")
         self.assertEqual(by_name["阿里云搜索"]["proxy"], "")
         self.assertTrue(by_name["APIMart 图片服务"]["requires_proxy"])
+
+
+class HealthReportTests(unittest.IsolatedAsyncioTestCase):
+    def test_report_separates_unverified_and_healthy_into_exactly_two_nodes(self):
+        rows = [dict(name=f"服务-{status}", category="依赖", status=status, detail="结果", ms=1)
+                for status in ("ok", "error", "warn", "reachable", "skip")]
+        nodes = BUSINESS.format_report(rows, 1.2)
+        self.assertEqual(len(nodes), 2)
+        for status in ("error", "warn", "reachable", "skip"):
+            self.assertIn(f"服务-{status}", nodes[0])
+            self.assertNotIn(f"服务-{status}", nodes[1])
+        self.assertIn("服务-ok", nodes[1])
+        self.assertNotIn("服务-ok", nodes[0])
+        self.assertIn("不代表已确认故障", nodes[0])
+
+    def test_empty_sections_remain_and_large_reports_are_not_split_or_truncated(self):
+        nodes = BUSINESS.format_report([], 0)
+        self.assertEqual(len(nodes), 2)
+        self.assertIn("无。", nodes[0])
+        rows = [dict(name=f"服务{i}", category="依赖", status="ok", detail="正常" * 50) for i in range(60)]
+        nodes = BUSINESS.format_report(rows, 1)
+        self.assertEqual(len(nodes), 2)
+        self.assertIn("服务59", nodes[1])
+        self.assertGreater(len(nodes[1]), 2800)
+
+    async def test_health_entry_queues_one_forward_with_two_ordered_nodes(self):
+        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        handler = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "f_service_health")
+        handler.decorator_list = []
+        namespace = {"__package__": "hok", "MessageEvent": object, "add_msg": MagicMock(), "log_message": MagicMock()}
+        exec(compile(ast.Module(body=[handler], type_ignores=[]), "health-handler", "exec"), namespace)
+        command = import_hok_module("event_handlers.service_health")
+        event = SimpleNamespace(group_id=123, user_id=456)
+        with patch.object(command, "command_reply", AsyncMock(return_value=["问题服务", "正常服务"])), \
+             patch.object(SENDER, "add_forward_msg") as forward:
+            await namespace["f_service_health"](event)
+        forward.assert_called_once_with(["问题服务", "正常服务"], event=event, title="Bot 服务检查")
+        self.assertEqual(namespace["add_msg"].call_count, 1)  # Only the initial progress notice.
+
+    async def test_private_forward_queue_is_consumed_as_chat_records(self):
+        queue = MagicMock()
+        payload = {"kind": "private_forward", "type": "private", "toid": 456, "messages": []}
+        queue.rpop.side_effect = [json.dumps(payload), asyncio.CancelledError()]
+        bot = SimpleNamespace(send_private_forward_msg=AsyncMock(return_value={"message_id": 1}))
+        with patch.object(SENDER.dmc, "MessageQueue", queue), \
+             patch.object(SENDER.dmc, "last_msg_send_ts", 0, create=True), \
+             patch.object(SENDER, "MESSAGE_SEND_INTERVAL", 0), \
+             patch.object(SENDER.nonebot, "get_bot", return_value=bot):
+            with self.assertRaises(asyncio.CancelledError):
+                await SENDER.message_sender_loop()
+        bot.send_private_forward_msg.assert_awaited_once_with(user_id=456, messages=[])
+
+    async def test_group_and_private_forwards_preserve_destination_and_node_order(self):
+        for event, kind, target in ((SimpleNamespace(group_id=123, user_id=456), "group", 123),
+                                    (SimpleNamespace(user_id=456), "private", 456)):
+            with self.subTest(kind=kind), patch.object(SENDER, "_enqueue_payload") as queue:
+                SENDER.add_forward_msg(["问题服务", "正常服务"], event=event, title="Bot 服务检查")
+                payload = queue.call_args.args[0]
+                self.assertEqual((payload["type"], payload["toid"]), (kind, target))
+                self.assertEqual([node["data"]["content"][0]["data"]["text"] for node in payload["messages"]],
+                                 ["问题服务", "正常服务"])
+                bot = SimpleNamespace(send_group_forward_msg=AsyncMock(return_value={"message_id": 1}),
+                                      send_private_forward_msg=AsyncMock(return_value={"message_id": 2}))
+                await SENDER._handle_forward_msg(bot, payload)
+                sender = getattr(bot, f"send_{kind}_forward_msg")
+                sender.assert_awaited_once_with(**{f"{'group' if kind == 'group' else 'user'}_id": target},
+                    messages=payload["messages"], source="Bot 服务检查", prompt="Bot 服务检查")
+                getattr(bot, f"send_{'private' if kind == 'group' else 'group'}_forward_msg").assert_not_awaited()
 
 
 if __name__ == "__main__":

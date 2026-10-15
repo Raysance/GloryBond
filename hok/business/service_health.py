@@ -57,26 +57,22 @@ def http_targets(config, chat, search, proxy, profiles):
 
 
 def format_report(results, elapsed):
-    counts = {status: sum(item["status"] == status for item in results)
-              for status in ("ok", "reachable", "warn", "error", "skip")}
-    lines = [f"服务连通性检查 · {elapsed:.1f}秒",
-             f"正常 {counts['ok']} / 可达 {counts['reachable']} / 注意 {counts['warn']} / 异常 {counts['error']} / 跳过 {counts['skip']}"]
-    labels = {"ok": "正常", "reachable": "可达", "warn": "注意", "error": "异常", "skip": "跳过"}
-    for category in dict.fromkeys(item["category"] for item in results):
-        lines.append(f"【{category}】")
-        for item in results:
-            if item["category"] != category:
-                continue
-            duration = f" · {item['ms']}ms" if "ms" in item else ""
-            lines.append(f"[{labels[item['status']]}] {item['name']}：{item['detail']}{duration}")
-    lines.append("可达仅表示网络或 HTTP 有响应；未验证的鉴权/业务会单独注明。未生成文本或图片、未执行搜索，不改变服务或任务。")
-    # Native QQ messages remain short enough even with a larger configured inventory.
-    chunks, current = [], ""
-    for line in lines:
-        if current and len(current) + len(line) > 2800:
-            chunks.append(current)
-            current = ""
-        current += ("\n" if current else "") + line
-    if current:
-        chunks.append(current)
-    return chunks
+    """Return exactly two forward nodes; unverified checks need attention."""
+    labels = {"ok": "正常", "reachable": "仅可达", "warn": "注意", "error": "异常", "skip": "跳过"}
+    nodes = []
+    for healthy, title in ((False, "有问题或待确认的服务"), (True, "没问题的服务")):
+        items = [item for item in results if (item["status"] == "ok") == healthy]
+        lines = [f"Bot 服务检查 · {title}（{len(items)}项）", f"本次检查耗时 {elapsed:.1f}秒"]
+        if not healthy:
+            lines.append("仅可达、跳过及未完成的检查也列在此处，不代表已确认故障。")
+        for category in dict.fromkeys(item["category"] for item in items):
+            lines.append(f"【{category}】")
+            for item in items:
+                if item["category"] != category:
+                    continue
+                duration = f" · {item['ms']}ms" if "ms" in item else ""
+                lines.append(f"[{labels[item['status']]}] {item['name']}：{item['detail']}{duration}")
+        if not items:
+            lines.append("无。" if not healthy else "暂无已确认正常的服务。")
+        nodes.append("\n".join(lines))
+    return nodes

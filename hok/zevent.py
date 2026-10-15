@@ -450,11 +450,15 @@ async def f_x_subscription(event: MessageEvent):
 @_service_health.handle()
 async def f_service_health(event: MessageEvent):
     from .event_handlers.service_health import command_reply
+    from .utils.message_sender import add_forward_msg
 
     add_msg("开始最小服务连通性检查，请稍候。", event=event)
     try:
-        for reply in await command_reply():
-            add_msg(reply, event=event)
+        replies = await command_reply()
+        if len(replies) == 2:
+            add_forward_msg(replies, event=event, title="Bot 服务检查")
+        else:
+            add_msg(replies[0], event=event)
     except Exception as error:
         add_msg(f"服务连通性检查入口失败（{type(error).__name__}），请查看服务器日志。", event=event)
         log_message("SERVICE_HEALTH_ERROR: " + type(error).__name__)

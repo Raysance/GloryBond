@@ -2,8 +2,8 @@
 from .zutil import *
 
 
-def service_health_systemd(units, timeout=4, discover=True):
-    """Read configured units plus running/failed host services, without a shell."""
+def service_health_systemd(units, timeout=4):
+    """Read only explicitly configured Bot dependency units, without a shell."""
     import re
     import subprocess
     import shutil
@@ -16,22 +16,8 @@ def service_health_systemd(units, timeout=4, discover=True):
     if not shutil.which("systemctl"):
         return [(unit, "skip", "当前主机不支持 systemd") for unit in units]
     started = monotonic_seconds()
-    discovered = []
-    if discover:
-        listing = subprocess.run(
-            ["systemctl", "list-units", "--all", "--type=service,timer,socket", "--no-legend", "--plain", "--no-pager"],
-            capture_output=True, text=True, timeout=timeout, check=False,
-        )
-        if listing.returncode:
-            discovered.append(("其他服务器服务", "warn", "无法枚举本机服务"))
-        else:
-            for line in listing.stdout.splitlines():
-                fields = line.split(None, 4)
-                if len(fields) >= 4 and fields[0] not in units and fields[2] in {"active", "failed", "activating", "deactivating"}:
-                    status = "ok" if fields[2] == "active" else "error" if fields[2] == "failed" else "warn"
-                    discovered.append((fields[0], status, f"{fields[2]}/{fields[3]}（进程状态）"))
     if not units:
-        return discovered
+        return []
     result = subprocess.run(
         ["systemctl", "show", "--no-pager", "--property=Id,Names,LoadState,ActiveState,SubState", "--", *units],
         capture_output=True, text=True, timeout=max(0.1, timeout - (monotonic_seconds() - started)), check=False,
@@ -56,7 +42,7 @@ def service_health_systemd(units, timeout=4, discover=True):
         else:
             status, detail = "warn", "systemd 无法读取或正在切换状态"
         reports.append((unit, status, detail))
-    return reports + discovered
+    return reports
 
 
 def load_agent_artifact_image(identifier):

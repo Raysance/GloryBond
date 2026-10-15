@@ -294,7 +294,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
             payload = {"toid": 123, "messages": []}
             if title:
                 payload["title"] = title
-            await SENDER._handle_group_forward(bot, payload)
+            await SENDER._handle_forward_msg(bot, payload)
             kwargs = bot.send_group_forward_msg.call_args.kwargs
             self.assertEqual(kwargs.get("source"), title)
             self.assertEqual(kwargs.get("prompt"), title)
@@ -307,7 +307,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
             else:
                 bot.send_group_forward_msg.return_value = response
             with patch.object(FACADE, "finish_forward_delivery") as finish, patch.object(SENDER, "add_msg") as notice:
-                await SENDER._handle_group_forward(bot, {"toid": 123, "messages": [], "delivery_id": "test"})
+                await SENDER._handle_forward_msg(bot, {"toid": 123, "messages": [], "delivery_id": "test"})
                 expected = "sent" if response == {"message_id": 123} else "failed"
                 finish.assert_called_once_with("test", expected)
                 self.assertEqual(notice.call_count, 0 if expected == "sent" else 1)
@@ -316,7 +316,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
         bot = SimpleNamespace(send_group_forward_msg=AsyncMock(side_effect=TimeoutError("unknown outcome")))
         with patch.object(FACADE, "finish_forward_delivery", side_effect=RuntimeError("redis unavailable")), \
              patch.object(SENDER, "add_msg", side_effect=RuntimeError("queue unavailable")):
-            await SENDER._handle_group_forward(bot, {"toid": 123, "messages": [], "delivery_id": "test"})
+            await SENDER._handle_forward_msg(bot, {"toid": 123, "messages": [], "delivery_id": "test"})
         bot.send_group_forward_msg.assert_awaited_once()
 
     async def test_failed_forward_does_not_block_the_next_ordinary_message(self):
