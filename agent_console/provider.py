@@ -33,6 +33,9 @@ def configure_chat_payload(payload, protocol):
     """Adapt provider-specific thinking and forced tool selection outside the kernel."""
     if protocol == 'bailian_kimi':
         payload.pop('thinking', None)
+        # Kimi K3 fixes its sampling temperature; business callers may pass a
+        # DeepSeek-specific override, which must not reach this provider.
+        payload.pop('temperature', None)
         payload.update(enable_thinking=True, preserve_thinking=True)
         payload['messages'] = [dict(message, reasoning_content=message.get('reasoning_content') or '')
                                if message.get('role') == 'assistant' else message

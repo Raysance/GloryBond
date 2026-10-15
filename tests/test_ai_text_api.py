@@ -29,6 +29,7 @@ class TextAPITests(unittest.TestCase):
         body = json.loads(requests[1].content)
         self.assertTrue(body['stream'])
         self.assertNotIn('thinking', body)
+        self.assertNotIn('temperature', body)
 
     def test_translation_can_disable_thinking_and_use_its_own_timeout(self):
         bodies=[]

@@ -138,7 +138,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 - `BOT_PATH`：Bot 部署目录。
 - `HOK_ENV_FILE`：可选的密钥 dotenv 路径；未指定时加载项目 `.env`。
-- `ChatAPI.fallback` 配置百炼 `kimi-k3` 备用端点、模型、原生图片、协议和超时；密钥仅保存于现有 `.env` 的 `DASHSCOPE_API_KEY`。DeepSeek 首个有效输出等待上限为 15 秒；网络故障、鉴权失败、限流、5xx 或空/损坏响应在尚未交付流式内容时回退，取消、请求参数错误和已输出内容的失败不重发。QQ 对话、回复整理、角色生成和业务单轮文案共用回退配置；本地 Web 的独立 ZenMux 配置不继承 QQ 回退。Kimi K3 仅支持思考模式，使用百炼 `enable_thinking` / `preserve_thinking` 并保留原始 reasoning_content；命名强制工具调用转换为仅包含该已授权工具的 required，不修改内核授权与工具执行。备用密钥通过 worker private 平面传递并参与两条 bridge 的脱敏，不在 public、payload、日志或手册披露。
+- `ChatAPI.fallback` 配置百炼 `kimi-k3` 备用端点、模型、原生图片、协议和超时；密钥仅保存于现有 `.env` 的 `DASHSCOPE_API_KEY`。DeepSeek 首个有效输出等待上限为 15 秒；网络故障、鉴权失败、限流、5xx 或空/损坏响应在尚未交付流式内容时回退，取消、请求参数错误和已输出内容的失败不重发。QQ 对话、回复整理、角色生成和业务单轮文案共用回退配置；本地 Web 的独立 ZenMux 配置不继承 QQ 回退。Kimi K3 仅支持思考模式，使用百炼 `enable_thinking` / `preserve_thinking`，移除该模型不支持的 temperature 覆盖并保留原始 reasoning_content；命名强制工具调用转换为仅包含该已授权工具的 required，不修改内核授权与工具执行。备用密钥通过 worker private 平面传递并参与两条 bridge 的脱敏，不在 public、payload、日志或手册披露。
 - `HOK_CHAT_BASE_URL`、`HOK_CHAT_API_KEY`、`HOK_CHAT_MODEL`、`HOK_CHAT_PROXY_URL`：覆盖 `config.yaml` 的 `ChatAPI` 对应字段，由 `zstatic.py` 统一导入为 `chat_api_config`；显式空 `HOK_CHAT_PROXY_URL` 必须覆盖文件中的代理并表示直连，客户端仍禁止继承环境代理。
 - `HOK_ALIYUN_SEARCH_API_KEY`、`HOK_ALIYUN_SEARCH_ENDPOINT`、`HOK_ALIYUN_SEARCH_WORKSPACE`、`HOK_ALIYUN_SEARCH_SERVICE_ID`、`HOK_ALIYUN_SEARCH_CONTENT_TYPE`、`HOK_ALIYUN_SEARCH_WAY`、`HOK_ALIYUN_SEARCH_QUERY_REWRITE`：可选覆盖 `.env` 私有载荷或 `AliyunSearch` 公共默认值，由 `zstatic.py` 统一导入为 `aliyun_search_config`；请求始终直连且禁用环境代理。
 - `HOK_CHAT_READONLY_DSN`：专用 `hok_chat_reader` 连接串，必须通过私有环境文件注入；`AgentSQL` 管理查询限制，`AgentPlots` 管理共享字体与 QQ 合图布局。
