@@ -11,7 +11,7 @@
   const json = value => JSON.stringify(value, null, 2);
   const brief = value => (typeof value === 'string' ? value : JSON.stringify(value))?.replace(/\s+/g, ' ').slice(0, 170) || '—';
   const ms = value => Number(value || 0) < 1000 ? `${Math.round(Number(value || 0))} ms` : `${(Number(value) / 1000).toFixed(2)} s`;
-  const states = {ok:'已完成', error:'失败', partial:'部分失败', skipped:'未执行'};
+  const states = {ok:'已完成', error:'失败', partial:'部分失败', skipped:'未执行', cancelled:'已取消'};
   const labels = {user:'用户', system:'系统', context:'上下文', definition:'定义', model:'助手', tool:'工具'};
   const roleLabels = {system:'System', developer:'Developer', user:'User', assistant:'Assistant', tool:'Tool'};
   const summary = trace.summary || {};

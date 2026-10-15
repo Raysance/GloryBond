@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 
 TRACE_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
@@ -37,7 +37,7 @@ def _render(templates, name, context, *, status_code=200, headers=None):
     return HTMLResponse(templates.get_template(name).render(context), status_code=status_code, headers=headers)
 
 
-async def chat_trace_response(request, key, *, load_artifact, templates):
+async def chat_trace_response(request, key, *, load_artifact, templates, admin_authorized=False):
     """Keep token validation before Redis access and share no data via another API."""
     if not valid_trace_key(key):
         return _render(templates, "ErrorPages/illegal.html",
@@ -54,5 +54,8 @@ async def chat_trace_response(request, key, *, load_artifact, templates):
     except (ValueError, TypeError, UnicodeError):
         return _render(templates, "ErrorPages/expired.html", {"request": request},
                                           status_code=410, headers=TRACE_HEADERS)
-    return _render(templates, "CommonPages/ChatTrace/index.html", {"request": request, "trace": trace},
+    if trace.get("visibility") == "admin" and not admin_authorized:
+        return RedirectResponse("/admin/login", status_code=303, headers=TRACE_HEADERS)
+    return _render(templates, "CommonPages/ChatTrace/index.html",
+                                      {"request": request, "trace": trace, "admin_view": admin_authorized},
                                       headers=TRACE_HEADERS)

@@ -4,6 +4,7 @@
 
 - `app.py`：FastAPI 主应用入口，集中定义页面路由、管理后台路由、Redis 连接、模板渲染和队列写入逻辑。
 - `chat_trace.py`：公开聊天运行记录的 token/载荷校验及 Jinja 渲染；`app.py` 的 `/chat-trace` 路由仅委托该模块，Redis 读取仍由入口注入。
+- `admin_chat_traces.py`：从共享 DB0 `hok:chat:traces` 有界摘要索引读取管理员运行列表，按群号、状态、摘要/QQ/运行ID筛选并分页，不批量读取完整模型 payload；索引上限来自 NBot 的 DynamicVariables.ChatTraceMaxRecords（默认1000条），过期摘要不展示。
 - `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `health_diagnostics.py`：管理员手动深度诊断的固定命令执行与安全 JSON 解析；只允许调用 NBot 的 `hok/tools/chat_runtime_diagnostic.py`，不接受来自请求的命令、模型或地址参数，不回传子进程 stderr；同时核对 systemd 当前 NBot 进程的工作目录、重启时间和 chat 凭据指纹是否与诊断进程一致，指纹不写入响应。
@@ -53,6 +54,7 @@
 ## Chat 运行记录页
 
 - `/chat-trace?key=<16位hex>` 从 `hok:web:artifact:<token>` 读取 NBot 发布的 `kind=chat_trace, version=1` 载荷；已有 48 位 hex 链接兼容读取至自然过期。非法 token 在读取 Redis 前拒绝，缺失/过期/错误类型返回 410，Redis 暂不可用返回 503。
+- 管理控制台“AI 运行记录”入口为 `/admin/funcs/chat-traces`，详情为 `/admin/funcs/chat-traces/{key}`，两者必须先验证 AdminKey Cookie，再读取 Redis，返回 no-store/no-referrer/noindex。列表由 Jinja 直接渲染，每页25条，筛选沿用 GET 参数，不新增 JSON 代理；详情复用原轨迹模板并提供返回列表入口。新 NBot 记录标记 visibility=admin，公开 /chat-trace 即使持有 key 也须验证管理员；未标记的旧公开记录按原 TTL 兼容。QQ 消息默认不再附记录网址，运行索引从新版本启用后写入，包含结束的正常/失败/取消/后台提醒；完整私有 JSONL 不迁移或删除。先发布 Web 鉴权与列表，再发布 NBot 新载荷。
 - `templates/CommonPages/ChatTrace/` 在宽屏并列显示左侧对话和右侧 DeepSeek Harness 轨迹查看器，1050px 及以下使用对话/轨迹切换。右侧保留输入/模型/工具三条时间带、轮次步骤和概述/参数/结果/Schema/计时详情，以及搜索、折叠、耗时/摘要开关、JSON 导出和原图预览。`conversation.css/js` 单独维护本地 agent studio 风格的浅色气泡、助手正文、折叠执行过程、真实思考、token 明细和双版本回复；样式限定在 `#chat-view`，不得改动轨迹内部样式。回复从持久化 `output.message` 事件读取，按事件 ID 去重并保留阶段性发送，旧记录回退到 question/answer；角色名和详细/群聊版本仅展示实际保存的字段。用量以各轮 API usage 为准，未采集不能显示成零，缓存不重复计入合计。左侧执行步骤只导航到原轨迹详情，不另造工具结果。CSS/JS 使用 Jinja include，禁止增加全局静态路由或重复 JSON 代理接口。
 - 页面展示每轮实际发送给业务模型和模型返回的完整 JSON payload，包含消息、系统提示、工具定义、工具结果及模型 API 返回字段；并按 DeepSeek Harness 的模型可见事件方式，在每一轮模型步骤前独立列出 `System Prompt`、`Context Injection` 和全部 `Tool Definitions`。优先从实际 provider request payload 提取，缺失时才读取 NBot 调用适配器前保存的 `context_injection` 快照；上下文步骤不得只显示空统计。所有工具参数和 observation 同样完整展示。每轮参数/结果面板不截断正文，左侧仅作摘要；支持结束原因、token 用量、空正文补试、失败阶段和异常链。凭据由 NBot 发布前脱敏，不采集 HTTP headers；删除旧 2 MiB 载荷限制。旧记录没有采集 payload 时明确标注，禁止伪造补全。
 - 分享页使用不可猜测的随机链接和 Redis TTL，响应 `no-store`、`no-referrer`、`noindex`；无第三方脚本。载荷嵌入必须使用 `tojson`，前端对不可信文本使用 `textContent`，禁止拼接 `innerHTML`。图片只允许 `/file_transfer/chat_plot_<uuid>.png`。

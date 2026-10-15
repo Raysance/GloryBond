@@ -11,6 +11,7 @@
 </head>
 <body>
   <header>
+    {% if admin_view %}<a href="/admin/funcs/chat-traces" style="color:inherit;text-decoration:none;font-size:13px">← AI 运行记录</a>{% endif %}
     <div class="title-line"><strong id="title">HOK 运行记录</strong><span id="model"></span><span id="run-status"></span></div>
     <nav class="view-tabs" aria-label="记录视图"><button data-view="chat" class="active" aria-pressed="true">对话</button><button data-view="trace" aria-pressed="false">轨迹</button></nav>
   </header>

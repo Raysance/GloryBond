@@ -637,7 +637,8 @@ async def show_benefit_visualizer(request: Request, key: str):
 async def show_chat_trace(request: Request, key: str = ""):
     from chat_trace import chat_trace_response
 
-    return await chat_trace_response(request, key, load_artifact=get_web_artifact, templates=templates)
+    return await chat_trace_response(request, key, load_artifact=get_web_artifact, templates=templates,
+                                     admin_authorized=request.cookies.get("AdminKey") == SECRET_KEY)
 
 
 @app.get("/bili-video")
@@ -905,7 +906,8 @@ async def admin_verify(request: Request, pattern: str):
         
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
-    return templates.TemplateResponse("AdminPages/AdminLogin.html", {"request": request})
+    from chat_trace import _render
+    return _render(templates, "AdminPages/AdminLogin.html", {"request": request})
 
 @app.post("/admin/login")
 async def admin_login(request: Request, password: str = Body(..., embed=True)):
@@ -921,7 +923,8 @@ async def admin_login(request: Request, password: str = Body(..., embed=True)):
 async def admin_dashboard_page(request: Request, AdminKey: str = Cookie(None)):
     if AdminKey != SECRET_KEY:
         return RedirectResponse(url="/admin/login")
-    return templates.TemplateResponse(
+    from chat_trace import _render
+    return _render(templates,
         "AdminPages/DashBoard.html",
         {
             "request": request,
@@ -986,6 +989,41 @@ async def admin_request_analytics_data(
             {"status": "error", "message": "访问统计读取失败"},
             status_code=500,
         )
+
+@app.get("/admin/funcs/chat-traces", response_class=HTMLResponse)
+async def admin_chat_traces_page(
+    request: Request, page: int = Query(1, ge=1), q: str = Query("", max_length=200),
+    status: str = Query("", pattern="^(?:ok|error|cancelled)?$"),
+    group_id: str = Query("", pattern="^[0-9]{0,20}$"), AdminKey: str = Cookie(None),
+):
+    from admin_chat_traces import list_chat_traces
+    from chat_trace import TRACE_HEADERS, _render
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login", headers=TRACE_HEADERS)
+    try:
+        listing = await asyncio.to_thread(list_chat_traces, r_com,
+            max_records=confs.get("DynamicVariables", {}).get("ChatTraceMaxRecords", 1000),
+            page=page, query=q.strip(), status=status, group_id=group_id)
+    except Exception:
+        return _render(templates, "ErrorPages/illegal.html",
+            {"request": request, "message": "运行记录暂时无法读取，请稍后重试"},
+            status_code=503, headers=TRACE_HEADERS)
+    filters = {"q": q, "status": status, "group_id": group_id}
+    return _render(templates, "AdminPages/ChatTraces.html", {
+        "request": request, **listing, **filters,
+        "previous_url": "/admin/funcs/chat-traces?" + urlencode({**filters, "page": listing["page"] - 1}),
+        "next_url": "/admin/funcs/chat-traces?" + urlencode({**filters, "page": listing["page"] + 1}),
+    }, headers=TRACE_HEADERS)
+
+
+@app.get("/admin/funcs/chat-traces/{key}", response_class=HTMLResponse)
+async def admin_chat_trace_detail(request: Request, key: str, AdminKey: str = Cookie(None)):
+    from chat_trace import TRACE_HEADERS, chat_trace_response
+    if AdminKey != SECRET_KEY:
+        return RedirectResponse(url="/admin/login", headers=TRACE_HEADERS)
+    return await chat_trace_response(request, key, load_artifact=get_web_artifact,
+                                     templates=templates, admin_authorized=True)
+
 
 @app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)
 async def jump_admin_page(request: Request, AdminKey: str = Cookie(None)):

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>AI 运行记录 · 管理控制台</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f8fafc;color:#1e293b;font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{max-width:1280px;margin:32px auto;padding:0 24px}a{color:#2563eb;text-decoration:none}a:hover{text-decoration:underline}
+    h1{font-size:26px;letter-spacing:-.5px;margin:20px 0 4px}.muted{color:#64748b}.intro{margin:0 0 24px}
+    form{display:flex;gap:12px;flex-wrap:wrap;padding:20px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:20px}
+    label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:#475569}.search{flex:1;min-width:220px}
+    input,select,button{border:1px solid #cbd5e1;border-radius:7px;padding:10px;font:inherit;background:white;color:inherit}
+    button{align-self:flex-end;background:#2563eb;color:white;border-color:#2563eb;cursor:pointer;padding:10px 22px}
+    .table-wrap{overflow-x:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px}table{width:100%;border-collapse:collapse}
+    th,td{text-align:left;vertical-align:top;padding:16px;border-bottom:1px solid #e2e8f0}th{font-size:12px;color:#64748b;background:#f9fafb}
+    td{font-size:14px}.nowrap{white-space:nowrap}.question{min-width:220px;max-width:420px;overflow-wrap:anywhere}.detail{font-size:12px;color:#64748b;overflow-wrap:anywhere}
+    .badge{border-radius:5px;padding:3px 8px;font-size:12px;background:#eef2ff;color:#4338ca}.error{background:#fef2f2;color:#b91c1c}.cancelled{background:#f1f5f9;color:#475569}
+    .empty{padding:48px 20px;text-align:center;color:#64748b}.pagination{display:flex;gap:20px;align-items:center;justify-content:flex-end;margin:18px 0}
+    @media(max-width:600px){main{padding:0 14px;margin:20px auto}form{padding:14px;gap:10px}label{width:100%}button{width:100%}th,td{padding:12px}}
+  </style>
+</head>
+<body><main>
+  <a href="/admin/dashboard">← 管理控制台</a>
+  <h1>AI 运行记录</h1>
+  <p class="intro muted">按时间查看 QQ 问答与后台提醒，进入详情检查上下文、工具调用、完整请求响应及用量。QQ 消息暂不附记录链接。</p>
+  <form method="get" action="/admin/funcs/chat-traces">
+    <label class="search">搜索问题摘要、QQ、会话或运行 ID<input name="q" value="{{ q }}" maxlength="200" placeholder="例如：提醒示例玩家65"></label>
+    <label>群号<input name="group_id" value="{{ group_id }}" inputmode="numeric" pattern="[0-9]{0,20}" maxlength="20" placeholder="全部群及私聊"></label>
+    <label>状态<select name="status"><option value="">全部状态</option>{% for value,label in [('ok','完成'),('error','失败'),('cancelled','取消')] %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <button type="submit">筛选</button>
+  </form>
+  <p class="muted">{{ total }} 条符合条件的记录 · 时间为北京时间。记录随保留期或列表上限到期移除。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>时间 / 状态</th><th>群与提问者</th><th>问题 / 任务</th><th>模型与用量</th><th>详情</th></tr></thead>
+    <tbody>{% for row in records %}<tr>
+      <td class="nowrap">{{ row.time_text }}<br><span class="badge {{ row.status }}">{{ {'ok':'完成','error':'失败','cancelled':'取消'}.get(row.status, '未知') }}</span></td>
+      <td class="nowrap">{% if row.group_id %}群 {{ row.group_id }}{% elif row.channel == 'private' %}私聊{% else %}未知渠道{% endif %}<div class="detail">QQ {{ row.user_id or '未知' }}</div></td>
+      <td class="question">{{ row.question or '（未记录问题）' }}<div class="detail">{{ row.run_id }}</div></td>
+      <td>{{ row.model or '未记录模型' }}<div class="detail">Token {{ row.total_tokens if row.total_tokens is not none else '未记录' }}{% if row.usage_incomplete and row.total_tokens is not none %}（部分）{% endif %} · 工具 {{ row.tool_calls if row.tool_calls is not none else '未记录' }}</div></td>
+      <td class="nowrap"><a href="{{ row.detail_url }}">查看轨迹 →</a></td>
+    </tr>{% else %}<tr><td colspan="5" class="empty">暂无符合条件的运行记录。新版本从启用后开始收录；原有记录链接在过期前仍可使用。</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <nav class="pagination" aria-label="运行记录分页">{% if page > 1 %}<a href="{{ previous_url }}">上一页</a>{% endif %}<span class="muted">{{ page }} / {{ pages }}</span>{% if page < pages %}<a href="{{ next_url }}">下一页</a>{% endif %}</nav>
+</main></body></html>

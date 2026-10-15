@@ -47,6 +47,15 @@ test('transient messages and duplicate event IDs never add extra replies', () =>
   assert.deepEqual(Array.from(viewer.messages({answer:'saved', events:[transient]}), reply => reply.text), ['saved']);
 });
 
+test('cancelled runs and fixed notifications do not invent or repeat a final reply', () => {
+  const partial = event('a', 'partial', 'already delivered');
+  assert.deepEqual(Array.from(viewer.messages({status:'cancelled', answer:'already delivered', events:[partial]}),
+    reply => reply.text), ['already delivered']);
+  assert.equal(viewer.messages({status:'cancelled', events:[]}).length, 0);
+  assert.deepEqual(Array.from(viewer.messages({status:'ok', answer:'reminder', events:[event('b', 'notification', 'reminder')]}),
+    reply => reply.text), ['reminder']);
+});
+
 test('usage counts actual API responses once, excludes cache subsets and flags missing requests', () => {
   const report = viewer.usage({summary:{token_usage:{total_tokens:999}}, rounds:[
     {index:1, response_meta:{usage:{prompt_tokens:100, completion_tokens:20, total_tokens:120, prompt_cache_hit_tokens:70}}},

@@ -24,7 +24,8 @@ const ChatTraceConversation = (() => {
       if (body) replies.push({text:body, kind:data.kind || 'partial', variants,
         roleName:text(data.presentation?.role_name)});
     }
-    if (!replies.some(reply => reply.kind === 'final')) {
+    const endedWithoutFinal = trace.status === 'cancelled' || replies.length > 0 && replies.every(reply => reply.kind === 'notification');
+    if (!replies.some(reply => reply.kind === 'final') && !endedWithoutFinal) {
       replies.push({kind:'final', text:text(trace.answer) || `未完成回答：${text(trace.error) || '此记录未保存最终回复'}`,
         variants:{}, roleName:''});
     }
@@ -167,7 +168,7 @@ const ChatTraceConversation = (() => {
     const replies = messages(trace), final = [...replies].reverse().find(reply => reply.kind === 'final');
     const savedRole = events.find(event => text(event?.metadata?.role_name))?.metadata.role_name;
     const agent = el('article', 'agent-run'), name = el('div', 'agent-name');
-    const states = {ok:'已完成', error:'失败', partial:'部分失败', running:'执行中', skipped:'未执行'};
+    const states = {ok:'已完成', error:'失败', partial:'部分失败', running:'执行中', skipped:'未执行', cancelled:'已取消'};
     name.append(el('span', '', final?.roleName || text(savedRole) || 'Agent'),
       el('span', `run-status ${trace.status === 'error' ? 'error' : ''}`, `${states[trace.status] || text(trace.status)} · ${duration(trace.duration_ms)}`), usageMeter(trace));
     agent.append(name);
