@@ -34,7 +34,8 @@ def report_fixture():
 
 def editorial_fixture():
     return {"items": [
-        {"id": 1, "section": "daily", "topic": "application", "takeaway": "付费用户可把课堂笔记整理成复习提纲。"},
+        {"id": 1, "section": "daily", "topic": "application", "headline": "课堂笔记可以整理成复习提纲了",
+         "takeaway": "付费用户可把课堂笔记整理成复习提纲。"},
         {"id": 2, "section": "professional", "topic": "engineering", "takeaway": ""},
     ]}
 
@@ -93,11 +94,12 @@ class DailyLayoutTests(unittest.TestCase):
     def test_application_overview_and_details_precede_specialist_section(self):
         nodes = BUSINESS.build_daily_nodes(report_fixture(), editorial=editorial_fixture())
         self.assertTrue(nodes[0].startswith("Next Signal · 2026-10-15\n\n今日看点"))
-        self.assertIn("01｜付费用户可把课堂笔记整理成复习提纲。", nodes[0])
+        self.assertIn("今日看点\n日常用得上的新工具、新功能。", nodes[0])
+        self.assertIn("01｜课堂笔记可以整理成复习提纲了\n付费用户可把课堂笔记整理成复习提纲。", nodes[0])
         self.assertNotIn("开源框架更新", nodes[0])
         self.assertNotIn("02｜", nodes[0])
         self.assertTrue(nodes[1].startswith("01｜学习助手支持整理课堂笔记"))
-        self.assertTrue(nodes[2].startswith("前沿观察\n\n02｜开源框架更新"))
+        self.assertTrue(nodes[2].startswith("━━━━━━━━━━━━━━━━\n\n前沿观察\n模型、技术研究与行业动态。\n\n02｜开源框架更新"))
         self.assertIn("目前仅向付费用户开放。", nodes[1])
         self.assertIn("原文：https://example.com/new-model", nodes[1])
         self.assertEqual(len(nodes), 3)
@@ -115,7 +117,7 @@ class DailyLayoutTests(unittest.TestCase):
         self.assertEqual(len(nodes), 3)
         report.update(sections=[], flashes=[], lead=None)
         self.assertEqual(BUSINESS.build_daily_nodes(report, editorial={"items": []}),
-                         ["Next Signal · 2026-10-15\n\n今日看点\n\n本期无新增资讯。"])
+                         ["Next Signal · 2026-10-15\n\n今日看点\n日常用得上的新工具、新功能。\n\n本期无新增资讯。"])
 
     def test_large_overview_stays_in_first_node_and_covers_every_full_detail(self):
         report = report_fixture()
@@ -125,6 +127,7 @@ class DailyLayoutTests(unittest.TestCase):
                                                    links={"original": f"https://example.com/{index}"})
                                                   for index in range(1, 21)]
         editorial = {"items": [{"id": index, "section": "daily", "topic": "application",
+                                 "headline": item["title"],
                                  "takeaway": item["title"]}
                                 for index, item in enumerate(report["sections"][0]["items"], 1)]}
         with patch.dict(BUSINESS.ai_daily_config, node_max_chars=400):
@@ -154,7 +157,7 @@ class DailyLayoutTests(unittest.TestCase):
             self.assertIn("今天暂无新的应用动态。", nodes[0])
             self.assertNotIn("不应进入首页", nodes[0])
             self.assertNotIn("01｜", nodes[0])
-            self.assertTrue(nodes[1].startswith("前沿观察\n\n01｜"))
+            self.assertTrue(nodes[1].startswith("━━━━━━━━━━━━━━━━\n\n前沿观察\n模型、技术研究与行业动态。\n\n01｜"))
             self.assertIn("学习助手支持整理课堂笔记", nodes[1])
             self.assertIn("开源框架更新", nodes[2])
 
@@ -162,7 +165,8 @@ class DailyLayoutTests(unittest.TestCase):
         report = report_fixture()
         report["flashes"][0].update(title="手机端新增语音转写", summary="仅在手机端提供。")
         editorial = {"items": [
-            {"id": 2, "section": "daily", "topic": "application", "takeaway": "手机端新增语音转写。",
+            {"id": 2, "section": "daily", "topic": "application", "headline": "手机端新增语音转写。",
+             "takeaway": "手机端新增语音转写。",
              "title": "伪造标题", "links": {"original": "https://untrusted.example"}},
             editorial_fixture()["items"][0],
         ]}
@@ -176,6 +180,9 @@ class DailyLayoutTests(unittest.TestCase):
 
     def test_invalid_editorial_ids_or_incomplete_coverage_are_rejected(self):
         variants = [None, {}, {"items": []}, {"items": [editorial_fixture()["items"][0]]}]
+        missing_headline = editorial_fixture()
+        missing_headline["items"][0].pop("headline")
+        variants.append(missing_headline)
         for value in (True, 0, 3, "1", 2):
             bad = editorial_fixture()
             bad["items"][0]["id"] = value
