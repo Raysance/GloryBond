@@ -49,7 +49,6 @@ def replacement_memory_ids(memory_id, supersedes):
 def recent_history_limits(config=None):
     """Configuration defaults shared by tool schemas and the portable worker."""
     limits = {
-        "window_minutes": 15, "max_window_minutes": 60,
         "limit": 20, "max_limit": 50, "max_message_chars": 600,
     }
     supplied = {} if config is None else config
@@ -58,7 +57,7 @@ def recent_history_limits(config=None):
     limits.update(supplied)
     if any(type(value) is not int or value < 1 for value in limits.values()):
         raise ValueError("AgentHistory settings must be positive integers")
-    if limits["window_minutes"] > limits["max_window_minutes"] or limits["limit"] > limits["max_limit"]:
+    if limits["limit"] > limits["max_limit"]:
         raise ValueError("AgentHistory defaults exceed their limits")
     return limits
 

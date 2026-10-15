@@ -33,6 +33,9 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r['text'] for r in payload['messages']], ['机器人已发回复', '接话'])
         self.assertTrue(payload['combined_truncated'])
         self.assertEqual(context[0]['role'], 'user')
+        recent = bridge.call.await_args_list[0]
+        self.assertEqual(recent.kwargs['limit'], 2)
+        self.assertNotIn('window_minutes', recent.kwargs)
         bridge.call.side_effect = [OSError('database unavailable'), {'messages': []}]
         with self.assertLogs('qq_agent.context', 'WARNING'):
             context = await group_context(bridge, principal(), '42')
@@ -163,8 +166,8 @@ class Store:
         self.rows.setdefault(key, []).append(raw)
     def ltrim(self, key, start, end):
         self.rows[key] = self.rows[key][start:]
-    def expire(self, key, ttl):
-        self.expirations[key] = ttl
+    def persist(self, key):
+        self.expirations.pop(key, None)
     def execute(self):
         pass
     def lrange(self, key, start, end):
@@ -172,8 +175,10 @@ class Store:
 
 
 class GroupReplyStoreTests(unittest.TestCase):
-    def test_persistence_binds_group_excludes_old_replies_and_bounds_count_text_and_ttl(self):
+    def test_persistence_binds_group_keeps_old_replies_and_bounds_count_and_text(self):
         store = Store()
+        key = worker.STATE_PREFIX + 'qq_group_replies:200'
+        store.expirations[key] = 604800
         context = {'cfg': {'AgentHistory': {'limit': 2, 'max_limit': 3, 'max_message_chars': 5}},
                    'store': store, 'memory': {'recent_history_limits': recent_history_limits}}
         with patch.dict(worker.CONTEXT, context, clear=True), patch.object(worker.time, 'time', return_value=10000):
@@ -183,6 +188,9 @@ class GroupReplyStoreTests(unittest.TestCase):
                     'event_id': str(number), 'timestamp': datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).isoformat()})
             save('200', 0, 1)
             save('300', 0)
+            result = worker.dispatch({'op': 'qq_group_replies', 'principal': {'user_id': '102', 'group_id': '200', 'scopes': ['chat.read']}})
+            self.assertEqual([row['message_id'] for row in result['messages']], ['0'])
+            self.assertNotIn(key, store.expirations)
             for number in range(1, 5):
                 save('200', number)
             result = worker.dispatch({'op': 'qq_group_replies', 'principal': {'user_id': '102', 'group_id': '200', 'scopes': ['chat.read']}})
@@ -190,7 +198,7 @@ class GroupReplyStoreTests(unittest.TestCase):
             self.assertTrue(result['has_older_messages'])
             self.assertTrue(all(row['text_truncated'] and len(row['text']) == 5 for row in result['messages']))
             self.assertEqual(len(store.rows[worker.STATE_PREFIX + 'qq_group_replies:200']), 3)
-            self.assertEqual(store.expirations[worker.STATE_PREFIX + 'qq_group_replies:200'], 604800)
+            self.assertNotIn(key, store.expirations)
             for caller in ({'group_id': None, 'scopes': ['chat.read', 'chat.cross_group']}, {'group_id': '200', 'scopes': []}):
                 with self.assertRaises(PermissionError):
                     worker.dispatch({'op': 'qq_group_replies', 'principal': caller})

@@ -1,5 +1,4 @@
-"""Window retrieval stays bounded, scoped and optional in the same ReAct loop."""
-import datetime
+"""Count-based retrieval stays bounded, scoped and optional in the same ReAct loop."""
 import json
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -43,31 +42,35 @@ class RecentHistoryWorkerTests(unittest.TestCase):
             result = worker.dispatch({"op":"recent_history", "principal":self.principal, **extra})
         return result, connection
 
-    def test_window_filters_at_database_and_keeps_multiple_senders_in_chronological_order(self):
+    def test_count_only_query_keeps_old_messages_and_multiple_senders_in_chronological_order(self):
         rows = [{"message_id":"3", "user_id":"100", "timestamp":300, "text":"最近的话题", "text_truncated":False},
                 {"message_id":"2", "user_id":"101", "timestamp":200, "text":"其他人的发言", "text_truncated":True},
                 {"message_id":"1", "user_id":"102", "timestamp":100, "text":"更早的话题", "text_truncated":False}]
         db = Database(rows)
-        result, connection = self.read(db, limit=2, window_minutes=10, exclude_message_id="42")
+        result, connection = self.read(db, limit=2, exclude_message_id="42")
         connection.assert_called_once_with("200")
         sql, params = db.calls[0]
         self.assertIn("hok.chat_history_messages", sql)
         self.assertNotIn("hok.group_chat_messages", sql)
-        self.assertIn("source_timestamp>=%s AND source_timestamp<=%s", sql)
+        self.assertNotIn("source_timestamp>=", sql)
+        self.assertNotIn("source_timestamp<=", sql)
+        self.assertIn("ORDER BY source_timestamp DESC,message_id DESC LIMIT %s", sql)
         self.assertIn("message_id<>%s", sql)
         self.assertNotIn("user_id=", sql)
         self.assertEqual(params[2], "200")
-        self.assertEqual(params[4] - params[3], 600)
-        self.assertIs(type(params[3]), int)  # The authoritative view stores Unix seconds.
+        self.assertEqual(params[:3], [600, 600, "200"])
         self.assertEqual(params[-2:], ["42",3])
         self.assertEqual([r["message_id"] for r in result["messages"]], ["2","3"])
         self.assertTrue(result["has_older_messages"])
         self.assertTrue(result["text_truncated"])
 
-    def test_empty_window_reports_no_messages_and_config_defaults_match_schema_policy(self):
-        self.context["cfg"] = {"AgentHistory":{"window_minutes":8,"limit":4,"max_message_chars":80}}
+    def test_empty_archive_reports_no_messages_and_config_defaults_match_schema_policy(self):
+        self.context["cfg"] = {"AgentHistory":{"limit":4,"max_message_chars":80}}
         result, _ = self.read(Database())
-        self.assertEqual((result["window_minutes"], result["limit"]), (8,4))
+        self.assertEqual(result["limit"], 4)
+        self.assertNotIn("window_minutes", result)
+        self.assertNotIn("window_start", result)
+        self.assertNotIn("window_end", result)
         self.assertEqual(result["messages"], [])
         self.assertFalse(result["has_older_messages"])
         self.assertFalse(result["text_truncated"])
@@ -83,8 +86,7 @@ class RecentHistoryWorkerTests(unittest.TestCase):
                  (self.principal, {"group_id":"300"}, PermissionError),
                  ({**self.principal, "all_groups":True, "scopes":["chat.read","chat.cross_group"]}, {"group_id":"300"}, PermissionError),
                  (self.principal, {"limit":51}, ValueError),
-                 (self.principal, {"window_minutes":61}, ValueError),
-                 (self.principal, {"window_minutes":True}, ValueError),
+                 (self.principal, {"limit":True}, ValueError),
                  (self.principal, {"limit":0}, ValueError)]
         for principal, extra, error in cases:
             with self.subTest(principal=principal, extra=extra), patch.dict(worker.CONTEXT, self.context, clear=True), \
@@ -102,7 +104,7 @@ class RecentHistoryWorkerTests(unittest.TestCase):
         self.assertNotIn("message_id<>%s", db.calls[0][0])
         self.assertEqual(result["scope"], "selected_group")
 
-    def test_admin_default_group_applies_to_window_without_private_id_exclusion(self):
+    def test_admin_default_group_applies_without_private_id_exclusion(self):
         self.principal = {'user_id': '100', 'all_groups': True, 'default_group_id': '2000000001',
                           'scopes': ['chat.read', 'chat.cross_group']}
         db = Database()
@@ -147,18 +149,19 @@ class RecentHistoryToolTests(unittest.IsolatedAsyncioTestCase):
         recent = next(c for c in bridge.call.await_args_list if c.args[0] == "recent_history")
         self.assertEqual(recent.kwargs["principal"]["group_id"], "200")
         self.assertEqual(recent.kwargs["exclude_message_id"], "42")
-        self.assertEqual((recent.kwargs["window_minutes"],recent.kwargs["limit"]), (15,20))
+        self.assertEqual(recent.kwargs["limit"], 20)
+        self.assertNotIn("window_minutes", recent.kwargs)
         self.assertEqual([e["data"]["name"] for e in state.events if e["kind"] == "tool.result"],
                          ["search_chat_history","discover_tools","read_recent_chat_history"])
         self.assertNotIn("刚才正在聊", json.dumps(state.dialogue, ensure_ascii=False))
 
     async def test_private_user_cannot_discover_recent_tool_and_schema_uses_configured_limits(self):
         from agent_runtime.models import ToolContext
-        registry = self.registry(AsyncMock(), {"window_minutes":7,"max_window_minutes":30,"limit":6,"max_limit":12})
+        registry = self.registry(AsyncMock(), {"limit":6,"max_limit":12})
         ctx = ToolContext(RunRequest("test", "s", Principal("100")), None)
         self.assertNotIn("read_recent_chat_history", registry.available(ctx))
         schema = registry.tools["read_recent_chat_history"].schema()["function"]["parameters"]["properties"]
-        self.assertEqual((schema["window_minutes"]["default"],schema["window_minutes"]["maximum"]), (7,30))
+        self.assertNotIn("window_minutes", schema)
         self.assertEqual((schema["limit"]["default"],schema["limit"]["maximum"]), (6,12))
         for args in ({"limit":13}, {"window_minutes":31}, {"window_minutes":True}):
             with self.assertRaises(ValueError):

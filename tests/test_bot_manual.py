@@ -68,7 +68,7 @@ class ManualTests(unittest.TestCase):
                              ('metrics_contribution', '团队贡献系数'), ('metrics_game_time', '大厅'),
                              ('heroes_sample_rules', '至少2场'), ('representative_rules', '300至7200'),
                              ('plots_image_service', 'gpt-image-2'), ('history_query_rules', '匹配0局'),
-                             ('history_window_limits', '15分钟'), ('memory_update_rules', '最多100条')]:
+                             ('history_window_limits', '不限制时间跨度'), ('memory_update_rules', '最多100条')]:
             with self.subTest(node=node):
                 result = self.manual.read(action='read', node_id=node)
                 self.assertIn(phrase, result['topics'][0]['content'])
