@@ -35,6 +35,7 @@ class MigrationTests(unittest.TestCase):
             (parent / "agent_runtime").mkdir()
             (parent / "agent_runtime/old.py").write_text("legacy = True\n")
             (parent / "old_chat.py").write_text("legacy = True\n")
+            (parent / '.env').write_text('KEY=original\n')
             history = parent / "data/history/record.json"
             history.parent.mkdir(parents=True)
             history.write_text("original")
@@ -55,6 +56,7 @@ class MigrationTests(unittest.TestCase):
             git("checkout", old)
             (parent / "agent_runtime/ignored.cache").write_text("cache")
             history.write_text("runtime archive")
+            (parent / '.env').write_text('KEY=runtime-secret\n')
             run(["bash", str(ROOT / "deployment/scripts/restore_application.sh"), ".", new])
             self.assertFalse((parent / "old_chat.py").exists())
             self.assertTrue((parent / "current_chat.py").exists())
@@ -65,6 +67,7 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual((backups[0] / "old.py").read_text(), "legacy = True\n")
             self.assertEqual((backups[0] / "ignored.cache").read_text(), "cache")
             self.assertEqual(history.read_text(), "runtime archive")
+            self.assertEqual((parent / '.env').read_text(), 'KEY=runtime-secret\n')
             # Re-running is harmless and retains the exact gitlink commit.
             run(["bash", str(ROOT / "deployment/scripts/sync_agent_runtime.sh"), ".", new])
             self.assertEqual(git("rev-parse", "HEAD", cwd=parent / "vendor/react-agent-runtime"), git("rev-parse", "HEAD", cwd=dependency))

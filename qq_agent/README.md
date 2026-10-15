@@ -79,13 +79,21 @@ API只读GET且无凭据、环境代理与重定向，保留查询范围、来�
 `search_chat_history`，再 `discover_tools`；普通私聊只强制发现工具。未披露或未授权
 工具不能执行。DeepSeek 工具链统一关闭 thinking，原生图片使用配置中的 vision_model。
 
-当前 QQ 的文字、视觉、回复整理与联网角色生成均暂时使用 ZenMux
-`https://zenmux.ai/api/v1` 的 `deepseek/deepseek-v4.1-flash`。远程 `ChatAPI.api_key_env`
-与本地 Web 均引用现有 `.env` 中的 `LLM_API_KEY`；业务单轮文案也使用该 ChatAPI。
+当前 QQ 的文字、视觉、回复整理与联网角色生成使用 DeepSeek 官方
+`https://api.deepseek.com` 的 `deepseek-flash`。远程 `ChatAPI.api_key_env`
+引用现有 `.env` 中的 `HOK_DEEPSEEK_API_KEY`；业务单轮文案也使用该 ChatAPI。
 显式 `HOK_CHAT_API_KEY` 仍可覆盖，但部署启动环境不得遗留旧供应商配置。
-指定密钥缺失时拒绝启动，不把官方旧密钥发给 ZenMux。
-远程通过 `ChatAPI.proxy_url` 指定服务器已有的 Clash，工具循环、回复整理、角色生成
-和业务文案均使用该显式代理；不继承环境代理。本地 Web 仍按自己的 llm 配置直连。
+指定密钥缺失时拒绝启动，不回退其他供应商密钥。
+远程 `ChatAPI.proxy_url` 为空，工具循环、回复整理、角色生成和业务文案均直连，
+不继承环境代理。本地 Web 继续按自己的 llm 配置使用 ZenMux 与 `LLM_API_KEY`。
+
+`ChatAPI.fallback` 使用百炼 `kimi-k3`，密钥来自现有 `.env` 的 `DASHSCOPE_API_KEY`。
+DeepSeek 15 秒没有首个有效输出，或发生连接故障、鉴权失败、限流、服务故障时自动回退。
+已交付流式内容后不重发，用户取消和参数错误不触发回退。文字、图片、工具调用、回复整理、
+角色生成和业务文案均支持回退；实际模型名称保留在运行记录中。
+Kimi K3 始终思考，按百炼协议保留 reasoning_content；仅对 DeepSeek 工具链关闭 thinking。
+命名强制工具调用转换为仅含该已授权工具的 required，不扩大可调用范围。
+发布脚本保留服务器现有 `.env`，不将备用密钥提交到代码仓库。
 
 询问机器人的功能、特性和命令用法时，可发现 `bot_info` 并调用 `read_bot_manual`。
 它按共享目录树逐层定位功能，再read具体主题的叶节点正文，目录不夹带全文。

@@ -1,9 +1,11 @@
 """OpenAI-compatible text and image API adapters."""
 
 import json
+import time
 from urllib.parse import quote, urlparse
 
 from openai import DefaultHttpxClient, OpenAI
+from agent_console.provider import ModelUnavailable, configure_chat_payload, provider_unavailable
 from ratelimit import limits, sleep_and_retry
 
 from .. import zdynamic as dmc
@@ -31,8 +33,70 @@ class AIRequestError(RuntimeError):
         self.request_id = getattr(error, "request_id", None)
 
 
-def _chat_completion_create(input_items, temperature=None, timeout=30):
+def _chat_completion_create(input_items, temperature=None, timeout=30, thinking=None):
     """Call the configured provider without inheriting ambient proxy settings."""
+    if chat_api_config.get('fallback'):
+        try:
+            return _chat_completion_stream(input_items, chat_api_config, temperature, timeout, thinking)
+        except Exception as error:
+            if not provider_unavailable(error):
+                raise
+            return _chat_completion_stream(input_items, chat_api_config['fallback'], temperature, timeout, thinking)
+    return _chat_completion_single(input_items, temperature, timeout, thinking)
+
+
+def _chat_completion_stream(input_items, provider, temperature, timeout, thinking):
+    """Bound the wait for real output even when the server sends keepalive lines."""
+    messages = [{'role': 'user', 'content': input_items}] if isinstance(input_items, str) else [dict(item) for item in input_items]
+    payload = {'model': provider['model'], 'messages': messages, 'stream': True,
+               'stream_options': {'include_usage': True}}
+    if temperature is not None:
+        payload['temperature'] = temperature
+    if thinking is not None:
+        payload['thinking'] = {'type': 'enabled' if thinking else 'disabled'}
+    configure_chat_payload(payload, provider.get('protocol', 'deepseek'))
+    first_timeout = min(timeout, provider.get('first_token_timeout_seconds', timeout))
+    total_timeout = min(timeout, provider.get('timeout_seconds', timeout))
+    options = {'trust_env': False, 'timeout': first_timeout}
+    if provider.get('proxy_url'):
+        options['proxy'] = provider['proxy_url']
+    started = time.monotonic()
+    content, frames, usage, finish = [], [], {}, None
+    received = False
+    with DefaultHttpxClient(**options) as client:
+        with client.stream('POST', provider['base_url'].rstrip('/') + '/chat/completions', json=payload,
+                           headers={'Authorization': 'Bearer ' + provider['api_key']}) as response:
+            if response.status_code != 200:
+                raise ModelUnavailable(f'模型请求失败 HTTP {response.status_code}', response.status_code)
+            for line in response.iter_lines():
+                elapsed = time.monotonic() - started
+                if elapsed > total_timeout or not received and elapsed > first_timeout:
+                    raise TimeoutError('模型等待输出超时')
+                if not line.startswith('data: '):
+                    continue
+                if line[6:] == '[DONE]':
+                    break
+                item = json.loads(line[6:])
+                if item.get('error'):
+                    raise ModelUnavailable('模型流返回错误')
+                frames.append(item)
+                usage = item.get('usage') or usage
+                for choice in item.get('choices', []):
+                    delta = choice.get('delta') or {}
+                    received |= bool(delta.get('content') or delta.get('reasoning_content'))
+                    if delta.get('content'):
+                        content.append(delta['content'])
+                    finish = choice.get('finish_reason') or finish
+    if not content or finish is None:
+        raise ModelUnavailable('模型流未完整返回回答')
+    return {'content': ''.join(content), 'request_payload': payload,
+            'response_payload': {'stream': True, 'frames': frames},
+            'response_meta': {'model': provider['model'], 'status_code': 200,
+                              'usage': usage, 'finish_reason': finish}}
+
+
+def _chat_completion_single(input_items, temperature=None, timeout=30, thinking=None):
+    """Keep the existing single-provider SDK path for configurations without failover."""
     missing = [key for key in ("base_url", "api_key", "model") if not chat_api_config.get(key)]
     if missing:
         raise ValueError(f"ChatAPI configuration missing: {', '.join(missing)}")
@@ -47,6 +111,8 @@ def _chat_completion_create(input_items, temperature=None, timeout=30):
     }
     if temperature is not None:
         request["temperature"] = temperature
+    if thinking is not None:
+        request['extra_body'] = {'thinking': {'type': 'enabled' if thinking else 'disabled'}}
     request_payload = {key: value for key, value in request.items() if key != "timeout"}
     response_payload = None
     try:
@@ -81,10 +147,10 @@ def _chat_completion_result(response, request_payload, response_payload, status_
     return {"content": message.content or "", **diagnostics}
 
 
-def ai_api(user_query,temperature): # 配置的普通聊天模型
+def ai_api(user_query,temperature,timeout=20,thinking=None): # 配置的普通聊天模型
     log_message("VISIT: ai_api_common")
     try:
-        return _chat_completion_create(user_query, temperature=temperature, timeout=20)["content"]
+        return _chat_completion_create(user_query, temperature=temperature, timeout=timeout, thinking=thinking)["content"]
     except Exception as e:
         raise Exception("chat_api_error: "+str(e)) from e
 

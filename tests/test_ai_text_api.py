@@ -10,6 +10,40 @@ ZAPI=import_hok_module('zapi')
 
 
 class TextAPITests(unittest.TestCase):
+    def test_business_text_falls_back_to_streaming_kimi(self):
+        requests = []
+        def handler(request):
+            requests.append(request)
+            if request.url.host == 'primary.invalid':
+                return httpx.Response(503)
+            return httpx.Response(200, text='data: {"choices":[{"delta":{"reasoning_content":"reason"}}]}\n\n'
+                'data: {"choices":[{"delta":{"content":"译文"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+        original = httpx.Client
+        provider = {'api_key': 'primary-secret', 'base_url': 'https://primary.invalid', 'model': 'primary',
+                    'fallback': {'api_key': 'backup-secret', 'base_url': 'https://backup.invalid',
+                                 'model': 'kimi-k3', 'protocol': 'bailian_kimi'}}
+        with patch.object(API, 'chat_api_config', provider), patch.object(API, 'DefaultHttpxClient',
+                side_effect=lambda **kw: original(transport=httpx.MockTransport(handler), **kw)):
+            self.assertEqual(API.ai_api('translate', temperature=.1, thinking=False), '译文')
+        self.assertEqual(requests[1].headers['authorization'], 'Bearer backup-secret')
+        body = json.loads(requests[1].content)
+        self.assertTrue(body['stream'])
+        self.assertNotIn('thinking', body)
+
+    def test_translation_can_disable_thinking_and_use_its_own_timeout(self):
+        bodies=[]
+        def handler(request):
+            bodies.append(json.loads(request.content))
+            return httpx.Response(200,json={"id":"test","object":"chat.completion","created":0,"model":"test",
+                "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"译文"}}]})
+        def client(**kwargs):
+            return httpx.Client(transport=httpx.MockTransport(handler),trust_env=False)
+        with patch.object(API,'chat_api_config',{'api_key':'secret','base_url':'https://example.test/v1','model':'test','proxy_url':''}), \
+             patch.object(API,'DefaultHttpxClient',side_effect=client):
+            self.assertEqual(ZAPI.ai_api('translate',temperature=0.1,timeout=60,thinking=False),'译文')
+        self.assertEqual(bodies[0]['thinking'],{'type':'disabled'})
+        self.assertNotIn('timeout',bodies[0])
+
     def test_text_helpers_use_configured_direct_provider_without_agent_protocol(self):
         bodies, options = [], []
         def handler(request):

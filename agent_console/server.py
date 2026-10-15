@@ -30,7 +30,7 @@ from .capabilities import (
     load_catalogs,
     reference_prompt,
 )
-from .provider import DeepSeekModel
+from .provider import DeepSeekModel, remote_model_options
 from .image_inputs import ImageLimits, ImageStore
 from .local_logs import LocalEventLog
 from .remote import BridgeUnavailable, RemoteBridge, RemoteState
@@ -79,6 +79,7 @@ def local_model_settings(config, remote, *, environment):
     overrides = config.get("llm")
     if not overrides:
         return {
+            **remote_model_options(remote),
             "api_key": remote["private"]["api_key"],
             "base_url": remote["public"]["base_url"],
             "model": remote["public"]["model"],

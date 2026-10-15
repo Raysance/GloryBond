@@ -12,11 +12,13 @@ local_debugger/.venv/bin/python -m agent_console
 
 然后打开 http://127.0.0.1:8765/ 。首次缺少环境时，先执行 `python3 local_debugger/setup_env.py`。端口可用 `--port` 覆盖，其他非密钥设置在根 `config.yaml` 的 `LocalAgent`。
 
-本地 Web 与远程 QQ 当前暂时统一使用 `https://zenmux.ai/api/v1`，文字和图片均显式调用 `deepseek/deepseek-v4.1-flash`。密钥只放在现有 `.env` 的 `LLM_API_KEY`；本地 `LocalAgent.llm.api_key_env` 和远程 `ChatAPI.api_key_env` 都引用该变量。进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。ReAct、回复整理、联网角色生成及远程业务单轮文案使用对应渠道的相同端点和模型，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接。未提供配置的密钥时拒绝启动，不回退发送其他供应商旧密钥。删除 `LocalAgent.llm` 并重启即可继承服务器当前模型配置；切回其他供应商需同步修改端点、模型和密钥变量。
+本地 Web 使用 `https://zenmux.ai/api/v1`，文字和图片均显式调用 `deepseek/deepseek-v4.1-flash`，`LocalAgent.llm.api_key_env` 引用现有 `.env` 的 `LLM_API_KEY`。远程 QQ 使用 DeepSeek 官方 `https://api.deepseek.com` 的 `deepseek-flash`，`ChatAPI.api_key_env` 引用同一 `.env` 的 `HOK_DEEPSEEK_API_KEY`。进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。ReAct、回复整理、联网角色生成及远程业务单轮文案使用对应渠道的相同端点和模型，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接。未提供配置的密钥时拒绝启动，不回退发送其他供应商旧密钥。删除 `LocalAgent.llm` 并重启即可继承服务器当前模型配置；切回其他供应商需同步修改端点、模型和密钥变量。
+
+QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭据仅通过 worker private 设置传递，并参与日志脱敏。本地 `LocalAgent.llm` 独立覆盖时继续使用本地模型配置；移除覆盖后继承服务器的主备模型和超时设置。
 
 首次克隆先运行 `git submodule update --init --recursive`。需要已配置并能免交互连接的 `ssh Aliyun`。启动时通过 SSH 读取运行中的服务器配置和 API 源码，不上传项目、不部署 HTTP 服务、不修改数据库 schema。模型在本地调用已配置的 ZenMux；查询、记忆、搜索、图片及 Python 执行通过外部 SSH 适配器调用。
 
-当前本地 `LocalAgent.llm.proxy_url` 为空，模型直连；远程 `ChatAPI.proxy_url` 使用服务器已有 Clash。模型客户端只采用对应渠道的显式代理，禁用环境代理继承。本地端点覆盖不继承远程的 loopback 代理地址。
+当前本地 `LocalAgent.llm.proxy_url` 与远程 `ChatAPI.proxy_url` 均为空，模型直连。模型客户端只采用对应渠道的显式代理，禁用环境代理继承。本地端点覆盖不继承远程的 loopback 代理地址。
 
 ## 功能
 

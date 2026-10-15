@@ -119,6 +119,8 @@ Steam and APIMart retain their explicit `Proxy.clash_url` route from
 
 ## Updating and rollback
 
+`restore_application.sh` preserves the server's existing `.env` during source restoration and removed-file cleanup; provision credentials through the existing private file before restarting.
+
 Build and copy a new private bundle, back up PostgreSQL, Redis, and persistent
 state, rerun `install.sh` without `--start`, then run `doctor.sh` before
 restarting. Restore the previous application tree and virtualenvs together when

@@ -28,6 +28,15 @@ class LocalModelTests(unittest.TestCase):
         })
         self.assertEqual(self.remote, original)
 
+    def test_remote_failover_is_inherited_only_without_a_local_override(self):
+        self.remote['public']['model_options'] = {'first_token_timeout_seconds': 15,
+            'fallback': {'model': 'kimi-k3', 'base_url': 'https://backup.invalid'}}
+        self.remote['private']['fallback_api_key'] = 'backup-secret'
+        inherited = local_model_settings({}, self.remote, environment={})
+        self.assertEqual(inherited['fallback']['api_key'], 'backup-secret')
+        local = local_model_settings(self.local, self.remote, environment={'LLM_API_KEY': 'local-key'})
+        self.assertNotIn('fallback', local)
+
     def test_no_override_restores_existing_remote_credentials_and_local_vision(self):
         result = local_model_settings({"vision_model": "vision-model"}, self.remote,
                                       environment={"LLM_API_KEY": "unused-local-key"})

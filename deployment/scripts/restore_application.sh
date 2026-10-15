@@ -8,7 +8,7 @@ cd "$project_dir"
 # Determine removed tracked source files before reset makes them untracked.
 # History is runtime data; the former copied engine has its own backup step.
 git diff --no-renames --name-only --diff-filter=D -z HEAD "$revision" -- . \
-    ':(exclude)data/history' ':(exclude)agent_runtime' |
+    ':(exclude)data/history' ':(exclude)agent_runtime' ':(exclude).env' |
     while IFS= read -r -d '' removed_path; do
         if [[ -f "$removed_path" || -L "$removed_path" ]]; then
             rm -- "$removed_path"
@@ -16,5 +16,5 @@ git diff --no-renames --name-only --diff-filter=D -z HEAD "$revision" -- . \
     done
 git reset --mixed "$revision"
 git restore --source="$revision" --worktree -- . \
-    ':(exclude)data/history' ':(exclude)agent_runtime'
+    ':(exclude)data/history' ':(exclude)agent_runtime' ':(exclude).env'
 bash deployment/scripts/sync_agent_runtime.sh . "$revision"

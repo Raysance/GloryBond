@@ -64,6 +64,28 @@ def _build_chat_api_config(config, environment):
             raise ValueError(f"ChatAPI model key is not configured: {key_name}")
     elif not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
         values["api_key"] = str(config.get("QQBot", {}).get("deepseek_key") or "").strip()
+    settings = config.get('ChatAPI', {})
+    for key in ('timeout_seconds', 'first_token_timeout_seconds'):
+        if key in settings:
+            values[key] = float(settings[key])
+            if values[key] <= 0:
+                raise ValueError(f'ChatAPI {key} must be positive')
+    fallback = settings.get('fallback')
+    if fallback:
+        key_name = fallback.get('api_key_env')
+        api_key = str(environment.get(key_name) or '').strip() if key_name else ''
+        if not api_key:
+            raise ValueError(f'ChatAPI fallback key is not configured: {key_name}')
+        values['fallback'] = {key: fallback[key] for key in (
+            'base_url', 'model', 'vision_model', 'proxy_url', 'protocol',
+            'timeout_seconds', 'first_token_timeout_seconds') if key in fallback}
+        for key in ('base_url', 'model'):
+            if not values['fallback'].get(key):
+                raise ValueError(f'ChatAPI fallback {key} is not configured')
+        for key in ('timeout_seconds', 'first_token_timeout_seconds'):
+            if key in values['fallback'] and float(values['fallback'][key]) <= 0:
+                raise ValueError(f'ChatAPI fallback {key} must be positive')
+        values['fallback']['api_key'] = api_key
     return values
 
 

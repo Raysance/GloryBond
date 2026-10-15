@@ -112,15 +112,35 @@ class ChatEnvironmentTests(unittest.TestCase):
         result = self.build_chat_config(config, {"LLM_API_KEY": "shared-test-key", "HOK_CHAT_API_KEY": "explicit-test-key"})
         self.assertEqual(result["api_key"], "explicit-test-key")
 
-    def test_current_local_and_qq_model_routes_share_v41_and_named_credentials(self):
+    def test_qq_uses_official_deepseek_while_local_keeps_zenmux(self):
         import yaml
         config = yaml.safe_load((Path(__file__).parents[1] / 'config.yaml').read_text())
-        self.assertEqual(config['ChatAPI']['base_url'], config['LocalAgent']['llm']['base_url'])
-        self.assertEqual(config['ChatAPI']['api_key_env'], config['LocalAgent']['llm']['api_key_env'])
+        self.assertEqual({key: config['ChatAPI'][key] for key in ('base_url', 'api_key_env', 'model', 'proxy_url')}, {
+            'base_url': 'https://api.deepseek.com', 'api_key_env': 'HOK_DEEPSEEK_API_KEY',
+            'model': 'deepseek-flash', 'proxy_url': '',
+        })
         routes = [config['ChatAPI']['model'], config['QQBot']['deepseek_chat_model'],
-                  config['QQAgent']['vision_model'], config['LocalAgent']['vision_model'],
-                  config['LocalAgent']['llm']['model'], config['LocalAgent']['llm']['vision_model']]
-        self.assertEqual(set(routes), {'deepseek/deepseek-v4.1-flash'})
+                  config['QQAgent']['vision_model']]
+        self.assertEqual(set(routes), {'deepseek-flash'})
+        self.assertEqual(config['LocalAgent']['llm']['base_url'], 'https://zenmux.ai/api/v1')
+        self.assertEqual(config['LocalAgent']['llm']['api_key_env'], 'LLM_API_KEY')
+        local_routes = [config['LocalAgent']['vision_model'], config['LocalAgent']['llm']['model'],
+                        config['LocalAgent']['llm']['vision_model']]
+        self.assertEqual(set(local_routes), {'deepseek/deepseek-v4.1-flash'})
+        self.assertEqual(config['Proxy']['clash_url'], 'http://127.0.0.1:7890')
+
+    def test_failover_uses_its_own_key_and_keeps_credentials_separate(self):
+        config = {'ChatAPI': {'base_url': 'https://primary.invalid', 'model': 'primary',
+                              'api_key_env': 'PRIMARY_KEY', 'first_token_timeout_seconds': 15,
+                              'fallback': {'base_url': 'https://backup.invalid', 'model': 'kimi-k3',
+                                           'api_key_env': 'DASHSCOPE_API_KEY', 'protocol': 'bailian_kimi'}}}
+        result = self.build_chat_config(config, {'PRIMARY_KEY': 'primary-secret', 'DASHSCOPE_API_KEY': 'backup-secret'})
+        self.assertEqual(result['api_key'], 'primary-secret')
+        self.assertEqual(result['fallback']['api_key'], 'backup-secret')
+        self.assertEqual(result['first_token_timeout_seconds'], 15)
+        with self.assertRaisesRegex(ValueError, 'fallback key'):
+            self.build_chat_config(config, {'PRIMARY_KEY': 'primary-secret'})
+
 
     def run_environment_loader(self, files, initial_environment=None):
         loaded = []

@@ -223,9 +223,15 @@ def bootstrap(args):
         Path("/usr/share/fonts/google-noto-emoji/NotoEmoji-Regular.ttf"),
     ]
     CONTEXT["fonts"] = [str(path) for path in font_candidates if path.is_file()]
+    model_options = {key: model[key] for key in ('timeout_seconds', 'first_token_timeout_seconds') if key in model}
+    private = {"api_key": model["api_key"]}
+    if model.get('fallback'):
+        private['fallback_api_key'] = model['fallback']['api_key']
+        model_options['fallback'] = {key: value for key, value in model['fallback'].items() if key != 'api_key'}
     return {
-        "private": {"api_key": model["api_key"]},
+        "private": private,
         "public": {
+            "model_options": model_options,
             "model": model["model"],
             "base_url": model["base_url"],
             "proxy_url": model["proxy_url"],

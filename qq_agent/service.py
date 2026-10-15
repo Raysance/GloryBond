@@ -14,7 +14,7 @@ from agent_console.capabilities import Capabilities, Clock, application_prompt, 
 from agent_console.identity import LOCAL_SCOPES
 from agent_console.image_inputs import ImageLimits, ImageStore
 from agent_console.local_logs import LocalEventLog
-from agent_console.provider import DeepSeekModel
+from agent_console.provider import DeepSeekModel, remote_model_options
 from agent_console.remote import ProcessBridge, RemoteState
 from agent_console.replies import ReplyComposer, ReplyPolicy
 from agent_console.roleplay import RoleplayService
@@ -126,6 +126,7 @@ class QQAgentService:
                     register_bot_avatar_tool(registry, setter=self.bot_avatar_setter, image_store=self.image_store,
                                              generated_image_reader=self.generated_image_reader)
                 options = {
+                    **remote_model_options(remote),
                     "api_key": remote["private"]["api_key"], "base_url": self.public["base_url"],
                     "model": self.public["model"], "thinking": self.config.get("thinking", False),
                     "proxy_url": self.public.get("proxy_url", ""),
