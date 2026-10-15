@@ -76,7 +76,7 @@
       "id": "support",
       "title": "权限、记录与常见问题",
       "parent": "manual",
-      "summary": "功能速查、使用范围、查看完整回复与运行记录、常见问题",
+      "summary": "功能速查、使用范围、查看完整回复与运行记录、服务连通性与服务器健康检查、常见问题",
       "keywords": [],
       "tools": [],
       "code": []
@@ -1960,6 +1960,45 @@
         {
           "path": "hok/zfunc.py",
           "symbol": "_x_render_message"
+        }
+      ]
+    },
+    {
+      "id": "service_health",
+      "title": "服务连通性检查",
+      "parent": "support",
+      "summary": "管理员用 ##health 或 ##连通性检查 手动检查机器人外部服务、数据库、QQ、worker 及服务器进程；最小读操作区分正常、可达和未验证，不调用 AI 工具。",
+      "keywords": [
+        "health",
+        "连通性",
+        "健康检查",
+        "服务检查",
+        "服务器",
+        "代理",
+        "故障",
+        "排障"
+      ],
+      "tools": [],
+      "document": {
+        "path": "shared/agent/manual/chapters/service_health.md",
+        "heading": null
+      },
+      "code": [
+        {
+          "path": "hok/zfunc.py",
+          "symbol": "service_health_check"
+        },
+        {
+          "path": "hok/business/service_health.py",
+          "symbol": "http_targets"
+        },
+        {
+          "path": "hok/api_adapters/service_health.py",
+          "symbol": "service_health_http"
+        },
+        {
+          "path": "hok/zfile.py",
+          "symbol": "service_health_systemd"
         }
       ]
     }

@@ -7,6 +7,111 @@ _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
 _GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
+def service_health_redis(timeout):
+    """PING the same DB0 connection settings with a separate bounded pool."""
+    import redis
+    from redis.backoff import NoBackoff
+    from redis.retry import Retry
+
+    source = dmc.redis_deamon.connection_pool
+    options = {**source.connection_kwargs, "socket_connect_timeout": timeout,
+               "socket_timeout": timeout, "retry": Retry(NoBackoff(), 0), "retry_on_timeout": False}
+    pool = redis.ConnectionPool(connection_class=source.connection_class, **options)
+    try:
+        with redis.Redis(connection_pool=pool) as client:
+            return ("ok", "DB0 PING 通过") if client.ping() else ("error", "PING 返回异常")
+    finally:
+        pool.disconnect()
+
+
+async def service_health_check():
+    """Manually check configured services; never start an agent or run AI tools."""
+    from . import zapi, zdb, zfile
+    from .ztime import monotonic_seconds
+    from .business.service_health import http_targets, format_report
+    from .utils.qq_profiles import service_health_status
+
+    if not dmc.service_health_lock.acquire(blocking=False):
+        return ["服务连通性检查正在进行，请等待本次结果。"]
+    tasks = []
+    try:
+        started = monotonic_seconds()
+        timeout = max(1, min(10, float(service_health_config.get("timeout_seconds", 4))))
+        total_timeout = max(timeout + 1, min(60, float(service_health_config.get("total_timeout_seconds", 30))))
+        semaphore = asyncio.Semaphore(max(1, min(12, int(service_health_config.get("concurrency", 6)))))
+        jobs = []
+
+        def job(name, category, call):
+            jobs.append((name, category, call))
+
+        job("Redis", "本地依赖", lambda: asyncio.to_thread(service_health_redis, timeout))
+        job("PostgreSQL 业务身份", "本地依赖", lambda: asyncio.to_thread(zdb.service_health_ping, timeout=timeout))
+        job("PostgreSQL 聊天只读身份", "本地依赖",
+            lambda: asyncio.to_thread(zdb.service_health_ping, readonly=True, timeout=timeout))
+        job("QQ / OneBot", "本地依赖", service_health_status)
+
+        async def worker_health(attribute):
+            service = dmc.qq_agent_service
+            if service is None or not getattr(service, attribute, None):
+                return "skip", "QQ Agent 未启动，本次不自动启动"
+            result = await getattr(service, attribute).health()
+            return ("ok", "worker RPC 与 Redis PING 通过") if result.get("connected") is True else ("error", "worker 健康检查失败")
+
+        for name, attribute in (("Agent 业务 worker", "bridge"), ("Agent 状态 worker", "state_bridge")):
+            job(name, "本地依赖", lambda attribute=attribute: worker_health(attribute))
+
+        units = service_health_config.get("systemd_units", [])
+
+        async def systemd():
+            rows = await asyncio.to_thread(zfile.service_health_systemd, units, timeout,
+                                           service_health_config.get("discover_systemd", True))
+            return [dict(name=name, category="服务器进程", status=status, detail=detail) for name, status, detail in rows]
+
+        job("systemd", "服务器进程", systemd)
+        targets = http_targets(confs, chat_api_config, aliyun_search_config, clash_proxy_url, qq_profile_config)
+        if clash_proxy_url:
+            targets.insert(0, dict(name="Clash 监听", category="本地依赖", url=clash_proxy_url,
+                                   proxy="", check="proxy"))
+        for target in targets:
+            job(target["name"], target["category"], lambda target=target: zapi.service_health_http(target, timeout))
+
+        async def probe(name, category, call):
+            async with semaphore:
+                began = monotonic_seconds()
+                try:
+                    result = await asyncio.wait_for(call(), timeout=timeout + 1)
+                    if isinstance(result, list):
+                        return result
+                    status, detail = result
+                except TimeoutError:
+                    status, detail = "error", "最小读操作超时，未重试"
+                except Exception as error:
+                    # Do not echo transport errors: they may contain credentials/DSNs.
+                    status, detail = "error", f"最小读操作失败（{type(error).__name__}）"
+                return [dict(name=name, category=category, status=status, detail=detail,
+                             ms=round((monotonic_seconds() - began) * 1000))]
+
+        tasks = [asyncio.create_task(probe(*item)) for item in jobs]
+        done, pending = await asyncio.wait(tasks, timeout=total_timeout)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        results = []
+        for item, task in zip(jobs, tasks):
+            if task in done:
+                results.extend(task.result())
+            else:
+                results.append(dict(name=item[0], category=item[1], status="warn", detail="总检查时间已到，此项未完成"))
+        return format_report(results, monotonic_seconds() - started)
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        dmc.service_health_lock.release()
+
+
 def _forward_delivery_key(delivery_id):
     if not re.fullmatch(r"[A-Za-z0-9:_-]{1,160}", str(delivery_id or "")):
         raise ValueError("Invalid forward delivery ID")

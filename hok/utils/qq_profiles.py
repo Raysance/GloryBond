@@ -5,6 +5,20 @@ import nonebot
 from ..zstatic import confs
 
 
+async def service_health_status():
+    """Read the bound account's real OneBot status; never send a message."""
+    bot_id = str(confs["QQBot"]["bot_qid"])
+    bot = nonebot.get_bot(bot_id)
+    if str(bot.self_id) != bot_id:
+        return "error", "QQ适配器账号与配置不一致"
+    status = await bot.call_api("get_status")
+    if not isinstance(status, dict):
+        return "warn", "get_status 响应结构未知"
+    if status.get("online") is True and status.get("good") is True:
+        return "ok", "QQ 在线，OneBot get_status 正常"
+    return "error", "QQ离线或 OneBot 状态异常"
+
+
 async def set_bot_avatar(image_bytes):
     """Submit verified pixels to the configured bot, including remote NapCat."""
     if not isinstance(image_bytes, bytes) or not image_bytes:

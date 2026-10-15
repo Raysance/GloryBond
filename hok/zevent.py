@@ -57,6 +57,7 @@ async def handle_all_messages(event: MessageEvent):
 _group_poke = on_notice()
 _qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
 _repair=on_fullmatch("##r",rule=judge_super_command,priority=1, block=True)
+_service_health = on_fullmatch({"##health", "＃＃health", "##连通性检查", "＃＃连通性检查"}, rule=judge_super_command, priority=1, block=True)
 _execute=on_keyword({"##e"},rule=judge_super_command,priority=1, block=True)
 _test=on_keyword({"##t"},rule=judge_super_command,priority=1, block=True)
 _update_local=on_keyword({"##u"},rule=judge_super_command,priority=1, block=True)
@@ -444,6 +445,19 @@ async def f_x_subscription(event: MessageEvent):
     except Exception:
         add_msg("X 订阅处理失败，请稍后重试", event=event)
         log_message("X_SUBSCRIPTION_ERROR: " + traceback.format_exc())
+
+
+@_service_health.handle()
+async def f_service_health(event: MessageEvent):
+    from .event_handlers.service_health import command_reply
+
+    add_msg("开始最小服务连通性检查，请稍候。", event=event)
+    try:
+        for reply in await command_reply():
+            add_msg(reply, event=event)
+    except Exception as error:
+        add_msg(f"服务连通性检查入口失败（{type(error).__name__}），请查看服务器日志。", event=event)
+        log_message("SERVICE_HEALTH_ERROR: " + type(error).__name__)
 
 
 @_bili_video_subscribe.handle()

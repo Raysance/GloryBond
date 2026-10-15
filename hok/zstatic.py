@@ -165,6 +165,7 @@ agent_plot_config = confs.get("AgentPlots", {})
 qq_profile_config = confs.get("QQProfiles", {})
 x_subscription_config = confs.get("XSubscriptions", {})
 ai_daily_config = confs.get("AIDaily", {})
+service_health_config = confs.get("ServiceHealth", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")

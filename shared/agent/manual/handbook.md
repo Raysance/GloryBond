@@ -39,5 +39,6 @@
 
 - [功能速查](chapters/overview.md)
 - [使用范围](chapters/permissions.md)
+- [服务连通性检查](chapters/service_health.md)
 - [查看完整回复与运行记录](chapters/logs.md)
 - [常见问题](chapters/faq.md)

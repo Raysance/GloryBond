@@ -52,6 +52,24 @@ def ping():
             return cursor.fetchone()["ok"] == 1
 
 
+def service_health_ping(*, readonly=False, timeout=4):
+    """Probe each configured database identity without touching business tables."""
+    import math
+    import psycopg
+    from .zstatic import chat_readonly_dsn
+
+    dsn = chat_readonly_dsn if readonly else postgres_dsn
+    if not dsn:
+        return "warn", "未配置只读数据库身份"
+    with psycopg.connect(dsn, connect_timeout=max(2, math.ceil(timeout)),
+                          options=f"-c statement_timeout={int(timeout * 1000)} -c default_transaction_read_only=on") as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            if cursor.fetchone()[0] != 1:
+                return "error", "SELECT 1 返回异常"
+    return "ok", "只读 SELECT 1 通过"
+
+
 def execute_schema(schema_sql):
     if not str(schema_sql or "").strip():
         raise ValueError("database schema is empty")

@@ -2,6 +2,63 @@
 from .zutil import *
 
 
+def service_health_systemd(units, timeout=4, discover=True):
+    """Read configured units plus running/failed host services, without a shell."""
+    import re
+    import subprocess
+    import shutil
+
+    from .ztime import monotonic_seconds
+
+    units = list(dict.fromkeys(units))
+    if any(not re.fullmatch(r"[A-Za-z0-9_.@:-]+\.(?:service|timer|target|socket)", unit) for unit in units):
+        raise ValueError("ServiceHealth systemd unit 配置非法")
+    if not shutil.which("systemctl"):
+        return [(unit, "skip", "当前主机不支持 systemd") for unit in units]
+    started = monotonic_seconds()
+    discovered = []
+    if discover:
+        listing = subprocess.run(
+            ["systemctl", "list-units", "--all", "--type=service,timer,socket", "--no-legend", "--plain", "--no-pager"],
+            capture_output=True, text=True, timeout=timeout, check=False,
+        )
+        if listing.returncode:
+            discovered.append(("其他服务器服务", "warn", "无法枚举本机服务"))
+        else:
+            for line in listing.stdout.splitlines():
+                fields = line.split(None, 4)
+                if len(fields) >= 4 and fields[0] not in units and fields[2] in {"active", "failed", "activating", "deactivating"}:
+                    status = "ok" if fields[2] == "active" else "error" if fields[2] == "failed" else "warn"
+                    discovered.append((fields[0], status, f"{fields[2]}/{fields[3]}（进程状态）"))
+    if not units:
+        return discovered
+    result = subprocess.run(
+        ["systemctl", "show", "--no-pager", "--property=Id,Names,LoadState,ActiveState,SubState", "--", *units],
+        capture_output=True, text=True, timeout=max(0.1, timeout - (monotonic_seconds() - started)), check=False,
+    )
+    states = {}
+    for block in result.stdout.split("\n\n"):
+        values = dict(line.split("=", 1) for line in block.splitlines() if "=" in line)
+        if values.get("Id"):
+            states[values["Id"]] = values
+            for alias in values.get("Names", "").split():
+                states[alias] = values
+    reports = []
+    for unit in units:
+        state = states.get(unit, {})
+        active, sub = state.get("ActiveState"), state.get("SubState")
+        if state.get("LoadState") == "not-found":
+            status, detail = "warn", "未安装此 unit；请核对本机配置"
+        elif active == "active":
+            status, detail = "ok", f"active/{sub}（进程状态）"
+        elif active in {"failed", "inactive"}:
+            status, detail = "error", f"{active}/{sub}"
+        else:
+            status, detail = "warn", "systemd 无法读取或正在切换状态"
+        reports.append((unit, status, detail))
+    return reports + discovered
+
+
 def load_agent_artifact_image(identifier):
     """Read an already validated, locally stored agent PNG by opaque ID."""
     import re
