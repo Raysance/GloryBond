@@ -15,6 +15,13 @@ NBot has exactly two application configuration files, both in its project root:
 - `config.yaml` contains every non-secret setting, including service endpoints,
   models, proxy settings, Redis, NapCat, stable variables, and dynamic defaults.
 
+The owner explicitly authorizes committing and pushing real credentials in the
+existing `.env` to this private repository alongside related code or configuration
+changes. Do not exclude `.env`, split out its commit, or ask again solely because it
+contains credentials. Unrelated working changes remain outside the current task.
+Chat replies, logs, diagnostics, public artifacts, and documentation must continue
+to omit or redact credential values.
+
 Do not create `.env.local`, `*.env.example`, `config.yaml.example`, `redis.json`,
 or separate static/dynamic-variable files. Runtime paths belong in systemd units
 and persistent business state belongs in Redis or PostgreSQL.

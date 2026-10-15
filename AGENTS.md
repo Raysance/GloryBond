@@ -133,7 +133,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 ### 2.1 配置文件
 
-- `.env`：唯一的密钥文件，仅保存 API key、token、密码、数据库 DSN 等凭据，另保留 NoneBot 启动必需的 `ENVIRONMENT` 和 `DRIVER`。本仓库为私有仓库，该文件允许提交 Git，但日志、诊断和分享页仍必须脱敏。不得再新增 `.env.local`、`*.env.example` 或其他密钥文件。
+- `.env`：唯一的密钥文件，仅保存 API key、token、密码、数据库 DSN 等凭据，另保留 NoneBot 启动必需的 `ENVIRONMENT` 和 `DRIVER`。用户已明确授权在本私有仓库中将真实凭据随相关代码或配置正常提交及推送；后续不得仅因含有密钥而默认排除 `.env`、拆分提交或再次要求确认。日志、诊断、聊天回复和分享页仍必须脱敏，不在说明文档中复制密钥值。不得再新增 `.env.local`、`*.env.example` 或其他密钥文件。
 - `config.yaml`：唯一的非密钥配置文件，统一保存服务端点、模型、代理、超时、查询限制、Redis、NapCat、稳定变量与动态初始值。原 `variables_static.json` 并入 `StaticVariables`，原 `variables_dynamic.json` 并入 `DynamicVariables`。不得再新增 `config.yaml.example`、`redis.json` 或其他应用配置文件。
 - `AliyunSearch` 在 `config.yaml` 中保存 endpoint、workspace、service ID、内容类型、搜索策略与 query rewrite；API key 仅放在 `.env` 的 `HOK_ALIYUN_SEARCH_API_KEY`。
 - `ChatAPI.api_key_env` 只保存密钥变量名，由 `zstatic._build_chat_api_config()` 从既有 `.env` / 进程环境解析；显式 `HOK_CHAT_API_KEY` 覆盖优先，指定变量缺失时拒绝使用其他供应商旧密钥。当前 ChatAPI 使用 DeepSeek 官方端点 `https://api.deepseek.com`、`HOK_DEEPSEEK_API_KEY` 和 `deepseek-flash`；LocalAgent.llm 使用 ZenMux、`LLM_API_KEY` 和 `deepseek/deepseek-v4.1-flash`；QQ 工具循环、回复整理、联网角色生成及业务单轮文案共用此远程 ChatAPI。远程 ChatAPI.proxy_url 与本地 llm.proxy_url 均为空表示直连；Steam、APIMart 与 X 继续使用独立的共享 Clash 配置；worker 将有效代理设置交给 provider，禁止继承环境代理，本地端点覆盖不继承远程 loopback 代理。既有服务启动文件不得保留旧端点、模型或密钥的 HOK_CHAT 覆盖，避免遮蔽项目配置；不新增密钥/配置文件。
@@ -189,6 +189,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 2. 开始改动和推送前先执行等价于 `git pull --ff-only origin main` 的快进同步；如本地与远程已分叉，必须停止发布并先查明原因，不得自动创建 merge commit。
 3. 当用户要求“推送远程”或类似发布动作时，必须直接提交并推送 `origin/main`。
 4. 每轮对话产生的代码或文档变更必须独立提交一个 commit，不积攒到后续轮次；只提交本轮授权范围内的变更，不混入用户或其他任务的未提交修改。未要求推送时只提交本地。
+5. 本私有仓库的 `.env` 与普通受版本控制的配置文件按同一流程处理；本轮需求涉及的凭据变更正常纳入相应提交及已授权的推送，不再做密钥与代码的默认隔离。此授权不扩大到其他任务的无关改动或其他仓库。
 
 #### 3.1.2 Codex Cloud
 
