@@ -36,6 +36,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
                 patch.object(sender, "add_chat_result_msg", send):
             await FUNCS.agent_runtime_start()
             self.assertIs(received["member_profile_reader"], FUNCS.agent_read_group_member_profile)
+            self.assertIs(received["private_message_sender"], FUNCS.agent_send_group_member_private_message)
             self.assertEqual(received["bot_id"], FUNCS.confs["QQBot"]["bot_qid"])
             packet = {"text": "回复", "artifacts": []}
             self.assertEqual(await received["prepare_reply"](packet), packet)

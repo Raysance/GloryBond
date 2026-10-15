@@ -5,6 +5,7 @@ import asyncio
 import time
 import json
 from nonebot.adapters.onebot.v11 import Message, MessageSegment
+from nonebot.adapters.onebot.v11.exception import ActionFailed
 
 driver = nonebot.get_driver()
 
@@ -206,6 +207,57 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None):
         "content": _stringify_message_content(content),
     }
     return _enqueue_payload(payload)
+
+
+class PrivateMessageOutcomeUnknown(RuntimeError):
+    """A submitted private send must not be replayed without a receipt."""
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.error_details = {"phase": "qq_private_send", "error_type": type(self).__name__,
+                              "outcome_unknown": True, "retryable": False}
+
+
+async def send_group_member_private_message(*, group_id, user_id, text):
+    """Send literal private text and await QQ's receipt through the common outlet."""
+    from .qq_profiles import load_group_member_profile
+
+    group, user = str(group_id), str(user_id)
+    if any(type(value) not in (str, int) or not str(value).isascii() or not str(value).isdecimal()
+           or not 0 < int(value) < 10 ** 20 for value in (group_id, user_id)):
+        raise ValueError("私发消息的群号和QQ无效")
+    limits = confs.get("QQAgent", {}).get("private_messages", {})
+    if not limits.get("enabled", True):
+        raise PermissionError("群成员私发功能已关闭")
+    if not isinstance(text, str) or not text.strip() or "\x00" in text or len(text) > int(limits.get("max_chars", 4000)):
+        raise ValueError("私发正文为空、无效或超过配置上限")
+    bot_id = str(confs["QQBot"]["bot_qid"])
+    if user == bot_id:
+        raise ValueError("不能私发给机器人自身")
+    bot = nonebot.get_bot(bot_id)
+    if str(bot.self_id) != bot_id:
+        raise ValueError("私发账号与配置机器人不一致")
+    # Recheck at the send boundary; group_id supplies NapCat's temporary-session context.
+    member = await load_group_member_profile(group, user)
+    if str(member.get("group_id")) != group or str(member.get("user_id")) != user:
+        raise ValueError("未确认私发对象的群成员身份")
+    try:
+        result = await bot.send_private_msg(user_id=int(user), group_id=int(group),
+            message=Message(MessageSegment.text(text)), auto_escape=True)
+    except ActionFailed:
+        raise
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        raise PrivateMessageOutcomeUnknown("QQ私发响应丢失，结果未知，禁止自动重发") from error
+    message_id = result.get("message_id") if isinstance(result, dict) else None
+    try:
+        receipt = int(message_id) if type(message_id) in (str, int) else 0
+    except ValueError:
+        receipt = 0
+    if not receipt:
+        raise PrivateMessageOutcomeUnknown("QQ未返回有效私发消息ID，结果未知，禁止自动重发")
+    return {"message_id": str(receipt)}
 
 
 def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", title=None, delivery_id=None, delivery_ttl=604800):

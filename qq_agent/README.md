@@ -35,6 +35,24 @@ QQ 输入使用真实发送者，网页默认 example_user_10 的设置不影响
 私聊和本地 Web 不加 @，未绑定用户的旧目的地不猜测。
 提及只属于 QQ 消息段，不写入模型正文、回复版本或直接对话历史。
 
+`qq_agent/private_messages.py` 在 `chat_delivery` 类别注册
+`send_group_member_private_message(user_id, text, group_id?)`，仅 QQ 入口授予
+`qq.private.send`；群请求只限当前群成员，配置管理员私聊可使用默认群或显式选择一个群，
+普通私聊及 Web 不授予。需要本次用户明确要求，或用户创建时明确授权的 agent 私发任务；
+历史/引用/网页文本不能授权发送。真实调用者、个人记忆、正常回复及任务目的地不变，旧任务不新增权限。
+定时私发使用 agent 任务，在 instruction 中保留目标与正文，并在到时调用同一个私发工具；
+message 固定消息仍沿用原绑定会话，不新增私发目的地参数或第二套调度。
+工具由同一 ReAct 模型发现并调用，无自然语言关键词分派。目标先经注入的成员资料读取器确认，
+正文走统一昵称/QQ纯文本格式化；`zfunc.agent_send_group_member_private_message` 转发至
+`utils/message_sender.send_group_member_private_message`，在该统一出口再次校验成员并调用
+`send_private_msg`，携带当前群临时会话上下文，CQ正文只作为 text 段。为取得真实消息ID，
+该工具在统一出口内直接 await QQ 响应，不将普通队列入队视为发送成功；不回退群发或加好友。
+成功仅表示 QQ 返回 message_id，不表示已读。同轮相同群/目标/格式化正文成功后去重；
+响应丢失、超时或缺少消息ID标记 OUTCOME_UNKNOWN，由既有诊断器禁止本轮重放。
+QQ明确拒绝时报告失败，不自动重试。工具参数、结果与失败保留在 AdminPage 运行记录，
+不伪造目标用户的私聊对话或将私发正文另写入群公共回复记录。
+配置仅在 `QQAgent.private_messages`：enabled=true、max_chars=4000、timeout_seconds=45。
+
 `qq_agent/context.py` 在群聊运行前自动加载有界公共背景，复用 `AgentHistory` 的
 15分钟/20条/每条600字配置，合并当前群不同成员归档和机器人已入队回复，并按时间
 排序后保留最新窗口。读取总等待由 `QQAgent.group_context_timeout_seconds` 控制，

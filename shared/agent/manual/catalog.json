@@ -31,7 +31,7 @@
       "id": "conversation",
       "title": "聊天、身份与偏好",
       "parent": "manual",
-      "summary": "AI 聊天、图片、引用和动态表情、群聊背景查询、记住偏好与清除记忆、角色与回复风格、QQ资料与头像",
+      "summary": "AI 聊天、图片、引用和动态表情、群聊背景查询、记住偏好与清除记忆、角色与回复风格、QQ资料与头像、向群成员私发消息",
       "keywords": [],
       "tools": [],
       "code": []
@@ -145,10 +145,15 @@
         "指定艾特",
         "不艾特",
         "群上下文",
-        "换人接话"
+        "换人接话",
+        "私发",
+        "私信",
+        "私聊群成员",
+        "转达"
       ],
       "tools": [
-        "set_reply_mention"
+        "set_reply_mention",
+        "send_group_member_private_message"
       ],
       "code": [
         {
@@ -178,10 +183,18 @@
         {
           "path": "qq_agent/context.py",
           "symbol": "group_context"
+        },
+        {
+          "path": "qq_agent/private_messages.py",
+          "symbol": "register_private_message_tool"
+        },
+        {
+          "path": "hok/utils/message_sender.py",
+          "symbol": "send_group_member_private_message"
         }
       ],
       "parent": "conversation",
-      "summary": "AI 聊天、同群成员接话共享近期公共背景、按本次要求真正@其他当前群成员或不@；个人记忆与任务管理权限仍按本人隔离。"
+      "summary": "AI 聊天、同群成员接话共享近期公共背景、按本次要求真正@其他当前群成员或不@；个人记忆与任务管理权限仍按本人隔离。 支持明确要求时向经校验的群成员私发纯文本，成功以QQ消息ID为准。"
     },
     {
       "id": "chat_1",
@@ -613,14 +626,16 @@
         "分段消息",
         "提醒他人",
         "定时艾特",
-        "不艾特"
+        "不艾特",
+        "定时私发"
       ],
       "tools": [
         "create_task",
         "list_tasks",
         "cancel_task",
         "emit_message",
-        "set_reply_mention"
+        "set_reply_mention",
+        "send_group_member_private_message"
       ],
       "code": [
         {
@@ -637,7 +652,7 @@
         }
       ],
       "parent": "automation",
-      "summary": "延迟或周期发送提醒；群提醒可指定原生@当前群其他成员或不@，选择随新任务保存，任务管理仍限创建者本人。"
+      "summary": "延迟或周期发送提醒；群提醒可指定原生@当前群其他成员或不@，选择随新任务保存，任务管理仍限创建者本人。 明确要求时可到时执行群成员私发动作，不改变已有普通任务目的地。"
     },
     {
       "id": "tasks_1",

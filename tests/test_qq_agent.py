@@ -178,6 +178,29 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
 
+    async def test_private_message_tool_is_registered_and_receipt_does_not_redirect_normal_reply(self):
+        await self.gateway.close()
+        self.gateway.member_profile_reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '100'}})
+        self.gateway.private_message_sender = AsyncMock(return_value={'message_id': 42})
+        await self.gateway.start()
+        self.reply_text = '已私发提醒给示例玩家65。'
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('search_chat_history', {'queries': ['示例玩家65', '提醒']}, 's')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['chat_delivery']}, 'd')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('send_group_member_private_message',
+                {'user_id': '100', 'text': '别卷了，休息一下。'}, 'private')]},
+            {'role': 'assistant', 'content': self.reply_text},
+        ]
+        result = await self.gateway.chat(user_text='私发给示例玩家65，让他别卷了。', user_id='101', nickname='甲', group_id='200')
+        self.gateway.private_message_sender.assert_awaited_once_with(group_id='200', user_id='100', text='别卷了，休息一下。')
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0][1], {'platform':'qq', 'channel':'group', 'recipient_id':'200', 'mention_user_id':'101'})
+        observation = next(tool['observation'] for turn in result['trace']['rounds'] for tool in turn['tools']
+                           if tool['name'] == 'send_group_member_private_message')
+        self.assertTrue(observation['data']['sent'])
+        self.assertEqual(observation['data']['message_id'], '42')
+        self.assertEqual(set(self.dialogue), {'qq_g_200_101'})
+
     async def test_other_member_can_continue_public_topic_with_bot_replies_but_keeps_identity(self):
         self.group_messages['200'] = [{'user_id': '101', 'text': '每小时提醒示例玩家65别内卷', 'timestamp': 1}]
         self.reply_text = '已安排提醒示例玩家65。'
