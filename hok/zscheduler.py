@@ -234,6 +234,21 @@ async def bili_video_push():
         raise
 
 
+@scheduler.scheduled_job(
+    "interval",
+    minutes=x_subscription_config["poll_interval_minutes"],
+    id="x_subscription_push",
+    max_instances=1,
+    coalesce=True,
+)
+async def x_subscription_push():
+    from .zfunc import x_check_and_push
+
+    result = await asyncio.to_thread(x_check_and_push)
+    if result.get("errors"):
+        log_message("X_SUBSCRIPTION_PUSH: " + str(result["errors"]))
+
+
 def _fetch_news_impl():
     from .zapi import ark_api
     from .ztime import date_r

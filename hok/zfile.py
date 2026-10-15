@@ -616,6 +616,27 @@ def first_existing_path(paths):
     return None
 
 
+def x_card_font_path():
+    """Resolve bundled or host fonts independently of the working directory."""
+    from .zstatic import project_root, x_subscription_config
+
+    paths = [path if os.path.isabs(path) else os.path.join(project_root, path)
+             for path in x_subscription_config["font_paths"]]
+    return first_existing_path(paths)
+
+
+def save_x_post_images(images):
+    """Persist generated X cards under the public artifact cleanup directory."""
+    import uuid
+    token = uuid.uuid4().hex
+    paths = []
+    for index, image in enumerate(images):
+        path = os.path.join(temp_path, f"x_post_{token}_{index}.png")
+        save_pil_image(image, path, format="PNG")
+        paths.append(path)
+    return paths
+
+
 def save_pil_image(image, filepath, **save_options):
     """Persist a Pillow image through the project's IO boundary."""
     parent = os.path.dirname(str(filepath))
@@ -625,11 +646,13 @@ def save_pil_image(image, filepath, **save_options):
     return str(filepath)
 
 
-def pil_image_from_bytes(content):
+def pil_image_from_bytes(content, max_pixels=None):
     """Decode image bytes through the project's IO boundary."""
     from PIL import Image
 
     image = Image.open(io.BytesIO(content))
+    if max_pixels is not None and image.width * image.height > max_pixels:
+        raise ValueError("Image dimensions exceed pixel budget")
     image.load()
     return image
 

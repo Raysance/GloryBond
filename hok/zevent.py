@@ -27,6 +27,8 @@ from .event_rules import (
     judge_bili_video_mine,
     judge_bili_video_subscribe,
     judge_bili_video_unsubscribe,
+    judge_x_subscription,
+    judge_x_subscription_admin,
     judge_bot_addressed,
     judge_direct_ai_request,
     judge_herostatistics_query,
@@ -65,6 +67,7 @@ _pure_chat=on_keyword({"##c"},rule=judge_super_command,priority=1, block=True)
 _emoji_gen = on_keyword({"##emoji"},rule=judge_super_command,priority=1, block=True)
 _kpl_push = on_keyword({"##kpl"},rule=judge_super_command,priority=1, block=True)
 _bili_video_admin = on_keyword({"##bili"},rule=judge_super_command,priority=1, block=True)
+_x_subscription_admin = on_message(rule=Rule(judge_super_command, judge_x_subscription_admin), priority=1, block=True)
 
 _sleep_blocked = on_message(rule=Rule(judge_bot_addressed,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_bot_addressed,check_repair,judge_unsuper),priority=2, block=True)
@@ -87,6 +90,7 @@ _honor_power_query = on_message(
     block=True,
 )
 _bili_video_latest = on_message(rule=Rule(judge_to_me, judge_bili_video_latest), priority=3, block=True)
+_x_subscription = on_message(rule=Rule(judge_to_me, judge_x_subscription), priority=3, block=True)
 _bili_video_mine = on_message(rule=Rule(judge_to_me, judge_bili_video_mine), priority=3, block=True)
 _bili_video_unsubscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_unsubscribe), priority=3, block=True)
 _bili_video_subscribe = on_message(rule=Rule(judge_to_me, judge_bili_video_subscribe), priority=3, block=True)
@@ -428,6 +432,18 @@ async def f_hero_tier(event):
             event=event,
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_x_subscription_admin.handle()
+@_x_subscription.handle()
+async def f_x_subscription(event: MessageEvent):
+    from .event_handlers.x_subscription import command_reply
+
+    try:
+        add_msg(await command_reply(event), event=event)
+    except Exception:
+        add_msg("X 订阅处理失败，请稍后重试", event=event)
+        log_message("X_SUBSCRIPTION_ERROR: " + traceback.format_exc())
 
 
 @_bili_video_subscribe.handle()

@@ -996,6 +996,129 @@ def get_emoji_url(index):
     return _user_helpers_business.get_emoji_url(index)
 
 
+def _x_subscriptions():
+    return [json.loads(raw) for raw in dmc.redis_deamon.hvals(REDIS_KEY_X_SUBSCRIPTIONS)]
+
+
+def _x_save_subscription(item):
+    field = f"{item['user_qid']}:{item['id']}"
+    return dmc.redis_deamon.hset(REDIS_KEY_X_SUBSCRIPTIONS, field, json.dumps(item, ensure_ascii=False))
+
+
+def _x_delete_subscription(user_qid, account_id):
+    return dmc.redis_deamon.hdel(REDIS_KEY_X_SUBSCRIPTIONS, f"{user_qid}:{account_id}")
+
+
+def _x_cursor(account_id):
+    raw = dmc.redis_deamon.hget(REDIS_KEY_X_CURSORS, str(account_id))
+    return json.loads(raw) if raw else None
+
+
+def _x_save_cursor(account_id, cursor):
+    return dmc.redis_deamon.hset(REDIS_KEY_X_CURSORS, str(account_id), json.dumps(cursor))
+
+
+def _x_seen(account_id, post_id):
+    return bool(dmc.redis_deamon.sismember(REDIS_KEY_X_SEEN_PREFIX + str(account_id), str(post_id)))
+
+
+def _x_mark_seen(account_id, post_id):
+    return dmc.redis_deamon.sadd(REDIS_KEY_X_SEEN_PREFIX + str(account_id), str(post_id))
+
+
+def _x_lock():
+    from contextlib import contextmanager
+    import uuid
+
+    @contextmanager
+    def locked():
+        token = uuid.uuid4().hex
+        if not dmc.redis_deamon.set(REDIS_KEY_X_PUSH_LOCK, token, nx=True, ex=int(x_subscription_config['lock_seconds'])):
+            raise RuntimeError("X 订阅正在检查或更新，请稍后重试")
+        try:
+            yield token
+        finally:
+            dmc.redis_deamon.eval(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                1, REDIS_KEY_X_PUSH_LOCK, token,
+            )
+    return locked()
+
+
+def _x_refresh_lock(token):
+    renewed = dmc.redis_deamon.eval(
+        "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end",
+        1, REDIS_KEY_X_PUSH_LOCK, token, int(x_subscription_config['lock_seconds']),
+    )
+    if not renewed:
+        raise RuntimeError("X 推送锁已失效，本次停止发送并保留游标")
+
+
+def _x_render_message(bundle):
+    from .tools.gen_x_post import render_x_post_images
+    from .zfile import save_x_post_images, pil_image_from_bytes
+    from .zapi import x_get_media_bytes
+    from nonebot.adapters.onebot.v11 import MessageSegment
+
+    images = []
+    reply_images = {}
+    media_budget = int(x_subscription_config['max_media_images'])
+    for url in bundle['post'].get('media_urls', [])[:int(x_subscription_config['max_media_images'])]:
+        media_budget -= 1
+        try:
+            media = pil_image_from_bytes(x_get_media_bytes(url), max_pixels=int(x_subscription_config['max_media_pixels']))
+            images.append(media.convert('RGB'))
+        except Exception:
+            bundle = dict(bundle, media_unavailable=True)
+    for reply in bundle.get('replies', []):
+        for url in reply.get('media_urls', [])[:max(0, media_budget)]:
+            media_budget -= 1
+            try:
+                media = pil_image_from_bytes(x_get_media_bytes(url), max_pixels=int(x_subscription_config['max_media_pixels']))
+                reply_images.setdefault(reply['id'], []).append(media.convert('RGB'))
+            except Exception:
+                pass
+    paths = save_x_post_images(render_x_post_images(bundle, images, reply_images))
+    post = bundle['post']
+    text = f"https://x.com/{post['username']}/status/{post['id']}\n"
+    return str(MessageSegment.text(text)) + '\n'.join(str(MessageSegment.image(f"file://{path}")) for path in paths)
+
+
+def _x_send_message(message):
+    from .utils.message_sender import add_msg
+    return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+
+
+def x_subscribe_user(user_qid, query):
+    from .business.x_subscription import x_subscribe_user as impl
+    return impl(user_qid, query)
+
+
+def x_unsubscribe_user(user_qid, query=""):
+    from .business.x_subscription import x_unsubscribe_user as impl
+    return impl(user_qid, query)
+
+
+def x_my_subscription(user_qid):
+    from .business.x_subscription import x_my_subscription as impl
+    return impl(user_qid)
+
+
+def x_latest_for_user(user_qid):
+    from .business.x_subscription import x_latest_for_user as impl
+    return impl(user_qid)
+
+
+def x_check_and_push():
+    from .business.x_subscription import x_check_and_push as impl
+    return impl()
+
+
+def x_admin_command(raw):
+    from .business.x_subscription import x_admin_command as impl
+    return impl(raw)
+
+
 _BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "hok:bili:subscriptions"
 
 

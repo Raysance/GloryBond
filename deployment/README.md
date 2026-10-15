@@ -114,8 +114,13 @@ Chat web search calls Alibaba Cloud OpenSearch `ops-web-search-001` directly.
 content type, strategy, and query rewrite live under `AliyunSearch` in
 `config.yaml`. The search request never uses Clash or OpenRouter.
 
-Steam and APIMart retain their explicit `Proxy.clash_url` route from
+Steam, APIMart, and X website subscriptions share the explicit `Proxy.clash_url` route from
 `config.yaml`; `HOK_CLASH_PROXY_URL` can override it per process.
+On the Aliyun host, this points to the existing Clash service at
+`http://127.0.0.1:7890`. For local debugging, forward that server loopback port
+over SSH and keep using the project configuration; the same loopback address
+on a developer computer does not automatically refer to the server proxy.
+X website requests, static bootstrap assets, and post media all use this route.
 
 ## Updating and rollback
 

@@ -25,6 +25,17 @@ def current_timestamp():
     return time_r().timestamp()
 
 
+def utc_timestamp_text(timestamp=None):
+    """Format an epoch as an RFC3339 UTC bound for external APIs."""
+    value = current_timestamp() if timestamp is None else timestamp
+    return datetime.datetime.fromtimestamp(value, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def has_elapsed_since(value, seconds):
+    """Check an ISO/epoch time against a configured minimum age."""
+    return current_epoch_seconds() - parse_chat_time_bound(value) >= int(seconds)
+
+
 def monotonic_seconds():
     """Measure elapsed work without depending on changes to the system clock."""
     return time.monotonic()

@@ -56,11 +56,27 @@ async def judge_bot_addressed(event):
     return is_bot_request_message(event) or is_direct_bot_mention(event)
 
 
+async def judge_x_subscription(event):
+    from .event_handlers.x_subscription import parse_x_command
+
+    command = parse_x_command(event.get_plaintext())
+    return command is not None and command[0] != "admin"
+
+
+async def judge_x_subscription_admin(event):
+    from .event_handlers.x_subscription import parse_x_command
+
+    command = parse_x_command(event.get_plaintext())
+    return command is not None and command[0] == "admin"
+
+
 def bili_video_plain_command(event):
     return event.get_plaintext().strip().lstrip("#＃").strip()
 
 
 async def judge_bili_video_subscribe(event):
+    if await judge_x_subscription(event):
+        return False
     raw = bili_video_plain_command(event)
     if raw in {"订阅", "订阅最新视频", "订阅UP最新视频", "订阅up最新视频"}:
         return False
@@ -68,6 +84,8 @@ async def judge_bili_video_subscribe(event):
 
 
 async def judge_bili_video_unsubscribe(event):
+    if await judge_x_subscription(event):
+        return False
     raw = bili_video_plain_command(event)
     return raw in {"取消B站订阅", "取消b站订阅", "取消订阅"} or raw.startswith(
         ("取消B站订阅", "取消b站订阅", "取消订阅")

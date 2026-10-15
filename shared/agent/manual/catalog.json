@@ -1086,7 +1086,12 @@
         "最新视频",
         "取消订阅",
         "每日战报",
-        "推送"
+        "推送",
+        "X",
+        "推特",
+        "twitter",
+        "英文翻译",
+        "热门回复"
       ],
       "tools": [],
       "code": [
@@ -1100,7 +1105,7 @@
         }
       ],
       "parent": "automation",
-      "summary": "B站 UP订阅\n操作 | 使用示例 | \n\n订阅 UP | #订阅B站 罗翔 | \n查看当前订阅 | #我的订阅 | \n查订阅 UP的最新视频 | #最新视频 | \n取消某个订阅 | #取消订阅 罗翔 | \n取消本人全部订阅 | #取消订阅 | \n\n订阅成功后，机器人会按轮询结果"
+      "summary": "B站 UP 视频与 X 账号内容订阅、图片自动推送、热门回复和英文翻译，以及每日战报与赛事通知。"
     },
     {
       "id": "subscriptions_1",
@@ -1817,6 +1822,40 @@
         {
           "path": "hok/zfile.py",
           "symbol": "load_agent_artifact_image"
+        }
+      ]
+    },
+    {
+      "id": "subscriptions_x",
+      "title": "X 账号订阅",
+      "parent": "subscriptions",
+      "summary": "X账号订阅、取消、列表和最新内容；新帖与热门回复图片推送，英文附中文翻译。",
+      "keywords": [
+        "X",
+        "推特",
+        "twitter",
+        "订阅X",
+        "我的X订阅",
+        "X最新内容",
+        "热门回复",
+        "英文翻译"
+      ],
+      "document": {
+        "path": "shared/agent/manual/chapters/subscriptions.md",
+        "heading": "X 账号订阅"
+      },
+      "code": [
+        {
+          "path": "hok/event_handlers/x_subscription.py",
+          "symbol": "command_reply"
+        },
+        {
+          "path": "hok/business/x_subscription.py",
+          "symbol": "x_check_and_push"
+        },
+        {
+          "path": "hok/business/x_subscription.py",
+          "symbol": "post_card"
         }
       ]
     }

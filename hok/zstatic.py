@@ -20,6 +20,10 @@ REDIS_KEY_DIY_CODES = "hok:diy:codes"
 REDIS_KEY_DIY_SUMMARIES = "hok:diy:summaries"
 REDIS_KEY_CHAT_FACTS_PREFIX = "hok:memory:facts:"
 REDIS_KEY_EMOJI_PREFIX = "hok:emoji:"
+REDIS_KEY_X_SUBSCRIPTIONS = "hok:x:subscriptions"
+REDIS_KEY_X_CURSORS = "hok:x:cursors"
+REDIS_KEY_X_SEEN_PREFIX = "hok:x:seen:"
+REDIS_KEY_X_PUSH_LOCK = "hok:lock:x:push"
 
 
 def _runtime_path(env_name, default_path):
@@ -97,6 +101,8 @@ def _apply_secret_environment(config, environment):
         "HOK_ARK_IMAGE_API_KEY": ("QQBot", "ark_image_key"),
         "HOK_APIMART_API_KEY": ("QQBot", "apimart_key"),
         "HOK_STEAM_API_KEY": ("Steam", "api_key"),
+        "HOK_X_AUTH_TOKEN": ("XSubscriptions", "auth_token"),
+        "HOK_X_CT0": ("XSubscriptions", "ct0"),
         "HOK_WEB_SECRET_KEY": ("WebService", "secret_key"),
         "HOK_WEB_VALID_PATTERN": ("WebService", "valid_pattern"),
         "HOK_WZRY_TOKEN": ("wzry", "token"),
@@ -155,6 +161,7 @@ chat_readonly_dsn = str(
 ).strip()
 agent_plot_config = confs.get("AgentPlots", {})
 qq_profile_config = confs.get("QQProfiles", {})
+x_subscription_config = confs.get("XSubscriptions", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")

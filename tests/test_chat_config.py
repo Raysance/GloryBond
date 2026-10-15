@@ -49,6 +49,18 @@ SECRET_CONFIG_FUNCTION = load_secret_config_function()
 
 
 class ChatEnvironmentTests(unittest.TestCase):
+    def test_x_web_session_is_loaded_only_from_its_own_environment_keys(self):
+        namespace = {}
+        exec(SECRET_CONFIG_FUNCTION, namespace)
+        config = {"XSubscriptions": {"enabled": True}}
+        namespace["_apply_secret_environment"](config, {
+            "HOK_X_AUTH_TOKEN": "session-cookie", "HOK_X_CT0": "csrf-cookie",
+            "HOK_X_BEARER_TOKEN": "unused-developer-token",
+        })
+        self.assertEqual(config["XSubscriptions"], {
+            "enabled": True, "auth_token": "session-cookie", "ct0": "csrf-cookie",
+        })
+
     def build_chat_config(self, config, environment):
         from urllib.parse import urlparse
 
@@ -140,7 +152,6 @@ class ChatEnvironmentTests(unittest.TestCase):
         self.assertEqual(result['first_token_timeout_seconds'], 15)
         with self.assertRaisesRegex(ValueError, 'fallback key'):
             self.build_chat_config(config, {'PRIMARY_KEY': 'primary-secret'})
-
 
     def run_environment_loader(self, files, initial_environment=None):
         loaded = []

@@ -34,6 +34,7 @@ dependencies = [
     "schedule>=1.2,<2",
     "seaborn>=0.13,<1",
     "sqlglot>=30.20,<31",
+    "twikit>=2.3.3,<3",
 ]
 
 [build-system]

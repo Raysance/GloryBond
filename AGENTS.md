@@ -109,6 +109,17 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 ## 2. 配置与变量的来源（必须遵守）
 
+### X 订阅补充
+
+- `event_handlers/x_subscription.py` 解析 X 账号订阅、取消、本人列表、最新内容及管理员检查命令；`event_rules.py` 独立判断 X 命令并从 B站通用订阅路由中排除，`zevent.py` 仅注册入口并通过统一消息出口回复。
+- `business/x_subscription.py` 编排账号订阅、首次基线、增量推送、热门回复采样和英文翻译；外部查询通过 `zapi.py` 导出的 `api_adapters/x.py`，翻译只调用已有单轮 `ai_api()`。默认仅原创帖，等待回复积累；热门回复为网页可见公开会话有限采样内的点赞排序，必须标注采样范围和失败状态，英文原文与 AI 译文并列。
+- X 使用网页会话 GraphQL，不调用开发者 `/2` API、不回退付费 API；`api_adapters/x.py` 自行处理限定的账号/时间线/详情 GET、解析、广告与置顶过滤及分页，Twikit 仅提供网页协议参数与 transaction 签名。操作 ID 从当前 X 主脚本发现，可由 `XSubscriptions.web_query_ids` 覆盖；feature 修正从 `web_features` 读取。网页客户端显式注入共享 `clash_proxy_url`、禁用环境代理与请求重定向；媒体仍通过既有 `clash_request`。网页登录 Cookie 仅来自既有 `.env` 的 `HOK_X_AUTH_TOKEN` 和 `HOK_X_CT0`，由 `zstatic.py` 注入运行时配置；始终将 Cookie 绑定 `.x.com`，不得传给媒体/静态资产，不调用库的登录、自动解锁、Cookie 文件读写或账号写接口。非密钥配置仅在 `config.yaml#XSubscriptions`；无会话时轮询跳过，主动命令说明配置要求。会话失效、限流、未知结构与不完整分页保留游标，错误不得披露 Cookie 或原始 HTTP 载荷。
+- `tools/gen_x_post.py` 负责可分页的正文、媒体预览、回复及译文卡片；采用白色圆角卡片、浅薄荷底色与清晰字重层级，中文译文优先、英文原文小字并列。图片只保留作者/账号、时间、正文、配图和回复，采样数量以一行小字注明；不渲染“X关注动态”、重复的 AI 说明、逐条回复链接或原帖长链接，消息正文只保留可点击原帖链接。字体优先使用 `resources/fonts/noto-sans-sc/` 下附 OFL 许可的 Noto Sans SC，字重由可变字体设置；`zfile.x_card_font_path()` 按项目绝对根目录解析配置中的相对字体路径。路径、图片读写通过 `zfile.py`，输出为公开产物目录下 `x_post_<随机hex>_<页号>.png`。原帖媒体仅允许有体积预算的 HTTPS `pbs.twimg.com` 图片，不下载视频本体；仅删除与已读取配图完全对应的 t.co 占位链接，正常外链保留。
+- `api_adapters/x_transaction.py` 适配当前网页登录态 `/home` 的 transaction 初始化和拆分 webpack chunk 映射，签名计算仍继承 Twikit；不使用已换成独立应用的未登录首页初始化，不修改第三方安装包或全局 monkey patch。
+- X 正文和回复配图共用 `max_media_images` 与体积/像素预算，已读取的回复配图嵌入对应卡片；读取失败的回复保留原始媒体短链。英文翻译仍经单轮 `zapi.ai_api()`，超时和 thinking 仅由 `XSubscriptions.translation_timeout_seconds` / `translation_thinking` 控制，不更改其他业务调用的默认值。
+- X 状态全部通过 `zfunc.py` 的窄接口写 DB0，共享 key 常量在 `zstatic.py`：`hok:x:subscriptions` 为按真实 QQ 和 X 用户 ID 隔离的 hash；`hok:x:cursors` 保存每账号增量游标；`hok:x:seen:*` 保存已入队帖子；`hok:lock:x:push` 使用持有者 token 校验、续租和释放。新增订阅不推进其他订阅者的待推游标；发送失败不标记已推或跳过游标。自动推送目的地沿用配置 QQ 群，同账号只推一次。
+- X 轮询仅在 `zscheduler.py` 注册，正文、热门回复、翻译和媒体均不创建独立后台轮询；管理员 `##x check` 复用同一检查流程。用户手册与检索树同步维护在 `shared/agent/manual/`。
+
 ### 2.1 配置文件
 
 - `.env`：唯一的密钥文件，仅保存 API key、token、密码、数据库 DSN 等凭据，另保留 NoneBot 启动必需的 `ENVIRONMENT` 和 `DRIVER`。本仓库为私有仓库，该文件允许提交 Git，但日志、诊断和分享页仍必须脱敏。不得再新增 `.env.local`、`*.env.example` 或其他密钥文件。
