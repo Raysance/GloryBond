@@ -1075,6 +1075,8 @@
         "荣耀战力",
         "地区",
         "今日英雄",
+        "皮肤返场",
+        "返场排行",
         "常用英雄",
         "技能",
         "胜率"
@@ -1137,6 +1139,23 @@
       "document": {
         "path": "shared/agent/manual/chapters/heroes.md",
         "heading": "英雄梯度与战力"
+      }
+    },
+    {
+      "id": "heroes_skin_votes",
+      "title": "皮肤返场排行",
+      "parent": "heroes",
+      "summary": "前缀命令查询返场投票，前五名票数文字与前十名趋势图片",
+      "keywords": ["皮肤返场", "返场排行", "返场排名", "返场投票", "票数"],
+      "tools": [],
+      "code": [
+        {"path": "hok/event_handlers/skin_votes.py", "symbol": "skin_votes_reply"},
+        {"path": "hok/business/skin_votes.py", "symbol": "skin_votes_query_process"},
+        {"path": "hok/tools/gen_skin_votes.py", "symbol": "render_skin_votes_image"}
+      ],
+      "document": {
+        "path": "shared/agent/manual/chapters/heroes.md",
+        "heading": "皮肤返场排行"
       }
     },
     {

@@ -85,6 +85,12 @@ _peak_rank=on_fullmatch(
     block=True,
 )
 _hero_tier=on_fullmatch(("#梯度", "＃梯度"),rule=judge_to_me,priority=3,block=True)
+_skin_votes = on_fullmatch(
+    ("#皮肤返场", "＃皮肤返场", "#返场排行", "＃返场排行", "#返场排名", "＃返场排名",
+     "#皮肤返场排行", "＃皮肤返场排行", "#皮肤返场排名", "＃皮肤返场排名",
+     "#皮肤返场查询", "＃皮肤返场查询"),
+    rule=judge_to_me, priority=3, block=True,
+)
 _honor_power_query = on_message(
     rule=judge_honor_power_query,
     priority=3,
@@ -433,6 +439,30 @@ async def f_hero_tier(event):
             event=event,
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_skin_votes.handle()
+async def f_skin_votes(event):
+    from .event_handlers.skin_votes import skin_votes_reply
+    from .zfile import existing_absolute_path
+
+    try:
+        result = await skin_votes_reply()
+        message = MessageSegment.text(result["text"])
+        if result.get("image_path"):
+            path = existing_absolute_path(result["image_path"])
+            if path:
+                message += MessageSegment.image(f"file://{path}")
+            else:
+                message += MessageSegment.text("\n返场排行图片未找到，请稍后重试（zevent.f_skin_votes）")
+        add_msg(message, event=event)
+    except Exception as error:
+        add_msg(
+            f"皮肤返场排行查询失败：location=zevent.f_skin_votes "
+            f"params={{'command': '#皮肤返场'}} error={error!r}",
+            event=event,
+        )
+        log_message("SKIN_VOTES_QUERY_ERROR: " + traceback.format_exc())
 
 
 @_x_subscription_admin.handle()

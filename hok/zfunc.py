@@ -507,6 +507,12 @@ def hero_tier_query_process():
     return _hero_tier_business.hero_tier_query_process()
 
 
+def skin_votes_query_process():
+    from .business.skin_votes import skin_votes_query_process as query
+
+    return query()
+
+
 from .business import battle_matchup as _battle_matchup_business
 
 

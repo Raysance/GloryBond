@@ -1,9 +1,10 @@
-"""Tianyuanzhiyi tier and matchup API adapters."""
+"""Tianyuanzhiyi tier, skin-vote and matchup API adapters."""
 
 import json
 import secrets
 from base64 import urlsafe_b64encode
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlsplit
 
 import requests
 from cryptography.hazmat.primitives import hashes
@@ -12,6 +13,70 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 from ..ztime import epoch_ms
 from ..zutil import log_message
+from ..zstatic import skin_votes_config
+
+
+def _skin_votes_get_bytes(url, timeout, max_bytes):
+    with requests.Session() as session:
+        session.trust_env = False
+        with session.get(url, timeout=timeout, stream=True, allow_redirects=False,
+                         headers={"user-agent": "HOK_QQBot/1.0"}) as response:
+            response.raise_for_status()
+            if response.is_redirect:
+                raise ValueError("skin_votes_unexpected_redirect")
+            content = bytearray()
+            for chunk in response.iter_content(65536):
+                content.extend(chunk)
+                if len(content) > max_bytes:
+                    raise ValueError("skin_votes_response_too_large")
+            return bytes(content)
+
+
+def tianyuanzhiyi_skin_votes_api():
+    """Read the same six-hour snapshot as the source page, without scraping HTML."""
+    config = skin_votes_config
+    hours = int(config["hours"])
+    if hours not in (0, 6, 12, 24, 72):
+        raise ValueError("SkinVotes.hours must be 0, 6, 12, 24 or 72")
+    content = _skin_votes_get_bytes(
+        f"{config['api_url']}?hours={hours}",
+        float(config["timeout_seconds"]), int(config["max_response_bytes"]),
+    )
+    payload = json.loads(content)
+    if not isinstance(payload, dict) or payload.get("success") is not True:
+        raise ValueError("skin_votes_api_unsuccessful")
+    if not isinstance(payload.get("series"), list) or not isinstance(payload.get("times"), list):
+        raise ValueError("skin_votes_api_invalid_structure")
+    return payload
+
+
+def tianyuanzhiyi_skin_icons_api(items):
+    """Best-effort bounded downloads of source-provided skin thumbnails."""
+    config = skin_votes_config
+
+    def fetch(item):
+        url = item.get("icon") or ""
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or parsed.hostname not in config["icon_hosts"]:
+            return item["skin_id"], None
+        content = _skin_votes_get_bytes(
+            url, float(config["icon_timeout_seconds"]), int(config["max_icon_bytes"]),
+        )
+        return item["skin_id"], content
+
+    icons = {}
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = [executor.submit(fetch, item) for item in items]
+        for future in as_completed(futures):
+            try:
+                skin_id, content = future.result()
+                if content:
+                    icons[skin_id] = content
+            except Exception:
+                # A thumbnail outage must not discard the ranking itself.
+                continue
+    return icons
+
 
 def tianyuanzhiyi_tier_api():
     url = "https://tianyuanzhiyi.com/api/global/tier"

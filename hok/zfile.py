@@ -702,6 +702,33 @@ def save_pil_image(image, filepath, **save_options):
     return str(filepath)
 
 
+def skin_votes_font(size, weight=400):
+    """Load the configured bundled Chinese font through the IO boundary."""
+    from PIL import ImageFont
+    from .zstatic import skin_votes_config
+
+    path = skin_votes_config["font_path"]
+    if not os.path.isabs(path):
+        path = os.path.join(project_root, path)
+    face = ImageFont.truetype(path, size)
+    try:
+        face.set_variation_by_axes([
+            weight if axis["name"] == b"Weight" else axis["default"]
+            for axis in face.get_variation_axes()
+        ])
+    except (OSError, AttributeError):
+        pass
+    return face
+
+
+def save_skin_votes_image(image):
+    """Use a unique public artifact for each query, including concurrent requests."""
+    import uuid
+
+    path = os.path.join(temp_path, "temp_files", f"skin_votes_{uuid.uuid4().hex}.png")
+    return save_pil_image(image, path, format="PNG")
+
+
 def pil_image_from_bytes(content, max_pixels=None):
     """Decode image bytes through the project's IO boundary."""
     from PIL import Image

@@ -31,6 +31,8 @@ from .api_adapters.x import x_get_user, x_get_posts, x_get_replies, x_username, 
 from .api_adapters.tianyuanzhiyi import (
     tianyuanzhiyi_hero_avatars_api,
     tianyuanzhiyi_matchup_api,
+    tianyuanzhiyi_skin_votes_api,
+    tianyuanzhiyi_skin_icons_api,
     tianyuanzhiyi_tier_api,
 )
 from .api_adapters.wzry import WzryOfficialAPI, wzry_get_official
@@ -59,6 +61,8 @@ __all__ = [
     "qq_avatar_bytes",
     "tianyuanzhiyi_hero_avatars_api",
     "tianyuanzhiyi_matchup_api",
+    "tianyuanzhiyi_skin_votes_api",
+    "tianyuanzhiyi_skin_icons_api",
     "tianyuanzhiyi_tier_api",
     "wzry_get_official",
 ]
