@@ -222,7 +222,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 ## 6. NBot 变更自检清单
 
-皮肤返场排行使用完整匹配命令 `#皮肤返场` / `#返场排行` / `#返场排名` / `#皮肤返场排行` / `#皮肤返场排名` / `#皮肤返场查询`（支持全角井号），在 `zevent.py` 的优先级 3 路由，沿用现有授权、休眠与维修规则。`event_handlers/skin_votes.py` 经 `zfunc.skin_votes_query_process()` 调用 `business/skin_votes.py`；数据与限额内缩略图仅经 `zapi.py` 导出的 `api_adapters/tianyuanzhiyi.py` 接口读取，实际名次和空值保留。默认文字前 5 名、图片前 10 名与近 6 小时真实观测趋势，范围与端点等配置集中 `config.yaml#SkinVotes`，由 `zstatic.skin_votes_config` 暴露。`tools/gen_skin_votes.py` 只生成内存 Pillow 图像，字体、图片解码及随机文件名落盘均通过 `zfile.py`；产物写 `file_transfer/temp_files/skin_votes_<随机hex>.png` 沿用既有清理。文字和图片不标注来源或网址，保留实际更新时间及精度说明；绘图失败保留文字，统一消息出口向原事件发送一条文字加图片消息，不注册 AI 工具或定时任务。用法与检索树同步维护在 `shared/agent/manual/`。
+皮肤返场排行使用完整匹配命令 `#皮肤返场` / `#返场排行` / `#返场排名` / `#皮肤返场排行` / `#皮肤返场排名` / `#皮肤返场查询`（支持全角井号），在 `zevent.py` 的优先级 3 路由，沿用现有授权、休眠与维修规则。`event_handlers/skin_votes.py` 经 `zfunc.skin_votes_query_process()` 调用 `business/skin_votes.py`；数据与限额内缩略图仅经 `zapi.py` 导出的 `api_adapters/tianyuanzhiyi.py` 接口读取，实际名次和空值保留。默认文字前 5 名、图片前 10 名与全部时段的累计票数真实观测趋势（hours=0），范围与端点等配置集中 `config.yaml#SkinVotes`，由 `zstatic.skin_votes_config` 暴露。`tools/gen_skin_votes.py` 只生成内存 Pillow 图像，字体、图片解码及随机文件名落盘均通过 `zfile.py`；产物写 `file_transfer/temp_files/skin_votes_<随机hex>.png` 沿用既有清理。文字和图片不标注来源或网址，保留实际更新时间及精度说明；绘图失败保留文字，统一消息出口向原事件发送一条文字加图片消息，不注册 AI 工具或定时任务。用法与检索树同步维护在 `shared/agent/manual/`。
 
 1. 新增代码是否放在了职责正确的 `hok/` 模块中？
 2. 是否所有 IO、时间、消息发送都走了指定模块？

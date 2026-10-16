@@ -33,7 +33,7 @@ def _skin_votes_get_bytes(url, timeout, max_bytes):
 
 
 def tianyuanzhiyi_skin_votes_api():
-    """Read the same six-hour snapshot as the source page, without scraping HTML."""
+    """Read the configured vote-history range from the source page's API."""
     config = skin_votes_config
     hours = int(config["hours"])
     if hours not in (0, 6, 12, 24, 72):

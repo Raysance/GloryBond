@@ -44,7 +44,7 @@ def render_skin_votes_image(data, rows, icons=None):
     draw.rounded_rectangle((margin, 155, margin + 98, 202), radius=10,
                            fill="#f4f4f5", outline=border)
     text(margin + 22, 162, "票数", small)
-    period = f"近{data['hours']}小时" if data["hours"] else "全部记录"
+    period = f"近{data['hours']}小时" if data["hours"] else "全部"
     text(margin + 125, 164, f"{period} · 趋势前{len(chart_rows)}名", small, muted)
     text(width - margin, 166, f"更新时间：{data['updated']}  北京时间", small, muted, right=True)
 
