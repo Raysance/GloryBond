@@ -135,6 +135,28 @@ class SkinVotesTests(unittest.TestCase):
             self.assertEqual(Path(first).parent, Path(directory) / "temp_files")
             self.assertTrue(Path(first).is_file())
 
+    def test_vote_lines_stop_at_real_samples_and_preserve_actual_declines(self):
+        data = payload()
+        data["series"][0]["votes"] = [990000, 980000, 985000]
+        normalized = BUSINESS.normalize_skin_votes(data)
+        lines = []
+        original = ImageDraw.ImageDraw.line
+
+        def record(draw, xy, *args, **kwargs):
+            if kwargs.get("fill") in RENDER.COLORS:
+                lines.append((kwargs["fill"], list(xy)))
+            return original(draw, xy, *args, **kwargs)
+
+        with patch.object(ImageDraw.ImageDraw, "line", record):
+            RENDER.render_skin_votes_image(normalized, normalized["rows"][:10])
+        self.assertTrue(lines)
+        for _, points in lines:
+            self.assertTrue(all(isinstance(point, tuple) and point[0] <= 1300 for point in points))
+        first = next(points for color, points in lines if color == RENDER.COLORS[0])
+        self.assertEqual(len(first), 3)
+        self.assertGreater(first[1][1], first[0][1])
+        self.assertLess(first[2][1], first[1][1])
+
     def test_adapter_rejects_unsuccessful_and_invalid_json_payloads(self):
         for value in ({"success": False}, [], {"success": True, "series": {}, "times": []}):
             with self.subTest(value=value), patch.object(API, "_skin_votes_get_bytes",

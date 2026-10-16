@@ -76,7 +76,6 @@ def render_skin_votes_image(data, rows, icons=None):
                 draw.line((x, y, x, min(y + 5, bottom)), fill=border)
             label = data["time_labels"][index]
             text(max(left, min(x - 70, right - 140)), bottom + 20, label, tiny, muted)
-        end_labels = []
         for index, row in enumerate(chart_rows):
             color = COLORS[index] if index < 10 else "#a1a1aa"
             points = []
@@ -96,22 +95,19 @@ def render_skin_votes_image(data, rows, icons=None):
                 px, py = points[0]
                 draw.ellipse((px-3, py-3, px+3, py+3), fill=color)
             if points:
-                end_labels.append((points[-1][1], index, row, color))
-        # Distribute endpoint labels to keep close races readable.
-        ordered = sorted(end_labels)
-        ys = [entry[0] for entry in ordered]
-        for index in range(1, len(ys)):
-            ys[index] = max(ys[index], ys[index - 1] + 30)
-        if ys and ys[-1] > bottom:
-            ys[-1] = bottom
-            for index in range(len(ys) - 2, -1, -1):
-                ys[index] = min(ys[index], ys[index + 1] - 30)
-        for (actual_y, _, row, color), y in zip(ordered, ys):
-            draw.line((right, actual_y, right + 24, y), fill=color, width=2)
-            label = f"{row['rank'] or '?'}  {wan(row['history'][-1])}"
-            label_w = draw.textlength(label, font=tiny) + 16
-            draw.rounded_rectangle((right+26, y-15, right+26+label_w, y+18), radius=6, fill=color)
-            text(right + 34, y - 13, label, tiny, "white")
+                px, py = points[-1]
+                draw.ellipse((px-4, py-4, px+4, py+4), fill=color)
+    # Keep labels in a separate rail: leader lines can look like declining votes.
+    draw.rounded_rectangle((right+20, top-18, width-margin-16, bottom+5),
+                           radius=10, fill="#fafafa", outline=border)
+    text(right+32, top-5, "最新票数", tiny, muted)
+    for index, row in enumerate(chart_rows):
+        y = top + 57 + index * 46
+        color = COLORS[index]
+        label = f"{row['rank'] or '?'}  {wan(row['votes'])}"
+        label_w = draw.textlength(label, font=tiny) + 16
+        draw.rounded_rectangle((right+30, y-15, right+30+label_w, y+18), radius=6, fill=color)
+        text(right+38, y-13, label, tiny, "white")
     if not values:
         text(560, 510, "暂无可绘制的趋势记录", heading, muted)
 
