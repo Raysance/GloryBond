@@ -48,10 +48,11 @@ def fetcher(handler, **options):
     factories = []
 
     def factory(**kwargs):
-        factories.append(kwargs)
+        factories.append(dict(kwargs))
+        kwargs.pop("proxy", None)  # MockTransport stands in for the configured proxy.
         return real_client(transport=httpx.MockTransport(handler), **kwargs)
 
-    reader = WebPageFetcher(WebPageLimits(**options), resolver=resolver, client_factory=factory)
+    reader = WebPageFetcher(WebPageLimits(**options), proxy_url="http://clash.test:7890", resolver=resolver, client_factory=factory)
     return reader, resolver, factories
 
 
@@ -92,6 +93,39 @@ class ExtractionTests(unittest.TestCase):
 
 
 class FetchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_missing_or_failed_proxy_never_falls_back_to_direct(self):
+        factory = Mock(side_effect=RuntimeError("sensitive proxy error"))
+        reader = WebPageFetcher(client_factory=factory)
+        prepared = await reader.prepare([("message", "https://example.com/")])
+        self.assertIn("Clash", prepared.report["pages"][0]["error"])
+        factory.assert_not_called()
+        reader.proxy_url = "http://clash.test:7890"
+        reader.resolver = AsyncMock(return_value="93.184.216.34")
+        prepared = await reader.prepare([("message", "https://example.com/")])
+        self.assertEqual(factory.call_count, 1)
+        self.assertEqual(factory.call_args.kwargs["proxy"], reader.proxy_url)
+        self.assertNotIn("sensitive", prepared.messages[0]["content"])
+
+    async def test_real_http_client_connects_to_proxy_and_preserves_pinned_host(self):
+        received = []
+        async def proxy(reader, writer):
+            try:
+                received.append((await reader.readuntil(b"\r\n\r\n")).decode())
+                body = b"proxy article"
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 13\r\nConnection: close\r\n\r\n" + body)
+                await writer.drain()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+        server = await asyncio.start_server(proxy, "127.0.0.1", 0)
+        async with server:
+            port = server.sockets[0].getsockname()[1]
+            reader = WebPageFetcher(proxy_url=f"http://127.0.0.1:{port}", resolver=AsyncMock(return_value="93.184.216.34"))
+            prepared = await reader.prepare([("message", "http://example.com/article")])
+        self.assertEqual(prepared.report["pages"][0]["text"], "proxy article")
+        self.assertIn("GET http://93.184.216.34/article HTTP/1.1", received[0])
+        self.assertIn("Host: example.com", received[0])
+
     async def test_one_pinned_request_per_url_and_bounded_current_run_data(self):
         requests = []
         def handler(request):
@@ -107,6 +141,7 @@ class FetchTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("authorization", requests[0].headers)
         self.assertNotIn("cookie", requests[0].headers)
         self.assertTrue(all(not options["trust_env"] and not options["follow_redirects"] for options in factories))
+        self.assertTrue(all(options["proxy"] == "http://clash.test:7890" for options in factories))
         pages = prepared.report["pages"]
         self.assertEqual(pages[0]["origins"], ["message", "quote"])
         self.assertEqual([len(p["text"]) for p in pages], [100, 50])
@@ -132,12 +167,13 @@ class FetchTests(unittest.IsolatedAsyncioTestCase):
                 payload = {"Answer": [{"type": 5, "data": "alias.example.com"}, {"type": 1, "data": "93.184.216.34"}]}
                 return response(json.dumps(payload).encode(), headers={"Content-Type": "application/dns-json"})
             return response()
-        reader, _, _ = fetcher(handler, dns_over_https_url="https://1.1.1.1/dns-query")
+        reader, _, factories = fetcher(handler, dns_over_https_url="https://1.1.1.1/dns-query")
         reader.resolver = reader._resolve
         with patch("agent_console.webpages.public_address", AsyncMock(side_effect=AssertionError("system fake DNS"))):
             prepared = await reader.prepare([("message", "https://example.com/")])
         self.assertEqual(prepared.report['pages'][0]['status'], 'ok')
         self.assertEqual([r.url.host for r in requests], ['1.1.1.1', '93.184.216.34'])
+        self.assertTrue(all(options["proxy"] == "http://clash.test:7890" for options in factories))
         prepared = await reader.prepare([('message', 'http://169.254.169.254/')])
         self.assertEqual(len(requests), 2)
         self.assertIn('内网', prepared.report['pages'][0]['error'])
@@ -220,8 +256,10 @@ class WebEndpointTests(unittest.TestCase):
     def test_web_post_injects_pages_without_rewriting_question_or_system_prompt(self):
         captured = []
         reader, _, _ = fetcher(lambda _: response())
-        with patch("agent_console.server.WebPageFetcher", return_value=reader):
+        with patch.dict("os.environ", {"HOK_CLASH_PROXY_URL": "http://clash.test:7891"}), \
+                patch("agent_console.server.WebPageFetcher", return_value=reader) as constructor:
             app = create_app()
+        self.assertEqual(constructor.call_args.kwargs["proxy_url"], "http://clash.test:7891")
         runtime = Mock(active={"accepted": Mock()})
         runtime.submit.side_effect = lambda request: captured.append(request) or "accepted"
         app.state.runtime = runtime

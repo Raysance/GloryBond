@@ -97,6 +97,14 @@ def _build_chat_api_config(config, environment):
     return values
 
 
+def _build_deepseek_search_config(config, environment):
+    """Search credentials stay independent of ChatAPI/LocalAgent overrides."""
+    settings = dict(config.get("DeepSeekSearch", {}))
+    key_name = settings.get("api_key_env", "HOK_DEEPSEEK_API_KEY")
+    settings["api_key"] = str(environment.get(key_name) or "").strip()
+    return settings
+
+
 def _apply_secret_environment(config, environment):
     """Inject credentials from the single .env file into runtime config."""
     secret_paths = {
@@ -137,6 +145,7 @@ with open(config_path, 'r', encoding='utf-8') as file:
 _apply_secret_environment(confs, os.environ)
 globals().update(confs.get("Redis", {}))
 chat_api_config = _build_chat_api_config(confs, os.environ)
+deepseek_search_config = _build_deepseek_search_config(confs, os.environ)
 qq_task_message_link_ttl_seconds = confs.get("QQAgent", {}).get("task_message_link_ttl_seconds", 2592000)
 qq_forward_message_config = {
     "max_forwards": 3,

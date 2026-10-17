@@ -112,7 +112,8 @@ def create_app(*, config_path=None):
     image_store = ImageStore(
         root / "file_transfer/agent_inputs", ImageLimits(**config.get("images", {}))
     )
-    webpages = WebPageFetcher(WebPageLimits(**config.get("webpages", {})))
+    webpages = WebPageFetcher(WebPageLimits(**config.get("webpages", {})),
+                             proxy_url=os.environ.get("HOK_CLASH_PROXY_URL") or document.get("Proxy", {}).get("clash_url"))
 
     @asynccontextmanager
     async def lifespan(app):

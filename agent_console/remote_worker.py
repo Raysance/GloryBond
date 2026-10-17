@@ -90,7 +90,7 @@ def bootstrap(args):
     namespace = {"urlparse": urlparse}
     extracted_functions(
         root / "hok/zstatic.py",
-        ["_build_chat_api_config", "_apply_secret_environment"],
+        ["_build_chat_api_config", "_build_deepseek_search_config", "_apply_secret_environment"],
         namespace,
     )
     cfg = namespace["_apply_secret_environment"](cfg, env)
@@ -120,17 +120,12 @@ def bootstrap(args):
     store.ping()
     validation = {}
     exec(compile(args["validator"], "portable_sql_validator", "exec"), validation)
-    search_cfg = dict(cfg.get("AliyunSearch", {}))
-    search_cfg["api_key"] = env.get("HOK_ALIYUN_SEARCH_API_KEY", "")
-    for key in ["endpoint", "workspace", "service_id", "content_type", "way"]:
-        search_cfg[key] = env.get("HOK_ALIYUN_SEARCH_" + key.upper()) or search_cfg.get(
-            key
-        )
+    search_cfg = namespace["_build_deepseek_search_config"](cfg, env)
     api_namespace = {
         "urlparse": urlparse,
         "quote": quote,
         "json": json,
-        "aliyun_search_config": search_cfg,
+        "deepseek_search_config": search_cfg,
         "confs": cfg,
         "dmc": SimpleNamespace(**cfg.get("DynamicVariables", {})),
         "sleep_seconds": time.sleep,
@@ -150,7 +145,7 @@ def bootstrap(args):
     api_namespace.update(direct_request=request, clash_request=proxied_request)
     extracted_functions(
         root / "hok/api_adapters/ai.py",
-        ["aliyun_web_search", "apimart_images_generate"],
+        ["deepseek_web_search", "apimart_images_generate"],
         api_namespace,
     )
     mem_namespace = {}
@@ -819,7 +814,7 @@ def dispatch(args):
     if op == "python":
         return sandbox(args)
     if op == "web_search":
-        return CONTEXT["api"]["aliyun_web_search"](
+        return CONTEXT["api"]["deepseek_web_search"](
             args["query"], args.get("max_results", 5)
         )
     if op == "image":

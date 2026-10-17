@@ -745,6 +745,10 @@
           "symbol": "Capabilities.web_search"
         },
         {
+          "path": "hok/api_adapters/ai.py",
+          "symbol": "deepseek_web_search"
+        },
+        {
           "path": "agent_console/webpages.py",
           "symbol": "WebPageFetcher.prepare"
         },
@@ -786,7 +790,7 @@
       "id": "search_3",
       "title": "返回内容与注意事项",
       "parent": "search",
-      "summary": "联网查询的返回内容与注意事项",
+      "summary": "DeepSeek 联网搜索来源、Clash 网页读取、失败与截断边界",
       "keywords": [
         "返回内容与注意事项"
       ],

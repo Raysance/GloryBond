@@ -250,8 +250,9 @@ async def _body(response, limit):
 
 
 class WebPageFetcher:
-    def __init__(self, limits=None, *, resolver=None, client_factory=httpx.AsyncClient):
+    def __init__(self, limits=None, *, proxy_url="", resolver=None, client_factory=httpx.AsyncClient):
         self.limits = limits or WebPageLimits()
+        self.proxy_url = str(proxy_url or "").strip()
         self.resolver, self.client_factory = resolver or self._resolve, client_factory
 
     async def _resolve(self, host, port):
@@ -271,6 +272,7 @@ class WebPageFetcher:
         if endpoint.scheme != "https" or not _public_ip(endpoint.host):
             raise PageError("网页 DNS 配置必须使用 HTTPS 公网 IP 地址")
         async with self.client_factory(trust_env=False, follow_redirects=False,
+                                      proxy=self.proxy_url,
                                       timeout=self.limits.timeout_seconds) as client:
             for record_type in ("A", "AAAA"):
                 async with client.stream("GET", endpoint, params={"name": host, "type": record_type},
@@ -291,6 +293,8 @@ class WebPageFetcher:
         raise PageError("网页域名解析失败")
 
     async def _fetch(self, url):
+        if not self.proxy_url:
+            raise PageError("网页读取缺少 Clash 代理配置（Proxy.clash_url / HOK_CLASH_PROXY_URL）")
         for hop in range(self.limits.max_redirects + 1):
             url = normalize_url(url)
             original = httpx.URL(url)
@@ -300,6 +304,7 @@ class WebPageFetcher:
             pinned = original.copy_with(host=address)
             # Fresh clients do not propagate cookies across redirect hosts sharing an IP.
             async with self.client_factory(trust_env=False, follow_redirects=False,
+                    proxy=self.proxy_url,
                     timeout=self.limits.timeout_seconds,
                     limits=httpx.Limits(max_connections=1, max_keepalive_connections=0)) as client:
                 async with client.stream("GET", pinned,

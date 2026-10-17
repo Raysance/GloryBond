@@ -735,7 +735,7 @@ async def agent_runtime_start():
                              private_message_sender=agent_send_group_member_private_message,
                              business_functions=build_hok_function_catalog(globals(), player_keys=tuple(userlist), player_aliases=nameref,
                                  policy=config.get("business_functions")),
-                             business_image_loader=load_business_image)
+                             business_image_loader=load_business_image, webpage_proxy_url=clash_proxy_url)
     dmc.qq_agent_service = service
     try:
         await service.start()

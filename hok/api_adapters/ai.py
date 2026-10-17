@@ -10,7 +10,7 @@ from ratelimit import limits, sleep_and_retry
 
 from .. import zdynamic as dmc
 from ..zfile import append_hok_exception_log
-from ..zstatic import aliyun_search_config, ark_model_url, chat_api_config, confs
+from ..zstatic import aliyun_search_config, ark_model_url, chat_api_config, confs, deepseek_search_config
 from ..ztime import sleep_seconds
 from ..zutil import log_message
 from .proxy import clash_request, direct_request
@@ -188,6 +188,74 @@ def _response_output_text(response):
                 if text:
                     text_parts.append(str(text))
     return "".join(text_parts)
+
+
+def deepseek_web_search(query, max_results=5):
+    """Call the standalone DeepSeek Search API, preserving the search tool shape."""
+    if not isinstance(query, str) or not query.strip() or len(query.strip()) > 128:
+        raise ValueError("deepseek_web_search: query must contain 1 to 128 characters")
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= 10:
+        raise ValueError("deepseek_web_search: max_results must be an integer from 1 to 10")
+    query = query.strip()
+    settings = deepseek_search_config
+    api_key = settings.get("api_key")
+    if not api_key:
+        raise RuntimeError("deepseek_web_search unavailable: configure .env "
+                           + str(settings.get("api_key_env", "HOK_DEEPSEEK_API_KEY")))
+    endpoint = str(settings.get("endpoint") or "").strip()
+    parsed = urlparse(endpoint)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or parsed.query or parsed.fragment):
+        raise RuntimeError("deepseek_web_search: DeepSeekSearch.endpoint must be a valid HTTPS URL")
+    timeout = float(settings.get("timeout_seconds", 30))
+    text_limit = int(settings.get("max_result_chars", 6000))
+    if not 0 < timeout <= 40 or not 1 <= text_limit <= 6000:
+        raise ValueError("deepseek_web_search: invalid timeout_seconds or max_result_chars")
+    response = None
+    try:
+        response = direct_request(
+            "POST", endpoint,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"query": query, "count": max_results, "need_content": bool(settings.get("need_content", False))},
+            timeout=timeout, allow_redirects=False,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"HTTP {response.status_code}")
+        payload = response.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+            raise ValueError("provider returned no results list")
+        sources, blocks, seen = [], [], set()
+        for item in payload["results"]:
+            if len(sources) >= max_results:
+                break
+            if not isinstance(item, dict):
+                continue
+            link = str(item.get("url") or "").strip()
+            try:
+                url = urlparse(link)
+                valid = (url.scheme in {"http", "https"} and url.hostname
+                         and url.username is None and url.password is None)
+            except ValueError:
+                valid = False
+            if not valid or link in seen:
+                continue
+            seen.add(link)
+            title = str(item.get("title") or link).strip()[:300]
+            text = str(item.get("content") or item.get("summary") or item.get("snippet") or "无摘要").strip()[:text_limit]
+            published = str(item.get("date") or "").strip()[:100]
+            date_line = f"\n发布时间：{published}" if published else ""
+            sources.append({"title": title, "url": link})
+            blocks.append(f"[{len(sources)}] {title}{date_line}\n链接：{link}\n内容：{text}")
+        return {
+            "query": query,
+            "answer": "\n\n".join(blocks) or "DeepSeek 联网搜索未返回可核验的网页结果。",
+            "sources": sources, "provider": "deepseek_search", "search_requests": 1, "usage": {},
+        }
+    except Exception as error:
+        # Do not disclose response bodies, transport URLs, headers or credentials.
+        status = getattr(response, "status_code", None)
+        detail = f"HTTP {status}" if status is not None and status != 200 else type(error).__name__
+        raise RuntimeError(f"deepseek_web_search unavailable: {detail}") from None
 
 
 def aliyun_web_search(query, max_results=5):

@@ -34,7 +34,7 @@ class SearchArgs(Args):
 
 
 class WebArgs(Args):
-    query: str = Field(min_length=1, max_length=400)
+    query: str = Field(min_length=1, max_length=128, description="简短网页查询，最多128个字符；支持 site:、after:、before: 等搜索语法")
     max_results: int = Field(default=5, ge=1, le=10)
 
 

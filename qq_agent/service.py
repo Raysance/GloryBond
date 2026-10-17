@@ -94,7 +94,7 @@ class QQAgentService:
     def __init__(self, *, root, config, admin_id, sender, prepare_reply, store_artifact, formatter,
                  bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
                  bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None,
-                 business_functions=None, business_image_loader=None):
+                 business_functions=None, business_image_loader=None, webpage_proxy_url=""):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
@@ -108,7 +108,7 @@ class QQAgentService:
         self.clock = Clock()
         self._start_lock = asyncio.Lock()
         self.runtime = None
-        self.webpages = WebPageFetcher(WebPageLimits(**config.get("webpages", {})))
+        self.webpages = WebPageFetcher(WebPageLimits(**config.get("webpages", {})), proxy_url=webpage_proxy_url)
         self.image_store = ImageStore(self.root / config.get("image_directory", "data/agent_inputs"), ImageLimits(**config.get("images", {})))
 
     async def start(self):
