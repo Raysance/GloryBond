@@ -1149,13 +1149,11 @@
       "id": "heroes_skin_votes",
       "title": "皮肤返场排行",
       "parent": "heroes",
-      "summary": "前缀命令查询返场投票，前五名票数文字与前十名趋势图片",
+      "summary": "功能已经废弃，保留前缀命令并返回废弃提示",
       "keywords": ["皮肤返场", "返场排行", "返场排名", "返场投票", "票数"],
       "tools": [],
       "code": [
-        {"path": "hok/event_handlers/skin_votes.py", "symbol": "skin_votes_reply"},
-        {"path": "hok/business/skin_votes.py", "symbol": "skin_votes_query_process"},
-        {"path": "hok/tools/gen_skin_votes.py", "symbol": "render_skin_votes_image"}
+        {"path": "hok/event_handlers/skin_votes.py", "symbol": "skin_votes_reply"}
       ],
       "document": {
         "path": "shared/agent/manual/chapters/heroes.md",

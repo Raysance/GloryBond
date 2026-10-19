@@ -1,9 +1,5 @@
-"""Skin-return ranking dispatch without NoneBot or message delivery dependencies."""
-
-import asyncio
+"""Deprecated skin-return ranking command response."""
 
 
 async def skin_votes_reply():
-    from ..zfunc import skin_votes_query_process
-
-    return await asyncio.to_thread(skin_votes_query_process)
+    return {"text": "功能已经废弃", "image_path": None}

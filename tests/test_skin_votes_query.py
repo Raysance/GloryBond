@@ -185,13 +185,13 @@ class SkinVotesTests(unittest.TestCase):
 
 
 class SkinVotesHandlerTests(unittest.IsolatedAsyncioTestCase):
-    async def test_handler_dispatches_via_business_facade(self):
-        result = {"text": "排行", "image_path": "/tmp/skin.png"}
-        with patch.object(ZFUNC, "skin_votes_query_process", return_value=result) as query:
-            self.assertEqual(await HANDLER.skin_votes_reply(), result)
-        query.assert_called_once()
+    async def test_deprecated_handler_does_not_query_business(self):
+        with patch.object(ZFUNC, "skin_votes_query_process") as query:
+            self.assertEqual(await HANDLER.skin_votes_reply(),
+                             {"text": "功能已经废弃", "image_path": None})
+        query.assert_not_called()
 
-    async def test_entry_sends_one_text_plus_image_message_to_original_event(self):
+    async def test_entry_sends_deprecation_text_to_original_event(self):
         from nonebot.adapters.onebot.v11 import MessageSegment
 
         tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
@@ -211,12 +211,13 @@ class SkinVotesHandlerTests(unittest.IsolatedAsyncioTestCase):
                      "add_msg": sent, "log_message": MagicMock()}
         exec(compile(ast.Module(body=[node], type_ignores=[]), "handler", "exec"), namespace)
         event = object()
-        with patch.object(HANDLER, "skin_votes_reply", return_value={"text": "排行", "image_path": "x"}), \
-             patch.object(ZFILE, "existing_absolute_path", return_value="/tmp/skin.png"):
+        with patch.object(ZFILE, "existing_absolute_path") as image_path:
             await namespace["f_skin_votes"](event)
+        image_path.assert_not_called()
         sent.assert_called_once()
         self.assertIs(sent.call_args.kwargs["event"], event)
-        self.assertEqual([segment.type for segment in sent.call_args.args[0]], ["text", "image"])
+        self.assertEqual(sent.call_args.args[0].type, "text")
+        self.assertEqual(str(sent.call_args.args[0]), "功能已经废弃")
 
 
 if __name__ == "__main__":
