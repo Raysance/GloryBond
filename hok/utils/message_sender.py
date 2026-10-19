@@ -193,21 +193,22 @@ async def message_sender_loop():
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             dmc.MessageQueue.rpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, result)
             continue
-        msg_json = json.loads(result)
-        if msg_json.get("kind") == "group_ban":
-            await _handle_group_ban(bot, msg_json)
+        try:
+            msg_json = json.loads(result)
+            if msg_json.get("kind") == "group_ban":
+                await _handle_group_ban(bot, msg_json)
+            elif msg_json.get("kind") == "group_poke":
+                await _handle_group_poke(bot, msg_json)
+            elif msg_json.get("kind") in {"group_forward", "private_forward"}:
+                await _handle_forward_msg(bot, msg_json)
+            else:
+                await _send_queued_message(bot, msg_json)
+        except Exception as exc:
+            # A timeout can follow a successful QQ send. Do not replay it or
+            # enqueue an error notice through the same failing connection.
+            log_message(f"MESSAGE_SEND_FAILED: error={type(exc).__name__}; delivery unconfirmed; not retried")
+        finally:
             dmc.last_msg_send_ts = time.time()
-            continue
-        if msg_json.get("kind") == "group_poke":
-            await _handle_group_poke(bot, msg_json)
-            dmc.last_msg_send_ts = time.time()
-            continue
-        if msg_json.get("kind") in {"group_forward", "private_forward"}:
-            await _handle_forward_msg(bot, msg_json)
-            dmc.last_msg_send_ts = time.time()
-            continue
-        await _send_queued_message(bot, msg_json)
-        dmc.last_msg_send_ts = time.time()
 
 
 
