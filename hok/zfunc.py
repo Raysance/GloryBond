@@ -1822,7 +1822,14 @@ def player_client_rate_gate(kind):
         delay = wait_ms / 1000
         if reason == 1 or ztime.monotonic_seconds() + delay > deadline:
             raise PlayerClientRateLimited(math.ceil(delay), {1: "cooldown", 2: "interval", 3: "quota"}[reason])
-        ztime.sleep_seconds(delay)
+        remaining = delay
+        heartbeat_interval = float(player_client_config.get("heartbeat_interval_seconds", 20))
+        while remaining > 0:
+            pause = min(remaining, heartbeat_interval)
+            ztime.sleep_seconds(pause)
+            remaining -= pause
+            if dmc.player_client_adapter is not None:
+                dmc.player_client_adapter.heartbeat()
 
 
 def player_client_request_error(error, *, login=False):
@@ -1850,7 +1857,7 @@ def player_client_query(operation, **parameters):
 
     if not player_client_config.get("enabled", False):
         raise ValueError("PlayerClient is disabled")
-    if not dmc.player_client_lock.acquire(blocking=False):
+    if not dmc.player_client_lock.acquire(timeout=float(player_client_config["rate_limit"]["max_wait_seconds"])):
         raise zapi.PlayerClientRateLimited(1, "busy")
     try:
         import hashlib
@@ -1873,6 +1880,24 @@ def player_client_query(operation, **parameters):
                 dmc.player_client_adapter.close()
                 dmc.player_client_adapter = None
         raise
+    finally:
+        dmc.player_client_lock.release()
+
+
+def player_client_heartbeat():
+    """Maintain the existing connection only; no login, business reads or replay."""
+    if not player_client_config.get("enabled") or not dmc.player_client_lock.acquire(blocking=False):
+        return
+    try:
+        if dmc.player_client_adapter is None:
+            return
+        try:
+            dmc.player_client_adapter.heartbeat()
+        except Exception as error:
+            from .zapi import player_client_error_info
+            log_message(f"PLAYER_CLIENT_HEARTBEAT_FAILED: info={player_client_error_info(error)}")
+            dmc.player_client_adapter.close()
+            dmc.player_client_adapter = None
     finally:
         dmc.player_client_lock.release()
 

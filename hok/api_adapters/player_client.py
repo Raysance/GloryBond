@@ -13,6 +13,21 @@ class PlayerClientRateLimited(RuntimeError):
         super().__init__("Player client requests are cooling down")
 
 
+def player_client_error_info(error):
+    """Only protocol identifiers may enter logs; never account material or payloads."""
+    info = {"type": type(error).__name__}
+    for field in ("code", "command", "message_id"):
+        value = getattr(error, field, None)
+        if type(value) is int:
+            info[field] = value
+    control = getattr(error, "error", None)
+    if isinstance(control, dict):
+        for field in ("code", "detail"):
+            if type(control.get(field)) is int:
+                info["control_" + field] = control[field]
+    return info
+
+
 def player_client_artwork_api(items, settings):
     """Bounded public artwork GETs, with no account cookies or environment proxy."""
     from concurrent.futures import ThreadPoolExecutor
@@ -50,19 +65,50 @@ class PlayerClientAdapter:
             self.client.login(server_id=settings.get("server_id"), tree_index=int(settings.get("tree_index", 0)))
         except Exception as error:
             self.client.close()
+            from ..zutil import log_message
+            log_message(f"PLAYER_CLIENT_LOGIN_FAILED: info={player_client_error_info(error)}")
             on_error(error, login=True)
             raise
 
     def close(self):
         self.client.close()
+        if hasattr(self, "_cache"):
+            self._cache.clear()
+
+    def heartbeat(self):
+        self.client.heartbeat()
 
     def _read(self, method, *args, **options):
+        from collections import OrderedDict
+        from copy import deepcopy
+        from .. import ztime
+        from ..zutil import log_message
+
+        cacheable = method in {"profile", "game", "hero_titles", "hero_extra_statistics", "hero_road_brief", "hero_detail"}
+        if not hasattr(self, "_cache"):
+            self._cache = OrderedDict()
+        key = (method, args, tuple(sorted(options.items())))
+        ttl = float(self.settings.get("query_cache_ttl_seconds", 60))
+        now = ztime.monotonic_seconds()
+        cached = self._cache.get(key) if cacheable else None
+        if cached is not None:
+            if now < cached[0]:
+                self._cache.move_to_end(key)
+                return deepcopy(cached[1])
+            del self._cache[key]
         self.gate("query")
         try:
-            return getattr(self.client, method)(*args, timeout=float(self.settings["timeout_seconds"]), **options)
+            result = getattr(self.client, method)(*args, timeout=float(self.settings["timeout_seconds"]), **options)
         except Exception as error:
+            log_message(f"PLAYER_CLIENT_REQUEST_FAILED: operation={method} info={player_client_error_info(error)}")
             self.on_error(error, login=False)
             raise
+        if cacheable and ttl > 0:
+            self._cache[key] = (ztime.monotonic_seconds() + ttl, deepcopy(result))
+            self._cache.move_to_end(key)
+            while len(self._cache) > int(self.settings.get("query_cache_max_entries", 16)):
+                self._cache.popitem(last=False)
+        return result
 
     def _hero_page(self, target, *, hero_id=None):
         """Compose only the requested page sources, gating every real request."""

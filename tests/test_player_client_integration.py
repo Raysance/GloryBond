@@ -107,7 +107,8 @@ class MergeTests(unittest.TestCase):
         saved={'btlist':{'list':self.converted()}}
         value=self.collect(lambda *a: dict(list=[],invisible=False), lambda *a,**k: (_ for _ in ()).throw(TimeoutError()),saved)
         self.assertEqual(len(value['list']),1)
-        self.assertIn('客户端战绩本次未取得',value['sourceWarnings'][0])
+        self.assertEqual(value['sourceWarnings'],[])
+        self.assertEqual(value['sourceErrors'],[{'source':'客户端','error_type':'TimeoutError'}])
         value=self.collect(lambda *a: (_ for _ in ()).throw(RuntimeError('paging incomplete')),lambda *a,**k:client_result())
         self.assertEqual(len(value['list']),1)
         self.assertFalse(value['invisible'])

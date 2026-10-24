@@ -120,6 +120,37 @@ class AdapterTests(unittest.TestCase):
             adapter.query('profile')
         fake.profile.assert_not_called()
 
+    def test_successful_sources_are_cached_by_exact_target_then_expire_without_sharing_mutations(self):
+        from hok_research import PlayerRef
+        adapter,fake=self.make()
+        fake.game.return_value={'value':[1]}
+        clock=import_hok_module('ztime')
+        with patch.object(clock,'monotonic_seconds',return_value=0):
+            first=adapter._read('game',PlayerRef(1,2,3))
+        first['value'].append(9)
+        with patch.object(clock,'monotonic_seconds',return_value=1):
+            self.assertEqual(adapter._read('game',PlayerRef(1,2,3)),{'value':[1]})
+            adapter._read('game',PlayerRef(1,4,3))
+        self.assertEqual(fake.game.call_count,2)
+        with patch.object(clock,'monotonic_seconds',return_value=61):
+            adapter._read('game',PlayerRef(1,2,3))
+        self.assertEqual(fake.game.call_count,3)
+        self.assertEqual([call.args[0] for call in adapter.gate.call_args_list],['login','query','query','query'])
+        adapter.close()
+        self.assertEqual(len(adapter._cache),0)
+
+    def test_cache_is_bounded_and_failed_sources_are_never_cached(self):
+        from hok_research import PlayerRef
+        adapter,fake=self.make()
+        adapter.settings['query_cache_max_entries']=2
+        fake.game.return_value={'value':1}
+        for uid in (1,2,3):adapter._read('game',PlayerRef(uid,2,3))
+        self.assertEqual(len(adapter._cache),2)
+        fake.game.side_effect=TimeoutError('not logged')
+        for _ in range(2):
+            with self.assertRaises(TimeoutError):adapter._read('game',PlayerRef(9,2,3))
+        self.assertEqual(fake.game.call_count,5)
+
     def test_query_failure_not_retried(self):
         failed = Mock()
         adapter, fake = self.make(on_error=failed)
@@ -184,6 +215,34 @@ class RateTests(unittest.TestCase):
             self.assertEqual(redis.eval.call_args.args[-1], 900000)
             ZFUNC.player_client_request_error(TimeoutError(), login=True)
             self.assertEqual(redis.eval.call_args.args[-1], 1800000)
+
+    def test_normal_minute_queue_wait_keeps_connection_alive_and_retains_admission_limits(self):
+        self.settings['rate_limit']['max_wait_seconds']=65
+        redis=Mock();redis.eval.side_effect=[[0,50000,3],[1,0,0]]
+        adapter=Mock();clock=import_hok_module('ztime')
+        with patch.object(DYNAMIC,'redis_deamon',redis),patch.object(DYNAMIC,'player_client_adapter',adapter), \
+             patch.object(ZFUNC,'player_client_config',self.settings),patch.object(clock,'sleep_seconds') as sleep:
+            ZFUNC.player_client_rate_gate('query')
+        self.assertEqual([call.args[0] for call in sleep.call_args_list],[20,20,10])
+        self.assertEqual(adapter.heartbeat.call_count,3)
+        self.assertEqual(redis.eval.call_count,2)
+
+    def test_heartbeat_never_logs_in_and_skips_an_active_query(self):
+        adapter=Mock();factory=Mock()
+        import threading
+        lock=threading.Lock()
+        with patch.object(DYNAMIC,'player_client_lock',lock),patch.object(DYNAMIC,'player_client_adapter',adapter), \
+             patch.object(ZFUNC,'player_client_config',{'enabled':True}):
+            lock.acquire()
+            ZFUNC.player_client_heartbeat()
+            adapter.heartbeat.assert_not_called()
+            lock.release()
+            ZFUNC.player_client_heartbeat()
+            adapter.heartbeat.assert_called_once()
+        with patch.object(DYNAMIC,'player_client_adapter',None),patch.object(ZFUNC,'player_client_config',{'enabled':True}), \
+             patch.object(import_hok_module('zapi'),'PlayerClientAdapter',factory):
+            ZFUNC.player_client_heartbeat()
+        factory.assert_not_called()
 
 
 if __name__ == '__main__':

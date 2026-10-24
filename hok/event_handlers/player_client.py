@@ -224,11 +224,14 @@ async def command_reply(event):
     except asyncio.CancelledError:
         raise
     except PlayerClientRateLimited as error:
-        return [f"客户端请求正在限速或冷却，请约 {error.retry_after} 秒后再试。没有自动重试。"]
+        return [f"客户端查询繁忙，请约 {error.retry_after} 秒后再试。"]
     except Exception as error:
         # Library/transport exception text can contain account material.
         code = getattr(error, "code", None)
         suffix = f"，错误码 {code}" if isinstance(code, int) else ""
         from ..zutil import log_message
         log_message(f"PLAYER_CLIENT_QUERY_FAILED: operation={operation} error={type(error).__name__}{suffix}")
-        return [f"客户端资料暂时未能取得{suffix}。请检查玩家绑定、登录状态、隐私设置或网络连接。"]
+        from hok_research import QueryRejected
+        if isinstance(error, QueryRejected) and code in player_client_config["rate_limit"]["privacy_codes"]:
+            return ["该玩家未开放此项资料。"]
+        return ["客户端查询暂时失败，请稍后再试。"]

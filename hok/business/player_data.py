@@ -85,7 +85,7 @@ def _combined_battle_list(realname, userid, roleid, target_date):
         return _battle_list_for_date(userid, roleid, target_date)
     from .player_client_history import client_battles, merge_battles
 
-    warnings, camp, client = [], None, None
+    warnings, failures, camp, client = [], [], None, None
     with ThreadPoolExecutor(max_workers=2) as pool:
         camp_future = pool.submit(_battle_list_for_date, userid, roleid, target_date)
         client_future = pool.submit(runtime.player_client_query, "matches", player=player)
@@ -98,7 +98,7 @@ def _combined_battle_list(realname, userid, roleid, target_date):
                     client = value
             except Exception as error:
                 runtime.log_message(f"BATTLE_SOURCE_FAILED: source={source} error={type(error).__name__}")
-                warnings.append(f"{source}战绩本次未取得（{type(error).__name__}），保留其他来源及已保存记录。")
+                failures.append({"source": source, "error_type": type(error).__name__})
     if camp is None and client is None:
         raise RuntimeError("营地和客户端战绩均未取得，未覆盖已保存记录")
     result = dict(camp or {"list": [], "invisible": True, "isGaming": False, "gaming": {}})
@@ -119,6 +119,7 @@ def _combined_battle_list(realname, userid, roleid, target_date):
         [row for row in saved if row.get("clientOnly")] + converted,
         tolerance_seconds=int(settings["history_merge_tolerance_seconds"]))
     result["sourceWarnings"] = warnings
+    result["sourceErrors"] = failures
     result["clientAdded"] = added
     result["campInvisible"] = bool(camp and camp.get("invisible"))
     result["campAvailable"] = camp is not None
