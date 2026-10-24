@@ -3,6 +3,7 @@
 OPERATIONS = frozenset({
     "homepage", "profile", "history", "heroes", "game", "hero_assets",
     "collections", "displayed_skins", "hero_road_brief", "hero_detail", "hero_titles", "search",
+    "matches", "game_statistics", "hero_honors",
 })
 
 
@@ -10,6 +11,25 @@ class PlayerClientRateLimited(RuntimeError):
     def __init__(self, retry_after, reason="interval"):
         self.retry_after, self.reason = retry_after, reason
         super().__init__("Player client requests are cooling down")
+
+
+def player_client_artwork_api(items, settings):
+    """Bounded public artwork GETs, with no account cookies or environment proxy."""
+    from concurrent.futures import ThreadPoolExecutor
+    from urllib.parse import urlsplit
+    from .tianyuanzhiyi import _skin_votes_get_bytes
+
+    def fetch(item):
+        url = item["avatarUrl"]
+        if urlsplit(url).hostname != "game.gtimg.cn" or not url.startswith("https://"):
+            return None
+        try:
+            return str(item["heroId"]), _skin_votes_get_bytes(url,
+                float(settings["artwork_timeout_seconds"]), int(settings["artwork_max_bytes"]))
+        except Exception:
+            return None
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        return dict(value for value in pool.map(fetch, items) if value)
 
 
 class PlayerClientAdapter:
@@ -44,7 +64,8 @@ class PlayerClientAdapter:
             self.on_error(error, login=False)
             raise
 
-    def query(self, operation, *, player=None, name=None, platform=None, scope="all", hero_id=None):
+    def query(self, operation, *, player=None, name=None, platform=None, scope="all", hero_id=None,
+              mode="all", branch=None):
         from hok_research import PlayerRef, ResourceCatalog, PlayerHomepage, QueryRejected
         from hok_research.profile_data import json_value
 
@@ -72,6 +93,34 @@ class PlayerClientAdapter:
                     raise
                 errors["history"] = {"code": error.code}
             result = PlayerHomepage(profile, history, errors=errors)
+        elif operation == "matches":
+            from hok_research import GameplayCatalog
+            return self._read("matches", target).to_json_value(
+                catalog=ResourceCatalog.bundled(), gameplay_catalog=GameplayCatalog.bundled())
+        elif operation == "game_statistics":
+            game = self._read("game", target)
+            return game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
+        elif operation == "hero_honors":
+            profile = self._read("profile", target)
+            extra, notice = None, None
+            try:
+                extra = self._read("hero_detail", target, int(hero_id))
+            except (QueryRejected, PlayerClientRateLimited) as error:
+                # Preserve the profile statistics when an optional detail is private or paced.
+                notice = "独立徽章/称号资料未取得"
+                if isinstance(error, QueryRejected) and error.code not in self.settings["rate_limit"]["privacy_codes"]:
+                    raise
+            heroes = profile.heroes(scope)
+            result = heroes.honors(int(hero_id), extra=extra).to_json_value(catalog=ResourceCatalog.bundled())
+            hero = next((h for h in heroes.player_heroes() if h.hero_id == int(hero_id)), None)
+            if hero is not None:
+                try:
+                    score = hero.property_totals("score")
+                    result["display_score"] = score.native_score if score.denominator else None
+                except (KeyError, ValueError):
+                    result["display_score"] = None
+            result["notice"] = notice
+            return result
         elif operation == "heroes":
             result = self._read("heroes", target, scope=scope)
             return {"scope": scope, "heroes": [row.to_json_value(catalog=ResourceCatalog.bundled())

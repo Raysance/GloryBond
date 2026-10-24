@@ -17,10 +17,10 @@ def _number_text(value):
 
 
 def hero_report(label, result, settings, hero_names):
-    """Select by 5v5 games before rendering; never carry raw protocol fields."""
+    """Select bounded 5v5 cards by highest power; never carry raw protocol fields."""
     heroes = result["heroes"]
-    limit = max(1, min(20, int(settings["display_hero_limit"])))
-    ordered = sorted(heroes, key=lambda row: (-(_number(row.get("games")) or 0), int(row["hero_id"])))
+    limit = max(1, min(5, int(settings["display_hero_limit"])))
+    ordered = sorted(heroes, key=lambda row: (-(_number(row.get("highest_fight_value")) or 0), int(row["hero_id"])))
     rows = []
     for hero in ordered[:limit]:
         hero_id = str(hero["hero_id"])
@@ -28,11 +28,12 @@ def hero_report(label, result, settings, hero_names):
             "games", "wins", "losses", "win_rate_percent", "fight_value", "highest_fight_value")}
         if not row["games"] or row["win_rate_percent"] is None or row["win_rate_percent"] > 100:
             row["win_rate_percent"] = None
-        row.update(hero_id=hero_id, name=str(hero_names.get(hero_id) or hero.get("name") or "未知英雄"))
+        row.update(hero_id=hero_id, name=str(hero_names.get(hero_id) or hero.get("name") or "未知英雄"),
+                   artwork_focus=settings.get("artwork_focus", {}).get(hero_id, [.5, .4]))
         rows.append(row)
     scope = SCOPE_NAMES.get(result.get("scope"), "当前范围")
-    summary = f"{label} · {scope}英雄\n5v5 · 按场次降序，展示 {len(rows)}/{len(heroes)} 个返回英雄。"
-    hint = "查看单个英雄：#玩家的英雄名，例如 #我的小乔。"
+    summary = f"{label} · {scope}英雄\n5v5 · 按最高战力降序，展示 {len(rows)}/{len(heroes)} 个返回英雄。"
+    hint = "查看单个英雄：#玩家的英雄名，例如 #我的小乔。赛年标签、徽章和分路段位待补齐；插画使用官方默认形象。"
     text_rows = []
     for index, row in enumerate(rows, 1):
         rate = "—" if row["win_rate_percent"] is None else f"{row['win_rate_percent']:.1f}%"

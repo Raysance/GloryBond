@@ -27,16 +27,17 @@ class ShortcutTests(unittest.IsolatedAsyncioTestCase):
         return SimpleNamespace(get_plaintext=lambda: text, get_user_id=lambda: user)
 
     async def test_shortcuts_dispatch_the_same_client_operations_as_explicit_commands(self):
-        cases = (("#甲的小乔", "hero_detail", {"hero_id": 106}),
-                 ("＃我的卤蛋", "hero_detail", {"hero_id": 112}),
+        cases = (("#甲的小乔", "hero_honors", {"hero_id": 106, "scope": "all"}),
+                 ("＃我的卤蛋", "hero_honors", {"hero_id": 112, "scope": "all"}),
                  ("#ALI的英雄", "heroes", {"scope": "season"}),
                  ("#甲的本赛季英雄", "heroes", {"scope": "season"}),
                  ("#甲的英雄 本赛季", "heroes", {"scope": "season"}),
                  ("#我本赛季的英雄", "heroes", {"scope": "season"}),
-                 ("#我的数据", "game", {}))
+                 ("#我的数据", "game_statistics", {"scope": "season", "mode": "all", "branch": None}))
         for text, operation, parameters in cases:
             with self.subTest(text=text), patch.object(ZFUNC, "player_client_query", return_value={"result": 1}) as query, \
-                 patch.object(ZFUNC, "player_client_hero_report", return_value={"text": "英雄图", "image_path": "card.png"}) as report:
+                 patch.object(ZFUNC, "player_client_hero_report", return_value={"text": "英雄图", "image_path": "card.png"}) as report, \
+                 patch.object(ZFUNC, "player_client_screen_report", return_value={"text": "图", "image_path": "card.png"}):
                 self.assertTrue(await RULES.judge_player_client(self.event(text)))
                 await HANDLER.command_reply(self.event(text))
                 query.assert_called_once_with(operation, player={"uid": 7}, **parameters)
@@ -44,7 +45,7 @@ class ShortcutTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unprefixed_unknown_extra_text_and_admin_prefix_do_not_become_shortcuts(self):
         for text in ("甲的小乔", "#甲的小乔怎么样", "#陌生人的小乔", "#甲的不存在", "##甲的数据",
-                     "#关于甲的数据", "#甲的本赛季数据"):
+                     "#关于甲的数据"):
             with self.subTest(text=text):
                 self.assertFalse(await RULES.judge_player_client(self.event(text)))
 

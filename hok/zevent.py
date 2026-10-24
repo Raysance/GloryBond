@@ -863,7 +863,7 @@ async def f_chat(bot,event):
 @_player_client.handle()
 async def f_player_client(event: MessageEvent):
     from .event_handlers.player_client import command_reply, original_hero_reply
-    from .utils.message_sender import add_forward_msg, add_text_image_msg
+    from .utils.message_sender import add_text_image_msg
 
     original = await original_hero_reply(event)
     if original:
@@ -875,4 +875,5 @@ async def f_player_client(event: MessageEvent):
         else:
             add_msg(replies["text"], event=event)
     else:
-        add_forward_msg(replies, event=event, title="王者客户端查询", preview="客户端查询结果，点击查看。")
+        for reply in replies:
+            add_msg(reply, event=event)

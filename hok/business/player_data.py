@@ -2,6 +2,7 @@
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from .. import zdynamic as dmc
 from .. import zdb, zfile, ztime
@@ -74,11 +75,64 @@ def _battle_list_for_date(userid, roleid, target_date):
         cursor = next_cursor
 
 
+def _combined_battle_list(realname, userid, roleid, target_date):
+    runtime = _runtime()
+    settings = runtime.player_client_config
+    player = settings.get("players", {}).get(realname) if settings.get("enabled") else None
+    # Never use a binding for a different explicit camp account/role.
+    if (not player or str(runtime.userlist.get(realname)) != str(userid)
+            or str(runtime.roleidlist.get(realname)) != str(roleid)):
+        return _battle_list_for_date(userid, roleid, target_date)
+    from .player_client_history import client_battles, merge_battles
+
+    warnings, camp, client = [], None, None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        camp_future = pool.submit(_battle_list_for_date, userid, roleid, target_date)
+        client_future = pool.submit(runtime.player_client_query, "matches", player=player)
+        for source, future in (("营地", camp_future), ("客户端", client_future)):
+            try:
+                value = future.result()
+                if source == "营地":
+                    camp = value
+                else:
+                    client = value
+            except Exception as error:
+                runtime.log_message(f"BATTLE_SOURCE_FAILED: source={source} error={type(error).__name__}")
+                warnings.append(f"{source}战绩本次未取得（{type(error).__name__}），保留其他来源及已保存记录。")
+    if camp is None and client is None:
+        raise RuntimeError("营地和客户端战绩均未取得，未覆盖已保存记录")
+    result = dict(camp or {"list": [], "invisible": True, "isGaming": False, "gaming": {}})
+    converted = client_battles(client, player, settings) if client is not None else []
+    if client is not None:
+        collection = client.get("collection", {})
+        warnings.append("客户端为本次返回范围，不代表全部历史；娱乐战绩没有完整结束标记。")
+        if not collection.get("entertainment_received"):
+            warnings.append("客户端本次未收到娱乐战绩，不能据此判断没有记录。")
+    # Retain previously saved records when either provider is unavailable or has a bounded window.
+    previous = zfile.read_personal_history(str(target_date), userid) or {}
+    saved = previous.get("btlist", {}).get("list", [])
+    saved = [row for row in saved if (row.get("clientOnly") or camp is None or camp.get("invisible")) and
+             ztime.time_sul(ztime.stamp_to_time(int(row["dtEventTime"]))).date() == target_date]
+    originals = {str(row["gameSeq"]): row for row in result.get("list", [])}
+    for row in (item for item in saved if not item.get("clientOnly")):
+        originals.setdefault(str(row["gameSeq"]), row)
+    result["list"], added = merge_battles(list(originals.values()),
+        [row for row in saved if row.get("clientOnly")] + converted,
+        tolerance_seconds=int(settings["history_merge_tolerance_seconds"]))
+    result["sourceWarnings"] = warnings
+    result["clientAdded"] = added
+    result["campInvisible"] = bool(camp and camp.get("invisible"))
+    result["campAvailable"] = camp is not None
+    if converted or saved or (client is not None and client.get("collection", {}).get("ordinary_complete")):
+        result["invisible"] = False
+    return result
+
+
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
     runtime = _runtime()
     def get_star_today_most_recent(today_details):
         for detail in today_details[::-1]:
-            if (detail["MapType"]==1):
+            if detail["MapType"] == 1 and detail["StarAfterGame"] >= 0:
                 return detail["StarAfterGame"]
         return -1
         
@@ -105,7 +159,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
                 if int(player["id"]) != int(target_id):
                     continue
                 for detail in player["details"][::-1]:
-                    if detail["MapType"] == 1:
+                    if detail["MapType"] == 1 and detail.get("StarAfterGame", -1) >= 0:
                         return detail["StarAfterGame"]
         return -1
 
@@ -115,8 +169,21 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     roleid=target_roleid if target_roleid else runtime.roleidlist[realname]
     
     target_date_obj = ztime.str_to_time(target_date).date() if target_date else ztime.time_sul().date()
-    btlist_data = _battle_list_for_date(userid, roleid, target_date_obj)
-    profile_data=runtime.wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
+    btlist_data = _combined_battle_list(realname, userid, roleid, target_date_obj)
+    profile_available = True
+    try:
+        profile_data=runtime.wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
+    except Exception as error:
+        profile_available = False
+        if "sourceWarnings" not in btlist_data:
+            raise
+        previous = zfile.read_personal_history(str(target_date_obj), userid) or {}
+        profile_data = previous.get("profile")
+        if not profile_data:
+            profile_data = {"roleList": [{"roleId": roleid, "roleName": runtime.namenick.get(realname, realname)}],
+                            "head": {"mods": [{"modId": 701, "name": "段位未取得", "param1": '{"rankingStar":0}'}]}}
+        btlist_data["sourceWarnings"].append("营地玩家资料本次未取得，当前段位不可确认。")
+        runtime.log_message(f"BATTLE_PROFILE_FAILED: error={type(error).__name__}")
     res = {
         "btlist": btlist_data,
         "profile": profile_data
@@ -134,8 +201,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     starNum=(ranklist[rankName] if rankName in ranklist else fin) + rankStar
     # winRate=[mods["content"] for mods in res["profile"]["head"]["mods"] if mods["name"]=="胜率"][0]
     BtlVisible=not res["btlist"]["invisible"]
-    if sync_battle_visibility:
-        runtime.sync_battle_visibility_state(realname, BtlVisible)
+    if sync_battle_visibility and btlist_data.get("campAvailable", True):
+        runtime.sync_battle_visibility_state(realname, not btlist_data.get("campInvisible", not BtlVisible))
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=ztime.time_r().strftime("%m-%d")
     starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法强行填充
@@ -158,16 +225,18 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             'HeroName':runtime.safe_hero_name(game.get('heroId')),\
             'MapName':game['mapName'],\
             'MapType':1 if '排位' in game['mapName'] else (-1 if '巅峰' in game['mapName'] else 0),\
-            'StarAfterGame': -1 if '排位' not in game['mapName'] else (ranklist[game['roleJobName']]+game['stars']),\
+            'StarAfterGame': -1 if '排位' not in game['mapName'] or game.get('clientOnly') else (ranklist[game['roleJobName']]+game['stars']),\
             'PeakGradeAfterGame': -1 if '巅峰' not in game['mapName'] else game['newMasterMatchScore'],\
             'PeakGradeBeforeGame': -1 if '巅峰' not in game['mapName'] else game['oldMasterMatchScore'],\
             'KillCnt':game['killcnt'],'DeadCnt':game['deadcnt'],'AssistCnt':game['assistcnt'],\
-            'Result':('胜利' if game['gameresult']==1 else '失败'),\
+            'Result':('胜利' if game['gameresult']==1 else '失败' if game['gameresult']==2 else '未知'),\
             'GameGrade':float(game['gradeGame']),\
             'Duration_Second':int(game['usedTime']),\
             'GameSeq':int(game['gameSeq']),\
             'Params':runtime.extract_url_params(game['detailUrl']),\
-            'Others':build_battle_keywords(game)\
+            'Others':build_battle_keywords(game),\
+            **({'Source':'player_client', 'DataMissing':game['clientMissing'], 'GradeMissing':True,
+                'SelectedSkillIds':game.get('selectedSkillIds')} if game.get('clientOnly') else {})\
                 } for game in today_btl]
         today_details=today_details[::-1]
         today_game_map_set={game['mapName'] for game in today_btl}
@@ -209,11 +278,11 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         starUp= 0 if (star_today_most_recent==-1) else (star_today_most_recent-star_before_today_most_recent)
         # except Exception as e:
         #     _runtime().log_message(str(e))
-        peakUp=runtime.get_peak_alter_list(details=today_details,processed=False)
+        peakUp=runtime.get_peak_alter_list(details=[d for d in today_details if d.get('Source') != 'player_client'],processed=False)
         gamegrades = [
             round(float(game["gradeGame"]), 1)
             for game in today_btl
-            if runtime.check_btl_official(game["mapName"])
+            if runtime.check_btl_official(game["mapName"]) and not game.get("gradeMissing")
         ]
         today_btl_aver = round(sum(gamegrades) / len(gamegrades), 3) if gamegrades else 0
         today_btl_max=-fin if len(gamegrades)==0 else max(gamegrades)
@@ -238,7 +307,9 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         zfile.writerl(savepath, res)
     if (BtlVisible):
         today_btl_contribute_aver = runtime.calculate_official_battle_contribution_average(today_details, roleid)
-    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"btl_contribute_aver":today_btl_contribute_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles}
+    return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"btl_contribute_aver":today_btl_contribute_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles,
+            "source_warnings": btlist_data.get("sourceWarnings", []), "client_added": btlist_data.get("clientAdded", 0),
+            "profile_available": profile_available}
 
 def enrich_battle_list_skills_from_cache(payload, roleid):
     """从本地战局详情为单人战绩卡片补齐召唤师技能。"""
@@ -309,6 +380,8 @@ def export_battle_details(gameinfo, roleid):
     runtime = _runtime()
     inaccessible_battles = []
     for battle in gameinfo:
+        if battle.get("Source") == "player_client":
+            continue  # A client desk ID is not a camp detail URL or relay-server identity.
         gameseq = battle["GameSeq"]
         if zfile.battle_detail_exists(gameseq):
             continue

@@ -72,6 +72,8 @@ def validate_candidate(battle, rules):
     """Return (eligible, reasons) for configuration-driven hard filters."""
     eligibility = rules.get("eligibility", {})
     reasons = []
+    if battle.get("GradeMissing"):
+        reasons.append("界面评分缺失，不参与代表局评选")
     result = battle.get("Result")
     grade = _number(battle.get("GameGrade"))
     duration = _number(battle.get("Duration_Second"))

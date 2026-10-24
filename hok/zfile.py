@@ -732,12 +732,43 @@ def player_client_report_font(size, weight=400):
     return load_project_font(player_client_config["report_font_path"], size, weight)
 
 
+def player_client_reference_image(kind):
+    from PIL import Image
+    from .zstatic import player_client_config
+    path = player_client_config["reference_templates"][kind]
+    with Image.open(os.path.join(project_root, path)) as image:
+        return image.convert("RGB").resize((2048, 952), Image.Resampling.LANCZOS)
+
+
 def player_client_skin_names():
     """Read localized skin names from the installed client's offline catalog."""
     from hok_research import ResourceCatalog
 
     return {str(skin.config_id): f"{HeroList.get(str(skin.hero_id), '未知英雄')}·{skin.name}"
             for skin in ResourceCatalog.bundled().skins}
+
+
+def player_client_artwork_cache(items, contents=None):
+    """Large hero illustrations have a separate persistent, fingerprinted cache."""
+    import hashlib
+    contents = contents or {}
+    found, missing = {}, []
+    for item in items:
+        key = str(item["heroId"])
+        digest = hashlib.sha256(item["avatarUrl"].encode()).hexdigest()[:16]
+        path = os.path.join(project_root, "resources", "wzry_images", "player_client", f"{key}_{digest}.jpg")
+        content = contents.get(key)
+        if content:
+            pil_image_from_bytes(content, max_pixels=8_000_000)
+            ensure_dir(os.path.dirname(path))
+            with open(path, "wb") as file:
+                file.write(content)
+        try:
+            with open(path, "rb") as file:
+                found[key] = file.read()
+        except FileNotFoundError:
+            missing.append(item)
+    return found, missing
 
 
 def save_player_client_report(image):

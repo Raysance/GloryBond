@@ -66,7 +66,8 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=True)
         total_games_h = len(hero_games)
         wins_h = sum(1 for g in hero_games if g.get('Result') == '胜利')
         win_rate_h = (wins_h / total_games_h) if total_games_h else 0
-        avg_grade_h = sum(float(g.get('GameGrade', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
+        scored_games = [g for g in hero_games if not g.get('GradeMissing')]
+        avg_grade_h = round(sum(float(g.get('GameGrade', 0) or 0) for g in scored_games) / len(scored_games), 1) if scored_games else '—'
         mvp_h = sum(1 for g in hero_games if 'MVP' in (g.get('Others') or ''))
         avg_kill_h = sum(int(g.get('KillCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
         avg_dead_h = sum(int(g.get('DeadCnt', 0) or 0) for g in hero_games) / total_games_h if total_games_h else 0
@@ -74,7 +75,7 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=True)
 
         lines.append(line_delim)
         lines.append(f"{TimeLim}表现")
-        lines.append(f"{total_games_h}场  胜率{round(win_rate_h*100,1)}%  均分{round(avg_grade_h,1)}")
+        lines.append(f"{total_games_h}场  胜率{round(win_rate_h*100,1)}%  均分{avg_grade_h}")
         lines.append(f"MVP×{mvp_h}  牌子×{month_medal}  KDA {round(avg_kill_h,1)}/{round(avg_dead_h,1)}/{round(avg_assist_h,1)}")
     else:
         lines.append(line_delim)
@@ -136,7 +137,8 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
         if g.get('Result') == '胜利':
             s['wins'] += 1
         try:
-            s['grades'].append(float(g.get('GameGrade') or 0))
+            if not g.get('GradeMissing'):
+                s['grades'].append(float(g.get('GameGrade') or 0))
         except:
             pass
         s['kills'] += int(g.get('KillCnt') or 0)
@@ -237,7 +239,8 @@ def mult_player_mult_hero_process(days=30, top_n=5, min_games=5, this_season=Fal
             if g.get('Result') == '胜利':
                 s['wins'] += 1
             try:
-                s['grades'].append(float(g.get('GameGrade') or 0))
+                if not g.get('GradeMissing'):
+                    s['grades'].append(float(g.get('GameGrade') or 0))
             except:
                 pass
 
@@ -319,7 +322,8 @@ def mult_player_single_hero_process(hero_id,hero_name, days=30, min_games=3, top
             if g.get('Result') == '胜利':
                 stats['wins'] += 1
             try:
-                stats['grades'].append(float(g.get('GameGrade') or 0))
+                if not g.get('GradeMissing'):
+                    stats['grades'].append(float(g.get('GameGrade') or 0))
             except:
                 pass
             stats['kills'] += int(g.get('KillCnt') or 0)

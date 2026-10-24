@@ -1896,12 +1896,52 @@ def player_client_hero_report(label, result):
         log_message(f"PLAYER_CLIENT_AVATAR_FAILED: error={type(error).__name__}")
     try:
         image = render_hero_report(report, zfile.player_client_report_font, avatar_bytes=avatars,
+                                   artwork=player_client_artwork([r["hero_id"] for r in report["rows"]], variant="card"),
                                    win_rate_bands=player_client_config["win_rate_bands"])
         path = zfile.save_player_client_report(image)
     except Exception as error:
         log_message(f"PLAYER_CLIENT_REPORT_FAILED: error={type(error).__name__}")
         return {"text": report["text"], "image_path": None}
     return {"text": report["summary"] + "\n" + report["hint"], "image_path": path}
+
+
+def player_client_artwork(hero_ids, *, variant="illustration"):
+    from . import zapi, zfile
+    template = player_client_config[{"avatar": "hero_avatar_url_template", "card": "card_artwork_url_template",
+                                     "illustration": "artwork_url_template"}[variant]]
+    items = [{"heroId": str(hero_id), "avatarUrl": template.format(hero_id=hero_id)}
+             for hero_id in dict.fromkeys(hero_ids)]
+    try:
+        found, missing = zfile.player_client_artwork_cache(items)
+        if missing:
+            downloaded = zapi.player_client_artwork_api(missing, player_client_config)
+            zfile.player_client_artwork_cache(missing, downloaded)
+            found.update(downloaded)
+        return found
+    except Exception as error:
+        log_message(f"PLAYER_CLIENT_ARTWORK_FAILED: error={type(error).__name__}")
+        return {}
+
+
+def player_client_screen_report(kind, label, result):
+    from .business.player_client_screens import screen_report
+    from .tools.gen_player_client import render_screen
+    from . import zfile
+    report = screen_report(kind, label, result, HeroList)
+    try:
+        artwork = player_client_artwork([report["hero_id"]]) if kind == "hero" else {}
+        if kind == "hero" and report["hero_id"] != "106":
+            artwork["portrait"] = player_client_artwork([report["hero_id"]], variant="avatar").get(report["hero_id"])
+        image = render_screen(report, zfile.player_client_report_font, artwork=artwork,
+                              win_rate_bands=player_client_config["win_rate_bands"])
+        return {"text": report["text"], "image_path": zfile.save_player_client_report(image)}
+    except Exception as error:
+        log_message(f"PLAYER_CLIENT_SCREEN_FAILED: kind={kind} error={type(error).__name__}")
+        values = report["values"]
+        games = str(values["games"]) if values["games"] is not None else "—"
+        rate = f"{values['win_rate_percent']:.1f}%" if values["win_rate_percent"] is not None else "—"
+        return {"text": report["text"] + f"\n图片生成失败；场次 {games}，胜率 {rate}",
+                "image_path": None}
 
 
 def player_client_text_report(operation, label, result, *, player=None, hero_id=None):

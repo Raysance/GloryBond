@@ -13,7 +13,38 @@ HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
         "玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认以图片展示场次最多的前几个英雄。\n"
         "英雄详情支持英雄名、配置别名或数字ID；例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 小乔；"
         "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
-        "也可发送 #玩家的英雄名、#玩家的英雄、#玩家的数据；前两类保留原有统计并补充客户端资料。")
+        "也可发送 #玩家的英雄名、#玩家的英雄、#玩家的数据；前两类保留原有文案并附游戏界面样式图片。\n"
+        "数据默认当前赛季、所有游戏、全部分路；可追加当前赛年、全部比赛、中路/对抗路/发育路/打野/游走，"
+        "例如 #我的数据 当前赛年 中路。所有客户端结果直接发送文字或图片。")
+
+STATISTICS_OPTIONS = {
+    "当前赛季": ("scope", "season"), "本赛季": ("scope", "season"), "season": ("scope", "season"),
+    "当前赛年": ("scope", "year"), "当前塞年": ("scope", "year"), "本赛年": ("scope", "year"), "year": ("scope", "year"),
+    "全部比赛": ("scope", "all"), "全部时间": ("scope", "all"), "全部": ("scope", "all"), "all": ("scope", "all"),
+    "所有游戏": ("mode", "all"), "全部模式": ("mode", "all"), "排位赛": ("mode", "ranked"),
+    "排位": ("mode", "ranked"), "匹配": ("mode", "matchmaking"), "巅峰赛": ("mode", "peak"),
+    "巅峰": ("mode", "peak"), "娱乐": ("mode", "entertainment"),
+    "全部分路": ("branch", None), "所有分路": ("branch", None), "对抗路": ("branch", "top"),
+    "中路": ("branch", "mid"), "发育路": ("branch", "bot"), "打野": ("branch", "jungle"),
+    "游走": ("branch", "assist"), "辅助": ("branch", "assist"),
+}
+
+
+def statistics_options(text):
+    tail, selected = "".join(text.split()), {}
+    while tail:
+        keyword = next((word for word in sorted(STATISTICS_OPTIONS, key=len, reverse=True) if tail.startswith(word)), None)
+        if keyword is None:
+            raise ValueError("数据筛选未识别：可用当前赛季、当前赛年、全部比赛、所有游戏及具体分路")
+        key, value = STATISTICS_OPTIONS[keyword]
+        if key in selected and selected[key] != value:
+            raise ValueError("数据筛选条件冲突，请为时间、模式、分路分别指定一个条件")
+        selected[key] = value
+        tail = tail[len(keyword):]
+    options = {"scope": "season", "mode": "all", "branch": None, **selected}
+    if options["mode"] == "entertainment" and options["branch"] is not None:
+        raise ValueError("娱乐模式暂不提供分路统计，请去掉分路条件或改用排位等模式")
+    return options
 
 
 def parse_client_command(text):
@@ -54,6 +85,19 @@ def parse_client_shortcut(text, *, settings, nicknames, player_aliases, hero_nam
     if "的" not in raw:
         return None
     player, item = (part.strip() for part in raw.rsplit("的", 1))
+    if "数据" in item:
+        # Allow both #甲的数据 当前赛季 中路 and #甲当前赛季中路的数据.
+        suffix = item.replace("数据", "", 1).strip()
+        targets = ["我", *{str(v) for key in set(nicknames) | set(settings.get("players", {})) | set(player_aliases)
+                    for v in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if v}]
+        for target in sorted(targets, key=len, reverse=True):
+            if player.casefold().startswith(target.casefold()):
+                options = (player[len(target):] + " " + suffix).strip()
+                try:
+                    statistics_options(options)
+                except ValueError:
+                    continue
+                return ["游戏统计", target, *options.split()]
     if item.removeprefix("本赛季").removesuffix("本赛季").strip() == "英雄":
         player = player.removesuffix("本赛季").strip()
     if player.casefold() == "群u" or not player or not item:
@@ -117,6 +161,8 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=N
         parameters["scope"] = rest[0] if rest else "all"
     elif operation == "hero_detail":
         parameters["hero_id"] = resolve_hero_id(rest[0], hero_names or {}, hero_aliases or {})
+    elif operation == "game":
+        parameters.update(statistics_options(" ".join(rest)))
     elif rest:
         raise ValueError("该接口不接受额外参数")
     return operation, parameters, str(nicknames.get(key, key))
@@ -150,7 +196,7 @@ async def original_hero_reply(event):
 
 async def command_reply(event):
     from ..zstatic import player_client_config, qid, namenick, extra_namenick, nameref, HeroList, HeroName_replacements
-    from ..zfunc import player_client_query, player_client_hero_report, player_client_text_report
+    from ..zfunc import player_client_query, player_client_hero_report, player_client_text_report, player_client_screen_report
     from ..zapi import PlayerClientRateLimited
 
     try:
@@ -164,6 +210,12 @@ async def command_reply(event):
     except ValueError as error:
         return [str(error)]
     try:
+        if operation == "game":
+            result = await asyncio.to_thread(player_client_query, "game_statistics", **parameters)
+            return await asyncio.to_thread(player_client_screen_report, "game", label, result)
+        if operation == "hero_detail" and parse_client_command(event.get_plaintext()) is None:
+            result = await asyncio.to_thread(player_client_query, "hero_honors", **parameters, scope="all")
+            return await asyncio.to_thread(player_client_screen_report, "hero", label, result)
         result = await asyncio.to_thread(player_client_query, operation, **parameters)
         if operation == "heroes":
             return await asyncio.to_thread(player_client_hero_report, label, result)

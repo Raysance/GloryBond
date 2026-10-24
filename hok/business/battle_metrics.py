@@ -54,7 +54,7 @@ def calculate_official_battle_average(details):
     official_btls_grades = [
         float(btl["GameGrade"])
         for btl in details
-        if check_btl_official(btl["MapName"])
+        if check_btl_official(btl["MapName"]) and not btl.get("GradeMissing")
     ]
     average = sum(official_btls_grades) / len(official_btls_grades) if official_btls_grades else 0
     return round(average, 3)
@@ -104,7 +104,7 @@ def calculate_battle_contribution_factor(battle_detail, roleid=None, userid=None
 def calculate_official_battle_contribution_average(details, roleid):
     official_btls_contributes = []
     for btl in details:
-        if not check_btl_official(btl.get("MapName", "")):
+        if btl.get("Source") == "player_client" or not check_btl_official(btl.get("MapName", "")):
             continue
         gameseq = btl.get("GameSeq")
         if not gameseq:

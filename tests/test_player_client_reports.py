@@ -34,6 +34,9 @@ class HeroReportTests(unittest.TestCase):
         cache = patch.object(ZFILE, "load_hero_tier_avatar_cache", return_value=({}, []))
         cache.start()
         self.addCleanup(cache.stop)
+        artwork = patch.object(ZFUNC, "player_client_artwork", return_value={})
+        artwork.start()
+        self.addCleanup(artwork.stop)
 
     def test_top_five_are_sorted_and_projected_before_rendering_without_raw_fields(self):
         data = hero_result()
@@ -134,7 +137,39 @@ class HeroReportTests(unittest.TestCase):
                     avatar_bytes=avatars, win_rate_bands=self.settings["win_rate_bands"])
         self.assertIn("小乔", drawn)
         self.assertFalse(any("ID" in value or value in {str(i) for i in range(106, 111)} for value in drawn))
-        self.assertEqual(image.getpixel((146, 268)), (18, 58, 188))
+        self.assertFalse(any(word in value for value in drawn for word in ("待补齐", "缺失", "本图", "官方默认", "预览")))
+        self.assertEqual(image.getpixel((400, 268)), (18, 58, 188))
+
+    def test_each_hero_picture_stays_in_its_own_reference_card(self):
+        from PIL import Image
+        report = BUSINESS.hero_report("甲", hero_result(), self.settings, STATIC.HeroList)
+        report["rows"] = report["rows"][:2]
+        colors = [(220,20,30), (20,150,220)]
+        with tempfile.TemporaryDirectory() as directory:
+            artwork = {}
+            for row,color in zip(report["rows"],colors):
+                path = ZFILE.save_pil_image(Image.new("RGB",(600,410),color),directory+'/'+row["hero_id"]+'.png')
+                artwork[row["hero_id"]] = Path(path).read_bytes()
+            image = RENDER.render_hero_report(report,ZFILE.player_client_report_font,
+                artwork=artwork,win_rate_bands=self.settings["win_rate_bands"])
+        self.assertEqual(image.getpixel((400,300)),colors[0])
+        self.assertEqual(image.getpixel((677,300)),colors[1])
+        self.assertNotIn(image.getpixel((541,300)),colors)
+
+    def test_game_and_single_hero_images_do_not_draw_the_outside_explanation(self):
+        from PIL import ImageDraw
+        project = import_hok_module("business.player_client_screens")
+        original,drawn = ImageDraw.ImageDraw.text,[]
+        def track(draw,xy,text,*args,**kwargs):
+            drawn.append(str(text))
+            return original(draw,xy,text,*args,**kwargs)
+        for kind in ("game","hero"):
+            report = project.screen_report(kind,"甲",dict(scope="season",hero_id=106),STATIC.HeroList)
+            report["notice"] = "这段解释只能在图外显示"
+            with patch.object(ImageDraw.ImageDraw,"text",track):
+                RENDER.render_screen(report,ZFILE.player_client_report_font,win_rate_bands=self.settings["win_rate_bands"])
+        self.assertFalse(any(word in value for value in drawn for word in
+                             ("解释", "缺失", "待补齐", "本图", "默认形象", "预览", "未取得")))
 
 
 class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
@@ -185,7 +220,7 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
              patch.object(SENDER, "add_forward_msg", side_effect=lambda *args, **kwargs: order.append(("supplement", args[0]))):
             await namespace["f_player_client"](event)
         self.assertEqual(order, [("original", "原有统计，近30天"), ("client_query", None),
-                                  ("supplement", ["客户端资料暂时未能取得。"])])
+                                  ("original", "客户端资料暂时未能取得。")])
 
     async def test_forward_preview_survives_queue_for_both_destinations_without_replacing_body(self):
         for event, kind, target in ((SimpleNamespace(group_id=123, user_id=456), "group", 123),

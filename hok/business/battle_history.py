@@ -61,10 +61,11 @@ class Analyses:
                 if (detail["HeroName"] not in hero_info): hero_info[detail["HeroName"]]=[0,1,[],0,0]
                 else: hero_info[detail["HeroName"]][1]+=1
                 if (detail["Result"]=="胜利"): hero_info[detail["HeroName"]][0]+=1
-                hero_info[detail["HeroName"]][2].append(float(detail["GameGrade"]))
+                if not detail.get("GradeMissing"):
+                    hero_info[detail["HeroName"]][2].append(float(detail["GameGrade"]))
             for hero in hero_info:
                 hero_info[hero][3]=float(hero_info[hero][0])/hero_info[hero][1] # 英雄胜率
-                hero_info[hero][4]=float(sum(hero_info[hero][2]))/len(hero_info[hero][2]) # 英雄平均评分
+                hero_info[hero][4]=float(sum(hero_info[hero][2]))/len(hero_info[hero][2]) if hero_info[hero][2] else 0 # 英雄平均评分
             analyzed_info={"win_tourna_cnt":win_tourna_cnt,"total_tourna_cnt":total_tourna_cnt,"win_rate_tourna":win_rate_tourna,"hero_info":{k:v for k,v in hero_info.items()},"duration":duration}
             analyzed_infos[k]=analyzed_info
         # print(analyzed_infos)
@@ -79,7 +80,8 @@ class Analyses:
             if (count==0): continue
             wins=sum(heroinfo[0] for heroname,heroinfo in v["hero_info"].items())
             grade_sum=sum(sum(heroinfo[2]) for heroname,heroinfo in v["hero_info"].items())
-            summary[k]={"count":count,"wins":wins,"grade_sum":grade_sum,"win_rate":float(wins)/count,"avg_grade":float(grade_sum)/count}
+            grade_count=sum(len(heroinfo[2]) for heroinfo in v["hero_info"].values())
+            summary[k]={"count":count,"wins":wins,"grade_sum":grade_sum,"win_rate":float(wins)/count,"avg_grade":float(grade_sum)/grade_count if grade_count else 0}
         return summary
 
     @staticmethod
@@ -265,7 +267,7 @@ class Analyses:
 
         for playerid,details in history_info.items():
             for detail in details:
-                if (_runtime().check_btl_official_with_matching(detail['MapName'])):
+                if not detail.get('GradeMissing') and _runtime().check_btl_official_with_matching(detail['MapName']):
                     detail['GameGrade']=float(detail['GameGrade'])
                     if (detail['GameGrade']<lowest_grade):
                         lowest_grade=detail['GameGrade']

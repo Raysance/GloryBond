@@ -181,7 +181,7 @@ def single_process(received_message):
             battle_visible = gameinfo["visible"]
             if gameinfo["details"]:
                 for item in gameinfo["details"][::-1]:
-                    if _zfunc_attr("check_btl_official_with_matching")(
+                    if item.get("Params") and _zfunc_attr("check_btl_official_with_matching")(
                         item["MapName"]
                     ):
                         last_official_battle_params = item["Params"]
@@ -259,10 +259,21 @@ def single_process(received_message):
                 f"        平均评分: "
                 f"{gameinfo['btl_aver'] if gameinfo['btl_aver'] != fin else serr}\n"
                 f"        平均贡献: {gameinfo.get('btl_contribute_aver', 0):.2f}\n"
-                f"      当前段位: {gameinfo['rank_name']} {gameinfo['rank_star']}⭐\n"
+                f"      当前段位: {str(gameinfo['rank_name'])+' '+str(gameinfo['rank_star'])+'⭐' if gameinfo.get('profile_available', True) else '未取得'}\n"
                 f"{star_up_content}{peak_up_content}"
             )
             message += website_link + "\n\n"
+            client_rows = [row for row in gameinfo["details"] if row.get("Source") == "player_client"]
+            if client_rows:
+                message += "客户端补充对局（已去重）：\n"
+                for row in client_rows:
+                    missing = row.get("DataMissing", [])
+                    kda = "/".join("—" if label in missing else str(row[key]) for label, key in
+                                   (("击杀", "KillCnt"), ("死亡", "DeadCnt"), ("助攻", "AssistCnt")))
+                    message += f"{row['GameTime']} {row['MapName']} · {row['HeroName']} · {row['Result']} · {kda}\n"
+                message += "客户端独有对局的界面评分、段位变化未取得，显示为—，不计入平均评分。\n"
+            if gameinfo.get("source_warnings"):
+                message += "\n".join(gameinfo["source_warnings"]) + "\n"
             if gameinfo["today_num"] == 0:
                 ai_feedback = False
                 battle_exists = False
@@ -289,6 +300,8 @@ def single_process(received_message):
                         key: value
                         for key, value in detail.items()
                         if key in allowed_keys and value != -1
+                        and not (key == "GameGrade" and detail.get("GradeMissing"))
+                        and {"KillCnt": "击杀", "DeadCnt": "死亡", "AssistCnt": "助攻"}.get(key) not in detail.get("DataMissing", [])
                     }
                 )
             if ai_feedback:

@@ -69,4 +69,4 @@ __all__ = [
     "wzry_get_official",
 ]
 
-from .api_adapters.player_client import PlayerClientAdapter, PlayerClientRateLimited
+from .api_adapters.player_client import PlayerClientAdapter, PlayerClientRateLimited, player_client_artwork_api
