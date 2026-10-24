@@ -1345,11 +1345,17 @@ async def account_sessions_action(request: Request, AdminKey: str = Cookie(None)
         if len(raw) > 1024:
             raise ValueError()
         payload = json.loads(raw)
-        if not isinstance(payload, dict) or set(payload) - {"provider", "action", "challenge_id"}:
+        if not isinstance(payload, dict) or set(payload) - {"provider", "action", "challenge_id", "role_choice"}:
             raise ValueError()
-        if payload.get("provider") not in {"camp", "official", "napcat"} or payload.get("action") not in {"check", "start", "poll"}:
+        if payload.get("provider") not in {"camp", "official", "napcat"} or payload.get("action") not in {"check", "start", "poll", "select_role"}:
             raise ValueError()
-        if payload["action"] == "poll":
+        if payload["action"] == "select_role":
+            choice = payload.get("role_choice")
+            if payload["provider"] != "camp" or type(choice) is not int or not 0 <= choice < 100:
+                raise ValueError()
+        elif "role_choice" in payload:
+            raise ValueError()
+        if payload["action"] in {"poll", "select_role"}:
             import re
             if not re.fullmatch(r"[a-f0-9]{32}", str(payload.get("challenge_id", ""))):
                 raise ValueError()

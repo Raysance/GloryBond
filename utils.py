@@ -215,6 +215,9 @@ def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySv
         'token': wzry["token"],
         'userId': wzry["userid"]
     }
+    for field in allhero_data:
+        if field.lower() in headers:
+            allhero_data[field] = headers[field.lower()]
     herostatistics_data={
         "recommendPrivacy": 0,
         "toOpenid": wzry["openid"],

@@ -65,3 +65,14 @@ class AccountRouteTests(unittest.TestCase):
         result = self.client.post('/admin/funcs/account-sessions/action', json={'provider': 'camp', 'action': 'start'}, headers={'X-Account-CSRF': web._account_csrf()})
         self.assertEqual(result.status_code, 429)
         self.assertEqual(result.json()['retry_after'], 30)
+
+    def test_role_choice_is_limited_to_camp_and_dispatched_without_identity_parameters(self):
+        self.login()
+        headers={'X-Account-CSRF':web._account_csrf()}
+        base={'provider':'camp','action':'select_role','challenge_id':'a'*32,'role_choice':0}
+        for payload in ({**base,'provider':'official'}, {**base,'role_choice':True}, {**base,'role_choice':-1},
+                        {**base,'role_choice':100}, {**base,'openid':'arbitrary'}):
+            self.assertEqual(self.client.post('/admin/funcs/account-sessions/action',json=payload,headers=headers).status_code,400)
+        self.bridge.assert_not_called()
+        self.assertEqual(self.client.post('/admin/funcs/account-sessions/action',json=base,headers=headers).status_code,200)
+        self.bridge.assert_awaited_once_with(base)
