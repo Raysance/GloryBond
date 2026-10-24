@@ -704,10 +704,15 @@ def save_pil_image(image, filepath, **save_options):
 
 def skin_votes_font(size, weight=400):
     """Load the configured bundled Chinese font through the IO boundary."""
-    from PIL import ImageFont
     from .zstatic import skin_votes_config
 
-    path = skin_votes_config["font_path"]
+    return load_project_font(skin_votes_config["font_path"], size, weight)
+
+
+def load_project_font(path, size, weight=400):
+    """Load a project-relative or absolute font with optional variable weight."""
+    from PIL import ImageFont
+
     if not os.path.isabs(path):
         path = os.path.join(project_root, path)
     face = ImageFont.truetype(path, size)
@@ -719,6 +724,20 @@ def skin_votes_font(size, weight=400):
     except (OSError, AttributeError):
         pass
     return face
+
+
+def player_client_report_font(size, weight=400):
+    from .zstatic import player_client_config
+
+    return load_project_font(player_client_config["report_font_path"], size, weight)
+
+
+def save_player_client_report(image):
+    """Keep concurrent queries separate in the existing artifact cleanup area."""
+    import uuid
+
+    path = os.path.join(temp_path, "temp_files", f"player_client_{uuid.uuid4().hex}.png")
+    return save_pil_image(image, path, format="PNG")
 
 
 def save_skin_votes_image(image):

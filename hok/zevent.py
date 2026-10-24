@@ -863,7 +863,13 @@ async def f_chat(bot,event):
 @_player_client.handle()
 async def f_player_client(event: MessageEvent):
     from .event_handlers.player_client import command_reply
-    from .utils.message_sender import add_forward_msg
+    from .utils.message_sender import add_forward_msg, add_text_image_msg
 
     replies = await command_reply(event)
-    add_forward_msg(replies, event=event, title="王者客户端查询")
+    if isinstance(replies, dict):
+        if replies.get("image_path"):
+            add_text_image_msg(replies["text"], replies["image_path"], event=event)
+        else:
+            add_msg(replies["text"], event=event)
+    else:
+        add_forward_msg(replies, event=event, title="王者客户端查询", preview="客户端查询结果，点击查看。")

@@ -1873,6 +1873,24 @@ def player_client_query(operation, **parameters):
         dmc.player_client_lock.release()
 
 
+def player_client_hero_report(label, result):
+    """Render one bounded hero list without issuing further game requests."""
+    from .business.player_client import hero_report
+    from .tools.gen_player_client import render_hero_report
+    from . import zfile
+
+    report = hero_report(label, result, player_client_config, HeroList)
+    if not report["rows"]:
+        return {"text": report["text"], "image_path": None}
+    try:
+        image = render_hero_report(report, zfile.player_client_report_font)
+        path = zfile.save_player_client_report(image)
+    except Exception as error:
+        log_message(f"PLAYER_CLIENT_REPORT_FAILED: error={type(error).__name__}")
+        return {"text": report["text"], "image_path": None}
+    return {"text": report["summary"] + "\n" + report["hint"], "image_path": path}
+
+
 def player_client_close():
     with dmc.player_client_lock:
         if dmc.player_client_adapter is not None:

@@ -133,6 +133,8 @@ async def _handle_forward_msg(bot, payload):
         card_options = {}
         if payload.get("title"):
             card_options = {"source": payload["title"], "prompt": payload["title"]}
+        if payload.get("preview"):
+            card_options["news"] = [{"text": payload["preview"]}]
         target = _normalize_target_id(payload["toid"])
         if payload.get("type", "group") == "private":
             result = await bot.send_private_forward_msg(user_id=target, messages=payload["messages"], **card_options)
@@ -291,34 +293,38 @@ def _forward_nodes(text_nodes, sender_name):
     }} for text in text_nodes]
 
 
-def add_forward_msg(text_nodes, *, event, sender_name="机器人", title=None):
+def _forward_card_fields(title, preview):
+    fields = {}
+    for key, value in (("title", title), ("preview", preview)):
+        if value is not None:
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"Forward {key} must be non-empty text")
+            fields[key] = value.strip()
+    return fields
+
+
+def add_forward_msg(text_nodes, *, event, sender_name="机器人", title=None, preview=None):
     """Queue native chat records back to the command's group or private sender."""
     msg_type, target = _resolve_destination(event=event)
     target = _normalize_target_id(target)
     if msg_type == "group":
-        return add_group_forward_msg(text_nodes, group_qid=target, sender_name=sender_name, title=title)
+        return add_group_forward_msg(text_nodes, group_qid=target, sender_name=sender_name, title=title, preview=preview)
     if msg_type != "private" or type(target) is not int or target <= 0:
         raise ValueError("Invalid private forward target")
     payload = {"kind": "private_forward", "type": "private", "toid": target,
                "messages": _forward_nodes(text_nodes, sender_name)}
-    if title is not None:
-        if not isinstance(title, str) or not title.strip():
-            raise ValueError("Forward title must be non-empty text")
-        payload["title"] = title.strip()
+    payload.update(_forward_card_fields(title, preview))
     return _enqueue_payload(payload)
 
 
-def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", title=None, delivery_id=None, delivery_ttl=604800):
+def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", title=None, preview=None, delivery_id=None, delivery_ttl=604800):
     """Queue one native merged-forward message; external content stays literal text."""
     group_id = _normalize_target_id(group_qid or confs["QQBot"]["group_qid"])
     if type(group_id) is not int or group_id <= 0:
         raise ValueError("Invalid group forward target")
     messages = _forward_nodes(text_nodes, sender_name)
     payload = {"kind": "group_forward", "type": "group", "toid": group_id, "messages": messages}
-    if title is not None:
-        if not isinstance(title, str) or not title.strip():
-            raise ValueError("Group forward title must be non-empty text")
-        payload["title"] = title.strip()
+    payload.update(_forward_card_fields(title, preview))
     if delivery_id:
         from ..zfunc import enqueue_forward_message
         payload["delivery_id"] = delivery_id

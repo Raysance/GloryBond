@@ -17,7 +17,9 @@ class CommandTests(unittest.TestCase):
 
     def parse(self, text, qids=None):
         return HANDLER.query_parameters(HANDLER.parse_client_command(text), user_id='1', settings=self.settings,
-                                        qids=qids or {'alice': '1'}, nicknames={'alice': '甲'})
+                                        qids=qids or {'alice': '1'}, nicknames={'alice': '甲'},
+                                        hero_names={'106': '小乔', '112': '鲁班七号'},
+                                        hero_aliases={'112': '卤蛋', '-1': '轮椅'})
 
     def test_prefix_requires_boundary_and_accepts_fullwidth(self):
         self.assertIsNone(HANDLER.parse_client_command('客户端 战绩'))
@@ -44,6 +46,23 @@ class CommandTests(unittest.TestCase):
         self.assertIsNone(self.parse('#客户端 搜索 游戏昵称')[1]['platform'])
         self.assertIsNone(self.parse('#客户端 搜索 游戏昵称 all')[1]['platform'])
         self.assertEqual(self.parse('#客户端 搜索 "游戏 昵称" ios')[1], {'name': '游戏 昵称', 'platform': 2})
+
+    def test_hero_names_aliases_and_implicit_self(self):
+        for text, expected in (('#客户端 英雄详情 alice 小乔', 106),
+                               ('＃客户端 英雄详情 甲 卤蛋', 112),
+                               ('#客户端 英雄详情 小乔', 106),
+                               ('#客户端 英雄详情 166', 166)):
+            with self.subTest(text=text):
+                _, parameters, _ = self.parse(text)
+                self.assertEqual(parameters['hero_id'], expected)
+                self.assertEqual(parameters['player']['uid'], 7)
+
+    def test_unknown_partial_ambiguous_or_placeholder_heroes_are_rejected(self):
+        for hero in ('小', '不存在', '轮椅', '0', str(2 ** 32)):
+            with self.subTest(hero=hero), self.assertRaises(ValueError):
+                self.parse('#客户端 英雄详情 alice ' + hero)
+        with self.assertRaises(ValueError):
+            HANDLER.resolve_hero_id('重名', {'1': '重名'}, {'2': '重名'})
 
     def test_clipping_is_explicit_and_messages_bounded(self):
         parts = HANDLER.format_query_result('history', '甲', {'text': 'x' * 100}, self.settings)
