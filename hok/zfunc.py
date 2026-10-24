@@ -1609,8 +1609,12 @@ def check_btl_official_with_matching_with_entertain(btlname):
     return _battle_metrics_business.check_btl_official_with_matching_with_entertain(
         btlname
     )
-def export_btldetail(gameinfo, roleid):
-    return _player_data_business.export_battle_details(gameinfo, roleid)
+def export_btldetail(gameinfo, roleid, *, client_rows=None, userid=None):
+    return _player_data_business.export_battle_details(gameinfo, roleid, client_rows=client_rows, userid=userid)
+
+
+def backfill_player_client_battle_details(*, start_date=None, end_date=None, apply=False):
+    return _player_data_business.backfill_client_battle_details(start_date=start_date, end_date=end_date, apply=apply)
 
 from .business import daily_notification as _daily_notification_business
 

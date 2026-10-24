@@ -368,6 +368,8 @@ def history_query_handler(rcv_msg):
                     is_match = False
 
             # 评分区间 (无需详情)
+            if is_match and detail.get("GradeMissing") and (query_target.get("GradeRange") or query_target.get("GameGrade")):
+                is_match = False
             if is_match and query_target.get("GradeRange"):
                try:
                    grade = float(detail.get("GameGrade", -1))
@@ -699,7 +701,7 @@ def history_query_handler(rcv_msg):
     seen_gameseqs = set()
     for m in matches:
         # m[0] is detail
-        gs = m[0].get("GameSeq")
+        gs = str(m[0].get("GameSeq") or "")
         if gs and gs not in seen_gameseqs:
             seen_gameseqs.add(gs)
             unique_matches.append(m)
@@ -710,7 +712,8 @@ def history_query_handler(rcv_msg):
     if matches:
         total = len(matches)
         wins = sum(1 for m, _ in matches if "胜利" in m.get("Result", ""))
-        total_grade = sum(float(m.get("GameGrade", 0)) for m, _ in matches)
+        scored = [m for m, _ in matches if not m.get("GradeMissing") and m.get("GameGrade") is not None]
+        total_grade = sum(float(m["GameGrade"]) for m in scored)
         total_k = sum(int(m.get("KillCnt", 0)) for m, _ in matches)
         total_d = sum(int(m.get("DeadCnt", 0)) for m, _ in matches)
         total_a = sum(int(m.get("AssistCnt", 0)) for m, _ in matches)
@@ -719,7 +722,8 @@ def history_query_handler(rcv_msg):
             "total": total,
             "wins": wins,
             "win_rate": (wins / total * 100) if total > 0 else 0,
-            "avg_grade": (total_grade / total) if total > 0 else 0,
+            "avg_grade": (total_grade / len(scored)) if scored else 0,
+            "score_count": len(scored),
             "total_k": total_k,
             "total_d": total_d,
             "total_a": total_a,
@@ -740,7 +744,8 @@ def format_history_query_prefix(query_desc, stats):
         f"胜率: {stats.get('win_rate', 0):.1f}% "
         f"({stats.get('wins', 0)}胜{total - stats.get('wins', 0)}负)\n"
     )
-    prefix += f"平均评分: {stats.get('avg_grade', 0):.1f}\n"
+    grade_label = f"{stats.get('avg_grade', 0):.1f}" if stats.get("score_count", total) else "—"
+    prefix += f"平均评分: {grade_label}\n"
     prefix += (
         f"场均KDA: {stats.get('total_k', 0) / total:.1f}/"
         f"{stats.get('total_d', 0) / total:.1f}/"
@@ -761,7 +766,7 @@ def pack_history_query_matches(matches, role_ids, battle_loader):
         if battle_res:
             roles = battle_res.get("redRoles", []) + battle_res.get("blueRoles", [])
             for role in roles:
-                if int(role["basicInfo"]["roleId"]) == int(roleid):
+                if str(role["basicInfo"].get("roleId")) == str(roleid):
                     nickname = role["basicInfo"]["roleName"]
                     break
 
@@ -778,8 +783,11 @@ def pack_history_query_matches(matches, role_ids, battle_loader):
                 "DeadCnt": detail.get("DeadCnt"),
                 "AssistCnt": detail.get("AssistCnt"),
                 "Result": detail.get("Result"),
-                "GameGrade": detail.get("GameGrade"),
-                "GameSeq": gameseq,
+                "GameGrade": None if detail.get("GradeMissing") else detail.get("GameGrade"),
+                "GradeMissing": bool(detail.get("GradeMissing")),
+                "GameSeq": str(gameseq) if detail.get("Source") == "player_client" else gameseq,
+                "Source": detail.get("Source"),
+                "Params": detail.get("Params") or {},
                 "Others": detail.get("Others"),
             }
         )

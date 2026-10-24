@@ -23,6 +23,11 @@ class PostgresArchiveTests(unittest.TestCase):
                 "game_seq": "1782530763",
                 "source_path": "data/history/battles/1782530763.json",
             },
+            os.path.join(root, "data", "history", "battles", "-9223372036854775806.json"): {
+                "kind": "battle",
+                "game_seq": "-9223372036854775806",
+                "source_path": "data/history/battles/-9223372036854775806.json",
+            },
             os.path.join(root, "data", "history", "personal", "2026-09-22", "123.json"): {
                 "kind": "personal",
                 "date": "2026-09-22",

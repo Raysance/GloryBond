@@ -91,6 +91,8 @@ def calculate_battle_contribution_factor(battle_detail, roleid=None, userid=None
     if not team_roles:
         return None
     stats = target_role.get("battleStats", {})
+    if any(item.get("battleStats", {}).get(key) is None for item in team_roles for key in ("gradeGame", "money")):
+        return None
     my_grade = float(stats.get("gradeGame", 0))
     my_money = float(stats.get("money", 0))
     team_total_grade = sum(float(item.get("battleStats", {}).get("gradeGame", 0)) for item in team_roles)

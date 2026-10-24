@@ -263,17 +263,6 @@ def single_process(received_message):
                 f"{star_up_content}{peak_up_content}"
             )
             message += website_link + "\n\n"
-            client_rows = [row for row in gameinfo["details"] if row.get("Source") == "player_client"]
-            if client_rows:
-                message += "客户端补充对局（已去重）：\n"
-                for row in client_rows:
-                    missing = row.get("DataMissing", [])
-                    kda = "/".join("—" if label in missing else str(row[key]) for label, key in
-                                   (("击杀", "KillCnt"), ("死亡", "DeadCnt"), ("助攻", "AssistCnt")))
-                    message += f"{row['GameTime']} {row['MapName']} · {row['HeroName']} · {row['Result']} · {kda}\n"
-                message += "客户端独有对局的界面评分、段位变化未取得，显示为—，不计入平均评分。\n"
-            if gameinfo.get("source_warnings"):
-                message += "\n".join(gameinfo["source_warnings"]) + "\n"
             if gameinfo["today_num"] == 0:
                 ai_feedback = False
                 battle_exists = False

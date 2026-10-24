@@ -433,6 +433,21 @@ def read_personal_snapshot(snapshot_date, user_id):
             return row["payload"] if row else None
 
 
+def iter_client_battle_snapshots(*, start_date=None, end_date=None):
+    conditions = ["EXISTS (SELECT 1 FROM jsonb_array_elements(payload->'btlist'->'list') AS item WHERE item->>'clientOnly' = 'true')"]
+    params = []
+    for bound, operator in ((start_date, ">="), (end_date, "<=")):
+        if bound is not None:
+            conditions.append(f"snapshot_date {operator} %s")
+            params.append(_date_text(bound))
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT snapshot_date, user_id, target_role_id, payload FROM hok.personal_snapshots WHERE "
+                           + " AND ".join(conditions) + " ORDER BY snapshot_date, user_id", tuple(params))
+            while batch := cursor.fetchmany(16):
+                yield from batch
+
+
 def upsert_battle_power(game_seq, payload, source_path=None):
     if not isinstance(payload, dict):
         raise ValueError("battle power payload must be an object")

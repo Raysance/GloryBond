@@ -23,7 +23,7 @@ def fetch_battle(gameseq,roleid=0): # 读取单局战绩具体内容
         # 找到对应的玩家信息并更新head
         target_role = None
         for role in res.get('redRoles', []) + res.get('blueRoles', []):
-            if int(role['basicInfo']['roleId']) == int(roleid):
+            if str(role['basicInfo'].get('roleId')) == str(roleid):
                 target_role = role
                 break
         

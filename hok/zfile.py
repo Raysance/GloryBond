@@ -258,6 +258,12 @@ def read_personal_history(target_date, userid):
     return readerl(os.path.join(data_root, "history", "personal", str(target_date), f"{userid}.json"))
 
 
+def iter_client_battle_snapshots(*, start_date=None, end_date=None):
+    from .zdb import iter_client_battle_snapshots as read_snapshots
+
+    yield from read_snapshots(start_date=start_date, end_date=end_date)
+
+
 def read_hero_tier(target_date):
     """Read one hero-tier snapshot from PostgreSQL, with JSON archive fallback."""
     try:
@@ -331,7 +337,7 @@ def classify_postgres_archive_path(filepath):
     match = re.fullmatch(r"data/history/(\d{4}-\d{2}-\d{2})\.json", relative_path)
     if match:
         return {"kind": "history", "date": match.group(1), "source_path": relative_path}
-    match = re.fullmatch(r"data/history/battles/(\d+)\.json", relative_path)
+    match = re.fullmatch(r"data/history/battles/(-?\d+)\.json", relative_path)
     if match:
         return {"kind": "battle", "game_seq": match.group(1), "source_path": relative_path}
     match = re.fullmatch(r"data/history/personal/(\d{4}-\d{2}-\d{2})/(\d+)\.json", relative_path)

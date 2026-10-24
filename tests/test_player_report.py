@@ -84,12 +84,16 @@ class PlayerReportTests(unittest.TestCase):
             ],
             "gaming_info": {},
             "map_cnt": {"排位": [1, 1]},
-            "today_num": 1,
+            "today_num": 2,
             "star_up": 2,
             "peak_up": [],
             "rank_name": "王者",
             "rank_star": 10,
+            "source_warnings": ["客户端为本次返回范围，不代表全部历史；娱乐战绩没有完整结束标记。"],
         }
+        gameinfo["details"].append(dict(Source="player_client", Params={}, MapName="共鸣之战",
+            GameTime="12:10", HeroName="小乔", Result="胜利", KillCnt=3, DeadCnt=4, AssistCnt=5,
+            GradeMissing=True, DataMissing=["评分", "段位变化"]))
         ZFUNC.extract_name = lambda text: "alice"
         ZFUNC.wzry_data = lambda *args, **kwargs: dict(gameinfo)
         ZFUNC.check_btl_official_with_matching = lambda map_name: True
@@ -135,7 +139,10 @@ class PlayerReportTests(unittest.TestCase):
 
         message, poke_names, battle_exists, last_params, roleid = result
         self.assertIn("🚩Alice", message)
-        self.assertIn("场次：1", message)
+        self.assertIn("场次：2", message)
+        self.assertNotIn("客户端补充", message)
+        self.assertNotIn("不代表全部历史", message)
+        self.assertNotIn("未取得", message)
         self.assertIn("平均评分: 10.0", message)
         self.assertIn("平均贡献: 1.25", message)
         self.assertIn("https://example/player", message)

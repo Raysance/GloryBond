@@ -101,7 +101,7 @@ class MergeTests(unittest.TestCase):
         value=self.collect(camp,client)
         self.assertEqual(len(value['list']),1)
         self.assertEqual(value['clientAdded'],1)
-        self.assertIn('不代表全部历史',value['sourceWarnings'][0])
+        self.assertEqual(value['sourceWarnings'],[])
 
     def test_failed_provider_retains_the_other_and_saved_client_rows(self):
         saved={'btlist':{'list':self.converted()}}

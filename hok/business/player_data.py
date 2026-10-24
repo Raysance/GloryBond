@@ -105,9 +105,8 @@ def _combined_battle_list(realname, userid, roleid, target_date):
     converted = client_battles(client, player, settings) if client is not None else []
     if client is not None:
         collection = client.get("collection", {})
-        warnings.append("客户端为本次返回范围，不代表全部历史；娱乐战绩没有完整结束标记。")
         if not collection.get("entertainment_received"):
-            warnings.append("客户端本次未收到娱乐战绩，不能据此判断没有记录。")
+            runtime.log_message("BATTLE_CLIENT_ENTERTAINMENT_NOT_RECEIVED")
     # Retain previously saved records when either provider is unavailable or has a bounded window.
     previous = zfile.read_personal_history(str(target_date), userid) or {}
     saved = previous.get("btlist", {}).get("list", [])
@@ -232,7 +231,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
             'Result':('胜利' if game['gameresult']==1 else '失败' if game['gameresult']==2 else '未知'),\
             'GameGrade':float(game['gradeGame']),\
             'Duration_Second':int(game['usedTime']),\
-            'GameSeq':int(game['gameSeq']),\
+            'GameSeq':str(game['gameSeq']) if game.get('clientOnly') else int(game['gameSeq']),\
             'Params':runtime.extract_url_params(game['detailUrl']),\
             'Others':build_battle_keywords(game),\
             **({'Source':'player_client', 'DataMissing':game['clientMissing'], 'GradeMissing':True,
@@ -301,7 +300,10 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
-    unaccessible_battles=runtime.export_btldetail(today_details,roleid)
+    if BtlVisible and any(game.get("clientOnly") for game in today_btl):
+        unaccessible_battles=runtime.export_btldetail(today_details,roleid,client_rows=today_btl,userid=userid)
+    else:
+        unaccessible_battles=runtime.export_btldetail(today_details,roleid)
     enrich_battle_list_skills_from_cache(res, roleid)
     if savepath:
         zfile.writerl(savepath, res)
@@ -376,12 +378,37 @@ def dump_specific_user(userid, roleid, target_date):
     return gameinfo[0]
 
 
-def export_battle_details(gameinfo, roleid):
+def export_battle_details(gameinfo, roleid, *, client_rows=None, userid=None):
     runtime = _runtime()
     inaccessible_battles = []
     for battle in gameinfo:
         if battle.get("Source") == "player_client":
-            continue  # A client desk ID is not a camp detail URL or relay-server identity.
+            from .player_client_history import camp_battle_detail
+
+            row = next((row for row in client_rows or [] if str(row["gameSeq"]) == str(battle["GameSeq"])), None)
+            if row is None:
+                continue
+            bindings = runtime.player_client_config.get("players", {})
+            identities = {}
+            target = row.get("clientPlayer")
+            for name, binding in bindings.items():
+                if name not in runtime.userlist or name not in runtime.roleidlist:
+                    continue
+                identity = (str(binding["uid"]), str(binding["logic_world_id"]))
+                identities.setdefault(identity, []).append({"user_id": runtime.userlist[name], "role_id": runtime.roleidlist[name]})
+                if str(runtime.userlist[name]) == str(userid) and str(runtime.roleidlist[name]) == str(roleid):
+                    target = target or binding
+            identities = {identity: values[0] for identity, values in identities.items()
+                          if all(value == values[0] for value in values)}
+            try:
+                if target is None:
+                    raise ValueError("client target binding is unavailable")
+                converted = camp_battle_detail(row, target, roleid=roleid, userid=userid,
+                    identities=identities, hero_names=runtime.HeroList, settings=runtime.player_client_config)
+                zfile.writerl(zfile.battle_detail_path(battle["GameSeq"]), converted)
+            except Exception as exc:
+                inaccessible_battles.append({"roleid": roleid, "GameSeq": battle["GameSeq"], "Error": str(exc)})
+            continue
         gameseq = battle["GameSeq"]
         if zfile.battle_detail_exists(gameseq):
             continue
@@ -405,3 +432,18 @@ def export_battle_details(gameinfo, roleid):
                 }
             )
     return inaccessible_battles
+
+
+def backfill_client_battle_details(*, start_date=None, end_date=None, apply=False):
+    """Repair saved client-only details without querying either external game service."""
+    snapshots, battles, failures = 0, set(), []
+    for snapshot in zfile.iter_client_battle_snapshots(start_date=start_date, end_date=end_date):
+        snapshots += 1
+        rows = [row for row in snapshot["payload"].get("btlist", {}).get("list", [])
+                if row.get("clientOnly") and str(row["gameSeq"]) not in battles]
+        details = [{"GameSeq": str(row["gameSeq"]), "Source": "player_client"} for row in rows]
+        battles.update(str(row["gameSeq"]) for row in rows)
+        if apply:
+            failures.extend(export_battle_details(details, snapshot["target_role_id"],
+                userid=snapshot["user_id"], client_rows=rows))
+    return {"snapshots": snapshots, "battles": len(battles), "failed": len(failures), "applied": bool(apply)}
