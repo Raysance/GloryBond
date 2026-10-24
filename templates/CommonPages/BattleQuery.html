@@ -2990,8 +2990,7 @@
                     return;
                 }
                 // 从profile.roleList中找到目标角色
-                const targetRoleId = profileData.targetRoleId;
-                const targetRole = profileData.roleList.find(role => role.roleId === targetRoleId);
+                const targetRole = battleProfileRole(profileData);
                 
                 if (!targetRole) {
                     console.error('未找到目标角色信息');
@@ -3253,6 +3252,7 @@
                 if (timer) clearTimeout(timer);
                 switchToFallback(imgElement, fallbackText);
             };
+            if (imgElement.complete && imgElement.naturalWidth > 0) imgElement.onload();
         }
 
         function switchToFallback(imgElement, text) {

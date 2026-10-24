@@ -2032,8 +2032,7 @@
 
         function updatePlayerProfile(profileData) {
             try {
-                const targetRoleId = profileData.targetRoleId;
-                const targetRole = profileData.roleList.find(role => role.roleId === targetRoleId) || profileData.roleList[0];
+                const targetRole = battleProfileRole(profileData);
                 if (!targetRole) return;
                 const roleName = targetRole.roleName || '未知玩家';
                 const roleJobName = targetRole.roleJobName || '无称号';

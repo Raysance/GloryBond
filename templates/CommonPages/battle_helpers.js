@@ -8,6 +8,15 @@ function parseBattlePayload(text) {
     return typeof result === 'string' ? exact(result) : result;
 }
 
+function battleProfileRole(profile) {
+    const roles = Array.isArray(profile?.roleList) ? profile.roleList.filter(role => role && typeof role === 'object') : [];
+    const targetId = String(profile?.targetRoleId ?? '').trim();
+    if (targetId) {
+        return roles.find(role => String(role.roleId ?? '').trim() === targetId) || null;
+    }
+    return roles.length === 1 ? roles[0] : null;
+}
+
 function battleGrade(battle) {
     if (battle.gradeMissing || battle.GradeMissing) return null;
     const value = battle.gradeGame ?? battle.GameGrade;
