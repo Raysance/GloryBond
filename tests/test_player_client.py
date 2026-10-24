@@ -41,6 +41,8 @@ class CommandTests(unittest.TestCase):
         for text in ('#客户端 英雄 alice week', '#客户端 英雄详情 alice -1', '#客户端 资料 alice extra'):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 self.parse(text)
+        self.assertIsNone(self.parse('#客户端 搜索 游戏昵称')[1]['platform'])
+        self.assertIsNone(self.parse('#客户端 搜索 游戏昵称 all')[1]['platform'])
         self.assertEqual(self.parse('#客户端 搜索 "游戏 昵称" ios')[1], {'name': '游戏 昵称', 'platform': 2})
 
     def test_clipping_is_explicit_and_messages_bounded(self):
@@ -65,9 +67,23 @@ class AdapterTests(unittest.TestCase):
         gate = Mock()
         adapter, fake = self.make(gate)
         fake.search_players.return_value.to_json_value.return_value = {'candidates': []}
-        self.assertEqual(adapter.query('search', name='甲'), {'candidates': []})
+        self.assertEqual(adapter.query('search', name='甲', platform=1), {'candidates': []})
         self.assertEqual([call.args[0] for call in gate.call_args_list], ['login', 'query'])
         fake.search_players.assert_called_once()
+
+    def test_dual_search_gates_both_platforms_and_keeps_not_found_as_empty(self):
+        from hok_research import PlayerSearchResult, SearchPlatform
+        gate, failed = Mock(), Mock()
+        adapter, fake = self.make(gate, failed)
+        fake.search_players.side_effect = [PlayerSearchResult("甲", platform, {
+            "stResultInfo": {"iResultId": 13002}, "bIsMadeUpBySvr": False})
+            for platform in (SearchPlatform.ANDROID, SearchPlatform.IOS)]
+        result = adapter.query("search", name="甲")
+        self.assertEqual(result["platforms"], [1, 2])
+        self.assertEqual(result["candidates"], [])
+        self.assertEqual([c.kwargs["platform"] for c in fake.search_players.call_args_list], [1, 2])
+        self.assertEqual([c.args[0] for c in gate.call_args_list], ["login", "query", "query"])
+        failed.assert_not_called()
 
     def test_blocked_query_makes_no_network_call(self):
         gate = Mock(side_effect=[None, ADAPTER.PlayerClientRateLimited(12)])
@@ -87,7 +103,7 @@ class AdapterTests(unittest.TestCase):
         adapter, fake = self.make(on_error=failed)
         fake.search_players.side_effect = TimeoutError('secret material')
         with self.assertRaises(TimeoutError):
-            adapter.query('search', name='甲')
+            adapter.query('search', name='甲', platform=1)
         fake.search_players.assert_called_once()
         failed.assert_called_once()
 
@@ -125,6 +141,16 @@ class RateTests(unittest.TestCase):
                 ZFUNC.player_client_rate_gate('query')
         self.assertEqual(error.exception.retry_after, 899)
         redis.eval.assert_called_once()
+
+    def test_short_minute_quota_wait_does_not_abort_batch(self):
+        redis = Mock()
+        redis.eval.side_effect = [[0, 5000, 3], [1, 0, 0]]
+        ztime = import_hok_module("ztime")
+        with patch.object(DYNAMIC, "redis_deamon", redis), patch.object(ZFUNC, "player_client_config", self.settings), \
+             patch.object(ztime, "sleep_seconds") as sleep:
+            ZFUNC.player_client_rate_gate("query")
+        sleep.assert_called_once_with(5)
+        self.assertEqual(redis.eval.call_count, 2)
 
     def test_privacy_does_not_open_circuit_but_risk_and_login_do(self):
         from hok_research import QueryRejected

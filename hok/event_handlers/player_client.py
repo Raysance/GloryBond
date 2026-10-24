@@ -13,7 +13,7 @@ HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
         "接口：主页、资料、战绩、英雄、统计、资产、收藏、皮肤、英雄之路、英雄详情、称号、搜索。\n"
         "玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，英雄详情需追加英雄ID。\n"
         "例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 166；"
-        "#客户端 搜索 完整游戏昵称 [android/ios]。仅查询，不自动绑定搜索结果。")
+        "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。")
 
 
 def parse_client_command(text):
@@ -38,9 +38,10 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames):
         raise ValueError("未知接口，请发送 #客户端 帮助")
     args = tokens[1:]
     if operation == "search":
-        if not 1 <= len(args) <= 2 or (len(args) == 2 and args[1] not in {"android", "ios"}):
-            raise ValueError("用法：#客户端 搜索 完整游戏昵称 [android/ios]")
-        return operation, {"name": args[0], "platform": 2 if args[-1] == "ios" and len(args) == 2 else 1}, args[0]
+        if not 1 <= len(args) <= 2 or (len(args) == 2 and args[1] not in {"all", "android", "ios"}):
+            raise ValueError("用法：#客户端 搜索 完整游戏昵称 [all/android/ios]")
+        platform = {"all": None, "android": 1, "ios": 2}[args[1]] if len(args) == 2 else None
+        return operation, {"name": args[0], "platform": platform}, args[0]
     target = args[0] if args else "我"
     mappings = settings.get("players", {})
     if target == "我":

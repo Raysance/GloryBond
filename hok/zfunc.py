@@ -1845,7 +1845,7 @@ def player_client_rate_gate(kind):
         if admitted:
             return
         delay = wait_ms / 1000
-        if reason != 2 or ztime.monotonic_seconds() + delay > deadline:
+        if reason == 1 or ztime.monotonic_seconds() + delay > deadline:
             raise PlayerClientRateLimited(math.ceil(delay), {1: "cooldown", 2: "interval", 3: "quota"}[reason])
         ztime.sleep_seconds(delay)
 

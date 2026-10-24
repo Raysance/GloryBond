@@ -814,7 +814,7 @@ def player_client_state_paths():
     return paths
 
 
-def save_player_client_bindings(bindings):
+def save_player_client_bindings(bindings, *, pending=None, skipped=None):
     """Update only the explicit mapping block in the sole YAML config."""
     from .zstatic import config_path
 
@@ -823,9 +823,13 @@ def save_player_client_bindings(bindings):
     document = yaml.safe_load(text)
     players = {**document["PlayerClient"].get("players", {}), **bindings}
     document["PlayerClient"]["players"] = players
-    pending = document["PlayerClient"].get("pending_players", {})
+    if skipped is not None:
+        document["PlayerClient"]["binding_skip_players"] = list(dict.fromkeys(skipped))
+    pending_players = document["PlayerClient"].setdefault("pending_players", {})
+    if pending:
+        pending_players.update(pending)
     for key in bindings:
-        pending.pop(key, None)
+        pending_players.pop(key, None)
     block = yaml.safe_dump({"PlayerClient": document["PlayerClient"]}, allow_unicode=True, sort_keys=False)
     start = re.search(r"(?m)^PlayerClient:\s*$", text)
     if not start:

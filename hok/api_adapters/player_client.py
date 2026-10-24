@@ -44,13 +44,19 @@ class PlayerClientAdapter:
             self.on_error(error, login=False)
             raise
 
-    def query(self, operation, *, player=None, name=None, platform=1, scope="all", hero_id=None):
+    def query(self, operation, *, player=None, name=None, platform=None, scope="all", hero_id=None):
         from hok_research import PlayerRef, ResourceCatalog, PlayerHomepage, QueryRejected
         from hok_research.profile_data import json_value
 
         if operation not in OPERATIONS:
             raise ValueError("Unsupported player query")
         if operation == "search":
+            if platform is None:
+                from hok_research import PlayerSearchResult
+
+                # The upstream aggregate makes two requests; gate both individually.
+                results = [self._read("search_players", name, platform=value) for value in (1, 2)]
+                return PlayerSearchResult.combine(results).to_json_value()
             return self._read("search_players", name, platform=platform).to_json_value()
         if not player:
             raise ValueError("An explicitly configured target player is required")
