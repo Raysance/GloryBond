@@ -38,7 +38,6 @@ class ShortcutTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(text=text), patch.object(ZFUNC, "player_client_query", return_value={"result": 1}) as query, \
                  patch.object(ZFUNC, "player_client_hero_report", return_value={"text": "英雄图", "image_path": "card.png"}) as report:
                 self.assertTrue(await RULES.judge_player_client(self.event(text)))
-                self.assertFalse(await RULES.judge_herostatistics_query(self.event(text)))
                 await HANDLER.command_reply(self.event(text))
                 query.assert_called_once_with(operation, player={"uid": 7}, **parameters)
                 self.assertEqual(report.call_count, 1 if operation == "heroes" else 0)

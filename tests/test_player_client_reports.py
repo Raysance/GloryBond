@@ -158,6 +158,7 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
         event = SimpleNamespace(user_id=456)
         for path in ("/tmp/card.png", None):
             with patch.object(HANDLER, "command_reply", AsyncMock(return_value={"text": "摘要", "image_path": path})), \
+                 patch.object(HANDLER, "original_hero_reply", AsyncMock(return_value=None)), \
                  patch.object(SENDER, "add_text_image_msg") as image, patch.object(SENDER, "add_forward_msg") as forward:
                 await namespace["f_player_client"](event)
             forward.assert_not_called()
@@ -166,6 +167,25 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
             else:
                 image.assert_not_called()
                 namespace["add_msg"].assert_called_once_with("摘要", event=event)
+
+    async def test_original_reply_is_queued_before_client_work_and_survives_client_failure(self):
+        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        handler = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "f_player_client")
+        handler.decorator_list = []
+        order = []
+        namespace = {"__package__": "hok", "MessageEvent": object,
+                     "add_msg": MagicMock(side_effect=lambda *args, **kwargs: order.append(("original", args[0])))}
+        exec(compile(ast.Module(body=[handler], type_ignores=[]), "client-entry", "exec"), namespace)
+        event = SimpleNamespace(user_id=456)
+        async def client(_event):
+            order.append(("client_query", None))
+            return ["客户端资料暂时未能取得。"]
+        with patch.object(HANDLER, "original_hero_reply", AsyncMock(return_value="原有统计，近30天")), \
+             patch.object(HANDLER, "command_reply", side_effect=client), \
+             patch.object(SENDER, "add_forward_msg", side_effect=lambda *args, **kwargs: order.append(("supplement", args[0]))):
+            await namespace["f_player_client"](event)
+        self.assertEqual(order, [("original", "原有统计，近30天"), ("client_query", None),
+                                  ("supplement", ["客户端资料暂时未能取得。"])])
 
     async def test_forward_preview_survives_queue_for_both_destinations_without_replacing_body(self):
         for event, kind, target in ((SimpleNamespace(group_id=123, user_id=456), "group", 123),

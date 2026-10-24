@@ -732,6 +732,14 @@ def player_client_report_font(size, weight=400):
     return load_project_font(player_client_config["report_font_path"], size, weight)
 
 
+def player_client_skin_names():
+    """Read localized skin names from the installed client's offline catalog."""
+    from hok_research import ResourceCatalog
+
+    return {str(skin.config_id): f"{HeroList.get(str(skin.hero_id), '未知英雄')}·{skin.name}"
+            for skin in ResourceCatalog.bundled().skins}
+
+
 def save_player_client_report(image):
     """Keep concurrent queries separate in the existing artifact cleanup area."""
     import uuid

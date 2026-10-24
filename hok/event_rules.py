@@ -129,7 +129,7 @@ async def judge_representative_battle_query(event):
 
 
 async def judge_herostatistics_query(event):
-    from .zfunc import extract_heroname, qid2nick
+    from .zfunc import extract_heroname, extract_name, qid2nick
 
     rcv_msg = event.get_plaintext().replace("我", qid2nick(event.get_user_id())).replace(
         "本赛季", ""
@@ -142,9 +142,9 @@ async def judge_herostatistics_query(event):
     left, right = (part.strip() for part in raw.split("的", 1))
     if not left or not right:
         return False
-    if left != "群u":
-        return False
-    return right == "英雄" or bool(extract_heroname(right, precise=True))
+    left_ok = left == "群u" or bool(extract_name(left, precise=True))
+    right_ok = right == "英雄" or bool(extract_heroname(right, precise=True))
+    return left_ok and right_ok
 
 
 async def judge_honor_power_query(event):

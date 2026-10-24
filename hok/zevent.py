@@ -862,9 +862,12 @@ async def f_chat(bot,event):
 
 @_player_client.handle()
 async def f_player_client(event: MessageEvent):
-    from .event_handlers.player_client import command_reply
+    from .event_handlers.player_client import command_reply, original_hero_reply
     from .utils.message_sender import add_forward_msg, add_text_image_msg
 
+    original = await original_hero_reply(event)
+    if original:
+        add_msg(original, event=event)
     replies = await command_reply(event)
     if isinstance(replies, dict):
         if replies.get("image_path"):

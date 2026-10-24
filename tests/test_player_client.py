@@ -8,12 +8,13 @@ HANDLER = import_hok_module('event_handlers.player_client')
 ADAPTER = import_hok_module('api_adapters.player_client')
 ZFUNC = import_hok_module('zfunc')
 DYNAMIC = import_hok_module('zdynamic')
+PRESENTATION = import_hok_module('business.player_client')
 
 
 class CommandTests(unittest.TestCase):
     def setUp(self):
         self.settings = {'players': {'alice': {'uid': 7, 'logic_world_id': 8, 'fake_description_id': 9}},
-                         'max_result_chars': 50, 'message_chars': 30}
+                         'max_result_chars': 50, 'message_chars': 30, 'display_item_limit': 5}
 
     def parse(self, text, qids=None):
         return HANDLER.query_parameters(HANDLER.parse_client_command(text), user_id='1', settings=self.settings,
@@ -66,7 +67,8 @@ class CommandTests(unittest.TestCase):
             HANDLER.resolve_hero_id('重名', {'1': '重名'}, {'2': '重名'})
 
     def test_clipping_is_explicit_and_messages_bounded(self):
-        parts = HANDLER.format_query_result('history', '甲', {'text': 'x' * 100}, self.settings)
+        parts = PRESENTATION.text_report('history', '甲', {'records': [{"dwGameStartTime": 1792822073}] * 10},
+                                         self.settings, {})
         self.assertTrue(all(len(part) <= 30 for part in parts))
         self.assertIn('已截断', ''.join(parts))
         self.assertIn('不代表全部历史', ''.join(parts))

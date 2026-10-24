@@ -1904,6 +1904,21 @@ def player_client_hero_report(label, result):
     return {"text": report["summary"] + "\n" + report["hint"], "image_path": path}
 
 
+def player_client_text_report(operation, label, result, *, player=None, hero_id=None):
+    """Project client protocol results into localized user-facing facts."""
+    from .business.player_client import text_report
+    from . import zfile
+
+    skins = {}
+    if operation == "displayed_skins":
+        try:
+            skins = zfile.player_client_skin_names()
+        except Exception as error:
+            log_message(f"PLAYER_CLIENT_SKIN_NAMES_FAILED: error={type(error).__name__}")
+    return text_report(operation, label, result, player_client_config, HeroList,
+                       player=player, hero_id=hero_id, skin_names=skins)
+
+
 def player_client_close():
     with dmc.player_client_lock:
         if dmc.player_client_adapter is not None:

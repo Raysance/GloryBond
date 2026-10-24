@@ -1,6 +1,5 @@
 """Parse the explicit standalone-client command namespace and dispatch queries."""
 import asyncio
-import json
 import shlex
 
 ALIASES = {
@@ -14,7 +13,7 @@ HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
         "玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认以图片展示场次最多的前几个英雄。\n"
         "英雄详情支持英雄名、配置别名或数字ID；例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 小乔；"
         "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
-        "也可发送 #玩家的英雄名、#玩家的英雄（本赛季）、#玩家的数据；例如 #我的小乔、#示例玩家65的英雄。")
+        "也可发送 #玩家的英雄名、#玩家的英雄、#玩家的数据；前两类保留原有统计并补充客户端资料。")
 
 
 def parse_client_command(text):
@@ -123,24 +122,35 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=N
     return operation, parameters, str(nicknames.get(key, key))
 
 
-def format_query_result(operation, label, result, settings):
-    # Keep a bounded response; never claim clipped data is complete.
-    body = json.dumps(result, ensure_ascii=False, indent=2)
-    limit = int(settings["max_result_chars"])
-    clipped = len(body) > limit
-    body = body[:limit]
-    text = f"{label} · 客户端 {operation}\n{body}"
-    if clipped:
-        text += "\n[结果超出展示额度，已截断；请使用更具体的接口]"
-    if operation == "history":
-        text += "\n仅为接口本次返回战绩，complete 表示本次返回结束，不代表全部历史。"
-    size = int(settings["message_chars"])
-    return [text[index:index + size] for index in range(0, len(text), size)]
+async def original_hero_reply(event):
+    """Keep the existing personal hero reply before the client supplement."""
+    if parse_client_command(event.get_plaintext()) is not None:
+        return None
+    tokens = parse_client_request(event.get_plaintext())
+    if not tokens or ALIASES.get(tokens[0], tokens[0]) not in {"heroes", "hero_detail"}:
+        return None
+    from ..zstatic import player_client_config, namenick, extra_namenick, nameref, qid
+    if tokens[1] == "我":
+        matches = [key for key, value in qid.items() if str(value) == str(event.get_user_id())]
+    else:
+        matches = _player_matches(tokens[1], player_client_config, {**extra_namenick, **namenick}, nameref)
+    if len(matches) != 1:
+        return None
+    from .hero import hero_statistics_reply
+    from ..zutil import log_message
+
+    try:
+        return await hero_statistics_reply(event)
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        log_message(f"PLAYER_CLIENT_ORIGINAL_REPLY_FAILED: error={type(error).__name__}")
+        return "原有英雄统计暂时未能完成，继续查询客户端资料。"
 
 
 async def command_reply(event):
     from ..zstatic import player_client_config, qid, namenick, extra_namenick, nameref, HeroList, HeroName_replacements
-    from ..zfunc import player_client_query, player_client_hero_report
+    from ..zfunc import player_client_query, player_client_hero_report, player_client_text_report
     from ..zapi import PlayerClientRateLimited
 
     try:
@@ -157,7 +167,8 @@ async def command_reply(event):
         result = await asyncio.to_thread(player_client_query, operation, **parameters)
         if operation == "heroes":
             return await asyncio.to_thread(player_client_hero_report, label, result)
-        return format_query_result(operation, label, result, player_client_config)
+        return await asyncio.to_thread(player_client_text_report, operation, label, result,
+            player=parameters.get("player"), hero_id=parameters.get("hero_id"))
     except asyncio.CancelledError:
         raise
     except PlayerClientRateLimited as error:
@@ -166,4 +177,6 @@ async def command_reply(event):
         # Library/transport exception text can contain account material.
         code = getattr(error, "code", None)
         suffix = f"，错误码 {code}" if isinstance(code, int) else ""
-        return [f"客户端查询未完成（{type(error).__name__}{suffix}）。请检查玩家绑定、登录会话、隐私或网络状态。"]
+        from ..zutil import log_message
+        log_message(f"PLAYER_CLIENT_QUERY_FAILED: operation={operation} error={type(error).__name__}{suffix}")
+        return [f"客户端资料暂时未能取得{suffix}。请检查玩家绑定、登录状态、隐私设置或网络连接。"]
