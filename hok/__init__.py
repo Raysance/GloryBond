@@ -31,10 +31,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(), logging.FileHandler("QBOT.log")]
 )
 
-# 加载昨日数据
-load_yesterday(1)
-init_fetch_news()
-init_fetch_heroranklist()
-init_fetch_hero_tier()
+# Business cache initialization runs in isolated startup hooks in zscheduler.
 if __name__=="__main__":
     pass

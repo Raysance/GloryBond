@@ -36,6 +36,28 @@ async def _stop_qq_agent():
     await asyncio.to_thread(player_client_close)
 
 
+@nonebot.get_driver().on_startup
+async def _initialize_business_cache():
+    await asyncio.to_thread(_initialize_business_cache_impl)
+
+
+def _initialize_business_cache_impl():
+    """An unavailable legacy API must not unregister the whole QQ plugin."""
+    from .zfunc import load_yesterday
+
+    loaders = (
+        ("yesterday", lambda: load_yesterday(1)),
+        ("news", init_fetch_news),
+        ("hero_rank", init_fetch_heroranklist),
+        ("hero_tier", init_fetch_hero_tier),
+    )
+    for name, loader in loaders:
+        try:
+            loader()
+        except Exception as error:
+            log_message(f"BUSINESS_CACHE_INIT_FAILED: component={name} error_type={type(error).__name__}", logging.WARNING)
+
+
 @scheduler.scheduled_job("interval", seconds=confs.get("QQAgent", {}).get("task_poll_seconds", 1),
                          id="qq_agent_tasks", max_instances=1, coalesce=True)
 async def qq_agent_tasks():

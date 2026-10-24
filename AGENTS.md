@@ -289,3 +289,5 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - `PlayerClient` 在 `config.yaml` 保存查询参数、限速和显式玩家引用；登录资源、会话及安装标识 JSON 仅由现有 `.env` 的三个 `HOK_PLAYER_CLIENT_*_JSON` 注入，`zfile.player_client_state_paths()` 以私有权限投影至忽略目录 `data/player_client/`，不复用旧 account 连接。
 - `zfunc.py` 统一维护 DB0 `hok:player_client:rate:*` 滑动窗口、跨部署最小间隔及冷却；缺 Redis 拒绝请求。查询连接与线程锁在 `zdynamic.py` 初始化，超时/取消不提前释放真实执行槽，不创建后台轮询。启动不自动联网，关闭经 `zscheduler.py` hook。
 - `scripts/resolve_player_client.py` 从 `zdb.load_latest_player_client_names()` 的真实对局 epoch 与快照取得昵称，只保存唯一完整昵称匹配及服务端身份字段；同名、缺数据与拒绝不猜测、不混用营地 role_id 与新 UID。脚本使用相同限速，发生异常立即停止并保留已绑定结果。
+
+- 业务缓存初始化只在 `zscheduler._initialize_business_cache` 启动 hook 执行，各项错误隔离并仅记录组件/错误类型；`hok/__init__.py` 不在导入时请求外部数据。旧营地会话失效不能阻断整个插件与新客户端入口。
