@@ -1,11 +1,23 @@
 """Render compact hero statistics; persistence and fonts use zfile boundaries."""
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
+
+from ..zfile import pil_image_from_bytes
 
 
-def render_hero_report(report, font):
+def win_rate_color(rate, bands):
+    if rate is None:
+        return "#65758b"
+    for band in sorted(bands, key=lambda value: value["min_percent"], reverse=True):
+        if rate >= band["min_percent"]:
+            return band["color"]
+    return "#65758b"
+
+
+def render_hero_report(report, font, *, avatar_bytes=None, win_rate_bands):
     rows = report["rows"]
-    width, height = 1120, 310 + 116 * len(rows)
+    avatar_bytes = avatar_bytes or {}
+    width, height = 1120, 340 + 116 * len(rows)
     image = Image.new("RGB", (width, height), "#edf2f8")
     draw = ImageDraw.Draw(image)
     title, subtitle = font(38, 700), font(21)
@@ -34,11 +46,25 @@ def render_hero_report(report, font):
         top = 226 + index * 116
         if index % 2 == 0:
             draw.rounded_rectangle((42, top - 6, width - 42, top + 98), radius=12, fill="#f3f6fa")
-        draw.rounded_rectangle((54, top + 12, 94, top + 53), radius=10,
+        draw.rounded_rectangle((54, top + 23, 94, top + 64), radius=10,
                                fill="#d9ebff" if index == 0 else "#e5ebf2")
-        draw.text((66, top + 18), str(index + 1), font=small, fill="#2466a2")
-        draw.text((111, top + 12), fit(row["name"], name_font, 252), font=name_font, fill=ink)
-        draw.text((112, top + 57), f"ID {row['hero_id']}", font=small, fill=muted)
+        draw.text((66, top + 29), str(index + 1), font=small, fill="#2466a2")
+        avatar = None
+        content = avatar_bytes.get(row["hero_id"])
+        if content:
+            try:
+                avatar = ImageOps.fit(pil_image_from_bytes(content, max_pixels=1_000_000).convert("RGB"),
+                                      (72, 72), method=Image.Resampling.LANCZOS)
+            except (OSError, ValueError):
+                pass
+        if avatar is not None:
+            mask = Image.new("L", (72, 72))
+            ImageDraw.Draw(mask).rounded_rectangle((0, 0, 71, 71), radius=14, fill=255)
+            image.paste(avatar, (110, top + 6), mask)
+        else:
+            draw.rounded_rectangle((110, top + 6, 182, top + 78), radius=14, fill="#dfe9f3")
+            draw.text((132, top + 25), row["name"][:1], font=name_font, fill=muted)
+        draw.text((196, top + 25), fit(row["name"], name_font, 177), font=name_font, fill=ink)
         for x, key in ((390, "games"), (760, "fight_value"), (950, "highest_fight_value")):
             value = "—" if row[key] is None else f"{row[key]:,.0f}"
             face = value_font if draw.textlength(value, font=value_font) <= 142 else compact_value_font
@@ -47,11 +73,17 @@ def render_hero_report(report, font):
         losses = "—" if row["losses"] is None else f"{row['losses']:.0f}"
         draw.text((390, top + 57), f"{wins}胜 / {losses}负", font=small, fill=muted)
         rate = row["win_rate_percent"]
-        draw.text((575, top + 13), "—" if rate is None else f"{rate:.1f}%", font=value_font, fill=ink)
+        rate_color = win_rate_color(rate, win_rate_bands)
+        draw.text((575, top + 13), "—" if rate is None else f"{rate:.1f}%", font=value_font, fill=rate_color)
         draw.rounded_rectangle((575, top + 64, 710, top + 72), radius=4, fill="#e0e8ef")
         if rate:
-            draw.rounded_rectangle((575, top + 64, 575 + 135 * rate / 100, top + 72), radius=4, fill="#3baf91")
+            draw.rounded_rectangle((575, top + 64, 575 + 135 * rate / 100, top + 72), radius=4, fill=rate_color)
     footer_y = 234 + len(rows) * 116
     draw.text((54, footer_y), f"接口返回 {report['total']} 个英雄 · 本图展示 {len(rows)} 个 · — 表示无可用数据",
               font=small, fill=muted)
+    x = 54
+    for band in sorted(win_rate_bands, key=lambda value: value["min_percent"]):
+        legend = "胜率 " + band["label"]
+        draw.text((x, footer_y + 30), legend, font=small, fill=band["color"])
+        x += draw.textlength(legend, font=small) + 36
     return image

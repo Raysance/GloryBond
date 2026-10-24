@@ -31,6 +31,9 @@ def hero_result():
 class HeroReportTests(unittest.TestCase):
     def setUp(self):
         self.settings = {**STATIC.player_client_config, "display_hero_limit": 5}
+        cache = patch.object(ZFILE, "load_hero_tier_avatar_cache", return_value=({}, []))
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def test_top_five_are_sorted_and_projected_before_rendering_without_raw_fields(self):
         data = hero_result()
@@ -81,6 +84,57 @@ class HeroReportTests(unittest.TestCase):
                 self.assertEqual(image.format, "PNG")
                 self.assertLess(image.width * image.height, 2_000_000)
                 self.assertNotIn("should not be displayed", result["text"])
+
+    def test_downloads_only_missing_selected_hero_avatars_and_keeps_cached_bytes(self):
+        api = import_hok_module("zapi")
+        with patch.object(ZFUNC, "player_client_config", self.settings), \
+             patch.object(ZFILE, "load_hero_tier_avatar_cache", return_value=({"106": b"cached"}, [{"heroId": "107"}])) as load, \
+             patch.object(api, "tianyuanzhiyi_hero_avatars_api", return_value={"107": b"downloaded"}) as fetch, \
+             patch.object(ZFILE, "save_hero_tier_avatar_cache") as save, \
+             patch.object(RENDER, "render_hero_report") as render, \
+             patch.object(ZFILE, "save_player_client_report", return_value="/tmp/card.png"):
+            result = ZFUNC.player_client_hero_report("甲", hero_result())
+        self.assertEqual(len(load.call_args.args[0]), 5)
+        self.assertEqual([v["heroId"] for v in load.call_args.args[0]], [str(i) for i in range(106, 111)])
+        fetch.assert_called_once_with([{"heroId": "107"}])
+        save.assert_called_once_with([{"heroId": "107"}], {"107": b"downloaded"})
+        self.assertEqual(render.call_args.kwargs["avatar_bytes"], {"106": b"cached", "107": b"downloaded"})
+        self.assertEqual(result["image_path"], "/tmp/card.png")
+
+    def test_avatar_failure_does_not_discard_the_statistics_image(self):
+        with patch.object(ZFUNC, "player_client_config", self.settings), \
+             patch.object(ZFILE, "load_hero_tier_avatar_cache", side_effect=OSError("cache unavailable")), \
+             patch.object(RENDER, "render_hero_report") as render, \
+             patch.object(ZFILE, "save_player_client_report", return_value="/tmp/card.png"):
+            result = ZFUNC.player_client_hero_report("甲", hero_result())
+        render.assert_called_once()
+        self.assertEqual(result["image_path"], "/tmp/card.png")
+
+    def test_win_rate_colors_distinguish_low_mid_high_and_missing_values(self):
+        bands = self.settings["win_rate_bands"]
+        low, mid, high = [RENDER.win_rate_color(rate, bands) for rate in (49.9, 50, 60)]
+        self.assertEqual(len({low, mid, high}), 3)
+        self.assertEqual(RENDER.win_rate_color(100, bands), high)
+        self.assertEqual(RENDER.win_rate_color(0, bands), low)
+        self.assertNotIn(RENDER.win_rate_color(None, bands), {low, mid, high})
+
+    def test_renderer_draws_avatars_and_names_without_any_hero_ids(self):
+        from PIL import Image, ImageDraw
+        report = BUSINESS.hero_report("甲", hero_result(), self.settings, STATIC.HeroList)
+        original = ImageDraw.ImageDraw.text
+        drawn = []
+        def track(draw, xy, text, *args, **kwargs):
+            drawn.append(str(text))
+            return original(draw, xy, text, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as directory:
+            avatar_path = ZFILE.save_pil_image(Image.new("RGB", (72, 72), "#123abc"), directory + "/avatar.png")
+            avatars = {"106": Path(avatar_path).read_bytes()}
+            with patch.object(ImageDraw.ImageDraw, "text", track):
+                image = RENDER.render_hero_report(report, ZFILE.player_client_report_font,
+                    avatar_bytes=avatars, win_rate_bands=self.settings["win_rate_bands"])
+        self.assertIn("小乔", drawn)
+        self.assertFalse(any("ID" in value or value in {str(i) for i in range(106, 111)} for value in drawn))
+        self.assertEqual(image.getpixel((146, 268)), (18, 58, 188))
 
 
 class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):

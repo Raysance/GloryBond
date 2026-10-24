@@ -39,6 +39,7 @@ class CommandTests(unittest.TestCase):
 
     def test_query_parameters_are_strict(self):
         self.assertEqual(self.parse('#客户端 英雄 alice year')[1]['scope'], 'year')
+        self.assertEqual(self.parse('#客户端 游戏统计 alice')[0], 'game')
         self.assertEqual(self.parse('#客户端 英雄详情 alice 166')[1]['hero_id'], 166)
         for text in ('#客户端 英雄 alice week', '#客户端 英雄详情 alice -1', '#客户端 资料 alice extra'):
             with self.subTest(text=text), self.assertRaises(ValueError):

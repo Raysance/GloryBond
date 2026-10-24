@@ -5,15 +5,16 @@ import shlex
 
 ALIASES = {
     "主页": "homepage", "资料": "profile", "战绩": "history", "英雄": "heroes",
-    "统计": "game", "资产": "hero_assets", "收藏": "collections",
+    "统计": "game", "游戏统计": "game", "资产": "hero_assets", "收藏": "collections",
     "皮肤": "displayed_skins", "英雄之路": "hero_road_brief", "英雄详情": "hero_detail",
     "称号": "hero_titles", "搜索": "search",
 }
 HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
-        "接口：主页、资料、战绩、英雄、统计、资产、收藏、皮肤、英雄之路、英雄详情、称号、搜索。\n"
+        "接口：主页、资料、战绩、英雄、游戏统计（或统计）、资产、收藏、皮肤、英雄之路、英雄详情、称号、搜索。\n"
         "玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认以图片展示场次最多的前几个英雄。\n"
         "英雄详情支持英雄名、配置别名或数字ID；例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 小乔；"
-        "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。")
+        "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
+        "也可发送 #玩家的英雄名、#玩家的英雄（本赛季）、#玩家的数据；例如 #我的小乔、#示例玩家65的英雄。")
 
 
 def parse_client_command(text):
@@ -39,7 +40,51 @@ def resolve_hero_id(value, hero_names, hero_aliases):
     return matches.pop()
 
 
-def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=None, hero_aliases=None):
+def _player_matches(target, settings, nicknames, player_aliases):
+    keys = set(settings.get("players", {})) | set(nicknames) | set(player_aliases)
+    return [key for key in keys if target.casefold() in {
+        str(value).casefold() for value in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if value}]
+
+
+def parse_client_shortcut(text, *, settings, nicknames, player_aliases, hero_names, hero_aliases):
+    """Recognize a complete prefixed player query without invoking legacy business."""
+    text = text.strip()
+    if not text.startswith(("#", "＃")) or text[1:].startswith(("#", "＃")):
+        return None
+    raw = text[1:].strip()
+    if "的" not in raw:
+        return None
+    player, item = (part.strip() for part in raw.rsplit("的", 1))
+    if item.removeprefix("本赛季").removesuffix("本赛季").strip() == "英雄":
+        player = player.removesuffix("本赛季").strip()
+    if player.casefold() == "群u" or not player or not item:
+        return None
+    if player != "我" and not _player_matches(player, settings, nicknames, player_aliases):
+        return None
+    if item == "数据":
+        return ["游戏统计", player]
+    item = item.removeprefix("本赛季").removesuffix("本赛季").strip()
+    if item == "英雄":
+        return ["英雄", player, "season"]
+    try:
+        hero_id = resolve_hero_id(item, hero_names, hero_aliases)
+    except ValueError:
+        return None
+    return ["英雄详情", player, str(hero_id)]
+
+
+def parse_client_request(text):
+    from ..zstatic import player_client_config, namenick, extra_namenick, nameref, HeroList, HeroName_replacements
+
+    explicit = parse_client_command(text)
+    if explicit is not None:
+        return explicit
+    return parse_client_shortcut(text, settings=player_client_config,
+        nicknames={**extra_namenick, **namenick}, player_aliases=nameref,
+        hero_names=HeroList, hero_aliases=HeroName_replacements)
+
+
+def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=None, hero_aliases=None, player_aliases=None):
     if not tokens or tokens[0] in {"帮助", "help"}:
         return None
     operation = ALIASES.get(tokens[0], tokens[0])
@@ -62,8 +107,8 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=N
     if target == "我":
         matches = [key for key in mappings if str(qids.get(key, "")) == str(user_id)]
     else:
-        matches = [key for key in mappings if target in {key, str(nicknames.get(key, ""))}]
-    if len(matches) != 1:
+        matches = _player_matches(target, settings, nicknames, player_aliases or {})
+    if len(matches) != 1 or matches[0] not in mappings:
         raise ValueError("玩家尚未绑定或昵称不唯一，请使用已配置的账号键")
     key = matches[0]
     parameters = {"player": mappings[key]}
@@ -94,15 +139,15 @@ def format_query_result(operation, label, result, settings):
 
 
 async def command_reply(event):
-    from ..zstatic import player_client_config, qid, namenick, extra_namenick, HeroList, HeroName_replacements
+    from ..zstatic import player_client_config, qid, namenick, extra_namenick, nameref, HeroList, HeroName_replacements
     from ..zfunc import player_client_query, player_client_hero_report
     from ..zapi import PlayerClientRateLimited
 
     try:
-        parsed = query_parameters(parse_client_command(event.get_plaintext()) or [],
+        parsed = query_parameters(parse_client_request(event.get_plaintext()) or [],
                                   user_id=event.get_user_id(), settings=player_client_config,
                                   qids=qid, nicknames={**extra_namenick, **namenick},
-                                  hero_names=HeroList, hero_aliases=HeroName_replacements)
+                                  hero_names=HeroList, hero_aliases=HeroName_replacements, player_aliases=nameref)
         if parsed is None:
             return [HELP]
         operation, parameters, label = parsed

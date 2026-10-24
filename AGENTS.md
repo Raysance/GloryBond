@@ -76,7 +76,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `hok/tools/gen_gametime_table.py`：游戏时长表格聚合与渲染辅助。
 - `hok/tools/gen_grade_chart.py`：评分/星数趋势图生成工具。
 - `hok/tools/gen_hero_tier.py`：天元之弈英雄梯度数据按网页版梯度分层、临界区和英雄头像布局生成可视化长图。
-- `hok/tools/gen_player_client.py`：将客户端英雄列表的有界统计投影渲染成图片，字体与图片落盘经 `zfile.py`，不请求网络或展开 raw 协议数据。
+- `hok/tools/gen_player_client.py`：将客户端英雄列表的有界统计投影渲染成图片，显示头像与名称、不显示英雄 ID，胜率数字和进度条按 `PlayerClient.win_rate_bands` 着色；字体、头像解码与图片落盘经 `zfile.py`，不请求网络或展开 raw 协议数据。
 - `hok/tools/kpl_match_collector.py`：历史 KPL 采集兼容入口，仅转发到 `zkpl.py`。
 - `hok/tools/gen_kpl_match_card.py`：KPL 总比分、总体评分及全部小局数据长图生成器。
 - `hok/tools/representative_battle.py`：基于战绩 JSON 的代表性对局候选过滤、优秀/糟糕/极端三类指数计算与确定性排序工具。
@@ -219,7 +219,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 1. 优先复用项目内现有命名、结构与导入方式，例如 `from .zstatic import *`、`from . import zdynamic as dmc`。
 2. 用户可见文本（群消息、提示语）必须可检索、可定位，避免“只有一个笼统的失败”。
-3. 单人单英雄查询默认复用 `single_player_single_hero_process()` 的本赛季统计分支，起始日期使用 `this_season_start_date`；消息路由不得因未包含“本赛季”关键词而覆盖此默认值。
+3. 个人 `#玩家的英雄名` / `#玩家的英雄` / `#玩家的数据` 统一进入客户端详情、本赛季英雄列表与游戏统计，群u模板保留原群体查询。旧业务接口 `single_player_single_hero_process()` 供其他可信调用时仍默认使用本赛季统计分支，起始日期为 `this_season_start_date`。
 
 ## 6. NBot 变更自检清单
 
@@ -287,6 +287,7 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - `vendor/hok-player-client` 固定 gitlink 版本，`hok_research` 软链接暴露公开 Python 包；不得修改上游以实现机器人限速。
 - `api_adapters/player_client.py` 只调用公开登录与只读查询接口，主页和 Android/iOS 双端昵称搜索在适配层逐项编排以确保每个请求经过限速；不扫码、不自动重登或重试、不查询默认登录角色。
 - `event_handlers/player_client.py` 解析独立 `#客户端` / `＃客户端` 命令，英雄详情通过 `StaticVariables.HeroList` / `HeroName_replacements` 精确解析英雄名、别名或数字 ID，拒绝模糊、歧义与负数占位映射；省略玩家时仍绑定本人。英雄列表经 `zfunc.player_client_hero_report()` 调用 `business/player_client.py`，按 5v5 场次降序选取 `PlayerClient.display_hero_limit`（默认5个），仅投影名称、场次、胜负、胜率、当前与历史最高战力，不发送 raw 协议数据。`tools/gen_player_client.py` 生成统计图片，字体和独立 PNG 落盘均通过 `zfile.py`；空数据及绘图失败返回有界文字。`zevent.py` 经统一出口向原事件发送摘要和图片，其他客户端结果仍合并转发并显式传入短 `news` 预览，避免 NapCat 将全文填入卡片摘要；预览与正文独立持久入队。遵守既有白名单、维修和休眠规则；不修改旧战绩入口或 AI 工具目录。
+- `parse_client_request()` 同时承接完整匹配的 `#玩家的英雄名`、`#玩家的英雄` 和 `#玩家的数据`（兼容全角井号），分别归一化为客户端 `hero_detail`、`heroes(scope=season)` 与 `game`，其中游戏统计也支持显式 `#客户端 游戏统计 玩家`。玩家按配置昵称、账号键和 `nameref` 唯一匹配，“我”只用真实发送者绑定；无绑定或歧义不回退登录账号。`event_rules.judge_herostatistics_query()` 只保留群u模板进入旧群体统计；非前缀直接 @ 仍进入既有 AI 入口。头像只为选中英雄生成配置 CDN URL，经现有头像 API 下载并复用 `resources/wzry_images/hero_avatars/` 的 ID/URL 指纹缓存；头像失败不丢弃统计图，图内不展示英雄 ID，胜率配色与阈值统一来自 `PlayerClient.win_rate_bands`。
 - `PlayerClient` 在 `config.yaml` 保存查询参数、限速和显式玩家引用；登录资源、会话及安装标识 JSON 仅由现有 `.env` 的三个 `HOK_PLAYER_CLIENT_*_JSON` 注入，`zfile.player_client_state_paths()` 以私有权限投影至忽略目录 `data/player_client/`，不复用旧 account 连接。
 - `zfunc.py` 统一维护 DB0 `hok:player_client:rate:*` 滑动窗口、跨部署最小间隔及冷却；缺 Redis 拒绝请求。查询连接与线程锁在 `zdynamic.py` 初始化，超时/取消不提前释放真实执行槽，不创建后台轮询。启动不自动联网，关闭经 `zscheduler.py` hook。
 - `scripts/resolve_player_client.py` 从 `zdb.load_latest_player_client_names()` 的真实对局 epoch 与快照取得昵称，只保存唯一完整昵称匹配及服务端身份字段；同名、缺数据与拒绝不猜测、不混用营地 role_id 与新 UID。默认双端查询，13002 按新版语义保留为该端空结果，不误判风控；`--refresh` 重查已绑定账号时只更新同一 UID/区服/平台的服务端引用，不按新同名结果换绑。脚本使用相同限速，发生异常立即停止并保留已绑定结果及待确认候选；短分钟窗口在等待预算内延迟，超出等待预算的配额与风控冷却仍拒绝；人工明确跳过的账号由 `binding_skip_players` 保存，人工更新的完整昵称由 `nickname_overrides` 保存。

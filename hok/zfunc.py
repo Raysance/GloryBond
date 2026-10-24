@@ -1882,8 +1882,21 @@ def player_client_hero_report(label, result):
     report = hero_report(label, result, player_client_config, HeroList)
     if not report["rows"]:
         return {"text": report["text"], "image_path": None}
+    avatars = {}
     try:
-        image = render_hero_report(report, zfile.player_client_report_font)
+        from . import zapi
+        items = [{"heroId": row["hero_id"], "avatarUrl": player_client_config["hero_avatar_url_template"].format(
+            hero_id=row["hero_id"])} for row in report["rows"]]
+        avatars, missing = zfile.load_hero_tier_avatar_cache(items)
+        if missing:
+            downloaded = zapi.tianyuanzhiyi_hero_avatars_api(missing)
+            avatars.update(downloaded)
+            zfile.save_hero_tier_avatar_cache(missing, downloaded)
+    except Exception as error:
+        log_message(f"PLAYER_CLIENT_AVATAR_FAILED: error={type(error).__name__}")
+    try:
+        image = render_hero_report(report, zfile.player_client_report_font, avatar_bytes=avatars,
+                                   win_rate_bands=player_client_config["win_rate_bands"])
         path = zfile.save_player_client_report(image)
     except Exception as error:
         log_message(f"PLAYER_CLIENT_REPORT_FAILED: error={type(error).__name__}")
