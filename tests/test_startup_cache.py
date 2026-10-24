@@ -2,12 +2,9 @@
 import ast
 from pathlib import Path
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 import logging
 
-from local_debugger import import_hok_module
-
-ZFUNC = import_hok_module("zfunc")
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -17,13 +14,12 @@ class StartupCacheTests(unittest.TestCase):
         node = next(node for node in source.body if isinstance(node, ast.FunctionDef)
                     and node.name == "_initialize_business_cache_impl")
         namespace = {"__package__": "hok", "logging": logging,
-                     "log_message": Mock(), "init_fetch_news": Mock(),
+                     "log_message": Mock(), "load_yesterday": Mock(), "init_fetch_news": Mock(),
                      "init_fetch_heroranklist": Mock(side_effect=RuntimeError("private credential text")),
                      "init_fetch_hero_tier": Mock()}
         exec(compile(ast.Module(body=[node], type_ignores=[]), "startup-cache", "exec"), namespace)
-        with patch.object(ZFUNC, "load_yesterday") as yesterday:
-            namespace["_initialize_business_cache_impl"]()
-            yesterday.assert_called_once_with(1)
+        namespace["_initialize_business_cache_impl"]()
+        namespace["load_yesterday"].assert_called_once_with(1)
         namespace["init_fetch_heroranklist"].assert_called_once()
         namespace["init_fetch_hero_tier"].assert_called_once()
         namespace["log_message"].assert_called_once()

@@ -43,8 +43,6 @@ async def _initialize_business_cache():
 
 def _initialize_business_cache_impl():
     """An unavailable legacy API must not unregister the whole QQ plugin."""
-    from .zfunc import load_yesterday
-
     loaders = (
         ("yesterday", lambda: load_yesterday(1)),
         ("news", init_fetch_news),

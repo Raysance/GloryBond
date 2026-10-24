@@ -218,3 +218,5 @@ local_debugger/.venv/bin/python scripts/resolve_player_client.py --ssh Aliyun --
 保存的 UID、逻辑区服、fake_description_id 与 player_sub_id 均来自新接口，不能由旧 role_id/QQ/营地 ID 替代。
 
 跨主机验证只代表所测时刻的登录和查询可用；服务端仍可能因会话到期、设备环境或后续策略变化要求重新授权。
+
+发布验证同时检查本次 systemd InvocationID 与 Uvicorn 的应用启动完成日志，最多等待180秒；启动中自动重启或缺少完成记录时任务失败，避免仅因进程短暂 active 而误报成功。旧游戏接口缓存初始化在启动 hook 中逐项隔离，失败不阻断客户端查询入口。

@@ -21,4 +21,23 @@ jobs:
       - name: Restart Nonebot
         run: |
           systemctl restart hok-nbot.service
-          systemctl is-active --quiet hok-nbot.service
+          .venv/bin/python - <<'PYTHON'
+          import subprocess
+          import time
+
+          unit = "hok-nbot.service"
+          def invocation():
+              return subprocess.check_output(["systemctl", "show", unit, "-p", "InvocationID", "--value"], text=True).strip()
+          started = invocation()
+          for _ in range(60):
+              if not started or invocation() != started:
+                  raise SystemExit("Bot restarted before startup completed")
+              logs = subprocess.check_output(["journalctl", "_SYSTEMD_INVOCATION_ID=" + started, "--no-pager", "-o", "cat"], text=True)
+              if "Application startup complete." in logs:
+                  subprocess.run(["systemctl", "is-active", "--quiet", unit], check=True)
+                  print("Bot application startup confirmed")
+                  break
+              time.sleep(3)
+          else:
+              raise SystemExit("Bot application startup was not confirmed within 180 seconds")
+          PYTHON
