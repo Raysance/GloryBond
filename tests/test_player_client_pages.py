@@ -109,6 +109,22 @@ class PlayerPageTests(unittest.TestCase):
         self.assertNotIn('暂缺',model['hint'])
         self.assertNotIn('raw',repr(model))
 
+    def test_hero_list_single_hero_and_game_share_the_same_profile_sources(self):
+        adapter,fake,player=self.adapter()
+        cards=adapter.query('heroes',player=vars(player),scope='all')
+        honors=adapter.query('hero_honors',player=vars(player),hero_id=106,scope='all')
+        game=adapter.query('game_statistics',player=vars(player),scope='season')
+        self.assertTrue(cards['heroes'])
+        self.assertEqual(honors['hero_id'],106)
+        self.assertEqual(game['scope'],'season')
+        fake.profile.assert_called_once()
+        fake.hero_titles.assert_called_once()
+        fake.hero_extra_statistics.assert_called_once()
+        fake.hero_road_brief.assert_called_once()
+        fake.hero_detail.assert_called_once()
+        fake.game.assert_not_called()
+        self.assertEqual(adapter.gate.call_count,5)
+
     def test_game_display_uses_weighted_branch_rows_instead_of_raw_summary(self):
         # Raw summary is deliberately inconsistent with the native display source.
         result=dict(scope='season',mode='ranked',games=999,win_rate_percent=1,

@@ -94,15 +94,19 @@ class PlayerClientAdapter:
         if cached is not None:
             if now < cached[0]:
                 self._cache.move_to_end(key)
+                log_message(f"PLAYER_CLIENT_READ_TIMING: operation={method} cached=true gate_ms=0 request_ms=0")
                 return deepcopy(cached[1])
             del self._cache[key]
         self.gate("query")
+        admitted = ztime.monotonic_seconds()
         try:
             result = getattr(self.client, method)(*args, timeout=float(self.settings["timeout_seconds"]), **options)
         except Exception as error:
             log_message(f"PLAYER_CLIENT_REQUEST_FAILED: operation={method} info={player_client_error_info(error)}")
             self.on_error(error, login=False)
             raise
+        log_message(f"PLAYER_CLIENT_READ_TIMING: operation={method} cached=false "
+                    f"gate_ms={round((admitted-now)*1000)} request_ms={round((ztime.monotonic_seconds()-admitted)*1000)}")
         if cacheable and ttl > 0:
             self._cache[key] = (ztime.monotonic_seconds() + ttl, deepcopy(result))
             self._cache.move_to_end(key)
@@ -174,7 +178,7 @@ class PlayerClientAdapter:
             return self._read("matches", target).to_json_value(
                 catalog=ResourceCatalog.bundled(), gameplay_catalog=GameplayCatalog.bundled())
         elif operation == "game_statistics":
-            game = self._read("game", target)
+            game = self._read("profile", target).game
             return game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
         elif operation == "hero_honors":
             page = self._hero_page(target, hero_id=hero_id)

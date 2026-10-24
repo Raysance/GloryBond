@@ -113,6 +113,29 @@ class HeroReportTests(unittest.TestCase):
         render.assert_called_once()
         self.assertEqual(result["image_path"], "/tmp/card.png")
 
+    def test_portrait_fallback_is_not_downloaded_when_card_art_is_available(self):
+        artwork={str(i):b'card' for i in range(106,111)}
+        with patch.object(ZFUNC,'player_client_artwork',return_value=artwork), \
+             patch.object(ZFILE,'load_hero_tier_avatar_cache') as avatars, \
+             patch.object(RENDER,'render_hero_report') as render, \
+             patch.object(ZFILE,'save_player_client_report',return_value='card.png'):
+            ZFUNC.player_client_hero_report('甲',hero_result())
+        avatars.assert_not_called()
+        self.assertEqual(render.call_args.kwargs['artwork'],artwork)
+
+    def test_single_hero_illustration_and_portrait_load_concurrently(self):
+        import threading
+        ready=threading.Barrier(2,timeout=2)
+        def artwork(ids,variant='illustration'):
+            ready.wait()
+            return {ids[0]:variant.encode()}
+        with patch.object(ZFUNC,'player_client_artwork',side_effect=artwork), \
+             patch.object(RENDER,'render_screen') as render, \
+             patch.object(ZFILE,'save_player_client_report',return_value='hero.png'):
+            result=ZFUNC.player_client_screen_report('hero','甲',{'hero_id':112})
+        self.assertEqual(result['image_path'],'hero.png')
+        self.assertEqual(render.call_args.kwargs['artwork'],{'112':b'illustration','portrait':b'avatar'})
+
     def test_win_rate_colors_distinguish_low_mid_high_and_missing_values(self):
         bands = self.settings["win_rate_bands"]
         low, mid, high = [RENDER.win_rate_color(rate, bands) for rate in (49.9, 50, 60)]
@@ -173,6 +196,46 @@ class HeroReportTests(unittest.TestCase):
 
 
 class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_original_and_client_start_together_and_keep_reply_order(self):
+        import asyncio
+        from contextlib import aclosing
+        started=asyncio.Event()
+        async def client(event):
+            started.set()
+            return {'text':'客户端图片','image_path':'card.png'}
+        async def original(event):
+            await asyncio.wait_for(started.wait(),timeout=1)
+            return '原有统计'
+        with patch.object(HANDLER,'command_reply',side_effect=client), \
+             patch.object(HANDLER,'original_hero_reply',side_effect=original):
+            async with aclosing(HANDLER.reply_stream(object())) as replies:
+                self.assertEqual(await anext(replies),'原有统计')
+                self.assertEqual((await anext(replies))['text'],'客户端图片')
+
+    async def test_cancelled_request_cleans_up_its_concurrent_client_task(self):
+        import asyncio
+        from contextlib import aclosing
+        started,cancelled=asyncio.Event(),asyncio.Event()
+        async def client(event):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        async def original(event):
+            await asyncio.Event().wait()
+        async def consume():
+            async with aclosing(HANDLER.reply_stream(object())) as replies:
+                async for reply in replies:
+                    pass
+        with patch.object(HANDLER,'command_reply',side_effect=client), \
+             patch.object(HANDLER,'original_hero_reply',side_effect=original):
+            task=asyncio.create_task(consume())
+            await asyncio.wait_for(started.wait(),timeout=1)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):await task
+            self.assertTrue(cancelled.is_set())
+
     async def test_command_uses_the_configured_names_and_hero_image_facade_once(self):
         event = SimpleNamespace(get_plaintext=lambda: "#客户端 英雄 alice season", get_user_id=lambda: "1")
         with patch.object(STATIC, "player_client_config", {"players": {"alice": {"uid": 7}}}), \
@@ -203,7 +266,7 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
                 image.assert_not_called()
                 namespace["add_msg"].assert_called_once_with("摘要", event=event)
 
-    async def test_original_reply_is_queued_before_client_work_and_survives_client_failure(self):
+    async def test_original_reply_is_queued_before_client_result_and_survives_client_failure(self):
         tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
         handler = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "f_player_client")
         handler.decorator_list = []

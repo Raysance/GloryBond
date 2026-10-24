@@ -862,18 +862,19 @@ async def f_chat(bot,event):
 
 @_player_client.handle()
 async def f_player_client(event: MessageEvent):
-    from .event_handlers.player_client import command_reply, original_hero_reply
+    from contextlib import aclosing
+    from .event_handlers.player_client import reply_stream
     from .utils.message_sender import add_text_image_msg
 
-    original = await original_hero_reply(event)
-    if original:
-        add_msg(original, event=event)
-    replies = await command_reply(event)
-    if isinstance(replies, dict):
-        if replies.get("image_path"):
-            add_text_image_msg(replies["text"], replies["image_path"], event=event)
-        else:
-            add_msg(replies["text"], event=event)
-    else:
-        for reply in replies:
-            add_msg(reply, event=event)
+    async with aclosing(reply_stream(event)) as replies:
+        async for reply in replies:
+            if isinstance(reply, dict):
+                if reply.get("image_path"):
+                    add_text_image_msg(reply["text"], reply["image_path"], event=event)
+                else:
+                    add_msg(reply["text"], event=event)
+            elif isinstance(reply, str):
+                add_msg(reply, event=event)
+            else:
+                for message in reply:
+                    add_msg(message, event=event)

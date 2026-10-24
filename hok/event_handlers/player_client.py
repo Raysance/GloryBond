@@ -194,6 +194,20 @@ async def original_hero_reply(event):
         return "原有英雄统计暂时未能完成，继续查询客户端资料。"
 
 
+async def reply_stream(event):
+    """Fetch both sources concurrently while delivering the original reply first."""
+    client = asyncio.create_task(command_reply(event))
+    try:
+        original = await original_hero_reply(event)
+        if original:
+            yield original
+        yield await client
+    finally:
+        if not client.done():
+            client.cancel()
+        await asyncio.gather(client, return_exceptions=True)
+
+
 async def command_reply(event):
     from ..zstatic import player_client_config, qid, namenick, extra_namenick, nameref, HeroList, HeroName_replacements
     from ..zfunc import player_client_query, player_client_hero_report, player_client_text_report, player_client_screen_report

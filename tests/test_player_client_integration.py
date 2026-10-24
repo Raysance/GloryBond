@@ -220,8 +220,8 @@ class StatisticsTests(unittest.TestCase):
                  dwHurtHero=8000,dwKDA=6000,dwGrow=7000,dwBattle=8500,dwSurvive=6500,
                  dwColorMedal=0,dwSliverMedal=14,dwCopperMedal=3,dwMvp=10,dwLoseSoul=8,
                  dwTripleKill=1,dwUltraKill=0,dwRampage=0,dwGodLike=4)
-        fake=Mock(); fake.game.return_value=GameData({'stStatistic':{'stRadarDetail':{'stCurSeason':{
-            'stTotal':row,'astBranchTotal':[{},row,{}, {}, {}]}}}})
+        fake=Mock(); fake.profile.return_value=SimpleNamespace(game=GameData({'stStatistic':{'stRadarDetail':{'stCurSeason':{
+            'stTotal':row,'astBranchTotal':[{},row,{}, {}, {}]}}}}))
         adapter=object.__new__(ADAPTER.PlayerClientAdapter)
         adapter.client=fake; adapter.settings={'timeout_seconds':1}; adapter.gate=Mock();adapter.on_error=Mock()
         data=adapter.query('game_statistics',player=PLAYER,scope='season',mode='all',branch='mid')
@@ -230,7 +230,8 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(data['score_raw'],7370)
         self.assertAlmostEqual(data['display']['composite_score'],73.7,places=4)
         fake.matches.assert_not_called()
-        fake.game.assert_called_once()
+        fake.profile.assert_called_once()
+        fake.game.assert_not_called()
 
     def test_missing_units_and_unknown_fields_are_excluded_from_visible_reports(self):
         data=dict(scope='season',games=104,win_rate_percent=51,score_raw=7370,
