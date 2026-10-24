@@ -149,7 +149,7 @@ copy_tree() {
         --exclude='.DS_Store' --exclude='._*' --exclude='log' --exclude='file_transfer' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
-        --exclude='data/agent_inputs' \
+        --exclude='data/agent_inputs' --exclude='data/player_client' \
         --exclude='resources/wzry_images/hero_avatars/*' \
         --exclude='resources/wzry_images/generated/*' \
         --exclude='resources/wzry_images/kpl/*' \
@@ -158,7 +158,7 @@ copy_tree() {
 }
 
 if has_module nbot || has_module cleanup || has_module napcat; then
-    if [[ ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" ]]; then
+    if [[ ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" || ! -f "$nbot_source/vendor/hok-player-client/src/hok_research/__init__.py" ]]; then
         printf 'HOK_INSTALL_ERROR: agent submodule source is missing\n' >&2
         exit 66
     fi

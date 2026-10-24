@@ -39,7 +39,7 @@ if [[ -z "$web_source" || ! -f "$web_source/app.py" ]]; then
     exit 66
 fi
 
-if [[ ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" ]]; then
+if [[ ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" || ! -f "$nbot_source/vendor/hok-player-client/src/hok_research/__init__.py" ]]; then
     printf 'HOK_BUNDLE_ERROR: run git submodule update --init --recursive first\n' >&2
     exit 66
 fi
@@ -65,7 +65,7 @@ copy_source() {
         --exclude='dist' --exclude='deployment' --exclude='local_debugger/.venv' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
-        --exclude='data/agent_inputs' \
+        --exclude='data/agent_inputs' --exclude='data/player_client' \
         --exclude='resources/wzry_images/hero_avatars/*' \
         --exclude='resources/wzry_images/generated/*' \
         --exclude='resources/wzry_images/kpl/*' \

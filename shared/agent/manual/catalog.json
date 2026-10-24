@@ -1150,10 +1150,19 @@
       "title": "皮肤返场排行",
       "parent": "heroes",
       "summary": "功能已经废弃，保留前缀命令并返回废弃提示",
-      "keywords": ["皮肤返场", "返场排行", "返场排名", "返场投票", "票数"],
+      "keywords": [
+        "皮肤返场",
+        "返场排行",
+        "返场排名",
+        "返场投票",
+        "票数"
+      ],
       "tools": [],
       "code": [
-        {"path": "hok/event_handlers/skin_votes.py", "symbol": "skin_votes_reply"}
+        {
+          "path": "hok/event_handlers/skin_votes.py",
+          "symbol": "skin_votes_reply"
+        }
       ],
       "document": {
         "path": "shared/agent/manual/chapters/heroes.md",
@@ -2054,6 +2063,37 @@
         {
           "path": "hok/zfile.py",
           "symbol": "service_health_systemd"
+        }
+      ]
+    },
+    {
+      "id": "games_player_client",
+      "title": "客户端直查",
+      "parent": "games",
+      "summary": "通过 #客户端 调用已登录玩家客户端的只读查询，使用显式玩家 UID 绑定，受统一限速和隐私限制。",
+      "keywords": [
+        "客户端",
+        "昵称搜索",
+        "玩家UID",
+        "主玩英雄",
+        "客户端限速"
+      ],
+      "document": {
+        "path": "shared/agent/manual/chapters/games.md",
+        "heading": "客户端直查"
+      },
+      "code": [
+        {
+          "path": "hok/event_handlers/player_client.py",
+          "symbol": "command_reply"
+        },
+        {
+          "path": "hok/api_adapters/player_client.py",
+          "symbol": "PlayerClientAdapter"
+        },
+        {
+          "path": "hok/zfunc.py",
+          "symbol": "player_client_rate_gate"
         }
       ]
     }

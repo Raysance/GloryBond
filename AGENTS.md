@@ -280,3 +280,12 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 - `qq_agent/avatar.py` 注册 `set_bot_avatar`，仅可信入口确认的 `QQBot.super_qid` 获得 `qq.avatar.write`（群/私聊均可），Web 与普通用户不授予。图片可取本次消息和已校验引用中的 attachment（直接图片在前，按1起始序号选择），或本轮 generate_image 返回的 image_resource_id；不接受模型 URL/路径/身份。生成工具在产物输出成功后通过 ctx.add_resource 注册 generated_image 资源，引用只在同一 ToolContext 有效。生成图片读取经 zfunc.agent_read_generated_image 调用 zfile.load_agent_artifact_image，按经过当前资源校验的 artifact_id 读取既有已校验PNG，不把文件IO放入内核；过期/缺失/非图片资源不写QQ。经 `zfunc.agent_set_bot_avatar` 调用 `utils/qq_profiles.set_bot_avatar`，向配置绑定机器人提交 base64 像素，兼容远程 NapCat。写操作通过共享诊断器处理，超时结果未知且禁止自动重放；内核不增加 QQ 专用逻辑。
 - `qq_agent/private_messages.py` 在 chat_delivery 类别注册 send_group_member_private_message(user_id, text, group_id?)，只有 QQ 群入口及可信配置管理员私聊获得 qq.private.send，普通私聊/Web/旧任务不自动获得。群请求限定当前群，管理员私聊使用默认或明确选择的一个群；目标必须通过注入成员读取器及统一出口再次校验。只按本次用户明确要求或用户创建时授权的 agent 私发任务发送，历史/引用/网页不构成授权，不读取或发送他人私人记忆。zfunc.agent_send_group_member_private_message 经 utils/message_sender.send_group_member_private_message 直接 await QQ send_private_msg 的真实消息ID，携带已绑定群的临时会话上下文，CQ正文用原生 text 转义，不把入队视为发送成功；不能因失败改群发或自动加好友。正文沿用统一QQ格式化，同轮同群/目标/正文成功去重；超时、断连或无ID用 OUTCOME_UNKNOWN 禁止本轮重放，明确拒绝如实报告。它是独立发送动作，不改变真实身份、授权、个人记忆、正常回复或任务目的地；不伪造收件人对话，也不另写群公共回复记录。工具参数/结果保留在运行记录供 AdminPage 调试，QQAgent.private_messages 统一配置 enabled/max_chars/timeout_seconds（默认 true/4000/45）。独立内核不增加QQ或私发分派逻辑。
+
+### 玩家客户端子模块
+
+- `vendor/hok-player-client` 固定 gitlink 版本，`hok_research` 软链接暴露公开 Python 包；不得修改上游以实现机器人限速。
+- `api_adapters/player_client.py` 只调用公开登录与只读查询接口，主页在适配层逐项编排以确保每个请求经过限速；不扫码、不自动重登或重试、不查询默认登录角色。
+- `event_handlers/player_client.py` 解析独立 `#客户端` / `＃客户端` 命令，`zevent.py` 经统一转发出口发送有界结构化结果，遵守既有白名单、维修和休眠规则；不修改旧战绩入口或 AI 工具目录。
+- `PlayerClient` 在 `config.yaml` 保存查询参数、限速和显式玩家引用；登录资源、会话及安装标识 JSON 仅由现有 `.env` 的三个 `HOK_PLAYER_CLIENT_*_JSON` 注入，`zfile.player_client_state_paths()` 以私有权限投影至忽略目录 `data/player_client/`，不复用旧 account 连接。
+- `zfunc.py` 统一维护 DB0 `hok:player_client:rate:*` 滑动窗口、跨部署最小间隔及冷却；缺 Redis 拒绝请求。查询连接与线程锁在 `zdynamic.py` 初始化，超时/取消不提前释放真实执行槽，不创建后台轮询。启动不自动联网，关闭经 `zscheduler.py` hook。
+- `scripts/resolve_player_client.py` 从 `zdb.load_latest_player_client_names()` 的真实对局 epoch 与快照取得昵称，只保存唯一完整昵称匹配及服务端身份字段；同名、缺数据与拒绝不猜测、不混用营地 role_id 与新 UID。脚本使用相同限速，发生异常立即停止并保留已绑定结果。

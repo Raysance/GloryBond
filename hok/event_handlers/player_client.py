@@ -1,0 +1,108 @@
+"""Parse the explicit standalone-client command namespace and dispatch queries."""
+import asyncio
+import json
+import shlex
+
+ALIASES = {
+    "主页": "homepage", "资料": "profile", "战绩": "history", "英雄": "heroes",
+    "统计": "game", "资产": "hero_assets", "收藏": "collections",
+    "皮肤": "displayed_skins", "英雄之路": "hero_road_brief", "英雄详情": "hero_detail",
+    "称号": "hero_titles", "搜索": "search",
+}
+HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
+        "接口：主页、资料、战绩、英雄、统计、资产、收藏、皮肤、英雄之路、英雄详情、称号、搜索。\n"
+        "玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，英雄详情需追加英雄ID。\n"
+        "例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 166；"
+        "#客户端 搜索 完整游戏昵称 [android/ios]。仅查询，不自动绑定搜索结果。")
+
+
+def parse_client_command(text):
+    text = text.strip()
+    if not text.startswith(("#客户端", "＃客户端")):
+        return None
+    tail = text[4:]
+    if tail and not tail[0].isspace():
+        return None
+    try:
+        return shlex.split(tail)
+    except ValueError:
+        return ["help"]
+
+
+def query_parameters(tokens, *, user_id, settings, qids, nicknames):
+    if not tokens or tokens[0] in {"帮助", "help"}:
+        return None
+    operation = ALIASES.get(tokens[0], tokens[0])
+    from ..api_adapters.player_client import OPERATIONS
+    if operation not in OPERATIONS:
+        raise ValueError("未知接口，请发送 #客户端 帮助")
+    args = tokens[1:]
+    if operation == "search":
+        if not 1 <= len(args) <= 2 or (len(args) == 2 and args[1] not in {"android", "ios"}):
+            raise ValueError("用法：#客户端 搜索 完整游戏昵称 [android/ios]")
+        return operation, {"name": args[0], "platform": 2 if args[-1] == "ios" and len(args) == 2 else 1}, args[0]
+    target = args[0] if args else "我"
+    mappings = settings.get("players", {})
+    if target == "我":
+        matches = [key for key in mappings if str(qids.get(key, "")) == str(user_id)]
+    else:
+        matches = [key for key in mappings if target in {key, str(nicknames.get(key, ""))}]
+    if len(matches) != 1:
+        raise ValueError("玩家尚未绑定或昵称不唯一，请使用已配置的账号键")
+    key = matches[0]
+    parameters = {"player": mappings[key]}
+    rest = args[1:]
+    if operation == "heroes":
+        if len(rest) > 1 or (rest and rest[0] not in {"all", "season", "year"}):
+            raise ValueError("英雄范围只支持 all/season/year")
+        parameters["scope"] = rest[0] if rest else "all"
+    elif operation == "hero_detail":
+        if len(rest) != 1 or not rest[0].isascii() or not rest[0].isdigit() or int(rest[0]) <= 0:
+            raise ValueError("用法：#客户端 英雄详情 玩家 英雄ID")
+        parameters["hero_id"] = int(rest[0])
+    elif rest:
+        raise ValueError("该接口不接受额外参数")
+    return operation, parameters, str(nicknames.get(key, key))
+
+
+def format_query_result(operation, label, result, settings):
+    # Keep a bounded response; never claim clipped data is complete.
+    body = json.dumps(result, ensure_ascii=False, indent=2)
+    limit = int(settings["max_result_chars"])
+    clipped = len(body) > limit
+    body = body[:limit]
+    text = f"{label} · 客户端 {operation}\n{body}"
+    if clipped:
+        text += "\n[结果超出展示额度，已截断；请使用更具体的接口]"
+    if operation == "history":
+        text += "\n仅为接口本次返回战绩，complete 表示本次返回结束，不代表全部历史。"
+    size = int(settings["message_chars"])
+    return [text[index:index + size] for index in range(0, len(text), size)]
+
+
+async def command_reply(event):
+    from ..zstatic import player_client_config, qid, namenick, extra_namenick
+    from ..zfunc import player_client_query
+    from ..zapi import PlayerClientRateLimited
+
+    try:
+        parsed = query_parameters(parse_client_command(event.get_plaintext()) or [],
+                                  user_id=event.get_user_id(), settings=player_client_config,
+                                  qids=qid, nicknames={**extra_namenick, **namenick})
+        if parsed is None:
+            return [HELP]
+        operation, parameters, label = parsed
+    except ValueError as error:
+        return [str(error)]
+    try:
+        result = await asyncio.to_thread(player_client_query, operation, **parameters)
+        return format_query_result(operation, label, result, player_client_config)
+    except asyncio.CancelledError:
+        raise
+    except PlayerClientRateLimited as error:
+        return [f"客户端请求正在限速或冷却，请约 {error.retry_after} 秒后再试。没有自动重试。"]
+    except Exception as error:
+        # Library/transport exception text can contain account material.
+        code = getattr(error, "code", None)
+        suffix = f"，错误码 {code}" if isinstance(code, int) else ""
+        return [f"客户端查询未完成（{type(error).__name__}{suffix}）。请检查玩家绑定、登录会话、隐私或网络状态。"]

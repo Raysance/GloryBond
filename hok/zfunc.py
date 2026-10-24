@@ -1790,3 +1790,113 @@ def history_query_multiple_matches_link(query_target, matches):
         query_target,
         now_time,
     )
+
+# Atomic sliding windows and pacing are shared across workers/deployments in DB0.
+_PLAYER_CLIENT_RESERVE = """
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+local blocked = tonumber(redis.call('GET', KEYS[1]) or '0')
+if blocked > now then return {0, blocked-now, 1} end
+local next = tonumber(redis.call('GET', KEYS[2]) or '0')
+if next > now then return {0, next-now, 2} end
+redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now-3600000)
+local minute = redis.call('ZCOUNT', KEYS[3], now-60000, '+inf')
+local hour = redis.call('ZCARD', KEYS[3])
+if hour >= tonumber(ARGV[3]) then
+  local first = redis.call('ZRANGE', KEYS[3], 0, 0, 'WITHSCORES')
+  return {0, tonumber(first[2])+3600000-now+1, 3}
+end
+if minute >= tonumber(ARGV[2]) then
+  local first = redis.call('ZRANGEBYSCORE', KEYS[3], now-60000, '+inf', 'WITHSCORES', 'LIMIT', 0, 1)
+  return {0, tonumber(first[2])+60000-now+1, 3}
+end
+redis.call('ZADD', KEYS[3], now, ARGV[4])
+redis.call('PEXPIRE', KEYS[3], 3601000)
+redis.call('SET', KEYS[2], now+tonumber(ARGV[1]), 'PX', math.ceil(tonumber(ARGV[1])+1000))
+return {1, 0, 0}
+"""
+_PLAYER_CLIENT_COOLDOWN = """
+local clock = redis.call('TIME')
+local until_time = tonumber(clock[1])*1000 + math.floor(tonumber(clock[2])/1000) + tonumber(ARGV[1])
+local old = tonumber(redis.call('GET', KEYS[1]) or '0')
+if until_time > old then redis.call('SET', KEYS[1], until_time, 'PX', ARGV[1]) end
+return 1
+"""
+
+
+def player_client_rate_gate(kind):
+    """Wait briefly for normal pacing; reject cooldown/quota and Redis failure."""
+    import math
+    import uuid
+    from .zapi import PlayerClientRateLimited
+    from . import ztime
+
+    rates = player_client_config["rate_limit"]
+    interval = float(rates["login_interval_seconds"] if kind == "login" else rates["min_interval_seconds"])
+    per_minute = int(rates["login_per_hour"] if kind == "login" else rates["per_minute"])
+    per_hour = int(rates["login_per_hour"] if kind == "login" else rates["per_hour"])
+    deadline = ztime.monotonic_seconds() + float(rates["max_wait_seconds"])
+    while True:
+        delay_ms = int((interval + random.uniform(0, float(rates["jitter_seconds"]))) * 1000)
+        base = REDIS_KEY_PLAYER_CLIENT_RATE
+        admitted, wait_ms, reason = dmc.redis_deamon.eval(
+            _PLAYER_CLIENT_RESERVE, 3, base + ":cooldown", base + ":" + kind + ":next",
+            base + ":" + kind + ":window", delay_ms, per_minute, per_hour, uuid.uuid4().hex)
+        if admitted:
+            return
+        delay = wait_ms / 1000
+        if reason != 2 or ztime.monotonic_seconds() + delay > deadline:
+            raise PlayerClientRateLimited(math.ceil(delay), {1: "cooldown", 2: "interval", 3: "quota"}[reason])
+        ztime.sleep_seconds(delay)
+
+
+def player_client_request_error(error, *, login=False):
+    """Privacy is not a risk signal; unknown rejection is never retried."""
+    from .zapi import PlayerClientRateLimited
+
+    if isinstance(error, PlayerClientRateLimited):
+        return
+    rates = player_client_config["rate_limit"]
+    code = getattr(error, "code", None)
+    if not login and code in rates["privacy_codes"]:
+        return
+    if login:
+        seconds = rates["login_failure_cooldown_seconds"]
+    elif code in rates["risk_codes"]:
+        seconds = rates["risk_cooldown_seconds"]
+    else:
+        seconds = rates["error_cooldown_seconds"]
+    dmc.redis_deamon.eval(_PLAYER_CLIENT_COOLDOWN, 1, REDIS_KEY_PLAYER_CLIENT_RATE + ":cooldown", int(seconds * 1000))
+
+
+def player_client_query(operation, **parameters):
+    """Reuse one connection; release the slot only after the real thread ends."""
+    from . import zapi, zfile
+
+    if not player_client_config.get("enabled", False):
+        raise ValueError("PlayerClient is disabled")
+    if not dmc.player_client_lock.acquire(blocking=False):
+        raise zapi.PlayerClientRateLimited(1, "busy")
+    try:
+        if dmc.player_client_adapter is None:
+            dmc.player_client_adapter = zapi.PlayerClientAdapter(
+                paths=zfile.player_client_state_paths(), settings=player_client_config,
+                gate=player_client_rate_gate, on_error=player_client_request_error)
+        return dmc.player_client_adapter.query(operation, **parameters)
+    except Exception as error:
+        # A rejected query retains the connection; network/auth errors discard it.
+        from hok_research import QueryRejected
+        if not isinstance(error, (QueryRejected, zapi.PlayerClientRateLimited)):
+            if dmc.player_client_adapter is not None:
+                dmc.player_client_adapter.close()
+                dmc.player_client_adapter = None
+        raise
+    finally:
+        dmc.player_client_lock.release()
+
+
+def player_client_close():
+    with dmc.player_client_lock:
+        if dmc.player_client_adapter is not None:
+            dmc.player_client_adapter.close()
+            dmc.player_client_adapter = None

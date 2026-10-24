@@ -168,3 +168,53 @@ database tables or deletes stored conversations/facts during deployment.
 revision and the requested revision, before resetting the index. This prevents
 retired modules from surviving as untracked Python files. It excludes runtime
 `data/history` and delegates the copied-core backup to `sync_agent_runtime.sh`.
+
+## 王者玩家客户端
+
+源码固定在 `vendor/hok-player-client`，根目录 `hok_research` 链接至其公开包。
+现有递归子模块同步会检出固定提交；服务器必须对该私有仓库拥有 SSH 读取权限。
+现有 PyCryptodome 依赖已经满足客户端要求，无需手机、ADB 或运行时 APK。
+安装包会携带该包的四份协议/资料 JSON，构建前应初始化两个子模块。
+
+非密钥设置统一位于 `config.yaml#PlayerClient`。现有 `.env` 中的
+`HOK_PLAYER_CLIENT_RESOURCES_JSON`、`HOK_PLAYER_CLIENT_SESSION_JSON`、
+`HOK_PLAYER_CLIENT_INSTALLATION_JSON` 分别保存导出的运行资源、MSDK 会话和原安装标识。
+部署脚本保护服务器 `.env`，首次部署必须通过 SSH 将这三项合并到服务器既有 `.env`，保留其他配置。
+程序只在请求时将其写入 `data/player_client/` 的 0600 文件；目录为 0700、被 Git 忽略且部署 bundle 排除。
+旧 `account.json` 是旧连接结果，不能替代新的游戏登录。会话失效时人工重新授权并更新 session 项；不自动扫码、重登或重试。
+
+### 使用与限速
+
+`#客户端 帮助` 查看完整用法。例如 `#客户端 战绩 我`、`#客户端 英雄 example_user_10 season`、
+`#客户端 英雄详情 example_user_10 166`、`#客户端 搜索 完整昵称 android`。
+省略玩家表示真实 QQ 对应的唯一已绑定账号；一个 QQ 对应多个账号时需写账号键。
+搜索只返回候选，不自动改绑定。结果经一份聊天记录转发显示，超长明确截断。
+战绩 complete 仅指本次响应结束，不能当成全部历史。
+
+适配层复用游戏连接，串行执行，不修改上游。DB0 保存账号共享的最小间隔、分钟/小时滑动窗口和冷却，跨进程/部署生效。
+默认查询间隔为 10–12 秒、每分钟 5 次、每小时 120 次；登录组（区服目录与登录）至少间隔 60 秒，每小时最多 6 组。
+普通间隔最多前台等待 20 秒，超额/冷却立即拒绝；已知冷却码 262034 暂停 900 秒，登录失败暂停 1800 秒，未知拒绝/网络异常暂停 60 秒。
+隐私拒绝码不视为风控；任何失败不自动重试。Redis 不可用时不发送请求。
+这些数值是本项目保守默认值，不能保证服务端永不触发风控。
+
+### 初始玩家绑定
+
+同机执行：
+
+```bash
+local_debugger/.venv/bin/python scripts/resolve_player_client.py --apply
+```
+
+从本机读取服务器数据库时，先在独立终端建立仅本机可访问的 SSH 转发，再运行脚本：
+
+```bash
+ssh -N -L 127.0.0.1:16379:127.0.0.1:6379 Aliyun
+local_debugger/.venv/bin/python scripts/resolve_player_client.py --ssh Aliyun --redis-port 16379 --apply
+```
+
+不带 `--apply` 仍会登录及搜索，但只预览结果；`--players` 可限制账号键。
+已绑定账号跳过；同名、无昵称、拒绝均不猜测。批量出错立即停止，修正原因并等待冷却后人工继续。
+数据库访问只读，不改 schema；最新昵称按真实对局 epoch/快照日期排序，不按缺少年份的展示日期排序。
+保存的 UID、逻辑区服、fake_description_id 与 player_sub_id 均来自新接口，不能由旧 role_id/QQ/营地 ID 替代。
+
+跨主机验证只代表所测时刻的登录和查询可用；服务端仍可能因会话到期、设备环境或后续策略变化要求重新授权。

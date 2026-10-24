@@ -20,3 +20,7 @@ redis_deamon_chat_memory = redis_deamon
 
 BattlePowerInProgressLock = threading.Lock()
 BattlePowerInProgress = {}
+
+player_client_lock = threading.Lock()
+
+player_client_adapter = None

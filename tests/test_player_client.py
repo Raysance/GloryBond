@@ -1,0 +1,142 @@
+"""Client routing, exact identity selection, paced dispatch and fail-closed limits."""
+import unittest
+from unittest.mock import Mock, patch
+
+from local_debugger import import_hok_module
+
+HANDLER = import_hok_module('event_handlers.player_client')
+ADAPTER = import_hok_module('api_adapters.player_client')
+ZFUNC = import_hok_module('zfunc')
+DYNAMIC = import_hok_module('zdynamic')
+
+
+class CommandTests(unittest.TestCase):
+    def setUp(self):
+        self.settings = {'players': {'alice': {'uid': 7, 'logic_world_id': 8, 'fake_description_id': 9}},
+                         'max_result_chars': 50, 'message_chars': 30}
+
+    def parse(self, text, qids=None):
+        return HANDLER.query_parameters(HANDLER.parse_client_command(text), user_id='1', settings=self.settings,
+                                        qids=qids or {'alice': '1'}, nicknames={'alice': '甲'})
+
+    def test_prefix_requires_boundary_and_accepts_fullwidth(self):
+        self.assertIsNone(HANDLER.parse_client_command('客户端 战绩'))
+        self.assertIsNone(HANDLER.parse_client_command('#客户端别的'))
+        self.assertEqual(HANDLER.parse_client_command('＃客户端 战绩 我'), ['战绩', '我'])
+
+    def test_self_and_configured_nickname_bind_explicit_ref(self):
+        self.assertEqual(self.parse('#客户端 战绩')[1]['player']['uid'], 7)
+        self.assertEqual(self.parse('#客户端 资料 甲')[1]['player']['fake_description_id'], 9)
+
+    def test_ambiguous_self_and_unknown_target_rejected(self):
+        self.settings['players']['alt'] = self.settings['players']['alice']
+        with self.assertRaises(ValueError):
+            self.parse('#客户端 战绩 我', {'alice': '1', 'alt': '1'})
+        with self.assertRaises(ValueError):
+            self.parse('#客户端 战绩 arbitrary')
+
+    def test_query_parameters_are_strict(self):
+        self.assertEqual(self.parse('#客户端 英雄 alice year')[1]['scope'], 'year')
+        self.assertEqual(self.parse('#客户端 英雄详情 alice 166')[1]['hero_id'], 166)
+        for text in ('#客户端 英雄 alice week', '#客户端 英雄详情 alice -1', '#客户端 资料 alice extra'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                self.parse(text)
+        self.assertEqual(self.parse('#客户端 搜索 "游戏 昵称" ios')[1], {'name': '游戏 昵称', 'platform': 2})
+
+    def test_clipping_is_explicit_and_messages_bounded(self):
+        parts = HANDLER.format_query_result('history', '甲', {'text': 'x' * 100}, self.settings)
+        self.assertTrue(all(len(part) <= 30 for part in parts))
+        self.assertIn('已截断', ''.join(parts))
+        self.assertIn('不代表全部历史', ''.join(parts))
+
+
+class AdapterTests(unittest.TestCase):
+    def make(self, gate=None, on_error=None):
+        fake = Mock()
+        settings = {'timeout_seconds': 1, 'query_interval_seconds': 5, 'platform_id': 21,
+                    'rate_limit': {'privacy_codes': [32002]}}
+        with patch('hok_research.HokClient.from_resources', return_value=fake), \
+             patch('hok_research.MsdkSession.load'):
+            adapter = ADAPTER.PlayerClientAdapter(paths={'resources': 'r', 'installation': 'i', 'session': 's'},
+                                                  settings=settings, gate=gate or Mock(), on_error=on_error or Mock())
+        return adapter, fake
+
+    def test_gate_precedes_login_and_each_request(self):
+        gate = Mock()
+        adapter, fake = self.make(gate)
+        fake.search_players.return_value.to_json_value.return_value = {'candidates': []}
+        self.assertEqual(adapter.query('search', name='甲'), {'candidates': []})
+        self.assertEqual([call.args[0] for call in gate.call_args_list], ['login', 'query'])
+        fake.search_players.assert_called_once()
+
+    def test_blocked_query_makes_no_network_call(self):
+        gate = Mock(side_effect=[None, ADAPTER.PlayerClientRateLimited(12)])
+        adapter, fake = self.make(gate)
+        with self.assertRaises(ADAPTER.PlayerClientRateLimited):
+            adapter.query('history', player={'uid': 1, 'logic_world_id': 2, 'fake_description_id': 3})
+        fake.history.assert_not_called()
+
+    def test_explicit_target_required(self):
+        adapter, fake = self.make()
+        with self.assertRaises(ValueError):
+            adapter.query('profile')
+        fake.profile.assert_not_called()
+
+    def test_query_failure_not_retried(self):
+        failed = Mock()
+        adapter, fake = self.make(on_error=failed)
+        fake.search_players.side_effect = TimeoutError('secret material')
+        with self.assertRaises(TimeoutError):
+            adapter.query('search', name='甲')
+        fake.search_players.assert_called_once()
+        failed.assert_called_once()
+
+    def test_homepage_paces_both_requests(self):
+        from hok_research import Profile, PlayerRef
+        gate = Mock()
+        adapter, fake = self.make(gate)
+        fake.profile.return_value = Profile(PlayerRef(1, 2, 3), {key: {} for key in ('stMostUsedHero', 'stCurSeasonMostUsedHero', 'stCurYearMostUsedHero')})
+        fake.history.return_value.to_json_value.return_value = {'records': []}
+        adapter.query('homepage', player={'uid': 1, 'logic_world_id': 2, 'fake_description_id': 3})
+        self.assertEqual([call.args[0] for call in gate.call_args_list], ['login', 'query', 'query'])
+
+
+class RateTests(unittest.TestCase):
+    def setUp(self):
+        self.settings = {'rate_limit': {'min_interval_seconds': 10, 'jitter_seconds': 0,
+                         'per_minute': 5, 'per_hour': 120, 'login_interval_seconds': 60,
+                         'login_per_hour': 6, 'max_wait_seconds': 20,
+                         'privacy_codes': [32002, 296203, 296204], 'risk_codes': [262034],
+                         'risk_cooldown_seconds': 900, 'login_failure_cooldown_seconds': 1800,
+                         'error_cooldown_seconds': 60}}
+
+    def test_redis_failure_is_closed(self):
+        redis = Mock()
+        redis.eval.side_effect = ConnectionError('offline')
+        with patch.object(DYNAMIC, 'redis_deamon', redis), patch.object(ZFUNC, 'player_client_config', self.settings):
+            with self.assertRaises(ConnectionError):
+                ZFUNC.player_client_rate_gate('query')
+
+    def test_cooldown_does_not_sleep_or_retry(self):
+        redis = Mock()
+        redis.eval.return_value = [0, 899000, 1]
+        with patch.object(DYNAMIC, 'redis_deamon', redis), patch.object(ZFUNC, 'player_client_config', self.settings):
+            with self.assertRaises(ADAPTER.PlayerClientRateLimited) as error:
+                ZFUNC.player_client_rate_gate('query')
+        self.assertEqual(error.exception.retry_after, 899)
+        redis.eval.assert_called_once()
+
+    def test_privacy_does_not_open_circuit_but_risk_and_login_do(self):
+        from hok_research import QueryRejected
+        redis = Mock()
+        with patch.object(DYNAMIC, 'redis_deamon', redis), patch.object(ZFUNC, 'player_client_config', self.settings):
+            ZFUNC.player_client_request_error(QueryRejected(32002, {}))
+            redis.eval.assert_not_called()
+            ZFUNC.player_client_request_error(QueryRejected(262034, {}))
+            self.assertEqual(redis.eval.call_args.args[-1], 900000)
+            ZFUNC.player_client_request_error(TimeoutError(), login=True)
+            self.assertEqual(redis.eval.call_args.args[-1], 1800000)
+
+
+if __name__ == '__main__':
+    unittest.main()

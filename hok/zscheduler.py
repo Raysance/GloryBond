@@ -31,8 +31,9 @@ async def _start_qq_agent():
 
 @nonebot.get_driver().on_shutdown
 async def _stop_qq_agent():
-    from .zfunc import agent_runtime_stop
+    from .zfunc import agent_runtime_stop, player_client_close
     await agent_runtime_stop()
+    await asyncio.to_thread(player_client_close)
 
 
 @scheduler.scheduled_job("interval", seconds=confs.get("QQAgent", {}).get("task_poll_seconds", 1),

@@ -201,3 +201,12 @@ for heroid,heroname in varia["HeroName_replacements"].items():
     varia["HeroNames"].append(heroname)
 globals().update(varia)
 dynamic_variables = dict(confs.get("DynamicVariables", {}))
+
+# Standalone game client; credentials stay in the single dotenv source.
+player_client_config = dict(confs.get("PlayerClient", {}))
+player_client_secrets = {
+    name: os.environ.get("HOK_PLAYER_CLIENT_" + name.upper() + "_JSON", "")
+    for name in ("resources", "session", "installation")
+}
+
+REDIS_KEY_PLAYER_CLIENT_RATE = "hok:player_client:rate"

@@ -16,7 +16,7 @@ jobs:
           git fetch origin main
 
           git show origin/main:deployment/scripts/restore_application.sh | bash -s -- . origin/main
-          .venv/bin/python -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService'
+          .venv/bin/python -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService; from hok_research import HokClient, ClientResources'
 
       - name: Restart Nonebot
         run: |

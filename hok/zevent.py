@@ -27,6 +27,7 @@ from .event_rules import (
     judge_bili_video_mine,
     judge_bili_video_subscribe,
     judge_bili_video_unsubscribe,
+    judge_player_client,
     judge_x_subscription,
     judge_x_subscription_admin,
     judge_bot_addressed,
@@ -72,6 +73,8 @@ _x_subscription_admin = on_message(rule=Rule(judge_super_command, judge_x_subscr
 
 _sleep_blocked = on_message(rule=Rule(judge_bot_addressed,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_bot_addressed,check_repair,judge_unsuper),priority=2, block=True)
+
+_player_client = on_message(rule=judge_player_client, priority=3, block=True)
 
 _direct_chat=on_message(rule=judge_direct_ai_request,priority=3,block=True)
 
@@ -853,3 +856,12 @@ async def f_chat(bot,event):
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
+
+
+@_player_client.handle()
+async def f_player_client(event: MessageEvent):
+    from .event_handlers.player_client import command_reply
+    from .utils.message_sender import add_forward_msg
+
+    replies = await command_reply(event)
+    add_forward_msg(replies, event=event, title="王者客户端查询")

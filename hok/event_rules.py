@@ -189,3 +189,8 @@ async def check_sleep(event):
     from .ztime import is_within_daily_time_window
 
     return is_within_daily_time_window(bound_hour, bound_minute, window_seconds=600)
+
+async def judge_player_client(event):
+    from .event_handlers.player_client import parse_client_command
+
+    return is_bot_request_message(event) and parse_client_command(event.get_plaintext()) is not None

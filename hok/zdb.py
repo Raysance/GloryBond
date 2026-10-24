@@ -864,3 +864,29 @@ def table_counts():
                 cursor.execute(f"SELECT count(*) AS count FROM hok.{table_name}")
                 counts[table_name] = int(cursor.fetchone()["count"])
     return counts
+
+
+def load_latest_player_client_names(role_ids):
+    """Read true battle epochs, never sort yearless MM-DD display labels."""
+    role_ids = [int(role) for role in role_ids]
+    with _connect() as connection:
+        connection.read_only = True
+        rows = connection.execute("""
+            WITH candidates AS (
+                SELECT bp.role_id, bp.role_name AS nickname, t.epoch,
+                       'battle' AS source
+                FROM hok.battle_participants bp
+                JOIN LATERAL (
+                    SELECT max(br.game_time_epoch) AS epoch
+                    FROM hok.battle_records br WHERE br.game_seq = bp.game_seq
+                ) t ON t.epoch IS NOT NULL
+                WHERE bp.role_id = ANY(%s) AND bp.role_name IS NOT NULL AND bp.role_name <> ''
+                UNION ALL
+                SELECT role_id, nickname, extract(epoch FROM snapshot_date)::bigint, 'snapshot'
+                FROM hok.history_players WHERE role_id = ANY(%s)
+                  AND nickname IS NOT NULL AND nickname <> ''
+            )
+            SELECT DISTINCT ON (role_id) role_id, nickname, epoch, source
+            FROM candidates ORDER BY role_id, epoch DESC, source, nickname
+        """, (role_ids, role_ids)).fetchall()
+    return rows

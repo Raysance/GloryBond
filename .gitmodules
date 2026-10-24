@@ -1,3 +1,6 @@
 [submodule "vendor/react-agent-runtime"]
 	path = vendor/react-agent-runtime
 	url = git@github.com:Raysance/react-agent-runtime.git
+[submodule "vendor/hok-player-client"]
+	path = vendor/hok-player-client
+	url = git@github.com:Raysance/hok-player-client.git

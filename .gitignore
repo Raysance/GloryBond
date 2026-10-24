@@ -37,3 +37,5 @@ __MACOSX/
 /hok/debug_tools/*/
 !/hok/debug_tools/AGENTS.md
 emojiref.json
+
+/data/player_client/

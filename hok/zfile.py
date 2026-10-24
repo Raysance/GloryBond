@@ -789,3 +789,51 @@ def chat_plot_public_path(path):
     if not re.fullmatch(r"chat_plot_[0-9a-f]{32}\.png", name):
         return ""
     return f"/file_transfer/{name}"
+
+def player_client_state_paths():
+    """Materialize library inputs privately; never use the public artifact folder."""
+    from .zstatic import data_root, player_client_secrets
+
+    directory = os.path.join(data_root, "player_client")
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    os.chmod(directory, 0o700)
+    paths = {}
+    for name, value in player_client_secrets.items():
+        if not value:
+            raise ValueError("PlayerClient credentials are not configured")
+        parsed = json.loads(value)
+        path = os.path.join(directory, name + ".json")
+        # Replace atomically so an interrupted write cannot damage saved inputs.
+        temporary = path + ".tmp"
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(parsed, output, ensure_ascii=False)
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+        paths[name] = path
+    return paths
+
+
+def save_player_client_bindings(bindings):
+    """Update only the explicit mapping block in the sole YAML config."""
+    from .zstatic import config_path
+
+    with open(config_path, encoding="utf-8-sig") as source:
+        text = source.read()
+    document = yaml.safe_load(text)
+    players = {**document["PlayerClient"].get("players", {}), **bindings}
+    document["PlayerClient"]["players"] = players
+    pending = document["PlayerClient"].get("pending_players", {})
+    for key in bindings:
+        pending.pop(key, None)
+    block = yaml.safe_dump({"PlayerClient": document["PlayerClient"]}, allow_unicode=True, sort_keys=False)
+    start = re.search(r"(?m)^PlayerClient:\s*$", text)
+    if not start:
+        raise ValueError("PlayerClient configuration block is missing")
+    end = re.search(r"(?m)^\S[^\n]*:", text[start.end():])
+    stop = start.end() + end.start() if end else len(text)
+    result = text[:start.start()] + block + text[stop:]
+    temporary = config_path + ".player-client.tmp"
+    with open(temporary, "w", encoding="utf-8") as output:
+        output.write(result)
+    os.replace(temporary, config_path)
