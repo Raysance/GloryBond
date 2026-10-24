@@ -1380,6 +1380,7 @@
         }
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
+    <script>{% include 'CommonPages/battle_helpers.js' %}</script>
     <script>
         (function() {
             try {
@@ -2061,7 +2062,7 @@
                     throw new Error(`HTTP错误: ${response.status}`);
                 }
                 
-                const data = await response.json();
+                const data = parseBattlePayload(await response.text());
                 
                 analyzeData(data);
                 
@@ -2106,6 +2107,7 @@
                     deadcnt: game.DeadCnt,
                     assistcnt: game.AssistCnt,
                     gradeGame: game.GameGrade,
+                    gradeMissing: game.GradeMissing,
                     gametime: formatDate(game.GameTime),
                     usedTime: game.Duration,
                     heroId: game.HeroName, // 虽然是heroId，但在渲染中会作为fallback
@@ -3332,7 +3334,7 @@
                     const assistcnt = parseInt(battle.assistcnt) || 0;
                     const mvpcnt = parseInt(battle.mvpcnt) || 0;
                     const losemvp = parseInt(battle.losemvp) || 0;
-                    const gradeGame = parseFloat(battle.gradeGame) || 0;
+                    const gradeGame = battleGradeLabel(battle);
                     const gametime = battle.gametime || "";
                     
                     const kda = (killcnt + assistcnt) / Math.max(deadcnt, 1);
@@ -3425,7 +3427,7 @@
                                 </div>
                                 <div class="stat grade-stat">
                                     <span class="stat-label">评分</span>
-                                    <span class="stat-value">${gradeGame.toFixed(1)}</span>
+                                    <span class="stat-value">${gradeGame}</span>
                                 </div>
                                 ${specialKillText ? `
                                 <div class="stat special-kills">
@@ -3641,7 +3643,7 @@
                 const avgAssists = (assists.reduce((a, b) => a + b, 0) / assists.length).toFixed(1);
                 const mvpCount = battles.filter(b => (parseInt(b.mvpcnt) || 0) > 0 || (parseInt(b.losemvp) || 0) > 0).length;
                 const mvpRate = (mvpCount / battles.length * 100).toFixed(1);
-                const avgGrade = (battles.reduce((sum, battle) => sum + (parseFloat(battle.gradeGame) || 0), 0) / battles.length).toFixed(1);
+                const avgGrade = battleAverageGrade(battles);
                 
                 performanceChart.setOption({
                     title: {

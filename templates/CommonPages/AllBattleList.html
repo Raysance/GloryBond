@@ -1290,6 +1290,7 @@
         <p>Data from 笙煎守味🤖</p>
     </div>
     {% include 'footer_github.html' %}
+    <script>{% include 'CommonPages/battle_helpers.js' %}</script>
     <script>
         // 全局变量
         let playersData = [];
@@ -1331,7 +1332,7 @@
         async function loadPlayersData() {
             try {
                 const response = await fetch('{{filename}}');
-                const data = await response.json();
+                const data = parseBattlePayload(await response.text());
                 
                 console.log('原始数据样本:', data.slice(0, 3).map(p => ({ nickname: p.nickname, id: p.id, idType: typeof p.id })));
                 
@@ -1505,23 +1506,7 @@
 
         // 格式化游戏详情悬浮框内容
         function getBattleJumpUrl(player, game) {
-            const params = game && game.Params ? game.Params : {};
-            const gameSvr = params.gameSvrId;
-            const gameSeq = params.gameseq || game.GameSeq;
-            const relaySvr = params.relaySvrId;
-            const battleType = params.pvptype || game.MapType;
-            const targetRoleId = player && (player.roleid || player.roleId || player.RoleId);
-            if (!gameSvr || !gameSeq || !relaySvr || !battleType || !targetRoleId) return '';
-
-            const query = new URLSearchParams({
-                gameSvr: String(gameSvr),
-                gameSeq: String(gameSeq),
-                targetRoleId: String(targetRoleId),
-                relaySvr: String(relaySvr),
-                battleType: String(battleType),
-                key: '{{ key }}'
-            });
-            return `/jump-battle?${query.toString()}`;
+            return battleDetailUrl(player, game, '{{ key }}');
         }
 
         function getGameDetailsTooltip(player) {
@@ -1563,7 +1548,7 @@
                             </div>
                             <div class="game-right">
                                 <div class="game-result ${resultClass}">${resultText}</div>
-                                <div class="game-score">${game.GameGrade}分</div>
+                                <div class="game-score">${battleGradeLabel(game)}分</div>
                                 <div>${duration}分钟</div>
                             </div>
                             ${jumpUrl ? '<span class="game-open-indicator">›</span>' : ''}

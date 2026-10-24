@@ -1,0 +1,56 @@
+// Keep exact identifiers when reading legacy JSON containing signed int64 IDs.
+function parseBattlePayload(text) {
+    const exact = value => JSON.parse(value.replace(/"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, token => {
+        if (/^-?\d+$/.test(token) && !Number.isSafeInteger(Number(token))) return JSON.stringify(token);
+        return token;
+    }));
+    const result = exact(text);
+    return typeof result === 'string' ? exact(result) : result;
+}
+
+function battleGrade(battle) {
+    if (battle.gradeMissing || battle.GradeMissing) return null;
+    const value = battle.gradeGame ?? battle.GameGrade;
+    if (value == null || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function battleGradeLabel(battle) {
+    const value = battleGrade(battle);
+    return value == null ? '—' : value.toFixed(1);
+}
+
+function battleAverageGrade(battles) {
+    const values = battles.map(battleGrade).filter(value => value != null);
+    return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '—';
+}
+
+function battleNumberLabel(value) {
+    return value == null ? '—' : String(value);
+}
+
+function battleShareLabel(players, player, field) {
+    const values = players.map(role => role.battleStats?.[field]);
+    const own = player.battleStats?.[field];
+    if (own == null || values.some(value => value == null)) return '—';
+    const total = values.reduce((sum, value) => sum + Number(value), 0);
+    return (total > 0 ? Math.round(Number(own) / total * 100) : 0) + '%';
+}
+
+function battleText(value) {
+    return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
+
+function battleDetailUrl(player, game, key) {
+    const params = game.Params || {};
+    const gameSeq = String(params.gameseq || game.GameSeq || game.gameSeq || '');
+    const role = player && (player.roleid || player.roleId || player.RoleId || player.targetRoleId);
+    if (!/^-?\d+$/.test(gameSeq) || !role) return '';
+    const gameSvr = params.gameSvrId || game.gameSvrId || '';
+    const relaySvr = params.relaySvrId || game.relaySvrId || '';
+    const battleType = params.pvptype || game.pvpType || game.MapType || 0;
+    if (!gameSeq.startsWith('-') && (!gameSvr || !relaySvr || !battleType)) return '';
+    return '/jump-battle?' + new URLSearchParams({gameSeq, targetRoleId: String(role),
+        gameSvr: String(gameSvr), relaySvr: String(relaySvr), battleType: String(battleType), key});
+}

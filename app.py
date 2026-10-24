@@ -691,12 +691,18 @@ def check_key_valid(key:str, reqtype:str):
 
 @app.get("/battle-data/{game_seq}")
 async def battle_data(game_seq: str, roleid: str = Query("0")):
-    if not game_seq.isdigit() or not str(roleid).isdigit():
+    if not valid_battle_identifier(game_seq) or not str(roleid).isascii() or not str(roleid).isdigit():
         raise HTTPException(status_code=400, detail="invalid battle identifier")
     payload = fetch_battle(game_seq, int(roleid))
     if not payload:
         raise HTTPException(status_code=404, detail="battle detail not found")
     return JSONResponse(content=payload)
+
+
+def valid_battle_identifier(value):
+    number = str(value)
+    digits = number[1:] if number.startswith('-') else number
+    return bool(digits) and digits.isascii() and digits.isdigit() and len(digits) <= 19 and -(2**63) < int(number) < 2**63
 
 
 @app.get("/jump-person", response_class=HTMLResponse)
@@ -732,9 +738,13 @@ async def jump_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId:
         return templates.TemplateResponse(
             "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
         )
+    if not valid_battle_identifier(gameSeq) or not targetRoleId.isascii() or not targetRoleId.isdigit():
+        raise HTTPException(status_code=400, detail="invalid battle identifier")
     if (check_battle_local_exist(gameSeq,targetRoleId)):
         web_path=f"/battle-data/{gameSeq}?roleid={targetRoleId}"
     else:
+        if gameSeq.startswith('-'):
+            raise HTTPException(status_code=404, detail="battle detail not found")
         try:
             res=wzry_get_official(reqtype="btldetail",gameseq=gameSeq,gameSvrId=gameSvr,relaySvrId=relaySvr,roleid=int(targetRoleId),pvptype=battleType)
         except Exception as e:

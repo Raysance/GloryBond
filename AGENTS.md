@@ -32,7 +32,7 @@
 ## 数据路径约定
 
 - 临时组合查询结果继续以浏览器可访问路径 `file_transfer/temp_files/<filename>.json` 传给模板。
-- 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；仅在数据库未命中时读取 QQBot 数据库写入失败所产生的应急 JSON。
+- 单局战绩详情以 PostgreSQL 的 `hok.battle_details` 为主数据源，通过 `/battle-data/{game_seq}` 返回；仅在数据库未命中时读取 QQBot 数据库写入失败所产生的应急 JSON。客户端独有对局由 NBot 转换为同一营地详情结构，使用稳定负 int64 ID；/battle-data 与 /jump-battle 验证有符号 int64，负 ID 仅读本地详情，缺失返回404，不回退营地 API。utils.fetch_battle 对未知营地身份 null 做字符串比较，不拿客户端 UID 当营地角色。
 - 运行路径统一由 `runtime_config.py` 解析。`BOT_PATH` / `WEB_PATH` 指向两个代码目录，`HOK_NAPCAT_ROOT` 指向 NapCat 安装目录，`HOK_ENV_FILE` / `HOK_CONFIG_FILE` 可选覆盖 NBot 根目录 `.env` / `config.yaml`，`HOK_DATA_DIR` 指向应急数据目录，`HOK_FILE_TRANSFER_DIR` 指向 NBot 与 Web 共享的公开产物目录。Web 不得再读取 `variables_static.json`、`redis.json`、`.env.local` 或其他独立配置。
 - 除 PostgreSQL 单局战绩的 `/battle-data/{game_seq}` 适配外，不要为同一份 JSON 数据额外新增 API 代理接口，除非用户明确要求。
 - 不要为历史目录、调试目录或示例数据做冗余 fallback。
@@ -89,3 +89,8 @@
 - `account_sessions.py` 按 `runtime_config.RUNTIME` 固定路径启动 NBot `login_console.worker`，复用 NBot venv；不导入 NoneBot、不启动第二个机器人。固定 stdin/stdout JSON RPC 串行执行，取消/超时关闭进程，不重放授权交换；stderr 丢弃，不把原始异常、二维码 URL、token 或 session 返回前端。Web shutdown 回收子进程。
 - 浏览器只在显式生成二维码后按6秒间隔轮询，隐藏页面暂停，过期或退出销毁图片；全部文本用 textContent。真实二维码只经受保护接口提供 data URI，不落公开目录。服务端 DB0 限速/租约独立于页面，刷新页面不会绕过。
 - 营地与官方会话更新由 NBot 独立登录适配层验证身份、原子保存至唯一 `.env`；管理员允许切换不同账号，营地多角色选择只展示标签与局部索引，不披露登录材料。NapCat 使用自身会话并在成功后同步 QQ 身份/重启账号，在线时支持同步当前账号，WebUI token 只存在 `.env`。`runtime_config.load_shared_config()` 对托管营地字段每次读取新文件，旧营地查询请求前加载，不依赖启动时 os.environ 的旧值。用户说明见 `docs/accounts.md`（独立检出时上级 README 缺失，不新建仓库外文档）。
+
+## 客户端战绩展示
+
+- templates/CommonPages/battle_helpers.js 经 Jinja include 在各战绩列表和详情页使用；parseBattlePayload 只将 JSON 中不安全的整数字面量转换成精确字符串，保留引号内文字，兼容旧数字 ID 和新字符串 ID，不新增数据代理路由。
+- 客户端对局沿用 /jump-battle → /battle-data 的现有点击链路；总览对负 ID 不要求营地 relay/server 参数。评分缺失显示—，不以0参与页面均分；详情展示未知 KDA/比例为—。未绑定其他玩家的营地身份保持未知，不猜造营地个人页参数。

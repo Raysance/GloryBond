@@ -1396,6 +1396,7 @@
         }
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
+    <script>{% include 'CommonPages/battle_helpers.js' %}</script>
     <script>
         (function() {
             try {
@@ -1739,7 +1740,7 @@
             try {
                 const response = await fetch(filepath);
                 if (!response.ok) throw new Error('HTTP错误: ' + response.status);
-                const raw = await response.json();
+                const raw = parseBattlePayload(await response.text());
 
                 let data;
                 if (Array.isArray(raw) || (raw && Array.isArray(raw.periods))) {
@@ -1789,7 +1790,7 @@
             let totalKills = 0;
             let totalDeaths = 0;
             let totalAssists = 0;
-            let totalGrade = 0;
+            let totalGrade = 0, scoredGames = 0;
             let totalDuration = 0;
             let avatarIcon = '';
             const heroStatsMap = {};
@@ -1802,7 +1803,7 @@
                     const kill = Number(d.KillCnt) || 0;
                     const dead = Number(d.DeadCnt) || 0;
                     const assist = Number(d.AssistCnt) || 0;
-                    const grade = Number(d.GameGrade) || 0;
+                    const grade = battleGrade(d);
                     const duration = Number(d.Duration_Second) || 0;
                     const peakBefore = Number(d.PeakGradeBeforeGame);
                     const peakAfter = Number(d.PeakGradeAfterGame);
@@ -1827,6 +1828,7 @@
                             deaths: 0,
                             assists: 0,
                             gradeSum: 0,
+                            scoredGames: 0,
                             durationSum: 0,
                             heroIcon: heroIcon
                         };
@@ -1837,7 +1839,7 @@
                     hs.kills += kill;
                     hs.deaths += dead;
                     hs.assists += assist;
-                    if (!isNaN(grade)) hs.gradeSum += grade;
+                    if (grade != null) { hs.gradeSum += grade; hs.scoredGames++; }
                     if (!isNaN(duration)) hs.durationSum += duration;
                     if (!hs.heroIcon && heroIcon) hs.heroIcon = heroIcon;
 
@@ -1878,14 +1880,14 @@
                     totalKills += kill;
                     totalDeaths += dead;
                     totalAssists += assist;
-                    if (!isNaN(grade)) totalGrade += grade;
+                    if (grade != null) { totalGrade += grade; scoredGames++; }
                     if (!isNaN(duration)) totalDuration += duration;
                 });
             });
 
             const winRateStr = totalGames ? (wins / totalGames * 100).toFixed(1) + '%' : '0%';
             const losses = totalGames - wins;
-            const avgGrade = totalGames ? (totalGrade / totalGames).toFixed(1) : '0.0';
+            const avgGrade = scoredGames ? (totalGrade / scoredGames).toFixed(1) : '—';
             const avgDurationMin = totalGames ? (totalDuration / totalGames / 60).toFixed(1) : '0.0';
             const avgKda = totalGames ? (((totalKills + totalAssists) / Math.max(totalDeaths, 1)).toFixed(2)) : '0.00';
 
@@ -1893,7 +1895,7 @@
                 const avgKills = h.games ? (h.kills / h.games).toFixed(1) : '0.0';
                 const avgDeaths = h.games ? (h.deaths / h.games).toFixed(1) : '0.0';
                 const avgAssists = h.games ? (h.assists / h.games).toFixed(1) : '0.0';
-                const avgGradeHero = h.games ? (h.gradeSum / h.games).toFixed(1) : '0.0';
+                const avgGradeHero = h.scoredGames ? (h.gradeSum / h.scoredGames).toFixed(1) : '—';
                 const avgKdaHero = h.games ? (((h.kills + h.assists) / Math.max(h.deaths, 1)).toFixed(2)) : '0.00';
                 const winRateHero = h.games ? (h.wins / h.games * 100).toFixed(1) + '%' : '0%';
                 return {
@@ -2403,7 +2405,7 @@
                     const assistcnt = parseInt(battle.assistcnt) || 0;
                     const mvpcnt = parseInt(battle.mvpcnt) || 0;
                     const losemvp = parseInt(battle.losemvp) || 0;
-                    const gradeGame = parseFloat(battle.gradeGame) || 0;
+                    const gradeGame = battleGradeLabel(battle);
                     const usedTime = battle.usedTime || 0;
 
                     const timeDisplay = formatBattleTime(battle);
@@ -2430,7 +2432,7 @@
                                 </div>
                                 <div class="stat grade-stat">
                                     <span class="stat-label">评分</span>
-                                    <span class="stat-value">${gradeGame.toFixed(1)}</span>
+                                    <span class="stat-value">${gradeGame}</span>
                                 </div>
                                 ${(mvpcnt > 0 || losemvp > 0) ? `
                                 <div class="battle-badges">

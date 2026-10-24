@@ -1662,6 +1662,7 @@
         </div>
     </div>
 
+    <script>{% include 'CommonPages/battle_helpers.js' %}</script>
     <script>
         // 全局变量
     let battleData = null;
@@ -1809,7 +1810,7 @@
                 const text = await response.text();
                 
                 try {
-                    battleData = JSON.parse(text);
+                    battleData = parseBattlePayload(text);
                     
                     // 如果解析结果是字符串，可能需要再次解析
                     if (typeof battleData === 'string') {
@@ -2052,9 +2053,9 @@
             const playerTanked = parseInt(battleStats.totalBeheroHurtCnt || 0);
             const playerMoney = parseInt(battleStats.money || 0);
             
-            const damagePercent = teamTotals.damage > 0 ? Math.round((playerDamage / teamTotals.damage) * 100) : 0;
-            const tankedPercent = teamTotals.tanked > 0 ? Math.round((playerTanked / teamTotals.tanked) * 100) : 0;
-            const moneyPercent = teamTotals.money > 0 ? Math.round((playerMoney / teamTotals.money) * 100) : 0;
+            const damagePercent = battleShareLabel(currentTeamPlayers, currentPlayer, 'totalHeroHurtCnt');
+            const tankedPercent = battleShareLabel(currentTeamPlayers, currentPlayer, 'totalBeheroHurtCnt');
+            const moneyPercent = battleShareLabel(currentTeamPlayers, currentPlayer, 'money');
             
             const metadataEquipmentHtml = finalEquips.slice(0, 6).map(equip => {
                 if (equip && equip.equipIcon) {
@@ -2118,16 +2119,16 @@
                                 </div>
                                 <div class="battle-metadata-player-main">
                                     <div class="battle-metadata-player-title">
-                                        <span class="battle-metadata-player-name">${currentPlayerName}</span>
+                                        <span class="battle-metadata-player-name">${battleText(currentPlayerName)}</span>
                                         <span class="battle-metadata-hero-name">${usedHero.heroName || currentPlayerHero || '未知英雄'}</span>
                                         ${battleStats.mvp ? '<span class="battle-metadata-mvp">MVP</span>' : ''}
                                     </div>
                                     <div class="battle-metadata-player-stats">
-                                        <span>KDA ${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
-                                        <span>评分 ${battleStats.gradeGame || '0.0'}</span>
-                                        <span>💰 ${moneyPercent}%</span>
-                                        <span>⚔️ ${damagePercent}%</span>
-                                        <span>🛡️ ${tankedPercent}%</span>
+                                        <span>KDA ${battleNumberLabel(battleStats.killCnt)}/${battleNumberLabel(battleStats.deadCnt)}/${battleNumberLabel(battleStats.assistCnt)}</span>
+                                        <span>评分 ${battleGradeLabel(battleStats)}</span>
+                                        <span>💰 ${moneyPercent}</span>
+                                        <span>⚔️ ${damagePercent}</span>
+                                        <span>🛡️ ${tankedPercent}</span>
                                     </div>
                                 </div>
                                 <div class="battle-metadata-equipment">
@@ -2330,9 +2331,9 @@
                 const playerTanked = parseInt(battleStats.totalBeheroHurtCnt || 0);
                 const playerMoney = parseInt(battleStats.money || 0);
 
-                const damagePercent = teamTotals.damage > 0 ? Math.round((playerDamage / teamTotals.damage) * 100) : 0;
-                const tankedPercent = teamTotals.tanked > 0 ? Math.round((playerTanked / teamTotals.tanked) * 100) : 0;
-                const moneyPercent = teamTotals.money > 0 ? Math.round((playerMoney / teamTotals.money) * 100) : 0;
+                const damagePercent = battleShareLabel(players, player, 'totalHeroHurtCnt');
+                const tankedPercent = battleShareLabel(players, player, 'totalBeheroHurtCnt');
+                const moneyPercent = battleShareLabel(players, player, 'money');
 
                 // 生成装备HTML
 	                const equipmentHtml = finalEquips.slice(0, 6).map(equip => {
@@ -2365,7 +2366,7 @@
                             <div class="player-left">
                                 <div class="player-left-top">
                                     <div class="player-info">
-                                        <h4>${basicInfo.roleName || '未知玩家'}${isMvp ? '<span class="mvp-badge">MVP</span>' : ''}</h4>
+                                        <h4>${battleText(basicInfo.roleName || '未知玩家')}${isMvp ? '<span class="mvp-badge">MVP</span>' : ''}</h4>
                                     </div>
                                 </div>
                                 <div class="equipment">
@@ -2377,24 +2378,24 @@
                             <div class="player-center">
                                 <div class="player-center-top player-detail">
                                     <div class="player-center-rating">
-                                        <span class="metric-value">${battleStats.gradeGame || '0.0'}</span>
+                                        <span class="metric-value">${battleGradeLabel(battleStats)}</span>
                                     </div>
                                     <div class="player-center-kda">
-                                        <span class="metric-value">${battleStats.killCnt || 0}/${battleStats.deadCnt || 0}/${battleStats.assistCnt || 0}</span>
+                                        <span class="metric-value">${battleNumberLabel(battleStats.killCnt)}/${battleNumberLabel(battleStats.deadCnt)}/${battleNumberLabel(battleStats.assistCnt)}</span>
                                     </div>
                                 </div>
 	                                <div class="stats-percentage-row player-detail">
 	                                    <div class="stat-percentage">
 	                                        <span class="stat-percentage-icon">💰</span>
-	                                        <span class="stat-percentage-value">${moneyPercent}%</span>
+	                                        <span class="stat-percentage-value">${moneyPercent}</span>
 	                                    </div>
 	                                    <div class="stat-percentage">
 	                                        <span class="stat-percentage-icon">⚔️</span>
-	                                        <span class="stat-percentage-value">${damagePercent}%</span>
+	                                        <span class="stat-percentage-value">${damagePercent}</span>
 	                                    </div>
 	                                    <div class="stat-percentage">
 	                                        <span class="stat-percentage-icon">🛡️</span>
-	                                        <span class="stat-percentage-value">${tankedPercent}%</span>
+	                                        <span class="stat-percentage-value">${tankedPercent}</span>
 	                                    </div>
                                 </div>
                             </div>

@@ -1564,6 +1564,7 @@
             box-shadow: 0 6px 18px rgba(44, 62, 80, 0.08);
         }
     </style>
+    <script>{% include 'CommonPages/battle_helpers.js' %}</script>
     <script>
         (function() {
             try {
@@ -2220,7 +2221,7 @@
                     throw new Error(`HTTP错误: ${response.status}`);
                 }
                 
-                const data = await response.json();
+                const data = parseBattlePayload(await response.text());
                 
                 analyzeData(data);
                 
@@ -2318,7 +2319,7 @@
                 // 从e.json数据中提取所需参数
                 const gameSvr = battle.gameSvrId || '';
                 const gameSeq = battle.gameSeq || '';
-                const targetRoleId = profileData.targetRoleId || '';
+                const targetRoleId = profileData.targetRoleId || (profileData.roleList?.length === 1 ? profileData.roleList[0].roleId : '');
                 const relaySvr = battle.relaySvrId || '';
                 const battleType = parseInt(battle.pvpType) || 0;
                 
@@ -2533,7 +2534,7 @@
                 // 提取战局信息参数 - 与战斗详情页面保持一致
                 const gameSvr = battle.gameSvrId || '';
                 const gameSeq = battle.gameSeq || '';
-                const targetRoleId = profileData.targetRoleId || '';
+                const targetRoleId = profileData.targetRoleId || (profileData.roleList?.length === 1 ? profileData.roleList[0].roleId : '');
                 const relaySvr = battle.relaySvrId || '';
                 const battleType = parseInt(battle.pvpType) || 0;
                 
@@ -2646,7 +2647,7 @@
                 // 提取战局信息参数 - 与战斗详情页面保持一致
                 const gameSvr = battle.gameSvrId || '';
                 const gameSeq = battle.gameSeq || '';
-                const targetRoleId = profileData.targetRoleId || '';
+                const targetRoleId = profileData.targetRoleId || (profileData.roleList?.length === 1 ? profileData.roleList[0].roleId : '');
                 const relaySvr = battle.relaySvrId || '';
                 const battleType = parseInt(battle.pvpType) || 0;
                 
@@ -3459,7 +3460,7 @@
                     const assistcnt = parseInt(battle.assistcnt) || 0;
                     const mvpcnt = parseInt(battle.mvpcnt) || 0;
                     const losemvp = parseInt(battle.losemvp) || 0;
-                    const gradeGame = parseFloat(battle.gradeGame) || 0;
+                    const gradeGame = battleGradeLabel(battle);
                     const gameTimeDisplay = formatBattleDisplayTime(battle);
                     
                     const kda = (killcnt + assistcnt) / Math.max(deadcnt, 1);
@@ -3549,7 +3550,7 @@
                                 </div>
                                 <div class="stat grade-stat">
                                     <span class="stat-label">评分</span>
-                                    <span class="stat-value">${gradeGame.toFixed(1)}</span>
+                                    <span class="stat-value">${gradeGame}</span>
                                 </div>
                                 ${specialKillText ? `
                                 <div class="stat special-kills">
@@ -3765,7 +3766,7 @@
                 const avgAssists = (assists.reduce((a, b) => a + b, 0) / assists.length).toFixed(1);
                 const mvpCount = battles.filter(b => (parseInt(b.mvpcnt) || 0) > 0 || (parseInt(b.losemvp) || 0) > 0).length;
                 const mvpRate = (mvpCount / battles.length * 100).toFixed(1);
-                const avgGrade = (battles.reduce((sum, battle) => sum + (parseFloat(battle.gradeGame) || 0), 0) / battles.length).toFixed(1);
+                const avgGrade = battleAverageGrade(battles);
                 
                 performanceChart.setOption({
                     title: {
