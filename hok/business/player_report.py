@@ -41,6 +41,18 @@ def extract_single_history_query(text):
     return [0, []]
 
 
+def latest_battle_params(details):
+    """Daily details are chronological; use the last game regardless of mode."""
+    if not details:
+        return None
+    last_battle = details[-1]
+    params = dict(last_battle.get("Params") or {})
+    params["gameseq"] = params.get("gameseq") or last_battle.get("GameSeq")
+    if not params["gameseq"]:
+        return None
+    return {"gameSvrId": "", "relaySvrId": "", "pvptype": 0, **params}
+
+
 def single_process(received_message):
     from ..ztime import (
         calc_gap,
@@ -60,7 +72,7 @@ def single_process(received_message):
     ai_feedback = "$" not in received_message
     battle_exists = True
     show_map_count_total = False
-    last_official_battle_params = None
+    last_battle_params = None
     matching_name = _zfunc_attr("extract_name")(received_message)
 
     if not matching_name:
@@ -179,18 +191,12 @@ def single_process(received_message):
             write_daily_history_export(today_sul_date, current_history)
 
             battle_visible = gameinfo["visible"]
-            if gameinfo["details"]:
-                for item in gameinfo["details"][::-1]:
-                    if item.get("Params") and _zfunc_attr("check_btl_official_with_matching")(
-                        item["MapName"]
-                    ):
-                        last_official_battle_params = item["Params"]
-                        break
-                if last_official_battle_params:
-                    dmc.LastBtlParams = last_official_battle_params
-                    dmc.LastBtlRoleId = roleidlist[matching_name]
-                    dmc.LastBtlMsgTime = time_to_str(time_r())
-                    dmc.LastBtlMsgStatus = True
+            last_battle_params = latest_battle_params(gameinfo["details"])
+            dmc.LastBtlMsgStatus = bool(last_battle_params)
+            if last_battle_params:
+                dmc.LastBtlParams = last_battle_params
+                dmc.LastBtlRoleId = roleidlist[matching_name]
+                dmc.LastBtlMsgTime = time_to_str(time_r())
             if gameinfo["gaming_info"]:
                 dmc.spoiler_cache = {
                     "time": current_timestamp(),
@@ -311,6 +317,6 @@ def single_process(received_message):
         message,
         poke_names,
         battle_exists,
-        last_official_battle_params,
+        last_battle_params,
         roleidlist[matching_name],
     ]

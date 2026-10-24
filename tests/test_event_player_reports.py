@@ -72,6 +72,7 @@ class PlayerReportEventTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls[0]["caller"], "Alice")
 
     async def test_single_summary_and_last_battle_keep_two_stage_contract(self):
+        calls = []
         ZFUNC.qid2nick = lambda user_id: "Alice"
         ZFUNC.single_process = lambda message: [
             "单人正文",
@@ -80,7 +81,7 @@ class PlayerReportEventTests(unittest.IsolatedAsyncioTestCase):
             {"gameseq": "1"},
             42,
         ]
-        ZFUNC.btldetail_process = lambda **kwargs: (
+        ZFUNC.btldetail_process = lambda **kwargs: calls.append(kwargs) or (
             "单局正文",
             "/tmp/battle.png",
             "排位赛",
@@ -95,6 +96,19 @@ class PlayerReportEventTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(summary["battle_roleid"], 42)
         self.assertEqual(battle["text"], "单局正文")
         self.assertEqual(battle["image_path"], "/tmp/battle.png")
+        self.assertFalse(calls[0]["strict_filter"])
+        self.assertTrue(calls[0]["gen_image"])
+
+    async def test_last_game_preserves_client_id_and_allows_entertainment(self):
+        calls = []
+        ZFUNC.btldetail_process = lambda **kwargs: calls.append(kwargs) or (
+            "最后一局 共鸣之战", "/tmp/client.png", "共鸣之战")
+        params = {"gameseq": "-9223372036854775806", "gameSvrId": "", "relaySvrId": "", "pvptype": 0}
+        result = await REPORTS.single_last_battle_reply({"battle_params": params, "battle_roleid": 42})
+        self.assertEqual(result["map_name"], "共鸣之战")
+        self.assertEqual(calls, [{**params, "roleid": 42, "gen_image": True, "strict_filter": False}])
+        self.assertIsNone(await REPORTS.single_last_battle_reply({"battle_params": None}))
+        self.assertEqual(len(calls), 1)
 
     async def test_view_suffix_selects_explicit_or_default_days(self):
         calls = []

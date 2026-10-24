@@ -75,6 +75,7 @@ async def single_last_battle_reply(summary):
         **summary["battle_params"],
         roleid=summary["battle_roleid"],
         gen_image=True,
+        strict_filter=False,
     )
     if not text:
         return None

@@ -69,7 +69,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `hok/tools/chat_text.py`：使用 `markdown-it-py` 将模型 Markdown 解析为 QQ 纯文本，去除标题、强调、引用、代码围栏和链接语法，表格转为字段值行，保留代码和数学中的字面符号；`format_chat_reply()` 接收配置昵称及身份映射，只处理最终纯文本中的内部玩家键与身份字段，普通词语、统计数值和公开链接保持原样。
 - `hok/tools/endecoder.py`：王者营地接口加解密与请求参数生成工具。
 - `hok/tools/emoji_renderer.py`：emoji 文本拆分与图片文字渲染辅助。
-- `hok/tools/gen_battle_res.py`：单局战绩详情长图生成器；娱乐分享兼容空评分/未知统计，按实际技能行增加卡片高度。图片、字体和 JSON IO 经 zfile，公开图标请求经 zapi，长期缓存保存于 resources/wzry_images/battle_assets/。网页分享消费者显式关闭正式模式过滤，正式战报查询的默认过滤保持不变。
+- `hok/tools/gen_battle_res.py`：单局战绩详情长图生成器；娱乐分享兼容空评分/未知统计，按实际技能行增加卡片高度。图片、字体和 JSON IO 经 zfile，公开图标请求经 zapi，长期缓存保存于 resources/wzry_images/battle_assets/。网页分享消费者及当天战绩查询附带的最后一局显式关闭正式模式过滤；player_report.latest_battle_params() 直接取按时间升序详情的最后一项，客户端无营地链接时使用 GameSeq 读取已保存详情，不向前筛选旧对局。评分均值及其他正式对局统计的过滤保持不变。
 - `hok/tools/gen_battle_shot.py`：RTMP 监听与对局截图工具。
 - `hok/tools/gen_coplayer_analyses.py`：共玩关系、头像、胜率、评价等图表生成器。
 - `hok/tools/gen_emoji_image.py`：表情包生成链路与模板；仅通过 `tools/emoji_context.py` 读取当前群的本人发言及表情决策缓存，不加载旧聊天记忆/摘要，Redis 与归档访问经 zfunc。
