@@ -10,6 +10,11 @@ ZFUNC = import_hok_module("zfunc")
 
 
 class PlayerDataTests(unittest.TestCase):
+    def setUp(self):
+        archive = patch.object(PLAYER_DATA.zfile, "writerl")
+        archive.start()
+        self.addCleanup(archive.stop)
+
     def test_failed_dump_does_not_delete_existing_daily_entry(self):
         with (patch.object(ZFUNC, "userlist", {"alice": 1001}),
               patch.object(ZFUNC, "wzry_data", side_effect=RuntimeError("战绩分页失败")),

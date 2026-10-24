@@ -64,8 +64,30 @@ class ClientDetailTests(unittest.TestCase):
         def save(path,payload):writes[payload['gameSeq']]=payload
         for apply in (False,True,True):
             with patch.object(ZFILE,'iter_client_battle_snapshots',return_value=iter([snapshot])), \
+                 patch.object(ZFILE,'iter_cached_client_battle_snapshots',return_value=iter([snapshot,snapshot])), \
                  patch.object(ZFILE,'writerl',side_effect=save),patch.object(ZFUNC,'wzry_get_official') as api:
                 result=DATA.backfill_client_battle_details(apply=apply)
             self.assertEqual(result['battles'],1);self.assertEqual(result['failed'],0)
             api.assert_not_called()
             self.assertEqual(len(writes),int(apply))
+
+    def test_legacy_web_cache_backfill_honors_game_day_without_external_requests(self):
+        row=self.row();snapshot=dict(target_role_id=42,user_id=1001,payload={'btlist':{'list':[row]}})
+        for start,end,count in [('2026-10-23','2026-10-23',1),('2026-10-24',None,0),(None,'2026-10-22',0)]:
+            with patch.object(ZFILE,'iter_client_battle_snapshots',return_value=iter([])), \
+                 patch.object(ZFILE,'iter_cached_client_battle_snapshots',return_value=iter([snapshot])), \
+                 patch.object(ZFILE,'writerl') as save,patch.object(ZFUNC,'wzry_get_official') as api:
+                result=DATA.backfill_client_battle_details(start_date=start,end_date=end,apply=True)
+            self.assertEqual(result['battles'],count);self.assertEqual(result['failed'],0)
+            self.assertEqual(save.call_count,count);api.assert_not_called()
+
+    def test_web_cache_reader_ignores_compact_public_lists_and_preserves_legacy_identity(self):
+        row=self.row()
+        native={'profile':{'targetRoleId':42,'userId':1001},'btlist':{'list':[row]}}
+        compact=DATA.battle_list_web_payload(native)
+        with patch.object(ZFILE,'get_file_list',return_value=['old.json','new.json']), \
+             patch.object(ZFILE,'readerl',side_effect=[native,compact]):
+            snapshots=list(ZFILE.iter_cached_client_battle_snapshots())
+        self.assertEqual(len(snapshots),1)
+        self.assertEqual(snapshots[0]['target_role_id'],42)
+        self.assertEqual(snapshots[0]['user_id'],1001)

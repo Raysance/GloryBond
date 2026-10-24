@@ -183,13 +183,12 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
                             "head": {"mods": [{"modId": 701, "name": "段位未取得", "param1": '{"rankingStar":0}'}]}}
         btlist_data["sourceWarnings"].append("营地玩家资料本次未取得，当前段位不可确认。")
         runtime.log_message(f"BATTLE_PROFILE_FAILED: error={type(error).__name__}")
+    profile_data = {**profile_data, "userId": userid, "targetRoleId": roleid}
     res = {
         "btlist": btlist_data,
         "profile": profile_data
     }
 
-    if (savepath):
-        zfile.writerl(savepath,res)
     roleInfo=[roles for roles in res["profile"]["roleList"] if int(roles["roleId"])==roleid][0]
     nickname=roleInfo["roleName"]
     rankInfo=[mods for mods in res["profile"]["head"]["mods"] if mods["modId"]==701][0]
@@ -300,18 +299,33 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         }
     # export_btl_thread = threading.Thread(target=export_btldetail, args=(gameinfo=today_details))
     # export_btl_thread.start()
-    if BtlVisible and any(game.get("clientOnly") for game in today_btl):
-        unaccessible_battles=runtime.export_btldetail(today_details,roleid,client_rows=today_btl,userid=userid)
+    client_rows = [game for game in res["btlist"].get("list", []) if game.get("clientOnly")]
+    if client_rows:
+        today_ids = {str(game["GameSeq"]) for game in today_details}
+        client_details = [{"GameSeq": str(game["gameSeq"]), "Source": "player_client"}
+                          for game in client_rows if str(game["gameSeq"]) not in today_ids]
+        unaccessible_battles=runtime.export_btldetail(today_details + client_details,roleid,client_rows=client_rows,userid=userid)
     else:
         unaccessible_battles=runtime.export_btldetail(today_details,roleid)
     enrich_battle_list_skills_from_cache(res, roleid)
+    archive_path = zfile.personal_history_path(str(target_date_obj), userid)
+    if savepath != archive_path:
+        zfile.writerl(archive_path, res)
     if savepath:
-        zfile.writerl(savepath, res)
+        zfile.writerl(savepath, res if savepath == archive_path else battle_list_web_payload(res))
     if (BtlVisible):
         today_btl_contribute_aver = runtime.calculate_official_battle_contribution_average(today_details, roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"btl_contribute_aver":today_btl_contribute_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles,
             "source_warnings": btlist_data.get("sourceWarnings", []), "client_added": btlist_data.get("clientAdded", 0),
             "profile_available": profile_available}
+
+def battle_list_web_payload(payload):
+    """Keep native match protocols in private archives, not in list-page downloads."""
+    btlist = payload.get("btlist") or {}
+    rows = [{key: value for key, value in row.items() if key not in ("clientMatch", "clientPlayer")}
+            for row in btlist.get("list", [])]
+    return {**payload, "btlist": {**btlist, "list": rows}}
+
 
 def enrich_battle_list_skills_from_cache(payload, roleid):
     """从本地战局详情为单人战绩卡片补齐召唤师技能。"""
@@ -437,10 +451,21 @@ def export_battle_details(gameinfo, roleid, *, client_rows=None, userid=None):
 def backfill_client_battle_details(*, start_date=None, end_date=None, apply=False):
     """Repair saved client-only details without querying either external game service."""
     snapshots, battles, failures = 0, set(), []
-    for snapshot in zfile.iter_client_battle_snapshots(start_date=start_date, end_date=end_date):
+    start = ztime.str_to_time(start_date).date() if start_date else None
+    end = ztime.str_to_time(end_date).date() if end_date else None
+
+    def saved_snapshots():
+        yield from zfile.iter_client_battle_snapshots(start_date=start_date, end_date=end_date)
+        yield from zfile.iter_cached_client_battle_snapshots()
+
+    for snapshot in saved_snapshots():
         snapshots += 1
         rows = [row for row in snapshot["payload"].get("btlist", {}).get("list", [])
                 if row.get("clientOnly") and str(row["gameSeq"]) not in battles]
+        if start or end:
+            rows = [row for row in rows
+                    if (not start or ztime.time_sul(ztime.stamp_to_time(int(row["dtEventTime"]))).date() >= start)
+                    and (not end or ztime.time_sul(ztime.stamp_to_time(int(row["dtEventTime"]))).date() <= end)]
         details = [{"GameSeq": str(row["gameSeq"]), "Source": "player_client"} for row in rows]
         battles.update(str(row["gameSeq"]) for row in rows)
         if apply:

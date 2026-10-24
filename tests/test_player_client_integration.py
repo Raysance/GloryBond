@@ -136,7 +136,8 @@ class MergeTests(unittest.TestCase):
     def test_client_only_daily_rows_reach_saved_payload_and_details_but_not_camp_detail_endpoint(self):
         # Exercises the real daily exporter rather than only testing a projected list.
         row=self.converted()[0]
-        btlist=dict(list=[row],invisible=False,isGaming=False,gaming={},sourceWarnings=['本次返回范围'])
+        older=self.converted(match(sequence=124,start=START-86400))[0]
+        btlist=dict(list=[row,older],invisible=False,isGaming=False,gaming={},sourceWarnings=['本次返回范围'])
         profile={'roleList':[{'roleId':42,'roleName':'甲'}], 'head':{'mods':[{
             'modId':701,'name':'最强王者','param1':'{"rankingStar":12}'}]}}
         with patch.object(ZFUNC,'userlist',{'alice':1001}), patch.object(ZFUNC,'roleidlist',{'alice':42}), \
@@ -148,7 +149,17 @@ class MergeTests(unittest.TestCase):
         self.assertEqual(result['today_num'],1)
         self.assertEqual(result['details'][0]['Source'],'player_client')
         self.assertTrue(result['details'][0]['GradeMissing'])
-        self.assertEqual(save.call_args.args[1]['btlist']['list'][0]['clientMatch']['map_id'],5466)
+        self.assertNotIn('clientMatch',save.call_args.args[1]['btlist']['list'][0])
+        self.assertNotIn('clientPlayer',save.call_args.args[1]['btlist']['list'][0])
+        archive=[call.args[1] for call in save.call_args_list
+                 if call.args[0]==ZFILE.personal_history_path('2026-10-23',1001)]
+        self.assertEqual(len(archive),1)
+        self.assertEqual(archive[0]['profile']['targetRoleId'],42)
+        self.assertEqual(archive[0]['profile']['userId'],1001)
+        self.assertEqual(archive[0]['btlist']['list'][0]['clientMatch']['map_id'],5466)
+        details=[call.args[0] for call in save.call_args_list if call.args[0] in
+                 [ZFILE.battle_detail_path(row['gameSeq']),ZFILE.battle_detail_path(older['gameSeq'])]]
+        self.assertEqual(len(details),2)
         self.assertEqual([call.kwargs['reqtype'] for call in camp.call_args_list],['profile'])
         self.assertEqual(METRICS.calculate_official_battle_average([
             dict(MapName='排位赛',GameGrade=0,GradeMissing=True),dict(MapName='排位赛',GameGrade=10)]),10)

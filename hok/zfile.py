@@ -264,6 +264,24 @@ def iter_client_battle_snapshots(*, start_date=None, end_date=None):
     yield from read_snapshots(start_date=start_date, end_date=end_date)
 
 
+def iter_cached_client_battle_snapshots():
+    """Read legacy single-player web artifacts that have not reached personal snapshots."""
+    cache_dir = os.path.dirname(web_history_json_path("probe"))
+    for path in get_file_list(cache_dir, end_with=".json"):
+        payload = readerl(path)
+        if not isinstance(payload, dict) or not isinstance(payload.get("btlist"), dict):
+            continue
+        if not any(row.get("clientOnly") and isinstance(row.get("clientMatch"), dict)
+                   for row in payload["btlist"].get("list", []) if isinstance(row, dict)):
+            continue
+        profile = payload.get("profile") or {}
+        roles = profile.get("roleList") or []
+        roleid = profile.get("targetRoleId")
+        if roleid is None and len(roles) == 1:
+            roleid = roles[0].get("roleId")
+        yield {"target_role_id": roleid, "user_id": profile.get("userId"), "payload": payload}
+
+
 def read_hero_tier(target_date):
     """Read one hero-tier snapshot from PostgreSQL, with JSON archive fallback."""
     try:
