@@ -5,13 +5,8 @@
 根据JSON数据生成与b.html相同的UI界面图片
 """
 
-import json
-import requests
-from PIL import Image, ImageDraw, ImageFont
-from io import BytesIO
-import os
-from datetime import datetime
-import math
+from PIL import Image, ImageDraw
+from .. import zfile
 from ..zstatic import *
 class BattleUIGenerator:
     def __init__(self):
@@ -21,6 +16,7 @@ class BattleUIGenerator:
         self.padding = 30
         self.card_height = 80
         self.player_card_height = 75
+        self._image_cache = {}
         
         # 颜色定义
         self.colors = {
@@ -48,88 +44,8 @@ class BattleUIGenerator:
         
     def _load_fonts(self):
         """加载字体"""
-        fonts = {}
-        
-        # 支持emoji的字体路径
-        emoji_font_paths = [
-            # '/usr/share/fonts/DejaVuSans.ttf',
-            # '/usr/share/fonts/NotoColorEmoji.ttf'
-        ]
-        
-        # 普通字体路径
-        font_paths = [
-            '/usr/share/fonts/chinese/simhei.ttf'
-        ]
-        
-        # 尝试加载不同大小的字体
-        sizes = {
-            'title': 28,
-            'large': 20,
-            'medium': 16,
-            'small': 14,
-            'tiny': 12,
-            'micro': 10,
-            'emoji': 16
-        }
-        
-        # 定义需要粗体的大小
-        bold_variants = ['large', 'medium', 'title']
-        
-        # 粗体字体候选路径 (回归simhei通过调大字体来模拟加粗)
-        bold_font_paths = [
-            '/usr/share/fonts/chinese/simhei.ttf',
-        ]
-        
-        # 首先尝试加载emoji字体
-        emoji_font_loaded = False
-        for emoji_font_path in emoji_font_paths:
-            try:
-                if os.path.exists(emoji_font_path):
-                    fonts['emoji'] = ImageFont.truetype(emoji_font_path, sizes['emoji'])
-                    emoji_font_loaded = True
-                    break
-            except Exception as e:
-                continue
-        
-        if not emoji_font_loaded:
-            fonts['emoji'] = None
-        
-        # 加载普通字体和粗体变体
-        for size_name, size in sizes.items():
-            if size_name == 'emoji':
-                continue
-                
-            font_loaded = False
-            for font_path in font_paths + ['C:/Windows/Fonts/simhei.ttf', 'C:/Windows/Fonts/arial.ttf']:
-                try:
-                    if os.path.exists(font_path):
-                        fonts[size_name] = ImageFont.truetype(font_path, size)
-                        # 如果需要粗体变体
-                        if size_name in bold_variants:
-                            bold_loaded = False
-                            for b_path in bold_font_paths:
-                                if os.path.exists(b_path):
-                                    # 针对黑体，字号加2以更清晰地区分普通文本
-                                    fonts[f"{size_name}_bold"] = ImageFont.truetype(b_path, size + 2)
-                                    bold_loaded = True
-                                    break
-                            if not bold_loaded:
-                                fonts[f"{size_name}_bold"] = fonts[size_name] # 降级为普通字体
-                        font_loaded = True
-                        break
-                except Exception as e:
-                    continue
-            
-            if not font_loaded:
-                try:
-                    fonts[size_name] = ImageFont.load_default()
-                    if size_name in bold_variants:
-                        fonts[f"{size_name}_bold"] = fonts[size_name]
-                except:
-                    pass
-        
-        return fonts
-    
+        return zfile.battle_report_fonts()
+
     def _draw_text_with_emoji(self, draw, position, text, fill, font, emoji_replacements=None):
         """
         绘制包含emoji的文本
@@ -175,62 +91,19 @@ class BattleUIGenerator:
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     
     def _download_image(self, url, size=(50, 50)):
-        """下载并调整图片大小"""
-        try:
-            if not url or url == '/api/placeholder/40/40' or url == '/api/placeholder/60/60':
-                # 创建占位符图片
-                img = Image.new('RGBA', size, (200, 200, 200, 255))
-                draw = ImageDraw.Draw(img)
-                draw.text((size[0]//2, size[1]//2), '?', fill=(100, 100, 100, 255), 
-                        font=self.fonts['medium'], anchor='mm')
-                return img
-            
-            # 从URL中提取图片序号
-            if 'custom_wzryequip' in url:
-                # 从类似 https://.../custom_wzryequip/1240.png 中提取1240
-                img_id = url.split('/')[-1].split('.')[0]
-                local_path = f"resources/wzry_images/custom_wzryequip/{img_id}.png"
-                
-                # 检查本地是否存在
-                if os.path.exists(local_path):
-                    img = Image.open(local_path)
-                    img = img.convert('RGBA')
-                    img = img.resize(size, Image.Resampling.LANCZOS)
-                    return img
-            if 'custom_wzry_E1' in url:
-                img_id = url.split('/')[-1].split('.')[0]
-                local_path = f"resources/wzry_images/custom_wzry_E1/{img_id}.jpg"
-                
-                # 检查本地是否存在
-                if os.path.exists(local_path):
-                    img = Image.open(local_path)
-                    img = img.convert('RGBA')
-                    img = img.resize(size, Image.Resampling.LANCZOS)
-                    return img
-            
-            # 本地不存在，进行网络请求
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            if 'custom_wzryequip' in url:
-                with open(local_path, 'wb') as f:
-                    f.write(response.content)
-            if 'custom_wzry_E1' in url:
-                with open(local_path, 'wb') as f:
-                    f.write(response.content)
-            img = Image.open(BytesIO(response.content))
-            img = img.convert('RGBA')
-            img = img.resize(size, Image.Resampling.LANCZOS)
-            return img
-            
-        except Exception as e:
-            print(f"下载图片失败 {url}: {e}")
-            # 返回占位符
-            img = Image.new('RGBA', size, (200, 200, 200, 255))
-            draw = ImageDraw.Draw(img)
-            draw.text((size[0]//2, size[1]//2), '?', fill=(100, 100, 100, 255), 
-                    font=self.fonts['medium'], anchor='mm')
-            return img
-    
+        if url and not url.startswith('/api/placeholder/'):
+            try:
+                if url not in self._image_cache:
+                    self._image_cache[url] = zfile.load_battle_report_image(url)
+                return self._image_cache[url].resize(size, Image.Resampling.LANCZOS)
+            except Exception:
+                pass
+        image = Image.new('RGBA', size, (200, 200, 200, 255))
+        draw = ImageDraw.Draw(image)
+        draw.text((size[0] // 2, size[1] // 2), '?', fill=(100, 100, 100, 255),
+                  font=self.fonts['tiny'], anchor='mm')
+        return image
+
     def _draw_rounded_rectangle(self, draw, bbox, radius, fill=None, outline=None, width=1):
         """绘制圆角矩形"""
         x1, y1, x2, y2 = bbox
@@ -266,6 +139,51 @@ class BattleUIGenerator:
         minutes = seconds // 60
         seconds = seconds % 60
         return f"{minutes}:{seconds:02d}"
+
+    @staticmethod
+    def _grade_label(stats):
+        value = stats.get('gradeGame')
+        return (stats.get('gradeDisplay') or str(value)) if value is not None else '—'
+
+    @staticmethod
+    def _kda_label(stats):
+        return '/'.join(str(stats[key]) if stats.get(key) is not None else '—'
+                        for key in ('killCnt', 'deadCnt', 'assistCnt'))
+
+    @staticmethod
+    def _team_totals(players):
+        totals = {}
+        for key, field in (('money', 'money'), ('damage', 'totalHeroHurtCnt'), ('tanked', 'totalBeheroHurtCnt')):
+            values = [player.get('battleStats', {}).get(field) for player in players]
+            totals[key] = sum(values) if values and all(value is not None for value in values) else None
+        return totals
+
+    @staticmethod
+    def _percentages(stats, totals):
+        return {key: round(stats[field] / max(totals[key], 1) * 100)
+                if stats.get(field) is not None and totals[key] is not None else None
+                for key, field in (('money', 'money'), ('damage', 'totalHeroHurtCnt'), ('tanked', 'totalBeheroHurtCnt'))}
+
+    @staticmethod
+    def _percent_label(value):
+        return f'{value}%' if value is not None else '—'
+
+    def _draw_selected_skills(self, draw, img, skills, x, y, width, columns=4):
+        cell_width = width // columns
+        for index, skill in enumerate(skills):
+            left = x + index % columns * cell_width
+            top = y + index // columns * 28
+            self._draw_rounded_rectangle(draw, [left, top, left + cell_width - 6, top + 24],
+                                         5, fill=(230, 240, 250, 255))
+            text_x = left + 6
+            if skill.get('sourceHeroIcon'):
+                icon = self._download_image(skill['sourceHeroIcon'], (20, 20))
+                img.paste(icon, (left + 3, top + 2), icon)
+                text_x = left + 28
+            label = skill.get('skillName') or '—'
+            while len(label) > 1 and draw.textlength(label, font=self.fonts['small']) > left + cell_width - text_x - 10:
+                label = label[:-2] + '…'
+            draw.text((text_x, top + 4), label, fill=self._hex_to_rgb(self.colors['dark']), font=self.fonts['small'])
     
     def _draw_player_header(self, draw, img, data, y_offset):
         """绘制玩家头部信息区域"""
@@ -295,7 +213,7 @@ class BattleUIGenerator:
             bg_color = (231, 76, 60, 40)  # 失败背景色，透明度
         
         # 绘制背景卡片
-        card_height = 220
+        card_height = 280 if battle_records.get("selectedSkills") else 220
         self._draw_rounded_rectangle(draw, 
                                    [self.padding, y_offset, self.width - self.padding, y_offset + card_height],
                                    15, fill=(255, 255, 255, 255))
@@ -366,8 +284,8 @@ class BattleUIGenerator:
                      fill=(255, 255, 255, 255), font=self.fonts['small'])
         
         # KDA和评分
-        kda_text = f"{battle_stats.get('killCnt', 0)}/{battle_stats.get('deadCnt', 0)}/{battle_stats.get('assistCnt', 0)}"
-        rating_text = str(battle_stats.get('gradeGame', '0.0'))
+        kda_text = self._kda_label(battle_stats)
+        rating_text = self._grade_label(battle_stats)
         
         kda_x = self.padding + 120
         kda_y = y_offset + 120
@@ -387,9 +305,9 @@ class BattleUIGenerator:
         
         percent_x = kda_x + 300
         percentages = [
-            (f"💰{team_percentages['money']}%", "经济"),
-            (f"⚔️{team_percentages['damage']}%", "伤害"), 
-            (f"🛡️{team_percentages['tanked']}%", "承伤")
+            (f"💰{self._percent_label(team_percentages['money'])}", "经济"),
+            (f"⚔️{self._percent_label(team_percentages['damage'])}", "伤害"),
+            (f"🛡️{self._percent_label(team_percentages['tanked'])}", "承伤")
         ]
         
         for i, (percent_text, label) in enumerate(percentages):
@@ -413,6 +331,8 @@ class BattleUIGenerator:
                               equip_x + i * 40 + 35, equip_y + 35], 
                               fill=(200, 200, 200, 255))
         
+        self._draw_selected_skills(draw, img, battle_records.get('selectedSkills') or [],
+                                   self.padding + 120, y_offset + 228, self.width - 2 * self.padding - 120)
         return y_offset + card_height + 20
     
     def _find_current_player(self, data, current_player_id):
@@ -448,30 +368,10 @@ class BattleUIGenerator:
                     break
         
         if not current_team or not current_player:
-            return {'money': 0, 'damage': 0, 'tanked': 0}
+            return {'money': None, 'damage': None, 'tanked': None}
         
-        # 计算队伍总数
-        team_totals = {'money': 0, 'damage': 0, 'tanked': 0}
-        for player in current_team:
-            stats = player.get('battleStats', {})
-            team_totals['money'] += int(stats.get('money', 0))
-            team_totals['damage'] += int(stats.get('totalHeroHurtCnt', 0))
-            team_totals['tanked'] += int(stats.get('totalBeheroHurtCnt', 0))
-        
-        # 计算当前玩家百分比
-        current_stats = current_player.get('battleStats', {})
-        current_money = int(current_stats.get('money', 0))
-        current_damage = int(current_stats.get('totalHeroHurtCnt', 0))
-        current_tanked = int(current_stats.get('totalBeheroHurtCnt', 0))
-        
-        percentages = {
-            'money': round((current_money / max(team_totals['money'], 1)) * 100),
-            'damage': round((current_damage / max(team_totals['damage'], 1)) * 100),
-            'tanked': round((current_tanked / max(team_totals['tanked'], 1)) * 100)
-        }
-        
-        return percentages
-    
+        return self._percentages(current_player.get('battleStats', {}), self._team_totals(current_team))
+
     def _draw_teams(self, draw, img, data, y_offset):
         """绘制两队信息"""
         red_roles = data.get('redRoles', [])
@@ -517,16 +417,10 @@ class BattleUIGenerator:
         current_y = y + header_height
         
         # 按评分排序
-        sorted_players = sorted(players, key=lambda p: float(p.get('battleStats', {}).get('gradeGame', 0)), reverse=True)
+        sorted_players = sorted(players, key=lambda p: float(p.get('battleStats', {}).get('gradeGame') or 0), reverse=True)
         
-        # 计算队伍总数据用于百分比
-        team_totals = {'money': 0, 'damage': 0, 'tanked': 0}
-        for player in sorted_players:
-            stats = player.get('battleStats', {})
-            team_totals['money'] += int(stats.get('money', 0))
-            team_totals['damage'] += int(stats.get('totalHeroHurtCnt', 0))
-            team_totals['tanked'] += int(stats.get('totalBeheroHurtCnt', 0))
-        
+        team_totals = self._team_totals(sorted_players)
+
         for i, player in enumerate(sorted_players):
             self._draw_player_card(draw, img, player, x + 5, current_y, width - 10, team_totals)
             current_y += self.player_card_height + 5
@@ -645,8 +539,8 @@ class BattleUIGenerator:
         
         # 评分和KDA（居中）
         center_x = x + width // 2
-        rating = str(battle_stats.get('gradeGame', '0.0'))
-        kda = f"{battle_stats.get('killCnt', 0)}/{battle_stats.get('deadCnt', 0)}/{battle_stats.get('assistCnt', 0)}"
+        rating = self._grade_label(battle_stats)
+        kda = self._kda_label(battle_stats)
         
         draw.text((center_x - 30, y + 10), f"评分 {rating}", 
                  fill=self._hex_to_rgb(self.colors['primary']), font=score_font)
@@ -654,19 +548,13 @@ class BattleUIGenerator:
                  fill=self._hex_to_rgb(self.colors['danger']), font=score_font)
         
         # 百分比数据（右侧，垂直排列）
-        player_money = int(battle_stats.get('money', 0))
-        player_damage = int(battle_stats.get('totalHeroHurtCnt', 0))
-        player_tanked = int(battle_stats.get('totalBeheroHurtCnt', 0))
-        
-        money_percent = round((player_money / max(team_totals['money'], 1)) * 100)
-        damage_percent = round((player_damage / max(team_totals['damage'], 1)) * 100)
-        tanked_percent = round((player_tanked / max(team_totals['tanked'], 1)) * 100)
-        
+        percentages = self._percentages(battle_stats, team_totals)
+
         # 分别绘制emoji和数字，确保一致的间距
         base_x = x + width - 180
         emoji_positions = [base_x, base_x + 60, base_x + 125]
         emojis = ['💰', '⚔️', '🛡️']
-        percents = [f"{money_percent}%", f"{damage_percent}%", f"{tanked_percent}%"]
+        percents = [self._percent_label(percentages[key]) for key in ('money', 'damage', 'tanked')]
         
         # 百分比文字也要粗体
         percent_font = self.fonts.get('tiny_bold', self.fonts['tiny']) if is_me else self.fonts['tiny']
@@ -679,6 +567,9 @@ class BattleUIGenerator:
             draw.text((emoji_positions[i] + 25, y + 25), percents[i], 
                      fill=self._hex_to_rgb(self.colors['dark']), font=percent_font)
     
+        self._draw_selected_skills(draw, img, battle_records.get('selectedSkills') or [],
+                                   x + 8, y + 70, width - 16, columns=2)
+
     def generate_battle_image(self, json_path, output_path):
         """
         生成战局图片的主函数
@@ -692,8 +583,7 @@ class BattleUIGenerator:
         """
         try:
             # 读取JSON数据
-            with open(json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            data = zfile.readerl(json_path)
             
             # 如果数据有data字段，则提取data内容
             if 'data' in data:
@@ -705,12 +595,14 @@ class BattleUIGenerator:
             max_players = max(len(red_roles), len(blue_roles))
             
             # 动态计算高度
-            header_height = 240  # 玩家头部信息
+            has_skills = any(role.get('battleRecords', {}).get('selectedSkills') for role in red_roles + blue_roles)
+            self.player_card_height = 125 if has_skills else 75
+            header_height = self.padding + (280 if has_skills else 220) + 20
             team_header_height = 50  # 队伍标题
             player_area_height = max_players * (self.player_card_height + 5)
             footer_height = 60
             
-            self.height = header_height + team_header_height + player_area_height + footer_height + 100
+            self.height = header_height + team_header_height + player_area_height + footer_height + self.padding + 20
             
             # 创建图片
             img = Image.new('RGBA', (self.width, self.height), (245, 247, 250, 255))
@@ -747,7 +639,7 @@ class BattleUIGenerator:
             # 保存图片
             rgb_img = Image.new('RGB', img.size, (255, 255, 255))
             rgb_img.paste(img, mask=img.split()[-1])
-            rgb_img.save(output_path, 'PNG', quality=95)
+            zfile.save_pil_image(rgb_img, output_path, format='PNG', quality=95)
             
             print(f"战局图片生成成功: {output_path}")
             return True

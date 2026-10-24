@@ -28,7 +28,8 @@ class ClientDetailTests(unittest.TestCase):
         self.assertEqual(own['basicInfo']['clientUid'],str(PLAYER['uid']))
         self.assertEqual(own['battleStats']['money'],12345)
         self.assertEqual(own['battleStats']['totalHeroHurtCnt'],40000)
-        self.assertIsNone(own['battleStats']['gradeGame'])
+        self.assertEqual(own['battleStats']['gradeGame'],9.1)
+        self.assertEqual(own['battleStats']['gradeDisplay'],'9.1')
         self.assertEqual(own['battleRecords']['finalEquips'][0]['equipId'],1234)
         self.assertEqual(own['battleRecords']['selectedSkillIds'],[1,2,3,4])
         self.assertIsNone(detail['blueRoles'][0]['basicInfo']['roleId'])
@@ -55,7 +56,7 @@ class ClientDetailTests(unittest.TestCase):
         participants=[call.args[1]for call in sql_calls if 'INSERT INTO hok.battle_participants'in call.args[0]]
         self.assertEqual(len(participants),2)
         self.assertEqual(participants[0][0],row['gameSeq'])
-        self.assertIsNone(participants[0][11])
+        self.assertEqual(participants[0][11],9.1)
         self.assertIn(12345,[p[12]for p in participants])
 
     def test_saved_snapshots_backfill_is_offline_and_idempotent_by_game_sequence(self):

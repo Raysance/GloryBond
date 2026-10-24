@@ -1,0 +1,462 @@
+{
+  "1111": {
+    "equipName": "铁剑",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1111.jpg"
+  },
+  "1112": {
+    "equipName": "匕首",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1112.jpg"
+  },
+  "1113": {
+    "equipName": "搏击拳套",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1113.jpg"
+  },
+  "1114": {
+    "equipName": "吸血之镰",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1114.jpg"
+  },
+  "1116": {
+    "equipName": "雷鸣刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1116.jpg"
+  },
+  "1121": {
+    "equipName": "风暴巨剑",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1121.jpg"
+  },
+  "1122": {
+    "equipName": "日冕",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1122.jpg"
+  },
+  "1123": {
+    "equipName": "狂暴双刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1123.jpg"
+  },
+  "1124": {
+    "equipName": "陨星",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1124.jpg"
+  },
+  "1131": {
+    "equipName": "碎星锤",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1131.jpg"
+  },
+  "1126": {
+    "equipName": "末世",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1126.jpg"
+  },
+  "1127": {
+    "equipName": "名刀·司命",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1127.jpg"
+  },
+  "1128": {
+    "equipName": "寒霜袭侵",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1128.jpg"
+  },
+  "1129": {
+    "equipName": "速击之枪",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1129.jpg"
+  },
+  "11210": {
+    "equipName": "制裁之刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/11210.jpg"
+  },
+  "1132": {
+    "equipName": "泣血之刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1132.jpg"
+  },
+  "1133": {
+    "equipName": "无尽战刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1133.jpg"
+  },
+  "1134": {
+    "equipName": "宗师之力",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1134.jpg"
+  },
+  "1135": {
+    "equipName": "闪电匕首",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1135.jpg"
+  },
+  "1136": {
+    "equipName": "影刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1136.jpg"
+  },
+  "1137": {
+    "equipName": "暗影战斧",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1137.jpg"
+  },
+  "1138": {
+    "equipName": "强者破军",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1138.jpg"
+  },
+  "11311": {
+    "equipName": "纯净苍穹",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/11311.jpg"
+  },
+  "1141": {
+    "equipName": "逐日之弓",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1141.jpg"
+  },
+  "1125": {
+    "equipName": "破魔刀",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1125.jpg"
+  },
+  "1154": {
+    "equipName": "穿云弓",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1154.jpg"
+  },
+  "1155": {
+    "equipName": "仁者破晓",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1155.jpg"
+  },
+  "1211": {
+    "equipName": "咒术典籍",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1211.jpg"
+  },
+  "1212": {
+    "equipName": "蓝宝石",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1212.jpg"
+  },
+  "1214": {
+    "equipName": "圣者法典",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1214.jpg"
+  },
+  "1221": {
+    "equipName": "大棒",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1221.jpg"
+  },
+  "1222": {
+    "equipName": "血族之书",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1222.jpg"
+  },
+  "1227": {
+    "equipName": "炽热支配",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1227.jpg"
+  },
+  "12211": {
+    "equipName": "梦魇之牙",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/12211.jpg"
+  },
+  "1231": {
+    "equipName": "虚无法杖",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1231.jpg"
+  },
+  "1232": {
+    "equipName": "博学者之怒",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1232.jpg"
+  },
+  "1239": {
+    "equipName": "辉月",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1239.jpg"
+  },
+  "1233": {
+    "equipName": "回响之杖",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1233.jpg"
+  },
+  "1234": {
+    "equipName": "凝冰之息",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1234.jpg"
+  },
+  "1235": {
+    "equipName": "痛苦面具",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1235.jpg"
+  },
+  "1236": {
+    "equipName": "巫术法杖",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1236.jpg"
+  },
+  "1226": {
+    "equipName": "圣杯",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1226.jpg"
+  },
+  "1237": {
+    "equipName": "时之预言",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1237.jpg"
+  },
+  "1238": {
+    "equipName": "贤者天书",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1238.jpg"
+  },
+  "1240": {
+    "equipName": "噬神之书",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1240.jpg"
+  },
+  "1311": {
+    "equipName": "红玛瑙",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1311.jpg"
+  },
+  "1312": {
+    "equipName": "布甲",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1312.jpg"
+  },
+  "1313": {
+    "equipName": "抗魔披风",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1313.jpg"
+  },
+  "1321": {
+    "equipName": "力量腰带",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1321.jpg"
+  },
+  "1323": {
+    "equipName": "神隐斗篷",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1323.jpg"
+  },
+  "1324": {
+    "equipName": "雪山圆盾",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1324.jpg"
+  },
+  "1325": {
+    "equipName": "守护者之铠",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1325.jpg"
+  },
+  "1327": {
+    "equipName": "反伤刺甲",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1327.jpg"
+  },
+  "1328": {
+    "equipName": "血魔之怒",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1328.jpg"
+  },
+  "1331": {
+    "equipName": "红莲斗篷",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1331.jpg"
+  },
+  "1332": {
+    "equipName": "霸者重装",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1332.jpg"
+  },
+  "1341": {
+    "equipName": "冰霜冲击",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1341.jpg"
+  },
+  "1333": {
+    "equipName": "不祥征兆",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1333.jpg"
+  },
+  "1334": {
+    "equipName": "不死鸟之眼",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1334.jpg"
+  },
+  "1335": {
+    "equipName": "魔女斗篷",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1335.jpg"
+  },
+  "1336": {
+    "equipName": "极寒风暴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1336.jpg"
+  },
+  "13310": {
+    "equipName": "冰痕之握",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/13310.jpg"
+  },
+  "1337": {
+    "equipName": "贤者的庇护",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1337.jpg"
+  },
+  "1338": {
+    "equipName": "暴烈之甲",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1338.jpg"
+  },
+  "1411": {
+    "equipName": "神速之靴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1411.jpg"
+  },
+  "1421": {
+    "equipName": "影忍之足",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1421.jpg"
+  },
+  "1422": {
+    "equipName": "抵抗之靴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1422.jpg"
+  },
+  "1423": {
+    "equipName": "冷静之靴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1423.jpg"
+  },
+  "1424": {
+    "equipName": "秘法之靴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1424.jpg"
+  },
+  "1425": {
+    "equipName": "急速战靴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1425.jpg"
+  },
+  "1426": {
+    "equipName": "疾步之靴",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1426.jpg"
+  },
+  "1511": {
+    "equipName": "狩猎宽刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1511.jpg"
+  },
+  "1521": {
+    "equipName": "游击弯刀",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1521.jpg"
+  },
+  "1522": {
+    "equipName": "巡守利斧",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1522.jpg"
+  },
+  "1523": {
+    "equipName": "追击刀锋",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1523.jpg"
+  },
+  "1531": {
+    "equipName": "符文大剑",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1531.jpg"
+  },
+  "1532": {
+    "equipName": "巨人之握",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1532.jpg"
+  },
+  "1533": {
+    "equipName": "贪婪之噬",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1533.jpg"
+  },
+  "1727": {
+    "equipName": "日暮之流",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1727.jpg"
+  },
+  "1728": {
+    "equipName": "金色圣剑",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1728.jpg"
+  },
+  "1534": {
+    "equipName": "怒龙剑盾",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1534.jpg"
+  },
+  "1345": {
+    "equipName": "荆棘护手",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1345.jpg"
+  },
+  "1347": {
+    "equipName": "永夜守护",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1347.jpg"
+  },
+  "1349": {
+    "equipName": "原初遗珠",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1349.jpg"
+  },
+  "1350": {
+    "equipName": "侵掠·怒魂",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1350.jpg"
+  },
+  "1351": {
+    "equipName": "徐行·凛冬",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1351.jpg"
+  },
+  "1156": {
+    "equipName": "迅疾·日渊",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1156.jpg"
+  },
+  "1157": {
+    "equipName": "不动·天穹",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1157.jpg"
+  },
+  "1242": {
+    "equipName": "难知·月神",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1242.jpg"
+  },
+  "1224": {
+    "equipName": "魔道之石",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1224.jpg"
+  },
+  "1243": {
+    "equipName": "云灵木",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1243.jpg"
+  },
+  "1115": {
+    "equipName": "迅捷长矛",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1115.jpg"
+  },
+  "1244": {
+    "equipName": "破茧之衣",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1244.jpg"
+  },
+  "1158": {
+    "equipName": "血魂刃",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1158.jpg"
+  },
+  "1159": {
+    "equipName": "逐风",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1159.jpg"
+  },
+  "1353": {
+    "equipName": "旭日初光",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1353.jpg"
+  },
+  "1701": {
+    "equipName": "学识宝石",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1701.jpg"
+  },
+  "1711": {
+    "equipName": "极影",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1711.jpg"
+  },
+  "1714": {
+    "equipName": "近卫",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1714.jpg"
+  },
+  "1721": {
+    "equipName": "极影·救赎",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1721.jpg"
+  },
+  "1747": {
+    "equipName": "极影·星泉",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1747.jpg"
+  },
+  "1723": {
+    "equipName": "极影·奔狼",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1723.jpg"
+  },
+  "1737": {
+    "equipName": "极影·形昭",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1737.jpg"
+  },
+  "1724": {
+    "equipName": "近卫·救赎",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1724.jpg"
+  },
+  "1725": {
+    "equipName": "近卫·星泉",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1725.jpg"
+  },
+  "1753": {
+    "equipName": "近卫·奔狼",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1753.jpg"
+  },
+  "1754": {
+    "equipName": "近卫·形昭",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1754.jpg"
+  },
+  "1317": {
+    "equipName": "急速铠甲",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1317.jpg"
+  },
+  "1217": {
+    "equipName": "秘法残页",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1217.jpg"
+  },
+  "11110": {
+    "equipName": "附魔之羽",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/11110.jpg"
+  },
+  "1218": {
+    "equipName": "元流结晶",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1218.jpg"
+  },
+  "13212": {
+    "equipName": "天地石",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/13212.jpg"
+  },
+  "11211": {
+    "equipName": "精钢锻刀",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/11211.jpg"
+  },
+  "13211": {
+    "equipName": "玛瑙护心镜",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/13211.jpg"
+  },
+  "1161": {
+    "equipName": "幽影袖箭",
+    "equipIcon": "https://game.gtimg.cn/images/yxzj/img201606/itemimg/1161.jpg"
+  }
+}

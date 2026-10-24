@@ -774,6 +774,60 @@ def player_client_skin_names():
             for skin in ResourceCatalog.bundled().skins}
 
 
+def player_client_battle_assets():
+    """Offline equipment names and the SDK's explicit resonance configurations."""
+    from hok_research import ResourceCatalog
+
+    catalog = ResourceCatalog.bundled()
+    skills = {}
+    for item in catalog.source.get("resonance_skills", {}).get("records", []):
+        hero = catalog.hero(item["source_hero_id"]) if item.get("source_hero_id") else None
+        skills[str(item["skill_id"])] = {**item, "source_hero_name": hero.name if hero else None}
+    return {"equipment": readerl(os.path.join(project_root, "resources", "player_client", "equipment.json")),
+            "skills": skills}
+
+
+def battle_report_fonts():
+    from PIL import ImageFont
+
+    paths = ["/usr/share/fonts/chinese/simhei.ttf", "C:/Windows/Fonts/simhei.ttf",
+             os.path.join(project_root, "resources", "fonts", "noto-sans-sc", "NotoSansSC-VF.ttf")]
+    fonts = {"emoji": None}
+    for name, size in dict(title=28, large=20, medium=16, small=14, tiny=12, micro=10).items():
+        path = next((path for path in paths if os.path.isfile(path)), None)
+        fonts[name] = load_project_font(path, size) if path else ImageFont.load_default()
+        if name in ("title", "large", "medium"):
+            fonts[name + "_bold"] = load_project_font(path, size + 2, weight=600) if path else fonts[name]
+    return fonts
+
+
+def load_battle_report_image(url):
+    """Reuse original decoded assets across sizes; persist public thumbnails through IO."""
+    import hashlib
+    from PIL import Image
+    from .zstatic import battle_image_cache_path
+    from .zapi import wzry_battle_image_bytes
+
+    for marker, extension in (("custom_wzryequip", "png"), ("custom_wzry_E1", "jpg")):
+        if marker in url:
+            identifier = url.rsplit("/", 1)[-1].split(".")[0]
+            if identifier.isascii() and identifier.isdigit():
+                local = os.path.join(project_root, "resources", "wzry_images", marker, identifier + "." + extension)
+                if os.path.isfile(local):
+                    with Image.open(local) as image:
+                        return image.convert("RGBA")
+    path = os.path.join(battle_image_cache_path, hashlib.sha256(url.encode()).hexdigest() + ".img")
+    if os.path.isfile(path):
+        with open(path, "rb") as source:
+            return pil_image_from_bytes(source.read(), max_pixels=8_000_000).convert("RGBA")
+    content = wzry_battle_image_bytes(url)
+    image = pil_image_from_bytes(content, max_pixels=8_000_000).convert("RGBA")
+    ensure_dir(battle_image_cache_path)
+    with open(path, "wb") as target:
+        target.write(content)
+    return image
+
+
 def player_client_artwork_cache(items, contents=None):
     """Large hero illustrations have a separate persistent, fingerprinted cache."""
     import hashlib

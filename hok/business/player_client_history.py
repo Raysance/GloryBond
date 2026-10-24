@@ -5,6 +5,32 @@ import hashlib
 from .. import ztime
 
 
+def client_score(player):
+    """Use the SDK display value, including for snapshots saved before 0.6.19."""
+    raw = player.get("score_raw")
+    value = player.get("score")
+    if value is None and raw is not None:
+        value = max(0, raw) / 100
+    display = player.get("score_display")
+    if display is None and raw is not None:
+        display = "%d.%d" % divmod((max(0, raw) + 5) // 10, 10)
+    return value, display
+
+
+def client_selected_skills(player, assets, settings):
+    selections = player.get("selected_skills")
+    if selections is None:
+        selections = [{"skill_id": key, **assets.get("skills", {}).get(str(key), {})}
+                      for key in player.get("selected_skill_ids") or []]
+    return [{"skillId": item["skill_id"], "skillName": item.get("name") or "—",
+             "description": item.get("description") or "",
+             "sourceHeroId": item.get("source_hero_id"),
+             "sourceHeroName": item.get("source_hero_name") or "",
+             "sourceHeroIcon": settings["hero_avatar_url_template"].format(hero_id=item["source_hero_id"])
+                if item.get("source_hero_id") else ""}
+            for item in selections]
+
+
 def client_battles(result, player, settings):
     """An exact UID/world match is mandatory; nicknames never establish identity."""
     rows, seen = [], set()
@@ -27,7 +53,8 @@ def client_battles(result, player, settings):
         end = start + duration
         camp, winning = own.get("camp"), match.get("winning_camp")
         outcome = 1 if camp and winning and camp == winning else 2 if camp and winning else 0
-        missing = [name for name, value in (("评分", None), ("段位变化", None),
+        score, score_display = client_score(own)
+        missing = [name for name, value in (("评分", score), ("段位变化", None),
                    ("击杀", own.get("kills")), ("死亡", own.get("deaths")), ("助攻", own.get("assists"))) if value is None]
         rows.append(dict(gameSeq=sequence, dtEventTime=str(end),
             gametime=ztime.epoch_to_text(end, "%H:%M", "Asia/Shanghai"),
@@ -35,7 +62,8 @@ def client_battles(result, player, settings):
             mapName={"ranked": "排位赛", "matchmaking": "匹配赛", "peak": "巅峰赛"}.get(
                 match.get("mode"), match.get("mode_name") or "其他模式"),
             killcnt=own.get("kills") or 0, deadcnt=own.get("deaths") or 0, assistcnt=own.get("assists") or 0,
-            gameresult=outcome, gradeGame=0, gradeMissing=True, usedTime=duration,
+            gameresult=outcome, gradeGame=score if score is not None else 0,
+            gradeDisplay=score_display, gradeMissing=score is None, usedTime=duration,
             roleJobName="", stars=-1, newMasterMatchScore=-1, oldMasterMatchScore=-1,
             detailUrl="", clientOnly=True, clientMatch=match, clientMissing=missing,
             clientPlayer={"uid": str(player["uid"]), "logic_world_id": player["logic_world_id"]},
@@ -46,11 +74,12 @@ def client_battles(result, player, settings):
     return rows
 
 
-def camp_battle_detail(row, player, *, roleid, userid, identities, hero_names, settings):
+def camp_battle_detail(row, player, *, roleid, userid, identities, hero_names, settings, assets=None):
     """Project available client fields into the camp detail contract without mixing IDs."""
     if roleid is None or userid is None:
         raise ValueError("camp target identity is unavailable")
     match = row["clientMatch"]
+    assets = assets or {}
     target = (str(player["uid"]), str(player["logic_world_id"]))
     players = match.get("players", [])
     own = [p for p in players if (str(p.get("uid")), str(p.get("logic_world_id"))) == target]
@@ -67,12 +96,14 @@ def camp_battle_detail(row, player, *, roleid, userid, identities, hero_names, s
             "totalBeheroHurtCnt": "damage_taken_from_enemies", "totalBehurtCnt": "total_damage_taken_raw",
             "healCnt": "healing", "buildingDamage": "tower_damage", "monsterCoin": "monster_gold",
             "killSoldier": "last_hits"}.items()}
-        stats.update(gradeGame=None, mvp=None, nativeScore=item.get("score_raw"),
+        score, score_display = client_score(item)
+        stats.update(gradeGame=score, gradeDisplay=score_display, mvp=None, nativeScore=item.get("score_raw"),
                      nativeNewScore=item.get("new_score_raw"), nativeControl=item.get("control_raw"),
                      honorFlags=item.get("honor_flags"))
         participation = item.get("panels", {}).get("team", {}).get("participation", {}).get("ratio")
         stats["joinGamePercent"] = participation
-        equipment = [{"equipId": e["dwEquipID"], "count": e.get("bCnt"), "equipName": "", "equipIcon": ""}
+        equipment = [{"equipId": e["dwEquipID"], "count": e.get("bCnt"),
+                      **assets.get("equipment", {}).get(str(e["dwEquipID"]), {"equipName": "", "equipIcon": ""})}
                      for e in item.get("equipment") or [] if isinstance(e, dict) and e.get("dwEquipID")]
         roles.append({"basicInfo": {"roleId": str(known["role_id"]) if known.get("role_id") else None,
                 "userId": str(known["user_id"]) if known.get("user_id") else None,
@@ -84,7 +115,8 @@ def camp_battle_detail(row, player, *, roleid, userid, identities, hero_names, s
                 "heroName": hero_names.get(str(hero_id)) or item.get("hero_name") or "未知英雄",
                 "heroIcon": settings["hero_avatar_url_template"].format(hero_id=hero_id)},
                 "usedSkin": {}, "finalEquips": equipment, "skill": {},
-                "selectedSkillIds": item.get("selected_skill_ids")},
+                "selectedSkillIds": item.get("selected_skill_ids"),
+                "selectedSkills": client_selected_skills(item, assets, settings)},
             "heroBehavior": {}, "dataBehavior": []})
 
     def team(camp):

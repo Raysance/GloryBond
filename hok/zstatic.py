@@ -128,6 +128,7 @@ def _apply_secret_environment(config, environment):
 
 env_path = _load_runtime_environment()
 project_root = _runtime_path("BOT_PATH", os.getcwd())
+battle_image_cache_path = os.path.join(project_root, "resources", "wzry_images", "battle_assets")
 data_root = _runtime_path("HOK_DATA_DIR", os.path.join(project_root, "data"))
 temp_path = _runtime_path(
     "HOK_FILE_TRANSFER_DIR",

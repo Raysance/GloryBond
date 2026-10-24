@@ -113,6 +113,8 @@ def btldetail_process(
 
     result = _zfunc_attr("fetch_battle")(gameseq, roleid)
     if not result:
+        if str(gameseq).startswith("-"):
+            return None, None, None
         result = _zfunc_attr("wzry_get_official")(
             reqtype="btldetail",
             gameseq=gameseq,
@@ -134,8 +136,8 @@ def btldetail_process(
         if result["redTeam"]["acntCamp"] == result["head"]["acntCamp"]
         else result["blueRoles"]
     )
-    contribution = _zfunc_attr("calculate_battle_contribution_factor")(result) or 0
-    contribution_text = f"贡献: {round(contribution, 2)}"
+    contribution = _zfunc_attr("calculate_battle_contribution_factor")(result)
+    contribution_text = f"贡献: {round(contribution, 2)}" if contribution is not None else ""
     my_userid = result["head"]["userId"]
     related_players = []
     all_related_players = []
@@ -144,11 +146,11 @@ def btldetail_process(
     for player in my_team:
         user_id = player["basicInfo"]["userId"]
         for player_name, player_id in related_userids.items():
-            if int(user_id) != int(player_id):
+            if user_id is None or str(user_id) != str(player_id):
                 continue
             player_grade = player["battleStats"]["gradeGame"]
             all_related_players.append([player_name, player_grade])
-            if int(user_id) != int(my_userid):
+            if str(user_id) != str(my_userid):
                 related_players.append([player_name, player_grade])
             break
 
@@ -188,7 +190,8 @@ def btldetail_process(
                 image_path = battle_exhibit_image_path()
             except TypeError:
                 raise error
-        gen_battle_res.generate_battle_ui_image(json_output_path, image_path)
+        if gen_battle_res.generate_battle_ui_image(json_output_path, image_path) is False:
+            raise RuntimeError("战局分享图片生成失败")
 
     if individual_show:
         message = (

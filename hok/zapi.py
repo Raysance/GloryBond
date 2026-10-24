@@ -36,7 +36,7 @@ from .api_adapters.tianyuanzhiyi import (
     tianyuanzhiyi_skin_icons_api,
     tianyuanzhiyi_tier_api,
 )
-from .api_adapters.wzry import WzryOfficialAPI, wzry_get_official
+from .api_adapters.wzry import WzryOfficialAPI, wzry_get_official, wzry_battle_image_bytes
 
 __all__ = [
     "service_health_http",

@@ -359,7 +359,8 @@ async def run_web_shared_btls_processor():
 
     try:
         snd_msg =   "───来自网页分享───\n\n"
-        btl_msg, pic_path, mapname = await asyncio.to_thread(btldetail_process, **params, gen_image=True, show_profile=True)
+        btl_msg, pic_path, mapname = await asyncio.to_thread(
+            btldetail_process, **params, gen_image=True, show_profile=True, from_web=True, strict_filter=False)
         snd_msg += MessageSegment.text(btl_msg)+MessageSegment.image(pic_path)
         snd_msg += "\n\n───来自网页分享───"
         # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])

@@ -396,6 +396,7 @@ def dump_specific_user(userid, roleid, target_date):
 def export_battle_details(gameinfo, roleid, *, client_rows=None, userid=None):
     runtime = _runtime()
     inaccessible_battles = []
+    client_assets = None
     for battle in gameinfo:
         if battle.get("Source") == "player_client":
             from .player_client_history import camp_battle_detail
@@ -418,8 +419,11 @@ def export_battle_details(gameinfo, roleid, *, client_rows=None, userid=None):
             try:
                 if target is None:
                     raise ValueError("client target binding is unavailable")
+                if client_assets is None:
+                    client_assets = zfile.player_client_battle_assets()
                 converted = camp_battle_detail(row, target, roleid=roleid, userid=userid,
-                    identities=identities, hero_names=runtime.HeroList, settings=runtime.player_client_config)
+                    identities=identities, hero_names=runtime.HeroList, settings=runtime.player_client_config,
+                    assets=client_assets)
                 zfile.writerl(zfile.battle_detail_path(battle["GameSeq"]), converted)
             except Exception as exc:
                 inaccessible_battles.append({"roleid": roleid, "GameSeq": battle["GameSeq"], "Error": str(exc)})

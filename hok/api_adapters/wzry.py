@@ -11,6 +11,21 @@ from ..zstatic import confs
 from ..ztime import sleep_seconds
 from ..zutil import log_message
 
+
+def wzry_battle_image_bytes(url):
+    """Download a public battle thumbnail without game credentials or environment proxies."""
+    with requests.Session() as session:
+        session.trust_env = False
+        with session.get(url, timeout=10, stream=True) as response:
+            response.raise_for_status()
+            content = bytearray()
+            for chunk in response.iter_content(65536):
+                content.extend(chunk)
+                if len(content) > 4 * 1024 * 1024:
+                    raise ValueError("battle image exceeds size limit")
+            return bytes(content)
+
+
 def _redact_hok_log_value(value):
     if isinstance(value, dict):
         sensitive_keys = {"token", "openid", "gameopenid"}

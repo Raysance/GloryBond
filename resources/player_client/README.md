@@ -7,3 +7,5 @@ hero.jpg、game.jpg、heroes.jpg 是用户提供的三张游戏截图，分别�
 0.6.16 页面视图补充原生评分/雷达、使用中的赛年标签、历史徽章次数、历史称号名次、战斗风格和分路段位。游戏显示值来自分路加权 display，不能以原始汇总行替代；英雄荣誉采用自己的原生分母和评分转换。图中不添加解释性文案。
 
 动态文字使用原应用随包字体，常规字重为 Ex_GameFontYaHei.ttf（FZLanTingHeiS-R-GB），粗体为 Ex_GameFont.ttf（FZZhengHeiS-DB-GB）。字体路径分别由 PlayerClient.report_font_path / report_bold_font_path 配置，经 zfile.player_client_report_font() 加载，不依赖主机字体。固定文字保留截图字形。来源和布局提取范围见 [native-ui.md](native-ui.md)。
+
+装备名称目录 equipment.json 来自[王者荣耀官网装备列表](https://pvp.qq.com/web201605/js/item.json)，更新于2026-10-24，图标使用官网同 ID 的 itemimg 资源。共鸣技能名称和来源英雄使用 hok_player_client 0.6.19 的明确配置映射，装备效果不强行关联英雄。网页详情和分享图片均按四个选择槽的原顺序展示；旧对局可通过既有离线回填命令补齐。
