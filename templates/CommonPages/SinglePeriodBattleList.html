@@ -2612,10 +2612,6 @@
                     showToast(`请等待 ${remainingSeconds} 秒后再分享`, 'warning');
                     return;
                 }
-                if (!checkBtlOfficialWithMatchingWithEntertain(battle.mapName)) {
-                    showToast('仅支持分享排位/巅峰/战队/匹配/梦境', 'warning');
-                    return;
-                }
 
                 const confirmed = await showShareConfirm();
                 if (!confirmed) return;

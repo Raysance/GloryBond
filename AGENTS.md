@@ -95,6 +95,7 @@
 - templates/CommonPages/battle_helpers.js 经 Jinja include 在各战绩列表和详情页使用；parseBattlePayload 只将 JSON 中不安全的整数字面量转换成精确字符串，保留引号内文字，兼容旧数字 ID 和新字符串 ID，不新增数据代理路由。
 - 玩家资料用 battleProfileRole 按字符串化后的 targetRoleId/roleId 匹配，兼容数字与字符串 ID；只有未指定目标且角色唯一时才采用该角色，不回退到其他已绑定角色。
 - 客户端对局沿用 /jump-battle → /battle-data 的现有点击链路；总览对负 ID 不要求营地 relay/server 参数。评分缺失显示—，不以0参与页面均分；详情展示未知 KDA/比例为—。未绑定其他玩家的营地身份保持未知，不猜造营地个人页参数。
+- 网页分享不按模式名称过滤；负 int64 对局须已保存本地详情才可进入既有分享队列。BattleDetail 的装备读取 finalEquips，共鸣四槽读取 selectedSkills（名称、描述、显式来源英雄），不从技能 ID 推算英雄；富文本描述只作为去标签后的悬浮提示，所有新增文字/属性经 battleText 转义。评分优先采用已验证的 gradeDisplay。
 
 ## 战绩列表性能
 

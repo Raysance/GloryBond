@@ -2388,10 +2388,6 @@
                     showToast(`请等待 ${remainingSeconds} 秒后再分享`, 'warning');
                     return;
                 }
-                if (!checkBtlOfficialWithMatchingWithEntertain(battle.mapName)){
-                    showToast(`仅支持分享排位/巅峰/战队/匹配/娱乐`, 'warning');
-                    return;
-                }
                 
                 // 显示确认对话框
                 const confirmed = await showShareConfirm();

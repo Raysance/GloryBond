@@ -498,6 +498,31 @@
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.38);
         }
 
+        .resonance-skills {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+            grid-column: 1 / -1;
+            margin-top: 6px;
+            position: relative;
+            z-index: 1;
+        }
+        .resonance-skill {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 6px;
+            min-width: 0;
+            border-radius: 7px;
+            background: rgba(108, 155, 209, 0.12);
+            font-size: 11px;
+        }
+        .resonance-skill img { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
+        .resonance-skill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @media (max-width: 600px) {
+            .resonance-skills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
         .equipment-item-img {
             width: 100%;
             height: 100%;
@@ -2135,6 +2160,7 @@
                                     ${metadataEquipmentHtml}
                                 </div>
                             </div>
+                            ${battleSelectedSkillsHtml(battleRecords)}
                         </div>
                     </div>
                 </div>
@@ -2399,6 +2425,7 @@
 	                                    </div>
                                 </div>
                             </div>
+                            ${battleSelectedSkillsHtml(battleRecords)}
                         </div>
                     </div>
                 `;
@@ -2661,12 +2688,6 @@
 
                 const { head, battle } = battleData;
                 
-                // 检查是否为官方模式
-                const isOfficialMode = checkBtlOfficialWithMatchingWithEntertain(battle.mapName || '');
-                if (!isOfficialMode) {
-                    showToast('仅支持分享排位/巅峰/战队/匹配/娱乐', 'warning');
-                    return;
-                }
 
                 // 显示分享确认对话框
                 const userConfirmed = await showShareConfirm();

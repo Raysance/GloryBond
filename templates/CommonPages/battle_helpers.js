@@ -27,7 +27,21 @@ function battleGrade(battle) {
 
 function battleGradeLabel(battle) {
     const value = battleGrade(battle);
-    return value == null ? '—' : value.toFixed(1);
+    return value == null ? '—' : (/^\d+\.\d$/.test(battle.gradeDisplay || '') ? battle.gradeDisplay : value.toFixed(1));
+}
+
+function battleSelectedSkillsHtml(records) {
+    const skills = records.selectedSkills || [];
+    if (!skills.length) return '';
+    return '<div class="resonance-skills" aria-label="共鸣技能">' + skills.map(skill => {
+        const name = battleText(skill.skillName || '—');
+        const hero = battleText(skill.sourceHeroName || '');
+        const description = String(skill.description || '').replace(/<[^>]*>/g, '');
+        const title = battleText([skill.sourceHeroName, description].filter(Boolean).join(' · ') || skill.skillName || '—');
+        const icon = /^https:\/\//.test(skill.sourceHeroIcon || '')
+            ? `<img src="${battleText(skill.sourceHeroIcon)}" alt="${hero}" loading="lazy" decoding="async" onerror="this.style.display='none'">` : '';
+        return `<span class="resonance-skill" title="${title}">${icon}<span>${name}</span></span>`;
+    }).join('') + '</div>';
 }
 
 function battleAverageGrade(battles) {

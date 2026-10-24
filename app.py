@@ -846,6 +846,10 @@ async def share_btldetail(request:Request,gameSvr: str,gameSeq: str,targetRoleId
                 "error_code": "LIKE_FAILED"
             }
         )
+    if not valid_battle_identifier(gameSeq) or not targetRoleId.isascii() or not targetRoleId.isdigit():
+        raise HTTPException(status_code=400, detail="战局参数无效")
+    if gameSeq.startswith("-") and not check_battle_local_exist(gameSeq):
+        raise HTTPException(status_code=404, detail="战局详情尚未保存")
     params={
         "gameSvrId":gameSvr,
         "gameseq":gameSeq,

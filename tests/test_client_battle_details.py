@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 os.environ.setdefault('BOT_PATH',str(Path(__file__).resolve().parents[2]/'HOK_QQBot'))
 from fastapi.testclient import TestClient
@@ -74,6 +74,29 @@ class ClientBattleRoutes(unittest.TestCase):
         result=self.browser('console.log(JSON.stringify([battleGradeLabel({gradeMissing:true,gradeGame:0}),'+
             'battleGradeLabel({gradeGame:null}),battleAverageGrade([{gradeGame:10},{gradeMissing:true,gradeGame:0}])]))')
         self.assertEqual(result,['—','—','10.0'])
+
+    def test_share_preserves_exact_entertainment_id_and_enqueues_saved_game(self):
+        queue = Mock()
+        with patch.object(web, 'check_key_valid', return_value=True), \
+             patch.object(web, 'check_battle_local_exist', return_value=True), \
+             patch.object(web, 'r_share_queue', queue), patch.object(web, 'wzry_get_official') as api:
+            result = self.client.get('/share-battle', params=dict(gameSvr='', relaySvr='',
+                gameSeq=SEQ, targetRoleId='42', battleType='0', key='valid'))
+        self.assertEqual(result.status_code, 200)
+        args = json.loads(queue.lpush.call_args.args[1])
+        self.assertEqual(args['gameseq'], SEQ)
+        self.assertEqual(args['roleid'], '42')
+        api.assert_not_called()
+
+    def test_invalid_or_missing_client_shares_are_never_enqueued(self):
+        queue = Mock()
+        with patch.object(web, 'check_key_valid', return_value=True), \
+             patch.object(web, 'check_battle_local_exist', return_value=False), patch.object(web, 'r_share_queue', queue):
+            for sequence, status in [(SEQ, 404), ('9223372036854775808', 400), ('--123', 400)]:
+                result = self.client.get('/share-battle', params=dict(gameSvr='', relaySvr='',
+                    gameSeq=sequence, targetRoleId='42', battleType='0', key='valid'))
+                self.assertEqual(result.status_code, status)
+        queue.lpush.assert_not_called()
 
     def test_camp_links_keep_server_parameters_and_missing_parameters_are_not_invented(self):
         url=self.browser('console.log(JSON.stringify(battleDetailUrl({roleid:42},{GameSeq:123,Params:{gameSvrId:1,relaySvrId:2,pvptype:4}},"valid")))')
