@@ -223,4 +223,4 @@ local_debugger/.venv/bin/python scripts/resolve_player_client.py --ssh Aliyun --
 
 管理员在 Web 管理控制台选择「账号登录态」，可分别检查王者营地、王者官方客户端和 NapCat QQ 的登录状态。失效或无法确认时可手动生成二维码，使用原配置账号在 QQ 扫码并确认。营地与官方客户端分别授权；成功验证后保存至现有 `.env`，后续查询自动使用更新的登录态。网络错误显示「待确认」，不会自动反复登录。扫码账号不一致时保留原登录态。
 
-`config.yaml#AccountSessions.worker_python` 指向 NBot 运行环境（相对 NBot 根目录，默认 `.venv/bin/python`）；本机可改为 `local_debugger/.venv/bin/python`。需要初始化全部子模块并安装当前 `pyproject.toml` 的依赖。NapCat WebUI 必须启用，`AccountSessions.napcat.base_url` 只允许本机地址，HTTPS WebUI 还须在 `tls_fingerprint_sha256` 配置证书 DER 的 SHA256 指纹（证书更换后需同步更新），WebUI token 配置在唯一 `.env` 的 `HOK_NAPCAT_WEBUI_TOKEN`。页面不会公开 WebUI token、二维码原始链接或服务凭据。二维码约4分钟过期，服务发布重启后需重新生成。NapCat QQ 会话由自身保存，无需复制登录文件。
+`config.yaml#AccountSessions.worker_python` 指向 NBot 运行环境（相对 NBot 根目录，默认 `.venv/bin/python`）；本机可改为 `local_debugger/.venv/bin/python`。需要初始化全部子模块并安装当前 `pyproject.toml` 的依赖。NapCat WebUI 必须启用，`AccountSessions.napcat.base_url` 只允许本机地址，HTTPS WebUI 还须在 `tls_fingerprint_sha256` 配置证书 DER 的 SHA256 指纹（证书更换后需同步更新），WebUI token 配置在唯一 `.env` 的 `HOK_NAPCAT_WEBUI_TOKEN`。页面不会公开 WebUI token、二维码原始链接或服务凭据。扫码会话最长保留4分钟；QQ 可提前使二维码失效，页面会提示重新生成。服务发布重启后需重新生成。NapCat QQ 会话由自身保存，无需复制登录文件。
