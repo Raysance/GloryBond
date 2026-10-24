@@ -5,6 +5,8 @@
 根据JSON数据生成与b.html相同的UI界面图片
 """
 
+from math import isfinite
+
 from PIL import Image, ImageDraw
 from .. import zfile
 from ..zstatic import *
@@ -151,18 +153,31 @@ class BattleUIGenerator:
                         for key in ('killCnt', 'deadCnt', 'assistCnt'))
 
     @staticmethod
+    def _stat_number(value):
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return number if isfinite(number) else None
+
+    @staticmethod
     def _team_totals(players):
         totals = {}
         for key, field in (('money', 'money'), ('damage', 'totalHeroHurtCnt'), ('tanked', 'totalBeheroHurtCnt')):
-            values = [player.get('battleStats', {}).get(field) for player in players]
+            values = [BattleUIGenerator._stat_number(player.get('battleStats', {}).get(field)) for player in players]
             totals[key] = sum(values) if values and all(value is not None for value in values) else None
         return totals
 
     @staticmethod
     def _percentages(stats, totals):
-        return {key: round(stats[field] / max(totals[key], 1) * 100)
-                if stats.get(field) is not None and totals[key] is not None else None
-                for key, field in (('money', 'money'), ('damage', 'totalHeroHurtCnt'), ('tanked', 'totalBeheroHurtCnt'))}
+        percentages = {}
+        for key, field in (('money', 'money'), ('damage', 'totalHeroHurtCnt'), ('tanked', 'totalBeheroHurtCnt')):
+            value = BattleUIGenerator._stat_number(stats.get(field))
+            total = totals[key]
+            percentages[key] = round(value / max(total, 1) * 100) if value is not None and total is not None else None
+        return percentages
 
     @staticmethod
     def _percent_label(value):
