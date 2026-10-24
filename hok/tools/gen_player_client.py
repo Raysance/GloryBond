@@ -85,13 +85,33 @@ def _number(value,percent=False):
     return str(value) if isinstance(value,int) else f'{value:.1f}'
 
 
-def _radar(c,center,radius):
+def _radar(c,center,radius,ratios=None):
     cx,cy=center
+    keys=('output','kda','development','teamfight','survival')
     vertices=[(cx+radius*cos(-pi/2+i*2*pi/5),cy+radius*sin(-pi/2+i*2*pi/5))for i in range(5)]
     for scale in (1,.82):
         points=[(cx+(x-cx)*scale,cy+(y-cy)*scale)for x,y in vertices]
         c.draw.line(points+[points[0]],fill='#456b94',width=4 if scale==1 else 2)
-    c.text((cx,cy),'—',30,DIM,anchor='mm')
+    if ratios is None:
+        c.text((cx,cy),'—',30,DIM,anchor='mm')
+        return
+    points=[(cx+(x-cx)*ratios[key],cy+(y-cy)*ratios[key])for key,(x,y)in zip(keys,vertices)]
+    layer=Image.new('RGBA',c.image.size)
+    pen=ImageDraw.Draw(layer)
+    pen.polygon(points,fill=(44,174,225,145),outline=(108,221,255,235),width=2)
+    c.image.paste(layer,(0,0),layer)
+
+
+def _branch_emblem(c,branch,center,radius,color):
+    """Use the reference's actual lane glyph inside its existing colored emblem."""
+    index={None:0,'top':1,'jungle':2,'mid':3,'assist':4,'bot':5}[branch]
+    source=player_client_reference_image('game')
+    icon=source.crop((1716,217+117*index,1777,281+117*index)).convert('L')
+    icon=icon.point(lambda value:max(0,min(255,(value-110)*3)))
+    icon=ImageOps.fit(icon,(radius*2-8,radius*2-8),Image.Resampling.LANCZOS)
+    x,y=center
+    c.draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill='#203c55')
+    c.image.paste(Image.new('RGB',icon.size,color),(x-radius+4,y-radius+4),icon)
 
 
 def render_screen(report,font,*,artwork=None,win_rate_bands=()):
@@ -100,7 +120,7 @@ def render_screen(report,font,*,artwork=None,win_rate_bands=()):
         # Remove the transient tutorial toast and the source player's filled radar.
         c.clear((278,375,674,440),(1132,375,1230,440))
         c.clear((485,249,1013,710),(1132,249,1230,710))
-        _radar(c,(774,501),244)
+        _radar(c,(774,501),244,values['radar'])
         c.text((497,420),'生存',25,DIM,anchor='rm')
         # Scope/mode/branch selection must match the requested server dimension.
         c.clear((310,120,1115,178),(1130,120,1210,178))
@@ -112,11 +132,11 @@ def render_screen(report,font,*,artwork=None,win_rate_bands=()):
         c.panel((1665,109,1970,153),'#162b47')
         c.text((1805,130),report['mode'],27,WHITE,anchor='mm')
         c.draw.polygon([(1946,124),(1960,124),(1953,135)],fill=WHITE)
-        for y,key in [(231,'games'),(346,'win_rate_percent'),(462,'score')]:
+        for y,key in [(238,'games'),(350,'win_rate_percent'),(462,'score')]:
             c.clear((1434,y-7,1595,y+49),(1392,y-7,1421,y+49))
             value=values.get(key)
             color=win_rate_color(value,win_rate_bands) if key=='win_rate_percent' else '#e3bd60' if key=='games' else CYAN
-            c.text((1573,y-5),_number(value,key=='win_rate_percent'),42,color,True,anchor='rt')
+            c.text((1573,y),_number(value,key=='win_rate_percent'),42,color,True,anchor='rt')
         c.clear((1351,568,1550,600),(1285,568,1322,600))
         c.text((1444,573),'/'.join(_number(values['medals'][k])for k in ('top','gold','silver','bronze')),27,WHITE,True,anchor='mt')
         for i,key in enumerate(['mvp','losing_mvp','triple_kills','quadra_kills','penta_kills','legendary']):
@@ -138,36 +158,39 @@ def render_screen(report,font,*,artwork=None,win_rate_bands=()):
             c.clear((1110,0,2048,952),(282,0,315,952))
             c.art(artwork.get(report['hero_id']),(1110,0,2048,952),center=(.62,.4),fade=True)
         c.clear((289,20,650,79),(300,81,386,115))
-        c.text((295,28),report['title'],41,WHITE,max_width=300)
-        question_x=295+int(c.draw.textlength(report['title'],font=c.faces[(41,False)]))+22
+        c.text((295,34),report['title'],41,WHITE,max_width=300)
+        question_x=295+int(c.draw.textlength(report['title'],font=c.faces[(41,False)]))+15
         c.image.paste(c.source.crop((391,25,437,77)),(question_x,25))
         c.clear((519,116,778,176),(521,187,778,224))
-        c.text((527,125),'—',38,WHITE)
+        rank=report.get('rank_badge')
+        c.text((527,133),rank['text'] if rank else '—',38,WHITE)
         c.clear((1004,123,1150,177),(1010,213,1150,239))
-        c.text((1010,130),_number(values['highest_fight_value']),42,'#85b5ef')
+        c.text((1010,137),_number(values['highest_fight_value']),42,'#85b5ef')
         c.panel((1707,16,1880,63),'#162b47')
         c.text((1790,39),report['scope'],26,WHITE,anchor='mm')
+        labels=report.get('year_labels')
         for i in range(3):
             x=553+i*144
-            c.panel((x,458,x+129,489),'#47788f','#668e9e')
-            c.text((x+64,470),'—',22,WHITE,anchor='mm')
+            c.clear((x,454,x+130,492),(x,498,x+130,516))
+            if labels is None or i<len(labels):
+                c.panel((x,458,x+129,489),'#47788f','#668e9e')
+                c.text((x+64,470),(labels[i] if labels is not None else None) or '—',22,WHITE,anchor='mm',max_width=123)
         positions=[(416,522,'games','场次'),(572,522,'win_rate_percent','胜率'),(722,522,'score','综合得分'),
                    (416,626,'top','顶级'),(572,626,'gold','金牌'),(722,626,'silver','银牌'),
-                   (416,726,'bronze','铜牌'),(572,726,'mvp','MVP')]
+                   (416,720,'bronze','铜牌'),(572,720,'mvp','MVP')]
         for x,y,key,label in positions:
-            c.clear((x-3,y-4,x+132,y+28),(295,y-4,393,y+28))
+            c.clear((x-3,y-8,x+132,y+31),(295,y-8,393,y+31))
             value=values['medals'].get(key) if key in values['medals'] else values.get(key)
             color=win_rate_color(value,win_rate_bands) if key=='win_rate_percent' else INK
             c.text((x,y),_number(value,key=='win_rate_percent'),29,color)
         c.draw.polygon([(1017,520),(1110,580),(1085,684),(950,684),(929,580)],fill='#243f66')
-        _radar(c,(1017,607),83)
+        _radar(c,(1017,607),83,values['radar'])
         if report['hero_id']!='106':
             c.clear((166,786,274,892),(280,786,387,892))
             c.art(artwork.get('portrait'),(166,786,274,892))
-        # Badge-stage counts and year tags were absent from the available display contract.
-        for x in [441,594,748,901,1058]:
-            c.clear((x-15,357,x+15,383),(x-38,357,x-17,383))
-            c.text((x,364),'—',23,DIM,anchor='mt')
+        for x,count in zip([441,594,748,901,1058],report['historical_badges']):
+            c.clear((x-50,352,x+50,386),(x-50,388,x+50,403))
+            c.text((x,362),_number(count),25,INK,anchor='mt')
     return c.image
 
 
@@ -190,17 +213,23 @@ def render_hero_report(report,font,*,avatar_bytes=None,artwork=None,win_rate_ban
         for dy in range(138):pen.line((0,dy,width,dy),fill=(5,21,35,int(200*dy/137)))
         c.image.paste(shade,(x,450),shade)
         c.text((x+10,505),row['name'],30,WHITE,max_width=226)
-        c.text((x+10,548),'—',22,WHITE)
+        c.text((x+10,548),row.get('fight_style') or '—',22,WHITE,max_width=width-20)
         # The original badge contains the sample player's rank; cover the entire emblem.
         c.draw.polygon([(x+97,596),(x+151,596),(x+144,625),(x+124,643),(x+104,625)],fill='#213954',outline='#b1a17f',width=2)
-        c.text((x+124,613),'—',25,'#cbb785',anchor='mm')
+        rank=row.get('rank_badge')
+        rank_text=_number(rank['rank']) if rank and rank['ranked'] else '' if rank else '—'
+        c.text((x+124,613),rank_text,25,'#cbb785',anchor='mm',max_width=48)
         for y,key,label in [(668,'highest_fight_value','最高战力'),(701,'games','英雄场次'),(734,'win_rate_percent','英雄胜率')]:
             c.clear((x+138,y-3,x+241,y+28),(1615,y-3,1648,y+28))
             value=row[key]
             color=win_rate_color(value,win_rate_bands) if key=='win_rate_percent' else '#ac9dcb' if key=='highest_fight_value' else INK
             c.text((x+143,y),_number(value,key=='win_rate_percent'),24,color,max_width=100)
     # Source labels and numeric branch levels are variable as well.
-    for box in [(1766,389,1946,427),(1766,716,1946,759)]:
+    branches=report.get('branches')
+    for i,box in enumerate([(1766,389,1946,427),(1766,716,1946,759)]):
         c.clear(box,(1668,box[1],1712,box[3]))
-        c.text(((box[0]+box[2])/2,box[1]),'—',23,DIM,anchor='mt')
+        branch=branches[i] if branches and i<len(branches) else None
+        if branch:
+            _branch_emblem(c,branch['branch'],(1847,261 if i==0 else 594),39,'#a1efda' if i==0 else '#fff1bb')
+        c.text(((box[0]+box[2])/2,box[1]),branch['text'] if branch and branch['text'] else '—',25,INK,anchor='mt')
     return c.image

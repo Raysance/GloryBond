@@ -64,6 +64,36 @@ class PlayerClientAdapter:
             self.on_error(error, login=False)
             raise
 
+    def _hero_page(self, target, *, hero_id=None):
+        """Compose only the requested page sources, gating every real request."""
+        from hok_research import PlayerHomepage, QueryRejected
+
+        profile = self._read("profile", target)
+        values, errors, details = {}, {}, {}
+        sources = [("hero_titles", "hero_titles"), ("hero_extra_statistics", "hero_extra_statistics"),
+                   ("hero_road_brief", "hero_road_brief")]
+        for field, method in sources:
+            try:
+                values[field] = self._read(method, profile.player)
+            except PlayerClientRateLimited:
+                errors[field] = {"reason": "rate_limited"}
+                # The same gate would reject subsequent requests too.
+                break
+            except QueryRejected as error:
+                if error.code not in self.settings["rate_limit"]["privacy_codes"]:
+                    raise
+                errors[field] = {"code": error.code}
+        if hero_id is not None and not any(error.get("reason") == "rate_limited" for error in errors.values()):
+            try:
+                details[int(hero_id)] = self._read("hero_detail", profile.player, int(hero_id))
+            except PlayerClientRateLimited:
+                errors["hero_detail"] = {"reason": "rate_limited"}
+            except QueryRejected as error:
+                if error.code not in self.settings["rate_limit"]["privacy_codes"]:
+                    raise
+                errors["hero_detail"] = {"code": error.code}
+        return PlayerHomepage(profile, errors=errors, hero_details=details, **values)
+
     def query(self, operation, *, player=None, name=None, platform=None, scope="all", hero_id=None,
               mode="all", branch=None):
         from hok_research import PlayerRef, ResourceCatalog, PlayerHomepage, QueryRejected
@@ -101,30 +131,14 @@ class PlayerClientAdapter:
             game = self._read("game", target)
             return game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
         elif operation == "hero_honors":
-            profile = self._read("profile", target)
-            extra, notice = None, None
-            try:
-                extra = self._read("hero_detail", target, int(hero_id))
-            except (QueryRejected, PlayerClientRateLimited) as error:
-                # Preserve the profile statistics when an optional detail is private or paced.
-                notice = "独立徽章/称号资料未取得"
-                if isinstance(error, QueryRejected) and error.code not in self.settings["rate_limit"]["privacy_codes"]:
-                    raise
-            heroes = profile.heroes(scope)
-            result = heroes.honors(int(hero_id), extra=extra).to_json_value(catalog=ResourceCatalog.bundled())
-            hero = next((h for h in heroes.player_heroes() if h.hero_id == int(hero_id)), None)
-            if hero is not None:
-                try:
-                    score = hero.property_totals("score")
-                    result["display_score"] = score.native_score if score.denominator else None
-                except (KeyError, ValueError):
-                    result["display_score"] = None
-            result["notice"] = notice
+            page = self._hero_page(target, hero_id=hero_id)
+            result = page.hero_honors(int(hero_id), scope=scope).to_json_value(catalog=ResourceCatalog.bundled())
+            result["errors"] = page.errors
             return result
         elif operation == "heroes":
-            result = self._read("heroes", target, scope=scope)
-            return {"scope": scope, "heroes": [row.to_json_value(catalog=ResourceCatalog.bundled())
-                                              for row in result.player_heroes()]}
+            page = self._hero_page(target)
+            result = page.hero_page(scope=scope, sort_by="highest_fight_value").to_json_value(catalog=ResourceCatalog.bundled())
+            return {"scope": scope, "heroes": result["cards"], "branches": result["branches"], "errors": page.errors}
         elif operation == "hero_detail":
             result = self._read(operation, target, int(hero_id))
         else:

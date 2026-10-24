@@ -727,9 +727,11 @@ def load_project_font(path, size, weight=400):
 
 
 def player_client_report_font(size, weight=400):
+    """Use the original application's regular/bold faces for its report UI."""
     from .zstatic import player_client_config
 
-    return load_project_font(player_client_config["report_font_path"], size, weight)
+    key = "report_bold_font_path" if weight >= 600 else "report_font_path"
+    return load_project_font(player_client_config.get(key, player_client_config["report_font_path"]), size, weight)
 
 
 def player_client_reference_image(kind):

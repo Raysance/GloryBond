@@ -204,7 +204,10 @@ class StatisticsTests(unittest.TestCase):
 
     def test_structured_api_uses_server_scope_and_branch_not_recent_matches(self):
         from hok_research.profile_data import GameData
-        row=dict(dwCount=104,dwWinNum=53,dwLoseNum=51,dwTotal=7370,dwGoldMedal=6)
+        row=dict(dwCount=104,dwWinNum=53,dwLoseNum=51,dwTotal=7370,dwGoldMedal=6,
+                 dwHurtHero=8000,dwKDA=6000,dwGrow=7000,dwBattle=8500,dwSurvive=6500,
+                 dwColorMedal=0,dwSliverMedal=14,dwCopperMedal=3,dwMvp=10,dwLoseSoul=8,
+                 dwTripleKill=1,dwUltraKill=0,dwRampage=0,dwGodLike=4)
         fake=Mock(); fake.game.return_value=GameData({'stStatistic':{'stRadarDetail':{'stCurSeason':{
             'stTotal':row,'astBranchTotal':[{},row,{}, {}, {}]}}}})
         adapter=object.__new__(ADAPTER.PlayerClientAdapter)
@@ -213,6 +216,7 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(data['games'],104)
         self.assertEqual(data['branch'],'mid')
         self.assertEqual(data['score_raw'],7370)
+        self.assertAlmostEqual(data['display']['composite_score'],73.7,places=4)
         fake.matches.assert_not_called()
         fake.game.assert_called_once()
 
