@@ -94,3 +94,8 @@
 
 - templates/CommonPages/battle_helpers.js 经 Jinja include 在各战绩列表和详情页使用；parseBattlePayload 只将 JSON 中不安全的整数字面量转换成精确字符串，保留引号内文字，兼容旧数字 ID 和新字符串 ID，不新增数据代理路由。
 - 客户端对局沿用 /jump-battle → /battle-data 的现有点击链路；总览对负 ID 不要求营地 relay/server 参数。评分缺失显示—，不以0参与页面均分；详情展示未知 KDA/比例为—。未绑定其他玩家的营地身份保持未知，不猜造营地个人页参数。
+
+## 战绩列表性能
+
+- /all、/person、/period、/query 沿用既有 key 解析，通过同一路径的 data=true 返回紧凑列表 JSON；battle_list_data.py 按文件 mtime/大小缓存最多8份投影，剔除 clientMatch/clientPlayer，原始协议只用于 NBot 私有归档与详情转换。页面仍使用已有链接，不新增反向代理路由。
+- 单人、周期和历史查询页通过 battle_list_pager.js 首批渲染20局，滚动到底每批追加10局；地图/日期筛选时销毁旧观察器并从20局重新展示，统计按全部筛选结果计算。列表图片继续延迟加载，详情按点击读取。

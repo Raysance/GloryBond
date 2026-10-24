@@ -1331,7 +1331,7 @@
         // 加载玩家数据
         async function loadPlayersData() {
             try {
-                const response = await fetch('{{filename}}');
+                const response = await fetch({{ data_url|default(filename, true)|tojson }});
                 const data = parseBattlePayload(await response.text());
                 
                 console.log('原始数据样本:', data.slice(0, 3).map(p => ({ nickname: p.nickname, id: p.id, idType: typeof p.id })));

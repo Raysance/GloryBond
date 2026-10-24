@@ -18,6 +18,7 @@ import shutil
 from urllib.parse import urlencode
 from runtime_config import RUNTIME, load_shared_config
 from utils import *
+from battle_list_data import load_battle_list
 from request_analytics import (
     analytics_payload,
     build_request_event,
@@ -521,7 +522,7 @@ async def not_found_exception_handler(request: Request, exc: HTTPException):
     )
 
 @app.get("/all", response_class=HTMLResponse)
-async def show_btlist(request:Request,key: str):
+async def show_btlist(request:Request,key: str, data: bool = False):
     # raise HTTPException(
     #     status_code=404,
     #     detail={"template": "404_a.html", "context": {"message": ""}}
@@ -533,18 +534,25 @@ async def show_btlist(request:Request,key: str):
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
         )
+    if data:
+        try:
+            payload = await asyncio.to_thread(load_battle_list, jsonpath)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=410, detail="battle list expired")
+        return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
     return templates.TemplateResponse(
         "CommonPages/AllBattleList.html",
         {
             "request": request,
             "filename": jsonpath,
+            "data_url": str(request.url.path) + "?" + urlencode({"key": key, "data": "true"}),
             "time": text_content["time"],
             "caller": text_content["caller"],
             "key": key,
         }
     )
 @app.get("/person", response_class=HTMLResponse)
-async def show_btlperson(request:Request,key: str):
+async def show_btlperson(request:Request,key: str, data: bool = False):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content,jsonpath = key_to_filename(key=key,reqtype="btlperson")
@@ -552,16 +560,23 @@ async def show_btlperson(request:Request,key: str):
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
         )
+    if data:
+        try:
+            payload = await asyncio.to_thread(load_battle_list, jsonpath)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=410, detail="battle list expired")
+        return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
     return templates.TemplateResponse(
         "CommonPages/SingleBattleList.html",
         {
             "request": request,
             "filename": jsonpath,
+            "data_url": str(request.url.path) + "?" + urlencode({"key": key, "data": "true"}),
             "key": key,
         }
     )
 @app.get("/period", response_class=HTMLResponse)
-async def show_btlperiod(request:Request,key: str):
+async def show_btlperiod(request:Request,key: str, data: bool = False):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content,jsonpath = key_to_filename(key=key,reqtype="btlperiod")
@@ -569,11 +584,18 @@ async def show_btlperiod(request:Request,key: str):
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
         )
+    if data:
+        try:
+            payload = await asyncio.to_thread(load_battle_list, jsonpath)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=410, detail="battle list expired")
+        return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
     return templates.TemplateResponse(
         "CommonPages/SinglePeriodBattleList.html",
         {
             "request": request,
             "filename": jsonpath,
+            "data_url": str(request.url.path) + "?" + urlencode({"key": key, "data": "true"}),
             "key": key,
             "DateFrom":text_content["DateFrom"],
             "DateTo":text_content["DateTo"],
@@ -597,7 +619,7 @@ async def show_btldetail(request:Request,key: str):
         }
     )
 @app.get("/query", response_class=HTMLResponse)
-async def show_btldetail(request:Request,key: str):
+async def show_btldetail(request:Request,key: str, data: bool = False):
     today_date=datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         text_content,jsonpath = key_to_filename(key=key,reqtype="btlquery")
@@ -605,11 +627,18 @@ async def show_btldetail(request:Request,key: str):
         return templates.TemplateResponse(
             "ErrorPages/expired.html",{"request": request,}
         )
+    if data:
+        try:
+            payload = await asyncio.to_thread(load_battle_list, jsonpath)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=410, detail="battle list expired")
+        return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
     return templates.TemplateResponse(
         "CommonPages/BattleQuery.html",
         {
             "request": request,
             "filename": jsonpath,
+            "data_url": str(request.url.path) + "?" + urlencode({"key": key, "data": "true"}),
             "query_target":text_content["caller"],
             "key": key,
         }

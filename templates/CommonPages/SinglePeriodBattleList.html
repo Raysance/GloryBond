@@ -1396,7 +1396,8 @@
         }
 {% include "CommonPages/ios_glass_theme.css" %}
     </style>
-    <script>{% include 'CommonPages/battle_helpers.js' %}</script>
+    <script>{% include 'CommonPages/battle_helpers.js' %}
+        {% include 'CommonPages/battle_list_pager.js' %}</script>
     <script>
         (function() {
             try {
@@ -1738,7 +1739,7 @@
 
         async function loadGameData(filepath) {
             try {
-                const response = await fetch(filepath);
+                const response = await fetch({{ data_url|default('', true)|tojson }} || filepath);
                 if (!response.ok) throw new Error('HTTP错误: ' + response.status);
                 const raw = parseBattlePayload(await response.text());
 
@@ -2387,10 +2388,9 @@
                 battleItemsContainer.dataset.renderToken = renderToken;
 
                 let renderIndex = 0;
-                function renderBattleBatch() {
+                function renderBattleBatch(batchSize) {
                     if (battleItemsContainer.dataset.renderToken !== renderToken) return;
                     const fragment = document.createDocumentFragment();
-                    const batchSize = renderIndex === 0 ? 16 : (window.innerWidth <= 768 ? 8 : 14);
                     const end = Math.min(renderIndex + batchSize, recentBattles.length);
                     for (; renderIndex < end; renderIndex++) {
                     const battle = recentBattles[renderIndex];
@@ -2487,12 +2487,10 @@
                     fragment.appendChild(battleItem);
                     }
                     battleItemsContainer.appendChild(fragment);
-                    if (renderIndex < recentBattles.length) {
-                        scheduleBattleListRender(renderBattleBatch);
-                    }
+                    return renderIndex < recentBattles.length;
                 }
 
-                renderBattleBatch();
+                mountBattleListPager(battleItemsContainer, renderBattleBatch);
 
                 if (recentBattles.length === 0) {
                     battleItemsContainer.innerHTML = '<p>该地图暂无比赛记录</p>';
