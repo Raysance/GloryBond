@@ -14,6 +14,66 @@ def _runtime():
     return zfunc
 
 
+def _battle_list_for_date(userid, roleid, target_date):
+    """Collect complete pages through the start of the requested game day."""
+    cursor = 0
+    battles = {}
+    first_page = None
+    while True:
+        page = _runtime().wzry_get_official(
+            reqtype="btlist", userid=userid, roleid=roleid, last_time=cursor
+        )
+        if not isinstance(page, dict):
+            raise RuntimeError("战绩分页失败：返回的战绩列表格式无效")
+        if first_page is None:
+            first_page = dict(page)
+            if page.get("invisible"):
+                return first_page
+        elif page.get("invisible"):
+            raise RuntimeError("战绩分页失败：翻页期间战绩变为不可见，未保存不完整数据")
+        if not isinstance(page.get("list"), list):
+            raise RuntimeError("战绩分页失败：返回的战绩列表格式无效")
+
+        previous_count = len(battles)
+        page_days = []
+        for game in page["list"]:
+            try:
+                if isinstance(game["dtEventTime"], bool):
+                    raise ValueError("invalid battle timestamp")
+                timestamp = int(game["dtEventTime"])
+                if not game.get("gameSeq") or timestamp <= 0:
+                    raise ValueError("missing battle identity")
+                game_day = ztime.time_sul(ztime.stamp_to_time(timestamp)).date()
+            except (KeyError, TypeError, ValueError, OverflowError, OSError) as error:
+                raise RuntimeError("战绩分页失败：对局标识或时间无效") from error
+            battles.setdefault((str(game["gameSeq"]), timestamp), game)
+            page_days.append(game_day)
+
+        if (not page["list"] or page.get("hasMore") is False
+                or min(page_days) < target_date):
+            result = dict(first_page)
+            result["list"] = sorted(
+                battles.values(), key=lambda game: int(game["dtEventTime"]), reverse=True
+            )
+            for field in ("lastTime", "hasMore"):
+                if field in page:
+                    result[field] = page[field]
+            if not page["list"]:
+                result["hasMore"] = False
+            return result
+
+        try:
+            if isinstance(page["lastTime"], bool):
+                raise ValueError("invalid cursor")
+            next_cursor = int(page["lastTime"])
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            raise RuntimeError("战绩分页失败：缺少有效的下一页游标，未保存不完整数据") from error
+        if (next_cursor <= 0 or (cursor and next_cursor >= cursor)
+                or len(battles) == previous_count):
+            raise RuntimeError("战绩分页失败：游标或对局列表未向前推进，未保存不完整数据")
+        cursor = next_cursor
+
+
 def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,target_date=None,sync_battle_visibility=False): # 单人的战绩parser
     runtime = _runtime()
     def get_star_today_most_recent(today_details):
@@ -54,7 +114,8 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
     userid=target_userid if target_userid else runtime.userlist[realname]
     roleid=target_roleid if target_roleid else runtime.roleidlist[realname]
     
-    btlist_data=runtime.wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
+    target_date_obj = ztime.str_to_time(target_date).date() if target_date else ztime.time_sul().date()
+    btlist_data = _battle_list_for_date(userid, roleid, target_date_obj)
     profile_data=runtime.wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
     res = {
         "btlist": btlist_data,
@@ -77,8 +138,6 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         runtime.sync_battle_visibility_state(realname, BtlVisible)
     isGaming=res["btlist"]["isGaming"] and res["btlist"]["gaming"]
     real_date=ztime.time_r().strftime("%m-%d")
-    sul_time=ztime.time_sul()
-    target_date_obj = ztime.str_to_time(target_date).date() if target_date else sul_time.date()
     starUp=starNum-(dmc.infolast.get(realname,{}).get("star",0)) # 如果战绩不可见 使用该算法强行填充
     peakUp=[]
     today_num=totalNum-(dmc.infolast.get(realname,{}).get("total_num",0)) # 如果战绩不可见 使用该算法强行填充
@@ -93,7 +152,6 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         from ..tools.representative_battle import build_battle_keywords
 
         today_btl = [game for game in res['btlist']['list'] if (ztime.time_sul(ztime.stamp_to_time(int(game['dtEventTime']))).date()==target_date_obj)]
-        # today_btl = [game for game in res['btlist']['list'] if (ztime.time_sul(ztime.stamp_to_time(int(game['dtEventTime']))).date()==date_roleback().date())]
         today_details=[{\
             'GameTime':game['gametime'],\
             'GameTime_Timestamp':int(game['dtEventTime']),\
@@ -232,6 +290,7 @@ def dump_specific_user(userid, roleid, target_date):
         gameinfo.append(data)
     except Exception as e:
         _runtime().log_message(f"Dump specific user {userid} failed: {e}")
+        raise
 
     aggregated_filename = zfile.daily_history_path(target_date)
     try:

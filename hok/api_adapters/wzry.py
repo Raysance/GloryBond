@@ -37,7 +37,7 @@ class WzryOfficialAPI:
     @staticmethod
     @sleep_and_retry
     @limits(calls=1, period=1)
-    def _get_official_impl(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,honor_adcode=156):
+    def _get_official_impl(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,honor_adcode=156,*,last_time=0):
         from ..tools.endecoder import decrypt_game_data
         from ..tools.endecoder import get_full_request_params
 
@@ -108,7 +108,7 @@ class WzryOfficialAPI:
         }
         # print(btldetail_data)
         btlist_data = {
-            "lastTime": 0,
+            "lastTime": last_time,
             "recommendPrivacy": 0,
             "apiVersion": 5,
             "friendRoleId": roleid,
@@ -320,5 +320,5 @@ class WzryOfficialAPI:
         return res
 
 
-def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal",honor_adcode=156):
-    return WzryOfficialAPI._get_official_impl(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id, honor_adcode)
+def wzry_get_official(reqtype,userid=-1,roleid=0,gameseq=-1,gameSvrId=-1,relaySvrId=-1,pvptype=-1,heroid=-1,rankId=-1,rankSegment=-1,battle_id=-1,priority="normal",honor_adcode=156,*,last_time=0):
+    return WzryOfficialAPI._get_official_impl(reqtype, userid, roleid, gameseq, gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment, battle_id, honor_adcode, last_time=last_time)

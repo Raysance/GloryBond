@@ -292,6 +292,8 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 - 业务缓存初始化只在 `zscheduler._initialize_business_cache` 启动 hook 执行，各项错误隔离并仅记录组件/错误类型；`hok/__init__.py` 不在导入时请求外部数据。旧营地会话失效不能阻断整个插件与新客户端入口。
 
+- 战绩查询、排行及定时/指定日期导出共用 `business/player_data.py` 的按日分页采集：现有 `api_adapters/wzry.py` 以 POST `/game/morebattlelist` 的 `lastTime` 请求单页，业务层使用响应游标持续翻页，直到越过目标游戏日（沿用 `ztime.time_sul()` 的 03:30 边界）、`hasMore=false` 或空页；不得以单页30条或页大小判断当天已完整。跨页对局去重并按时间排序，实时状态保留首页值；游标无效/不推进、翻页失败或中途不可见必须报错，不将部分数据作为完整战绩保存，指定用户导出失败不得删除既有日记录。在线/观战等只读取实时状态的请求继续取单页。`vendor/hok-camp-client` 仅供登录适配，战绩分页只参考其协议资料，禁止调用该模块获取战绩。
+
 ### 1.6 管理员账号登录适配
 
 - `vendor/hok-camp-client` 为固定版本营地协议子模块，`hok_camp_client` 仅链接其发布包；不得向子模块提交会话。`login_console/` 是独立于 NoneBot 的账号登录适配层，由 Web 管理员入口按需启动固定 JSON-line worker，不导入 `hok`、不注册后台任务、不自动循环登录或重试。

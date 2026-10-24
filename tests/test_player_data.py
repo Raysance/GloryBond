@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 
 from local_debugger import import_hok_module
 
@@ -9,6 +10,17 @@ ZFUNC = import_hok_module("zfunc")
 
 
 class PlayerDataTests(unittest.TestCase):
+    def test_failed_dump_does_not_delete_existing_daily_entry(self):
+        with (patch.object(ZFUNC, "userlist", {"alice": 1001}),
+              patch.object(ZFUNC, "wzry_data", side_effect=RuntimeError("战绩分页失败")),
+              patch.object(ZFUNC, "log_message"),
+              patch.object(PLAYER_DATA.zfile, "read_history_date") as read,
+              patch.object(PLAYER_DATA.zfile, "writerl") as write):
+            with self.assertRaisesRegex(RuntimeError, "战绩分页失败"):
+                ZFUNC.dump_specific_user(1001, 42, "2026-09-23")
+            read.assert_not_called()
+            write.assert_not_called()
+
     def test_invisible_profile_keeps_summary_and_visibility_sync_contract(self):
         originals = {
             "users": ZFUNC.userlist,
