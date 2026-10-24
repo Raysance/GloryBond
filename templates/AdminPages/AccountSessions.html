@@ -83,7 +83,7 @@ for(const card of cards){
  if(result.state==='authenticated'){render(card,{authenticated:true,message:result.message});return;}
  if(typeof result.qr!=='string'||!result.qr.startsWith('data:image/png;base64,'))throw Error('二维码格式异常');
  clearQR(card);card.querySelector('img').src=result.qr;card.querySelector('.qr').style.display='block';
- card.querySelector('.hint').textContent='请在 QQ 中扫码并确认，二维码约 4 分钟内有效';
+ card.querySelector('.hint').textContent='请在 QQ 中扫码并确认。会话最长 4 分钟，二维码可能提前失效';
  message(card,result.message);active.set(provider,{id:result.challenge_id,expires:result.expires_at});schedule(card);
  card.querySelector('[data-action=resume]').hidden=false;
  }}catch(e){message(card,e.message);}
