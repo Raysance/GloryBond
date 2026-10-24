@@ -25,6 +25,7 @@ class Manager:
         self.root, self.env_file, self.config_file = Path(root), Path(env_file), Path(config_file)
         self.directory = store.private_directory(Path(data_dir) / "account_sessions")
         self.active = {}
+        store.reconcile_config(self.env_file, self.config_file, self.directory)
         config = self.config()
         rc = config["Redis"]
         if int(rc["REDIS_DB"]) != 0:
@@ -110,8 +111,6 @@ class Manager:
             result = client.check()
         except providers.NotConfigured:
             result = providers.status(None, "缺少登录配置，请检查服务配置")
-        except providers.IdentityMismatch:
-            result = providers.status(None, "账号与配置不一致，请使用配置中的账号")
         except Limited:
             raise
         except Exception:
@@ -128,8 +127,6 @@ class Manager:
     def start(self, name):
         if name in self.active:
             return self.public(self.active[name])
-        if self.cached(name)["authenticated"] is True:
-            return {"state": "authenticated", "message": "最近检查为有效，无需重新登录"}
         self.reserve(name, "start", 30)
         token = secrets.token_hex(16)
         self.lease(name, token, 300)
@@ -139,10 +136,25 @@ class Manager:
             env = store.secrets(self.env_file)
             client = self.provider(name, env, directory)
             png = client.start(directory)
+            if name == "napcat" and png is None:
+                state, updates = client.poll()
+                if state != "authenticated" or not updates:
+                    raise RuntimeError("QQ account could not be synchronized")
+                expected = {k: env.get(k) for k in ("HOK_NAPCAT_ACCOUNT_JSON", "NAPCAT_QUICK_ACCOUNT", "HOK_NAPCAT_ONEBOT_JSON")}
+                store.save_secrets(self.env_file, updates, self.directory, expected=expected, config_file=self.config_file)
+                self.record(name, providers.status(True, "当前 QQ 登录账号已同步"))
+                client.close()
+                store.remove_directory(directory)
+                self.release(name, token)
+                return {"state": "authenticated", "message": "当前 QQ 登录账号已同步"}
             if not isinstance(png, bytes) or not png.startswith(b"\x89PNG\r\n\x1a\n") or len(png) > 1048576:
                 raise ValueError("Invalid QR image")
             key = "HOK_CAMP_SESSION_JSON" if name == "camp" else "HOK_PLAYER_CLIENT_SESSION_JSON"
             expected = {key: env.get(key)}
+            if name == "official":
+                expected["HOK_PLAYER_CLIENT_ACCOUNT_JSON"] = env.get("HOK_PLAYER_CLIENT_ACCOUNT_JSON")
+            if name == "napcat":
+                expected = {k: env.get(k) for k in ("HOK_NAPCAT_ACCOUNT_JSON", "NAPCAT_QUICK_ACCOUNT", "HOK_NAPCAT_ONEBOT_JSON")}
             if name == "camp":
                 expected.update({k: env.get(k) for k in ("HOK_WZRY_TOKEN", "HOK_WZRY_ENCODERES")})
             challenge = {"id": token, "provider": client, "directory": directory, "expected": expected,
@@ -160,9 +172,9 @@ class Manager:
     @staticmethod
     def public(challenge):
         return {"state": "waiting_scan", "challenge_id": challenge["id"], "expires_at": challenge["expires_at"],
-                "qr": challenge["qr"], "message": "请使用对应的 QQ 账号扫码并确认"}
+                "qr": challenge["qr"], "message": "请使用要切换到的 QQ 账号扫码并确认"}
 
-    def poll(self, name, token):
+    def poll(self, name, token, *, role_choice=None):
         challenge = self.active.get(name)
         if not challenge or not secrets.compare_digest(challenge["id"], token):
             return {"state": "expired", "message": "二维码已过期或服务已重启，请重新生成"}
@@ -171,15 +183,20 @@ class Manager:
             self.discard(name)
             return {"state": "expired", "message": "登录会话已失效，请重新生成二维码"}
         try:
-            state, updates = challenge["provider"].poll()
+            if role_choice is not None:
+                state, updates = challenge["provider"].select_role(role_choice)
+            else:
+                state, updates = challenge["provider"].poll()
             if state == "authenticated":
                 if time.time() >= challenge["expires_at"] or self.redis.get(PREFIX + name + ":lease") != token.encode():
                     raise ValueError("Login lease expired")
                 if updates:
-                    store.save_secrets(self.env_file, updates, self.directory, expected=challenge["expected"])
+                    store.save_secrets(self.env_file, updates, self.directory, expected=challenge["expected"], config_file=self.config_file)
                 self.record(name, providers.status(True, "登录成功，登录态已更新"))
             message = {"authenticated": "登录成功，登录态已更新", "waiting_scan": "等待扫码",
-                       "waiting_confirmation": "已扫码，请在 QQ 确认", "expired": "二维码已过期，请重新生成"}.get(state, "登录失败，请稍后重新生成二维码")
+                       "waiting_confirmation": "已扫码，请在 QQ 确认", "select_role": "请选择新账号的王者角色", "expired": "二维码已过期，请重新生成"}.get(state, "登录失败，请稍后重新生成二维码")
+            if state == "select_role":
+                return {"state": state, "message": message, "roles": challenge["provider"].role_choices}
             if state not in ("waiting_scan", "waiting_confirmation"):
                 self.discard(name)
             return {"state": state, "message": message}
@@ -203,6 +220,11 @@ class Manager:
             return self.check(name)
         if action == "start":
             return self.start(name)
+        if action == "select_role":
+            choice = request.get("role_choice")
+            if name != "camp" or type(choice) is not int or not 0 <= choice < 100:
+                raise ValueError("Invalid role choice")
+            return self.poll(name, str(request.get("challenge_id", "")), role_choice=choice)
         if action == "poll":
             return self.poll(name, str(request.get("challenge_id", "")))
         raise ValueError("Invalid operation")

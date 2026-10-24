@@ -188,6 +188,8 @@ async def message_sender_loop():
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
         try:
+            from ..zfile import refresh_login_credentials
+            refresh_login_credentials()
             bot = nonebot.get_bot(confs["QQBot"]["bot_qid"])
         except KeyError:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)

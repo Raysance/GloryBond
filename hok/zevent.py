@@ -52,6 +52,8 @@ def get_validated_name(event):
 
 @_all_messages.handle()
 async def handle_all_messages(event: MessageEvent):
+    from .zfile import refresh_login_credentials
+    refresh_login_credentials()
     await capture_group_message(event)
 
 # EVENT

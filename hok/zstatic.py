@@ -143,6 +143,9 @@ config_path = _runtime_path(
 with open(config_path, 'r', encoding='utf-8') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader) or {}
 _apply_secret_environment(confs, os.environ)
+from login_console.store import apply_credentials as _apply_login_credentials, secrets as _login_secrets
+if env_path:
+    _apply_login_credentials(confs, _login_secrets(env_path))
 globals().update(confs.get("Redis", {}))
 chat_api_config = _build_chat_api_config(confs, os.environ)
 deepseek_search_config = _build_deepseek_search_config(confs, os.environ)

@@ -27,10 +27,6 @@ class DirectCampClient(CampClient):
 from . import store
 
 
-class IdentityMismatch(RuntimeError):
-    pass
-
-
 class NotConfigured(RuntimeError):
     pass
 
@@ -43,20 +39,16 @@ class Camp:
     def __init__(self, config, env, directory):
         from hok_camp_client.crypto import decode_encode_res
         self.path = directory / "camp.json"
-        self.expected = str(config["wzry"]["userid"])
+        self.previous_user = str(config["wzry"]["userid"])
+        self.pending_roles = None
         state = json.loads(env["HOK_CAMP_SESSION_JSON"]) if env.get("HOK_CAMP_SESSION_JSON") else {}
         if not state and env.get("HOK_WZRY_ENCODERES") and env.get("HOK_WZRY_TOKEN"):
-            state = {"userId": self.expected, "openId": config["wzry"]["openid"],
+            state = {"userId": self.previous_user, "openId": config["wzry"]["openid"],
                      "token": env["HOK_WZRY_TOKEN"], "encode_res": env["HOK_WZRY_ENCODERES"],
                      "userKey": decode_encode_res(env["HOK_WZRY_ENCODERES"])["userKey"]}
         store.write_json(self.path, state)
         self.client = DirectCampClient(state_file=self.path, timeout=15)
         self.client.http.trust_env = False
-        self.role = state.get("role") or dict(gameOpenId=config["wzry"]["gameopenid"],
-            gameRoleId=int(config["wzry"]["gameroleid"]),
-            gameAreaId=int(config["wzry"].get("gameareaid", 1)),
-            gameServerId=int(config["wzry"].get("gameserverid", 1545)),
-            gameUserSex=int(config["wzry"].get("gameusersex", 1)), kohDimGender=2)
 
     def check(self):
         result = self.client.login_status()
@@ -64,26 +56,75 @@ class Camp:
         return status(value, {True: "营地登录有效", False: "营地登录已失效，请扫码", None: "营地状态暂时无法确认"}[value])
 
     def start(self, directory):
+        # Start a clean account state: CampClient merges login responses into its state.
+        # An old role must never survive a new QQ authorization.
+        self.client.http.close()
+        store.write_json(self.path, {})
+        self.client = DirectCampClient(state_file=self.path, timeout=15)
+        self.client.http.trust_env = False
         self.qr_path = directory / "camp-qr.png"
         self.client.start_login(self.qr_path)
         return store.read_bytes(self.qr_path)
 
+    @staticmethod
+    def normalize_roles(payload):
+        data = payload.get("data", payload)
+        if isinstance(data, dict):
+            data = data.get("roles", data.get("list", data.get("roleList")))
+        if not isinstance(data, list) or len(data) > 100:
+            raise RuntimeError("Unrecognized Camp roles response")
+        roles = []
+        for row in data:
+            if not isinstance(row, dict):
+                raise RuntimeError("Invalid Camp role")
+            role_id = int(row["roleId"])
+            open_id = row["openid"]
+            if role_id <= 0 or not isinstance(open_id, str) or not open_id:
+                raise RuntimeError("Incomplete Camp role")
+            role = dict(gameOpenId=open_id, gameRoleId=role_id, gameAreaId=int(row["areaId"]),
+                        gameServerId=int(row["serverId"]), gameUserSex=int(row.get("sex", 0)),
+                        kohDimGender=int(row.get("kohDimGender", 1)))
+            label = str(row.get("roleName") or row.get("name") or "王者角色")[:60]
+            label += " · 区服 " + str(role["gameServerId"])
+            roles.append({"role": role, "main": row.get("isMainRole") in (True, 1, "1"), "label": label})
+        return roles
+
+    @property
+    def role_choices(self):
+        return [{"choice": i, "label": row["label"]} for i, row in enumerate(self.pending_roles or [])]
+
+    def _complete(self, role):
+        self.client.set_role(game_open_id=role["gameOpenId"], game_role_id=role["gameRoleId"],
+                             game_area_id=role["gameAreaId"], game_server_id=role["gameServerId"],
+                             game_user_sex=role["gameUserSex"], dim_gender=role["kohDimGender"])
+        if self.check()["authenticated"] is not True:
+            raise RuntimeError("Login could not be verified")
+        saved = store.read_json(self.path)
+        return "authenticated", {"HOK_CAMP_SESSION_JSON": json.dumps(saved, ensure_ascii=False),
+             "HOK_WZRY_TOKEN": saved["token"], "HOK_WZRY_ENCODERES": saved["encode_res"]}
+
+    def select_role(self, choice):
+        if self.pending_roles is None or not 0 <= choice < len(self.pending_roles):
+            raise ValueError("Invalid role selection")
+        return self._complete(self.pending_roles[choice]["role"])
+
     def poll(self):
+        if self.pending_roles is not None:
+            return "select_role", None
         result = self.client.poll_login()
         state = result["state"]
         if state == "authenticated":
-            saved = store.read_json(self.path)
-            if str(saved.get("userId")) != self.expected:
-                raise IdentityMismatch()
-            self.client.set_role(game_open_id=self.role["gameOpenId"], game_role_id=self.role["gameRoleId"],
-                                 game_area_id=self.role["gameAreaId"], game_server_id=self.role["gameServerId"],
-                                 game_user_sex=self.role["gameUserSex"], dim_gender=self.role["kohDimGender"])
-            checked = self.check()
-            if checked["authenticated"] is not True:
-                raise RuntimeError("Login could not be verified")
-            saved = store.read_json(self.path)
-            return "authenticated", {"HOK_CAMP_SESSION_JSON": json.dumps(saved, ensure_ascii=False),
-                 "HOK_WZRY_TOKEN": saved["token"], "HOK_WZRY_ENCODERES": saved["encode_res"]}
+            # Explicit admin reauthorization authorizes this single authenticated role lookup.
+            payload, _ = self.client._post("/game/roles", {"gameId": 20001})
+            roles = self.normalize_roles(payload)
+            mains = [r for r in roles if r["main"]]
+            if len(mains) == 1 or len(roles) == 1:
+                return self._complete((mains or roles)[0]["role"])
+            if not roles:
+                return self._complete(dict(gameOpenId="", gameRoleId=0, gameAreaId=0,
+                                           gameServerId=0, gameUserSex=0, kohDimGender=1))
+            self.pending_roles = roles
+            return "select_role", None
         return state, None
 
     def close(self):
@@ -109,10 +150,15 @@ class Official:
         self.session = MsdkSession.load(paths["session"])
         self.session_path = paths["session"]
 
-    def verify(self):
+    def verify(self, *, new_account=False):
         self.gate()
-        self.client.servers(platform_id=int(self.settings["platform_id"]))
-        self.client.login(server_id=self.settings.get("server_id"), tree_index=int(self.settings.get("tree_index", 0)))
+        directory = self.client.servers(platform_id=int(self.settings["platform_id"]))
+        if new_account:
+            selected = directory.preferred_server()
+            self.routing = {"server_id": int(selected["node"]["id"]), "tree_index": int(selected["tree_index"])}
+            self.client.login(**self.routing)
+        else:
+            self.client.login(server_id=self.settings.get("server_id"), tree_index=int(self.settings.get("tree_index", 0)))
 
     def check(self):
         expiry = self.session.raw.get("token_expire_time")
@@ -134,12 +180,11 @@ class Official:
         if result.code != 0:
             return "error", None
         self.client.complete_qq_login(result)
-        if self.client.msdk_session.openid != self.session.openid:
-            raise IdentityMismatch()
-        self.verify()
+        self.verify(new_account=True)
         self.client.msdk_session.save(self.session_path)
         raw = store.read_json(self.session_path)
-        return "authenticated", {"HOK_PLAYER_CLIENT_SESSION_JSON": json.dumps(raw, ensure_ascii=False)}
+        return "authenticated", {"HOK_PLAYER_CLIENT_SESSION_JSON": json.dumps(raw, ensure_ascii=False),
+                                 "HOK_PLAYER_CLIENT_ACCOUNT_JSON": json.dumps(self.routing)}
 
     def close(self):
         self.client.close()
@@ -174,10 +219,16 @@ class NapCat:
         parsed = urlsplit(base)
         if parsed.scheme not in ("http", "https") or parsed.hostname not in ("127.0.0.1", "localhost", "::1") or parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.username:
             raise NotConfigured()
+        self.previous_qq = str(config["QQBot"]["bot_qid"])
+        self.onebot_config = json.loads(env["HOK_NAPCAT_ONEBOT_JSON"]) if env.get("HOK_NAPCAT_ONEBOT_JSON") else None
+        native_directory = config.get("AccountSessions", {}).get("napcat", {}).get("config_dir")
+        if native_directory:
+            native = store.read_napcat_onebot(native_directory, self.previous_qq)
+            if native is not None:
+                self.onebot_config = native
         self.base, self.token = base.rstrip("/"), env.get("HOK_NAPCAT_WEBUI_TOKEN", "")
         if not self.token:
             raise NotConfigured()
-        self.expected = str(config["QQBot"]["bot_qid"])
         self.http = requests.Session()
         self.http.trust_env = False
         if parsed.scheme == "https":
@@ -212,13 +263,18 @@ class NapCat:
         if result.get("isLogin") is not True:
             return status()
         info = self.call("QQLogin/GetQQLoginInfo")
-        if str(info.get("uin")) != self.expected:
-            raise IdentityMismatch()
+        uin = str(info.get("uin", ""))
+        if not re.fullmatch(r"[1-9][0-9]{4,19}", uin):
+            raise RuntimeError("Invalid QQ login identity")
+        self.account = {"uin": uin}
         return status(True, "NapCat QQ 登录有效")
 
     def start(self, directory):
-        if self.check()["authenticated"] is not False:
-            raise RuntimeError("QQ is already online or unknown")
+        current = self.check()["authenticated"]
+        if current is True:
+            return None  # Explicit admin action synchronizes the already logged-in account.
+        if current is not False:
+            raise RuntimeError("QQ login status is unknown")
         value = self.call("QQLogin/GetQQLoginQrcode")["qrcode"]
         if not isinstance(value, str) or not 1 <= len(value) <= 4096:
             raise RuntimeError("Invalid QR payload")
@@ -229,7 +285,18 @@ class NapCat:
 
     def poll(self):
         checked = self.check()
-        return ("authenticated" if checked["authenticated"] is True else "waiting_scan"), None
+        if checked["authenticated"] is True:
+            if self.account["uin"] != self.previous_qq:
+                if not isinstance(self.onebot_config, dict) or not self.onebot_config.get("network"):
+                    raise NotConfigured()
+                # Preserve the Bot's existing transport when NapCat creates per-QQ config.
+                self.call("OB11Config/SetConfig", {"config": json.dumps(self.onebot_config)})
+            self.call("QQLogin/SetQuickLoginQQ", {"uin": self.account["uin"]})
+            updates = {"HOK_NAPCAT_ACCOUNT_JSON": json.dumps(self.account), "NAPCAT_QUICK_ACCOUNT": self.account["uin"]}
+            if self.onebot_config is not None:
+                updates["HOK_NAPCAT_ONEBOT_JSON"] = json.dumps(self.onebot_config, ensure_ascii=False)
+            return "authenticated", updates
+        return "waiting_scan", None
 
     def close(self):
         self.http.close()

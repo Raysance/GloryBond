@@ -845,11 +845,17 @@ def save_player_client_bindings(bindings, *, pending=None, skipped=None):
 
 def refresh_login_credentials():
     """Refresh the managed login subset from the sole dotenv source before requests."""
-    from .zstatic import env_path, confs, player_client_secrets
+    from .zstatic import env_path, confs, player_client_secrets, player_client_config
     from login_console.store import secrets, apply_credentials
 
     values = secrets(env_path)
     apply_credentials(confs, values)
+    if values.get("HOK_PLAYER_CLIENT_ACCOUNT_JSON"):
+        player_client_config.update({k: confs["PlayerClient"][k] for k in ("server_id", "tree_index")})
+    if values.get("HOK_NAPCAT_ACCOUNT_JSON"):
+        from . import zdynamic as dmc
+        if dmc.qq_agent_service is not None:
+            dmc.qq_agent_service.bot_id = confs["QQBot"]["bot_qid"]
     current = values.get("HOK_PLAYER_CLIENT_SESSION_JSON")
     if current:
         player_client_secrets["session"] = current

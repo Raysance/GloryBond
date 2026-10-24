@@ -5,7 +5,7 @@ import json
 import sys
 
 from .manager import Manager, Limited
-from .providers import IdentityMismatch, NotConfigured
+from .providers import NotConfigured
 
 
 def main():
@@ -25,8 +25,6 @@ def main():
                 reply = {"ok": True, "result": result}
             except Limited as exc:
                 reply = {"ok": False, "error": "请求冷却中，请稍后重试", "retry_after": exc.seconds}
-            except IdentityMismatch:
-                reply = {"ok": False, "error": "扫码账号与配置不一致，原登录态未修改"}
             except NotConfigured:
                 reply = {"ok": False, "error": "缺少登录配置，请检查服务配置"}
             except Exception:

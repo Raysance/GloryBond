@@ -221,6 +221,6 @@ local_debugger/.venv/bin/python scripts/resolve_player_client.py --ssh Aliyun --
 
 发布验证同时检查本次 systemd InvocationID 与 Uvicorn 的应用启动完成日志，最多等待180秒；启动中自动重启或缺少完成记录时任务失败，避免仅因进程短暂 active 而误报成功。旧游戏接口缓存初始化在启动 hook 中逐项隔离，失败不阻断客户端查询入口。
 
-管理员在 Web 管理控制台选择「账号登录态」，可分别检查王者营地、王者官方客户端和 NapCat QQ 的登录状态。失效或无法确认时可手动生成二维码，使用原配置账号在 QQ 扫码并确认。营地与官方客户端分别授权；成功验证后保存至现有 `.env`，后续查询自动使用更新的登录态。网络错误显示「待确认」，不会自动反复登录。扫码账号不一致时保留原登录态。
+管理员在 Web 管理控制台选择「账号登录态」，可分别检查王者营地、王者官方客户端和 NapCat QQ 的登录状态。可手动生成二维码，使用希望切换到的 QQ 账号扫码并确认。营地与官方客户端分别授权；成功验证后保存至现有 `.env`，后续查询自动使用更新的登录态。网络错误显示「待确认」，不会自动反复登录。允许扫码账号与原配置不同，新账号验证成功后同步更新登录态、身份及角色/区服配置。营地默认采用唯一角色或服务端唯一主角色，无法确定时由管理员选择，无角色清空旧角色。NapCat 在线时「同步 / 扫码登录」同步当前账号，离线时展示二维码，并更新下次启动的登录账号，继承 Bot 原有 OneBot 连接配置。`AccountSessions.napcat.config_dir` 指向 NapCat 的原生 config 目录，仅用于读取原机器人配置，配置材料不向页面返回。
 
 `config.yaml#AccountSessions.worker_python` 指向 NBot 运行环境（相对 NBot 根目录，默认 `.venv/bin/python`）；本机可改为 `local_debugger/.venv/bin/python`。需要初始化全部子模块并安装当前 `pyproject.toml` 的依赖。NapCat WebUI 必须启用，`AccountSessions.napcat.base_url` 只允许本机地址，HTTPS WebUI 还须在 `tls_fingerprint_sha256` 配置证书 DER 的 SHA256 指纹（证书更换后需同步更新），WebUI token 配置在唯一 `.env` 的 `HOK_NAPCAT_WEBUI_TOKEN`。页面不会公开 WebUI token、二维码原始链接或服务凭据。扫码会话最长保留4分钟；QQ 可提前使二维码失效，页面会提示重新生成。服务发布重启后需重新生成。NapCat QQ 会话由自身保存，无需复制登录文件。

@@ -1850,7 +1850,8 @@ def player_client_query(operation, **parameters):
         raise zapi.PlayerClientRateLimited(1, "busy")
     try:
         import hashlib
-        fingerprint = hashlib.sha256(zfile.refresh_login_credentials().encode()).hexdigest()
+        fingerprint = hashlib.sha256((zfile.refresh_login_credentials() + repr((
+            player_client_config.get("server_id"), player_client_config.get("tree_index")))).encode()).hexdigest()
         if fingerprint != dmc.player_client_session_fingerprint and dmc.player_client_adapter is not None:
             dmc.player_client_adapter.close()
             dmc.player_client_adapter = None

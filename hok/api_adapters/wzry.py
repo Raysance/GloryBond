@@ -161,6 +161,9 @@ class WzryOfficialAPI:
             'token': wzry["token"],
             'userId': wzry["userid"]
         }
+        for field in allhero_data:
+            if field.lower() in headers:
+                allhero_data[field] = headers[field.lower()]
         herostatistics_data={
             "recommendPrivacy": 0,
             "toOpenid": wzry["openid"],
