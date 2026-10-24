@@ -2681,29 +2681,20 @@
                     showToast('数据未加载，无法分享', 'error');
                     return;
                 }
-                if (!'{{gameSeq}}'){
-                    showToast('战局详情已存在于群聊中', 'error');
-                    return;
-                }
-
-                const { head, battle } = battleData;
-                
-
-                // 显示分享确认对话框
-                const userConfirmed = await showShareConfirm();
-                if (!userConfirmed) {
-                    return;
-                }
-
-                // 准备分享数据
-                const params = new URLSearchParams({
-                    gameSeq: '{{gameSeq}}',
-                    gameSvr: '{{gameSvr}}',
-                    relaySvr: '{{relaySvr}}',
-                    targetRoleId: '{{targetRoleId}}',
-                    battleType: '{{battleType}}',
-                    key: '{{key}}',
+                const params = battleShareParams(battleData, {
+                    gameSeq: {{ gameSeq|default('', true)|tojson }},
+                    gameSvr: {{ gameSvr|default('', true)|tojson }},
+                    relaySvr: {{ relaySvr|default('', true)|tojson }},
+                    targetRoleId: {{ targetRoleId|default('', true)|tojson }},
+                    battleType: {{ battleType|default('', true)|tojson }},
+                    key: {{ key|default('', true)|tojson }}
                 });
+                if (!params.get('gameSeq') || !params.get('targetRoleId')) {
+                    showToast('战局信息不完整，无法分享', 'error');
+                    return;
+                }
+                const userConfirmed = await showShareConfirm();
+                if (!userConfirmed) return;
 
                 lastShareTime = now;
 

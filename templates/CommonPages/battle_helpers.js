@@ -44,6 +44,19 @@ function battleSelectedSkillsHtml(records) {
     }).join('') + '</div>';
 }
 
+function battleShareParams(data, route) {
+    const battle = data.battle || {};
+    const head = data.head || {};
+    return new URLSearchParams({
+        gameSeq: route.gameSeq || data.gameSeq || battle.gameSeq || head.gameSeq || '',
+        targetRoleId: route.targetRoleId || head.roleId || '',
+        gameSvr: route.gameSvr || battle.gameSvrId || '',
+        relaySvr: route.relaySvr || battle.relaySvrId || '',
+        battleType: route.battleType || battle.pvpType || 0,
+        key: route.key || ''
+    });
+}
+
 function battleAverageGrade(battles) {
     const values = battles.map(battleGrade).filter(value => value != null);
     return values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '—';
