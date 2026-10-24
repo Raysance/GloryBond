@@ -841,3 +841,16 @@ def save_player_client_bindings(bindings, *, pending=None, skipped=None):
     with open(temporary, "w", encoding="utf-8") as output:
         output.write(result)
     os.replace(temporary, config_path)
+
+
+def refresh_login_credentials():
+    """Refresh the managed login subset from the sole dotenv source before requests."""
+    from .zstatic import env_path, confs, player_client_secrets
+    from login_console.store import secrets, apply_credentials
+
+    values = secrets(env_path)
+    apply_credentials(confs, values)
+    current = values.get("HOK_PLAYER_CLIENT_SESSION_JSON")
+    if current:
+        player_client_secrets["session"] = current
+    return player_client_secrets.get("session", "")

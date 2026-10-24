@@ -209,4 +209,7 @@ player_client_secrets = {
     for name in ("resources", "session", "installation")
 }
 
-REDIS_KEY_PLAYER_CLIENT_RATE = "hok:player_client:rate"
+from login_console.rate import (
+    PLAYER_RATE_PREFIX as REDIS_KEY_PLAYER_CLIENT_RATE,
+    AUTH_PREFIX as REDIS_KEY_ACCOUNT_AUTH_PREFIX,
+)

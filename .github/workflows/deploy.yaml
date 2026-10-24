@@ -16,7 +16,7 @@ jobs:
           git fetch origin main
 
           git show origin/main:deployment/scripts/restore_application.sh | bash -s -- . origin/main
-          .venv/bin/python -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService; from hok_research import HokClient, ClientResources'
+          .venv/bin/python -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService; from hok_research import HokClient, ClientResources; from hok_camp_client import CampClient; import login_console.worker; import qrcode'
 
       - name: Restart Nonebot
         working-directory: /srv/modules/hok/apps/NBot

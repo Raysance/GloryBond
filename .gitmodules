@@ -4,3 +4,6 @@
 [submodule "vendor/hok-player-client"]
 	path = vendor/hok-player-client
 	url = git@github.com:Raysance/hok-player-client.git
+[submodule "vendor/hok-camp-client"]
+	path = vendor/hok-camp-client
+	url = git@github.com:Raysance/hok-camp-client.git

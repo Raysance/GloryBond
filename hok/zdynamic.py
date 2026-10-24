@@ -24,3 +24,5 @@ BattlePowerInProgress = {}
 player_client_lock = threading.Lock()
 
 player_client_adapter = None
+
+player_client_session_fingerprint = None

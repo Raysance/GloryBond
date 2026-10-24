@@ -6,7 +6,7 @@ import logging
 import requests
 from ratelimit import limits, sleep_and_retry
 
-from ..zfile import append_hok_exception_log
+from ..zfile import append_hok_exception_log, refresh_login_credentials
 from ..zstatic import confs
 from ..ztime import sleep_seconds
 from ..zutil import log_message
@@ -41,7 +41,9 @@ class WzryOfficialAPI:
         from ..tools.endecoder import decrypt_game_data
         from ..tools.endecoder import get_full_request_params
 
-        encoded_params = get_full_request_params(confs["wzry"]["pubkey"],confs["wzry"]["roleid"],confs["wzry"]["encoderes"])
+        refresh_login_credentials()
+        wzry = dict(confs["wzry"])
+        encoded_params = get_full_request_params(wzry["pubkey"],wzry["userid"],wzry["encoderes"])
         roleid=str(roleid)
         userid=str(userid)
         btldetail_url = "https://kohcamp.qq.com/game/battledetail"
@@ -75,24 +77,26 @@ class WzryOfficialAPI:
             # "encodeparam": "26kVVHLwgvRtB6NWDBlSV3PR7wCUFoZcKrHWDx0f9awQRltcKu1U/A8eDZEc9hUhdiKMb89JkTQL7R0CCY/HM8YHZnWkRFp28HHFJGHLPNGUQu0IqQPoHMQKv25Wjqg7ZO2Sdg==",
             "gameareaid": "1",
             "gameid": "20001",
-            "gameopenid": confs["wzry"]["gameopenid"],
-            "gameroleid": confs["wzry"]["gameroleid"],
+            "gameopenid": wzry["gameopenid"],
+            "gameroleid": wzry["gameroleid"],
             "gameserverid": "1545",
             "gameusersex": "1",
-            "openid": confs["wzry"]["openid"],
-            "tinkerid": confs["wzry"]["tinkerid"],
-            "token": confs["wzry"]["token"],
-            "userid": confs["wzry"]["userid"],
+            "openid": wzry["openid"],
+            "tinkerid": wzry["tinkerid"],
+            "token": wzry["token"],
+            "userid": wzry["userid"],
             "content-encrypt": "",
             "accept-encrypt": "",
             "noencrypt": "1",
             "x-client-proto": "https",
-            "x-log-uid": confs["wzry"]["x-log-uid"],
+            "x-log-uid": wzry["x-log-uid"],
             "kohdimgender": "2",
             "content-type": "application/json; charset=UTF-8",
             "user-agent": "okhttp/4.9.1",
             "traceparent": encoded_params["traceparent"]
         }
+
+        headers.update(wzry.get("client_headers", {}))
 
         btldetail_data = {
             "recommendPrivacy": 0,
@@ -148,18 +152,18 @@ class WzryOfficialAPI:
             'encodeParam': encoded_params["encodeparam"],
             'gameAreaId': 1,
             'gameId': 20001,
-            'gameOpenId': confs["wzry"]["gameopenid"],
-            'gameRoleId': confs["wzry"]["roleid"],
+            'gameOpenId': wzry["gameopenid"],
+            'gameRoleId': wzry["roleid"],
             'gameServerId': 1545,
             'gameUserSex': 1,
-            'openId': confs["wzry"]["openid"],
-            'tinkerId': confs["wzry"]["tinkerid"],
-            'token': confs["wzry"]["token"],
-            'userId': confs["wzry"]["userid"]
+            'openId': wzry["openid"],
+            'tinkerId': wzry["tinkerid"],
+            'token': wzry["token"],
+            'userId': wzry["userid"]
         }
         herostatistics_data={
             "recommendPrivacy": 0,
-            "toOpenid": confs["wzry"]["openid"],
+            "toOpenid": wzry["openid"],
             "roleId": roleid,
             "roleName": "",
             "heroid": heroid,
@@ -258,7 +262,7 @@ class WzryOfficialAPI:
             except:
                 try:
 
-                    decoded_response=decrypt_game_data(confs["wzry"]["pubkey"],confs["wzry"]["encoderes"],encoded_response.text)
+                    decoded_response=decrypt_game_data(wzry["pubkey"],wzry["encoderes"],encoded_response.text)
                 except Exception as e:
                     error_msg="Decode error: "+str(e)
                     retry_time=0

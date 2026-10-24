@@ -291,3 +291,11 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 - `scripts/resolve_player_client.py` 从 `zdb.load_latest_player_client_names()` 的真实对局 epoch 与快照取得昵称，只保存唯一完整昵称匹配及服务端身份字段；同名、缺数据与拒绝不猜测、不混用营地 role_id 与新 UID。默认双端查询，13002 按新版语义保留为该端空结果，不误判风控；`--refresh` 重查已绑定账号时只更新同一 UID/区服/平台的服务端引用，不按新同名结果换绑。脚本使用相同限速，发生异常立即停止并保留已绑定结果及待确认候选；短分钟窗口在等待预算内延迟，超出等待预算的配额与风控冷却仍拒绝；人工明确跳过的账号由 `binding_skip_players` 保存，人工更新的完整昵称由 `nickname_overrides` 保存。
 
 - 业务缓存初始化只在 `zscheduler._initialize_business_cache` 启动 hook 执行，各项错误隔离并仅记录组件/错误类型；`hok/__init__.py` 不在导入时请求外部数据。旧营地会话失效不能阻断整个插件与新客户端入口。
+
+### 1.6 管理员账号登录适配
+
+- `vendor/hok-camp-client` 为固定版本营地协议子模块，`hok_camp_client` 仅链接其发布包；不得向子模块提交会话。`login_console/` 是独立于 NoneBot 的账号登录适配层，由 Web 管理员入口按需启动固定 JSON-line worker，不导入 `hok`、不注册后台任务、不自动循环登录或重试。
+- `login_console/providers.py` 固定接入营地、官方 QQ/MSDK 客户端与本机 NapCat WebUI。营地 QQ transport 仅在适配层覆写初始化以禁用环境代理；NapCat 只接受 loopback HTTP(S)，HTTPS 必须配置证书 SHA256 指纹并严格核验，不调用注销、重启或快捷登录设置接口。账号必须与当前营地 userId、官方 openid、机器人 QQ 匹配；网络失败报告 unknown。
+- `login_console/store.py` 是该独立进程的文件边界：私有临时材料仅在 `data/account_sessions/`（0700/0600），二维码不进入 `file_transfer/`；`.env` 凭据更新使用 flock、并发版本比较、dotenv 往返验证与原子替换。成功验证后更新 `HOK_CAMP_SESSION_JSON`、原有营地 token/encoderes 或 `HOK_PLAYER_CLIENT_SESSION_JSON`；NapCat QQ 会话继续由 NapCat 自行持久化，`HOK_NAPCAT_WEBUI_TOKEN` 仅用于访问其本机管理接口。
+- 配置仅来自 `config.yaml#AccountSessions` 与原有 `wzry`/`PlayerClient`/`QQBot`/`Redis`。`login_console/manager.py` 在 DB0 `hok:auth:*` 下维护状态缓存、跨进程租约和限速，二维码至少30秒、轮询至少5秒、状态检查至少30秒；官方认证共用 `hok:player_client:rate` 的登录额度及失败冷却。纯 Lua 脚本由 `login_console/rate.py` 与 `zfunc.py` 共用。无 Redis 时拒绝发起请求。
+- `hok/zfile.refresh_login_credentials()` 是运行中热加载的 IO 入口，只更新营地协议/凭据与官方会话。营地请求发送前读取新参数，官方客户端在 `zdynamic.py` 的既有查询锁内检测会话指纹，旧请求结束后关闭旧连接再构建新连接。Web 的旧营地查询同样在请求前从唯一 `.env` 更新。
