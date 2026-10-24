@@ -20,6 +20,7 @@ def _history_hours(realname, start_date, end_date):
         userid=userid,
         start_date=start_date,
         end_date=end_date,
+        filter_official=False,
     )
     seconds = sum(
         detail.get("Duration_Second", 0)
