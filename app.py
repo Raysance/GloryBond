@@ -1306,6 +1306,64 @@ async def submit_user_info(request: Request, changes: list = Body(...), AdminKey
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Account login operations remain behind the existing administrator cookie.
+from account_sessions import bridge as account_login_bridge, HEADERS as ACCOUNT_HEADERS
+
+
+def _account_csrf():
+    import hashlib
+    import hmac
+    return hmac.new(str(SECRET_KEY).encode(), b"account-sessions-v1", hashlib.sha256).hexdigest()
+
+
+@app.get("/admin/funcs/account-sessions", response_class=HTMLResponse)
+async def account_sessions_page(request: Request, AdminKey: str = Cookie(None)):
+    if not SECRET_KEY or AdminKey != SECRET_KEY:
+        return RedirectResponse("/admin/login", status_code=303, headers=ACCOUNT_HEADERS)
+    from chat_trace import _render
+    return _render(templates, "AdminPages/AccountSessions.html",
+                   {"request": request, "csrf": _account_csrf()}, headers=ACCOUNT_HEADERS)
+
+
+@app.get("/admin/funcs/account-sessions/state")
+async def account_sessions_state(AdminKey: str = Cookie(None)):
+    if not SECRET_KEY or AdminKey != SECRET_KEY:
+        return JSONResponse({"ok": False, "error": "认证失败"}, status_code=401, headers=ACCOUNT_HEADERS)
+    result = await account_login_bridge.call({"action": "list"})
+    return JSONResponse(result, headers=ACCOUNT_HEADERS)
+
+
+@app.post("/admin/funcs/account-sessions/action")
+async def account_sessions_action(request: Request, AdminKey: str = Cookie(None)):
+    if not SECRET_KEY or AdminKey != SECRET_KEY:
+        return JSONResponse({"ok": False, "error": "认证失败"}, status_code=401, headers=ACCOUNT_HEADERS)
+    supplied = request.headers.get("x-account-csrf", "")
+    if request.headers.get("sec-fetch-site") == "cross-site" or not secrets.compare_digest(supplied, _account_csrf()):
+        return JSONResponse({"ok": False, "error": "请求校验失败，请刷新页面"}, status_code=403, headers=ACCOUNT_HEADERS)
+    try:
+        raw = await request.body()
+        if len(raw) > 1024:
+            raise ValueError()
+        payload = json.loads(raw)
+        if not isinstance(payload, dict) or set(payload) - {"provider", "action", "challenge_id"}:
+            raise ValueError()
+        if payload.get("provider") not in {"camp", "official", "napcat"} or payload.get("action") not in {"check", "start", "poll"}:
+            raise ValueError()
+        if payload["action"] == "poll":
+            import re
+            if not re.fullmatch(r"[a-f0-9]{32}", str(payload.get("challenge_id", ""))):
+                raise ValueError()
+    except (ValueError, TypeError):
+        return JSONResponse({"ok": False, "error": "无效请求"}, status_code=400, headers=ACCOUNT_HEADERS)
+    result = await account_login_bridge.call(payload)
+    return JSONResponse(result, status_code=429 if result.get("retry_after") else 200, headers=ACCOUNT_HEADERS)
+
+
+@app.on_event("shutdown")
+async def close_account_login_worker():
+    await account_login_bridge.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

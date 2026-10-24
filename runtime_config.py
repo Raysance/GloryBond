@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Mapping
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 import yaml
 
 
@@ -137,4 +137,16 @@ def load_shared_config(
                 section_values = {}
                 config[section] = section_values
             section_values[key] = str(env[env_name]).strip()
+    if environ is None:
+        current = dotenv_values(runtime.env_file, interpolate=False)
+        for name, key in (("HOK_WZRY_TOKEN", "token"), ("HOK_WZRY_ENCODERES", "encoderes")):
+            if current.get(name):
+                config.setdefault("wzry", {})[key] = current[name]
+        if current.get("HOK_CAMP_SESSION_JSON"):
+            # Shared pure projection; import only the standalone adapter, never hok.
+            import sys
+            if str(runtime.nbot_root) not in sys.path:
+                sys.path.append(str(runtime.nbot_root))
+            from login_console.store import apply_credentials
+            apply_credentials(config, current)
     return config

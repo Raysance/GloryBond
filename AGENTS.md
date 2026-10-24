@@ -82,3 +82,10 @@
 - Python 语法校验：`python -m py_compile app.py`
 - 前端脚本语法校验：`node --check templates\CommonPages\BenefitVisualizer\app.js`
 - 搜索旧接口残留：`rg -n 'wzry_benefit_debug|sample\.json|/app\.js|/styles\.css|StaticFiles|benefitvisualizer' app.py templates\CommonPages\BenefitVisualizer`
+
+## 管理员账号登录态
+
+- 管理控制台入口 `/admin/funcs/account-sessions`，模板 `AdminPages/AccountSessions.html`；只经 AdminKey Cookie 鉴权，页面和 API 统一 no-store/no-referrer/noindex。GET `/state` 只读缓存，不自动调用外部服务。POST `/action` 限定 camp/official/napcat 和 check/start/poll，校验独立 HMAC CSRF header，拒绝 cross-site 请求，不接收路径、命令、凭据或任意 API 参数。
+- `account_sessions.py` 按 `runtime_config.RUNTIME` 固定路径启动 NBot `login_console.worker`，复用 NBot venv；不导入 NoneBot、不启动第二个机器人。固定 stdin/stdout JSON RPC 串行执行，取消/超时关闭进程，不重放授权交换；stderr 丢弃，不把原始异常、二维码 URL、token 或 session 返回前端。Web shutdown 回收子进程。
+- 浏览器只在显式生成二维码后按6秒间隔轮询，隐藏页面暂停，过期或退出销毁图片；全部文本用 textContent。真实二维码只经受保护接口提供 data URI，不落公开目录。服务端 DB0 限速/租约独立于页面，刷新页面不会绕过。
+- 营地与官方会话更新由 NBot 独立登录适配层验证身份、原子保存至唯一 `.env`；NapCat 使用自身会话，WebUI token 只存在 `.env`。`runtime_config.load_shared_config()` 对托管营地字段每次读取新文件，旧营地查询请求前加载，不依赖启动时 os.environ 的旧值。用户说明见 `docs/accounts.md`（独立检出时上级 README 缺失，不新建仓库外文档）。
