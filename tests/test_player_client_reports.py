@@ -103,7 +103,7 @@ class HeroReportTests(unittest.TestCase):
             for result in (first, second):
                 image = ZFILE.pil_image_from_bytes(Path(result["image_path"]).read_bytes())
                 self.assertEqual(image.format, "PNG")
-                self.assertLess(image.width * image.height, 2_000_000)
+                self.assertLess(image.width * image.height, 8_000_000)
                 self.assertNotIn("should not be displayed", result["text"])
 
     def test_downloads_only_missing_selected_hero_avatars_and_keeps_cached_bytes(self):

@@ -172,6 +172,7 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
     top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
 
     if as_report:
+        from .player_client_details import metrics as detail_metrics, present, table
         report = {'kind': 'hero_history', 'label': '—', 'scope': '本赛季' if this_season else TimeLim,
                   'total': total_games, 'hero_count': len(metrics),
                   'average_tier': round(total_tier_val / tier_counted_games, 2) if tier_counted_games else None,
@@ -182,6 +183,19 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
             report['sections'].append({'title': title, 'minimum_games': minimum, 'rows': [
                 {**row, 'avg_grade': row['avg_grade'] if row['grade_available'] else None}
                 for row in rows]})
+        wins = sum(row['wins'] for row in hero_stats.values())
+        grades = [grade for row in hero_stats.values() for grade in row['grades']]
+        report['detail_sections'] = present([
+            detail_metrics('整体对局表现', [('胜场', wins, 'integer'), ('负场', total_games-wins, 'integer'),
+                ('平均评分', sum(grades)/len(grades) if grades else None, 'decimal'),
+                ('全场最佳', sum(row['mvp'] for row in hero_stats.values()), 'integer'),
+                *[(label, sum(row[field] for row in hero_stats.values()) / total_games if total_games else None, 'decimal')
+                  for field, label in (('kills', '场均击杀'), ('deads', '场均死亡'), ('assists', '场均助攻'))]]),
+            table('英雄表现明细', ['英雄', '场次', '胜率', '均分', 'MVP'], [
+                [row['hero'], row['count'], row['win_rate']*100,
+                 row['avg_grade'] if row['grade_available'] else None, row['mvp']]
+                for row in sorted(metrics.values(), key=lambda row: -row['count'])[:10]],
+                ['text', 'integer', 'percent', 'decimal', 'integer'])])
         return report
 
     if total_games == 0:

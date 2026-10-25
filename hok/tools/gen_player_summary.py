@@ -61,10 +61,6 @@ def number(value, *, percent=False):
 
 def profile_card(report, font, bands):
     c, values = Card(font, 1080), report["values"]
-    c.text(64, 62, "个人资料", 24, ACCENT, bold=True)
-    c.text(64, 109, report["name"], 46, bold=True, width=790)
-    c.text(1056, 124, "Lv. " + number(values["level"]), 27, MUTED, anchor="rt")
-    c.rule(190)
     for index, (key, title) in enumerate((("heroes", "英雄"), ("skins", "皮肤"), ("credit", "信誉积分"),
                                           ("king_marks", "王者印记"), ("achievement", "成就积分"), ("popularity", "人气"))):
         c.metric(64 + index % 3 * 338, 220 + index // 3 * 108, title, number(values[key]))
@@ -115,14 +111,6 @@ def _radar(c, ratios):
 def statistics_card(report, font, bands, avatar_bytes):
     hero = report["kind"] == "hero"
     c, values = Card(font, 1080 if hero else 920), report["values"]
-    c.text(64, 62, "英雄表现" if hero else "对战数据", 24, ACCENT, bold=True)
-    if hero:
-        c.avatar(avatar_bytes.get(report["hero_id"]), 64, 110)
-    left = 156 if hero else 64
-    c.text(left, 109, report["label"], 38 if hero else 42, bold=True, width=790 - left)
-    c.text(1056, 124, report["branch_label"], 27, ACCENT, anchor="rt", width=240)
-    subtitle = report["scope"] if hero else report["scope"] + "  ·  " + report["mode"]
-    c.text(left, 170, subtitle, 24, MUTED, width=1056 - left)
     for index, (key, title) in enumerate((("games", "场次"), ("win_rate_percent", "胜率"), ("score", "综合得分"))):
         color = win_rate_color(values[key], bands) if key == "win_rate_percent" else INK
         c.metric(64 + index * 338, 232, title, number(values[key], percent=key == "win_rate_percent"), size=52, color=color)
@@ -163,10 +151,7 @@ def statistics_card(report, font, bands, avatar_bytes):
 
 def heroes_card(report, font, bands, avatar_bytes):
     c = Card(font, 340 + len(report["rows"]) * 132)
-    c.text(64, 62, "英雄统计", 24, ACCENT, bold=True)
-    c.text(64, 109, report["label"], 42, bold=True, width=730)
-    c.text(1056, 124, report["scope"], 27, ACCENT, anchor="rt", width=240)
-    c.text(64, 170, f"5v5  ·  最高战力  ·  {len(report['rows'])}/{report['total']}", 24, MUTED)
+    c.text(64, 170, f"最高战力  ·  {len(report['rows'])}/{report['total']}", 24, MUTED)
     c.rule(210)
     c.text(64, 240, "英雄", 21, MUTED)
     for x, title in ((480, "场次"), (660, "胜率"), (850, "当前战力"), (1056, "最高战力")):
@@ -195,9 +180,6 @@ def history_heroes_card(report, font, bands, avatar_bytes):
     sections = report["sections"]
     height = 280 + sum(104 + max(1, len(section["rows"])) * 112 for section in sections)
     c = Card(font, height if report["total"] else 420)
-    c.text(64, 62, "英雄表现汇总", 24, ACCENT, bold=True)
-    c.text(64, 109, report["label"], 42, bold=True, width=730)
-    c.text(1056, 124, report["scope"], 27, ACCENT, anchor="rt", width=240)
     tier = "—" if report["average_tier"] is None else str(report["average_tier"])
     c.text(64, 170, f"共 {report['total']} 场  ·  使用 {report['hero_count']} 位英雄  ·  平均梯度 {tier}", 24, MUTED, width=992)
     c.rule(210)
@@ -231,8 +213,119 @@ def history_heroes_card(report, font, bands, avatar_bytes):
     return c.image
 
 
+def _wrap(value, face, width):
+    lines, line = [], ''
+    for char in str(value if value is not None else '—'):
+        if char == '\n' or (line and face.getlength(line + char) > width):
+            lines.append(line)
+            line = ''
+        if char != '\n':
+            line += char
+    return lines + [line]
+
+
+def _formatted(value, kind):
+    if value is None:
+        return '—'
+    if kind == 'text':
+        return str(value)
+    if kind == 'integer':
+        return f'{int(value):,}'
+    if kind == 'fixed2':
+        return f'{value:.2f}'
+    return number(value, percent=kind == 'percent')
+
+
+def _header_plan(report, font, avatar_bytes):
+    kind = report['kind']
+    if kind == 'profile':
+        fields = [('玩家', report['name']), ('分路', '全部分路'), ('统计范围', '当前赛季'),
+                  ('等级', 'Lv. ' + number(report['values']['level']))]
+    else:
+        fields = [('玩家', report['label']), ('英雄' if kind == 'hero' else '分路',
+                   report['title'] if kind == 'hero' else report.get('branch_label', '全部分路')),
+                  ('统计范围', report['scope']), ('模式', report.get('mode') if kind == 'game' else
+                   '5v5' if kind == 'heroes' else '全部模式')]
+    avatar = avatar_bytes.get(report.get('hero_id')) if kind == 'hero' else None
+    face = font(32, 650)
+    plans = [_wrap(value, face, 348 if index == 0 and avatar else 440) for index, (_, value) in enumerate(fields)]
+    heights = [max(64, max(len(lines) for lines in plans[:2]) * 40) + 48,
+               max(len(lines) for lines in plans[2:]) * 40 + 48]
+    return fields, plans, heights, 128 + sum(heights) + 28, avatar
+
+
+def _detail_plan(sections, font):
+    plans = []
+    face = font(24, 400)
+    for section in sections:
+        if 'items' in section:
+            plans.append((section, None, 88 + ((len(section['items']) + 2) // 3) * 100))
+        else:
+            width = 992 / len(section['headers'])
+            rows = [([_wrap(_formatted(value, fmt), face, width - 28)
+                      for value, fmt in zip(row, section['formats'])]) for row in section['rows']]
+            heights = [max(len(cell) for cell in row) * 32 + 24 for row in rows]
+            plans.append((section, (rows, heights), 130 + sum(heights)))
+    return plans
+
+
+def _draw_details(c, plans, y, bands):
+    for section, table_plan, height in plans:
+        c.rule(y)
+        c.text(64, y + 28, section['title'], 26, ACCENT, bold=True)
+        if table_plan is None:
+            for index, (label, value, fmt) in enumerate(section['items']):
+                x, top = 64 + index % 3 * 338, y + 82 + index // 3 * 100
+                c.text(x, top, label, 22, MUTED, width=300)
+                color = win_rate_color(value, bands) if '胜率' in label else INK
+                c.text(x, top + 34, _formatted(value, fmt), 32, color, bold=True, width=300)
+        else:
+            width = 992 / len(section['headers'])
+            for index, label in enumerate(section['headers']):
+                c.text(64 + index * width, y + 80, label, 21, MUTED, width=width - 24)
+            top = y + 114
+            rows, heights = table_plan
+            for row_index, (row, row_height) in enumerate(zip(rows, heights)):
+                for index, lines in enumerate(row):
+                    color = win_rate_color(section['rows'][row_index][index], bands) if '胜率' in section['headers'][index] else INK
+                    for line_index, line in enumerate(lines):
+                        c.text(64 + index * width, top + line_index * 32, line, 24, color)
+                c.rule(top + row_height - 10)
+                top += row_height
+        y += height
+
+
 def render_summary(report, font, *, win_rate_bands=(), avatar_bytes=None):
-    if report["kind"] == "profile":
-        return profile_card(report, font, win_rate_bands)
-    renderer = {"heroes": heroes_card, "hero_history": history_heroes_card}.get(report["kind"], statistics_card)
-    return renderer(report, font, win_rate_bands, avatar_bytes or {})
+    avatar_bytes = avatar_bytes or {}
+    # Keep each overview on its existing grid, then join the shared header and
+    # variable-height details. The crop excludes the overview's outer frame.
+    if report['kind'] == 'profile':
+        body = profile_card(report, font, win_rate_bands)
+        crop_top = 200
+    else:
+        renderer = {'heroes': heroes_card, 'hero_history': history_heroes_card}.get(report['kind'], statistics_card)
+        body = renderer(report, font, win_rate_bands, avatar_bytes)
+        crop_top = 160 if report['kind'] in ('heroes', 'hero_history') else 210
+    fields, lines, heights, body_y, avatar = _header_plan(report, font, avatar_bytes)
+    details = _detail_plan(report.get('detail_sections') or [], font)
+    body_height = body.height - 28 - crop_top
+    c = Card(font, body_y + body_height + sum(plan[2] for plan in details) + 48)
+    title = {'profile': '个人资料', 'game': '对战数据', 'hero': '英雄表现',
+             'heroes': '英雄统计', 'hero_history': '英雄表现汇总'}[report['kind']]
+    c.text(64, 62, title, 24, ACCENT, bold=True)
+    c.draw.rounded_rectangle((64, 108, 1056, body_y - 20), radius=20, fill=TINT)
+    row_y = 128
+    for row in range(2):
+        for col in range(2):
+            index = row * 2 + col
+            x = 88 + col * 504
+            if index == 0 and avatar:
+                c.avatar(avatar, x, row_y + 26, 64)
+                x += 84
+            c.text(x, row_y, fields[index][0], 19, MUTED)
+            for line_index, line in enumerate(lines[index]):
+                c.text(x, row_y + 30 + line_index * 40, line, 32, INK, bold=True)
+        row_y += heights[row]
+    c.image.paste(body.crop((56, crop_top, 1064, body.height - 28)), (56, body_y))
+    _draw_details(c, details, body_y + body_height, win_rate_bands)
+    return c.image

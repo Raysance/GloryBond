@@ -115,6 +115,17 @@ class PlayerClientAdapter:
                 self._cache.popitem(last=False)
         return result
 
+    def _statistics_result(self, profile, *, scope="season", mode="all", branch=None):
+        from hok_research.player_pages import battle_display
+        from hok_research.profile_data import json_value
+
+        result = profile.game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
+        result["player_name"] = json_value(profile.raw.get("szAcntName"))
+        rows = (result.get("display") or {}).get("source_rows") or []
+        result["branch_statistics"] = ([{"branch": key, "display": battle_display([row])}
+            for key, row in zip(("top", "mid", "bot", "jungle", "assist"), rows)] if branch is None else [])
+        return result
+
     def _hero_page(self, target, *, hero_id=None):
         """Compose only the requested page sources, gating every real request."""
         from hok_research import PlayerHomepage, QueryRejected
@@ -185,7 +196,7 @@ class PlayerClientAdapter:
 
             profile = self._read("profile", target)
             radar = profile.raw.get("stStatistic", {}).get("stRadarDetail", {})
-            statistics = (profile.game.statistics(scope="season", mode="all").to_json_value()
+            statistics = (self._statistics_result(profile)
                           if "stCurSeason" in radar else None)
             return {"profile": profile.to_json_value(), "statistics": statistics,
                     "branches": branch_page(profile, catalog=ResourceCatalog.bundled())}
@@ -206,9 +217,7 @@ class PlayerClientAdapter:
                 catalog=ResourceCatalog.bundled(), gameplay_catalog=GameplayCatalog.bundled())
         elif operation == "game_statistics":
             profile = self._read("profile", target)
-            result = profile.game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
-            result["player_name"] = json_value(profile.raw.get("szAcntName"))
-            return result
+            return self._statistics_result(profile, scope=scope, mode=mode, branch=branch)
         elif operation == "hero_honors":
             page = self._hero_page(target, hero_id=hero_id)
             result = page.hero_honors(int(hero_id), scope=scope).to_json_value(catalog=ResourceCatalog.bundled())

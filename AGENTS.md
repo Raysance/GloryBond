@@ -285,6 +285,8 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 ### 玩家客户端子模块
 
+- `tools/gen_player_summary.py` 为资料、对战数据、单英雄、客户端英雄列表及原历史英雄汇总统一绘制顶部信息栏；真实昵称、分路或英雄、统计范围和模式采用同一32px粗体，长内容换行并动态增加高度。保留原概览，下方按 `detail_sections` 绘制三列数值与自动换行表格。`business/player_client_details.py` 仅从同次返回的白名单字段构建胜负/MVP占比、五维数值、各分路表现、单英雄场均击杀/死亡/助攻、每分钟经济/输出、场均承伤、当前战力、历史称号地区/名次/次数、生涯徽章及赛年标签；`player_client.py` 补英雄胜负/熟练度/徽章与分路战力，`hero_statistics.py` 复用原历史聚合补整体表现和前10英雄明细。适配层 `_statistics_result()` 复用当前 scope/mode 的 display.source_rows 与 SDK battle_display() 本地生成五路统计，不追加请求；单分路不附其他分路。胜负与概览同口径，不混入 raw 汇总；五维数值使用 display.radar.values，绘图使用 plot_ratios，不能把能力指数标成实际伤害或KDA。未知字段保持—，零值有效；仅有真实来源的明细分区才展示，图中不附解释。
+
 - 当前客户端英雄/数据图片统一使用 `tools/gen_player_summary.py`，不复现原客户端界面；旧截图模板及渲染器仅保留兼容。`api_adapters/player_client.py` 从同一精确目标的既有 profile 响应透传 `player_name`，供 game_statistics、hero_honors、heroes 共用，不追加游戏请求。白名单模型只用该真实游戏昵称，不以配置别名或账号键补显示名称，未知显示—。`zfunc.player_client_hero_avatars()` 只为所展示的英雄读取现有 ID/URL 指纹头像缓存，缺失时经原公开头像 API 补齐；不下载大幅插画。英雄列表最多10个；历史称号使用同条 rank_badge.raw.dwAdCode，经 zfile.read_honor_districts() 及既有荣耀地区树解析为完整地区名并与名次一起显示，不以当前定位补历史地区，未知编码只保留名次。原英雄统计及客户端查询保持并行，`reply_stream()` 汇合后为两份结果设置同一真实游戏昵称；单英雄仅替换原文玩家标题，英雄汇总通过 hero_statistics_reply(as_report=True) 复用同一次历史读取和聚合，再经 zfunc.hero_history_image_report() 渲染为第一张图片，第二张仍是客户端本赛季英雄图；不全局替换正文或修改其他玩家名称，任一来源失败仍保留另一来源。
 
 - 数据快捷语法始终要求 `#` / `＃`，不能接收无前缀聊天。`event_handlers/player_client._statistics_shortcut()` 在英雄/资料路由前完整解析已绑定玩家及时间、模式、分路，允许省略“的”及调整筛选顺序；`#我本赛季对抗路数据`、`#我游走本赛季数据`、`#我打野这个赛季的数据` 均路由 `game_statistics`。“这个赛季/这赛季”和“这个赛年/这赛年”分别归一到 season/year，冲突、未知词、额外句子和群u不匹配。普通 `#在线` 正文末尾仅固定追加用户指定备注“只跟踪王者好友”，Steam 内容及旧营地接口文案不变。

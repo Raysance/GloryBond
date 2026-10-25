@@ -2,6 +2,7 @@
 
 from .player_client import _at, _number, _number_text, _text
 from .player_client_screens import BRANCH_LABELS, screen_report
+from .player_client_details import statistics_details, hero_details
 
 
 def profile_report(label, result):
@@ -30,13 +31,15 @@ def profile_report(label, result):
             f"巅峰积分 {_number_text(values['peak'][0])}")
     return {"kind": "profile", "label": str(label), "name": name, "signature": signature,
             "title": "个人资料", "values": values, "statistics": summary,
-            "branches": branch_rows, "text": text}
+            "branches": branch_rows, "text": text,
+            "detail_sections": statistics_details(summary, result.get("statistics") or {})}
 
 
 def statistics_report(label, result):
     label = _text(result.get("player_name")) or "—"
     report = screen_report("game", label, result, {})
     report["branch_label"] = "全部分路" if report["branch"] is None else BRANCH_LABELS[report["branch"]]
+    report["detail_sections"] = statistics_details(report["values"], result)
     # The card carries its scope and filters; delivery adds no explanatory copy.
     title = f"{label} · {report['scope']} · {BRANCH_LABELS[report['branch']]}"
     values = report["values"]
@@ -52,6 +55,7 @@ def hero_summary_report(result, hero_names, *, district_names=None):
     report["branch_label"] = report["title"]
     counts = report["historical_badges"]
     report["honor_count"] = sum(counts) if all(value is not None for value in counts) else None
+    report["detail_sections"] = hero_details(report["values"], result, district_names)
     values = report["values"]
     rate = "—" if values["win_rate_percent"] is None else f"{values['win_rate_percent']:.1f}%"
     report["text"] = (f"{name} · {report['title']} · {report['scope']}\n"

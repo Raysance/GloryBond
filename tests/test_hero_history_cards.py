@@ -112,8 +112,11 @@ class HistoryImageTests(unittest.TestCase):
         with patch.object(ImageDraw.ImageDraw, "text", track):
             image = RENDER.render_summary(report, ZFILE.player_client_report_font,
                 avatar_bytes={"106": content.getvalue()}, win_rate_bands=STATIC.player_client_config["win_rate_bands"])
-        self.assertEqual(image.size, (1120, 1600))
-        self.assertEqual(image.getpixel((100, 356)), (18, 58, 188))
+        self.assertEqual(image.width, 1120)
+        self.assertGreater(image.height, 1600)
+        self.assertLess(image.width * image.height, 8_000_000)
+        body_y = RENDER._header_plan(report, ZFILE.player_client_report_font, {})[3]
+        self.assertEqual(image.getpixel((100, body_y + 196)), (18, 58, 188))
         for text in ("LYG.未央", "出场率 TOP", "胜率 TOP", "评分 TOP", "KDA  2.0 / 3.0 / 6.0", "66.7%", "—"):
             self.assertIn(text, drawn)
         self.assertFalse(any(word in text for text in drawn for word in ("配置别名", "说明", "客户端", "raw", "UID", "暂缺")))
@@ -123,10 +126,12 @@ class HistoryImageTests(unittest.TestCase):
         for section in empty["sections"][1:]:
             self.assertEqual(section["rows"], [])
         RENDER.render_summary(empty, ZFILE.player_client_report_font)
-        empty = {**empty, "total": 0, "hero_count": 0, "average_tier": None}
+        empty = {**empty, "total": 0, "hero_count": 0, "average_tier": None, "detail_sections": []}
         for section in empty["sections"]:
             section["rows"] = []
-        self.assertEqual(RENDER.render_summary(empty, ZFILE.player_client_report_font).size, (1120, 420))
+        image = RENDER.render_summary(empty, ZFILE.player_client_report_font)
+        self.assertEqual(image.width, 1120)
+        self.assertLess(image.height, 800)
 
     def test_facade_uses_game_name_and_returns_only_image_or_the_same_readable_facts(self):
         report = history_report()

@@ -19,11 +19,13 @@ def _number_text(value):
 def hero_report(label, result, settings, hero_names, *, district_names=None):
     """Select bounded 5v5 cards by highest power; never carry raw protocol fields."""
     from .player_client_screens import branch_models, rank_model
+    from .player_client_details import present, table
     label = _text(result.get("player_name")) or "—"
     heroes = result["heroes"]
     limit = max(1, min(10, int(settings["display_hero_limit"])))
     ordered = sorted(heroes, key=lambda row: (-(_number(row.get("highest_fight_value")) or 0), int(row["hero_id"])))
     rows = []
+    detail_rows = []
     for hero in ordered[:limit]:
         hero_id = str(hero["hero_id"])
         row = {key: _number(hero.get(key)) for key in (
@@ -35,6 +37,8 @@ def hero_report(label, result, settings, hero_names, *, district_names=None):
                    fight_style=_text((hero.get("fight_style") or {}).get("text")) or None,
                    rank_badge=rank_model(hero.get("rank_badge"), district_names))
         rows.append(row)
+        detail_rows.append([row['name'], row['wins'], row['losses'], _number(hero.get('proficiency')),
+                            _number(hero.get('unlocked_badge_count'))])
     scope = SCOPE_NAMES.get(result.get("scope"), "当前范围")
     summary = f"{label} · {scope}英雄\n5v5 · 最高战力 · {len(rows)}/{len(heroes)}"
     branches = branch_models(result.get("branches"))
@@ -47,8 +51,13 @@ def hero_report(label, result, settings, hero_names, *, district_names=None):
         text_rows.append(f"{index}. {row['name']}：{_number_text(row['games'])}场，胜率{rate}，"
                          f"当前战力{_number_text(row['fight_value'])}，历史最高{_number_text(row['highest_fight_value'])}{title}")
     text = "\n".join([summary, *text_rows, hint] if rows else [summary, "当前范围没有返回英雄数据。"])
+    branch_rows = [[row.get('name'), _number(row.get('level')), _number(row.get('score'))]
+                   for row in (result.get('branches') or {}).get('branches') or [] if row.get('name')]
     return {"kind": "heroes", "label": label, "scope": scope, "rows": rows, "total": len(heroes), "branches": branches,
-            "summary": summary, "hint": hint, "text": text}
+            "summary": summary, "hint": hint, "text": text, "detail_sections": present([
+                table('英雄详细数据', ['英雄', '胜场', '负场', '熟练度', '解锁徽章'], detail_rows,
+                      ['text', 'integer', 'integer', 'integer', 'integer']),
+                table('分路战力', ['分路', '段位', '分路战力'], branch_rows, ['text', 'integer', 'integer'])])}
 
 
 OPERATION_NAMES = {

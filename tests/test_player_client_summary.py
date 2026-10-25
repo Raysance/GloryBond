@@ -169,7 +169,9 @@ class ModelAndImageTests(unittest.TestCase):
         with patch.object(ImageDraw.ImageDraw, "text", track):
             image = RENDER.render_summary(report, ZFILE.player_client_report_font)
         self.assertEqual(len(drawn), 10)
-        self.assertEqual(image.size, (1120, 1660))
+        self.assertEqual(image.width, 1120)
+        self.assertGreater(image.height, 1660)
+        self.assertLess(image.width * image.height, 8_000_000)
 
     def test_hero_cards_use_real_game_names_and_icons_without_template_backgrounds(self):
         cards = import_hok_module("business.player_client")
@@ -197,8 +199,9 @@ class ModelAndImageTests(unittest.TestCase):
              patch.object(ImageDraw.ImageDraw, "text", track):
             one = RENDER.render_summary(hero, ZFILE.player_client_report_font, avatar_bytes={"106": content.getvalue()})
             many = RENDER.render_summary(heroes, ZFILE.player_client_report_font, avatar_bytes={"106": content.getvalue()})
-        self.assertEqual(one.getpixel((100, 146)), (18, 58, 188))
-        self.assertEqual(many.getpixel((100, 316)), (18, 58, 188))
+        self.assertEqual(one.getpixel((120, 186)), (18, 58, 188))
+        body_y = RENDER._header_plan(heroes, ZFILE.player_client_report_font, {})[3]
+        self.assertEqual(many.getpixel((100, body_y + 156)), (18, 58, 188))
         self.assertIn("LYG.未央", drawn)
         self.assertIn("团战发动机", drawn)
         self.assertFalse(any(word in text for text in drawn for word in ("配置昵称", "暂缺", "未取得", "说明", "raw", "UID")))
@@ -252,17 +255,21 @@ class ModelAndImageTests(unittest.TestCase):
         source = profile_result()
         source["profile"].update(szAcntName="很长的昵称" * 30, ullPopularity=2**64 - 1, szSignatureInfo="很长的签名" * 30)
         model = MODELS.profile_report("甲", source)
-        original, clipped = ImageDraw.ImageDraw.text, []
+        next_row_y = 128 + RENDER._header_plan(model, ZFILE.player_client_report_font, {})[2][0]
+        original, clipped, names = ImageDraw.ImageDraw.text, [], []
         def track(draw, xy, text, *args, **kwargs):
             box = draw.textbbox(xy, text, font=kwargs.get("font"), anchor=kwargs.get("anchor"))
             self.assertGreaterEqual(box[0], 24)
             self.assertLessEqual(box[2], 1096)
             if str(text).endswith("…"):
                 clipped.append(str(text))
+            if xy[0] == 88 and xy[1] < next_row_y and kwargs['font'].size == 32:
+                names.append(str(text))
             return original(draw, xy, text, *args, **kwargs)
         with patch.object(ImageDraw.ImageDraw, "text", track):
             RENDER.render_summary(model, ZFILE.player_client_report_font)
-        self.assertTrue(any(value.startswith("很长的昵称") for value in clipped))
+        self.assertEqual(''.join(names), model['name'])
+        self.assertFalse(any(value.startswith("很长的昵称") for value in clipped))
         self.assertTrue(any(value.startswith("很长的签名") for value in clipped))
 
     def test_facade_sends_only_the_image_and_falls_back_to_readable_facts(self):
