@@ -196,6 +196,25 @@ class ClientOnlineTests(unittest.TestCase):
         self.assertEqual(ZTIME.elapsed_minutes_text(480), "8min")
         self.assertEqual(ZTIME.elapsed_minutes_text(None), "")
 
+    def test_known_online_without_a_game_notification_is_shown_without_guessing_idle(self):
+        unknown = state(2, '仅确认在线')
+        unknown.update(game_state=None, game_state_code=None, game_substate=None,
+                       is_in_game=None, hero_name=None, current_mode=None)
+        message, errors = self.report([state(1, '已确认对局'), unknown])
+        self.assertEqual(errors, '')
+        self.assertIn('在线 2 人', message)
+        self.assertIn('🟢 仅确认在线  在线', message)
+        self.assertNotIn('💤 仅确认在线', message)
+        self.assertIn('🎮 排位赛', message)
+
+    def test_rate_limit_report_distinguishes_failed_refresh_suppression_from_server_cooldown(self):
+        for reason in ('online_cache', 'cooldown', 'quota', 'busy'):
+            with self.subTest(reason=reason):
+                self.query.side_effect = ZAPI.PlayerClientRateLimited(42, reason)
+                _, errors = ZFUNC.online_process()
+                self.assertIn(reason, errors)
+                self.assertIn("'retry_after_seconds': 42", errors)
+
     def test_client_failure_preserves_steam_and_does_not_leak_transport_material(self):
         self.query.side_effect = TimeoutError("PRIVATE_SENTINEL")
         with patch.object(ONLINE, "steam_userlist", {"steam": "steam-1"}), \

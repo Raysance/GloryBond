@@ -42,7 +42,7 @@ def _client_online_report():
     snapshot = _zfunc_call("player_client_online_snapshot")
     if not isinstance(snapshot, dict) or snapshot.get("complete") is not True:
         raise ValueError("Incomplete client friend snapshot")
-    games, teams, idle, seen = {}, [], [], set()
+    games, teams, idle, online_only, seen = {}, [], [], [], set()
     for state in snapshot["players"]:
         ref = state.get("player") or {}
         identity = str(ref.get("uid")), str(ref.get("logic_world_id"))
@@ -65,6 +65,8 @@ def _client_online_report():
             games.setdefault(key, []).append(player)
         elif state.get("game_state") in {"team", "waiting_multiplayer"} or state.get("game_substate") in {"room_or_team", "match_queue"}:
             teams.append(player)
+        elif state.get("game_state") is None:
+            online_only.append(player)
         else:
             idle.append(player)
 
@@ -88,7 +90,7 @@ def _client_online_report():
                 fields.extend((player["party"], player["size"]))
             message += "   • " + "  ".join(value for value in fields if value) + "\n"
         message += "\n"
-    if teams or idle:
+    if teams or idle or online_only:
         if games:
             message += "─────────────\n"
         for player in teams:
@@ -96,6 +98,8 @@ def _client_online_report():
             message += f"👥 {player['name']}" + ("  " + context if context else "") + "\n"
         for player in idle:
             message += f"💤 {player['name']}\n"
+        for player in online_only:
+            message += f"🟢 {player['name']}  在线\n"
     return {"online_cnt": len(seen), "text": message.rstrip("\n")}
 
 

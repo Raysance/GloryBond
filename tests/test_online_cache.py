@@ -72,6 +72,28 @@ class OnlineCacheTests(unittest.TestCase):
         self.assertEqual(ZFUNC.player_client_online_snapshot()['players'], [])
         self.query.assert_called_once()
 
+    def test_complete_roster_with_sparse_game_states_is_cached_as_data_without_a_failure_window(self):
+        value = snapshot()
+        value['states_refreshed'] = False
+        value['players'][0].update(game_state=None, game_state_code=None, is_in_game=None)
+        self.query.return_value = value
+        self.assertEqual(ZFUNC.player_client_online_snapshot(), value)
+        self.now = 59
+        self.assertEqual(ZFUNC.player_client_online_snapshot(), value)
+        self.assertIsNotNone(DYNAMIC.player_client_online_cache['snapshot'])
+        self.query.assert_called_once_with('friend_states')
+
+    def test_failed_refresh_suppression_reports_its_local_source_and_remaining_time(self):
+        self.query.side_effect = QueryTimeout()
+        with self.assertRaises(QueryTimeout):
+            ZFUNC.player_client_online_snapshot()
+        self.now = 1
+        with self.assertRaises(ZAPI.PlayerClientRateLimited) as caught:
+            ZFUNC.player_client_online_snapshot()
+        self.assertEqual(ZAPI.player_client_error_info(caught.exception),
+            {'type': 'PlayerClientRateLimited', 'reason': 'online_cache', 'retry_after_seconds': 59})
+        self.query.assert_called_once()
+
     def test_simultaneous_requests_share_one_refresh_including_the_waiters(self):
         start, entered, release = threading.Barrier(3, timeout=2), threading.Event(), threading.Event()
         def delayed(*args):

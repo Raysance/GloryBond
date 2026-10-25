@@ -19,6 +19,11 @@ def player_client_error_info(error):
     from hok_research import QueryTimeout
 
     info = {"type": type(error).__name__}
+    if isinstance(error, PlayerClientRateLimited):
+        if error.reason in {"interval", "quota", "cooldown", "busy", "online_cache"}:
+            info["reason"] = error.reason
+        if type(error.retry_after) is int and error.retry_after >= 0:
+            info["retry_after_seconds"] = error.retry_after
     for field in ("code", "command", "message_id"):
         value = getattr(error, field, None)
         if type(value) is int:
@@ -90,7 +95,7 @@ class PlayerClientAdapter:
             self.on_error(error, login=False)
             raise
 
-    def _read(self, method, *args, **options):
+    def _read(self, method, *args, _timeout=None, **options):
         from collections import OrderedDict
         from copy import deepcopy
         from .. import ztime
@@ -102,6 +107,7 @@ class PlayerClientAdapter:
         key = (method, args, tuple(sorted(options.items())))
         ttl = float(self.settings.get("query_cache_ttl_seconds", 60))
         now = ztime.monotonic_seconds()
+        timeout = float(self.settings['timeout_seconds'] if _timeout is None else _timeout)
         cached = self._cache.get(key) if cacheable else None
         if cached is not None:
             if now < cached[0]:
@@ -115,12 +121,12 @@ class PlayerClientAdapter:
             self.gate("query")
         admitted = ztime.monotonic_seconds()
         try:
-            result = getattr(self.client, method)(*args, timeout=float(self.settings["timeout_seconds"]), **options)
+            result = getattr(self.client, method)(*args, timeout=timeout, **options)
         except Exception as error:
             log_message(f"PLAYER_CLIENT_REQUEST_FAILED: operation={method} info={player_client_error_info(error)} "
                         f"gate_ms={round((admitted-now)*1000)} "
                         f"request_ms={round((ztime.monotonic_seconds()-admitted)*1000)} "
-                        f"timeout_ms={round(float(self.settings['timeout_seconds'])*1000)}")
+                        f"timeout_ms={round(timeout*1000)}")
             self.on_error(error, login=False)
             raise
         log_message(f"PLAYER_CLIENT_READ_TIMING: operation={method} cached=false "
@@ -142,6 +148,13 @@ class PlayerClientAdapter:
         result["branch_statistics"] = ([{"branch": key, "display": battle_display([row])}
             for key, row in zip(("top", "mid", "bot", "jungle", "assist"), rows)] if branch is None else [])
         return result
+
+    def _friend_state_sample(self, snapshot):
+        # 5233 elicits an uncounted notification stream, not one reply per
+        # online friend. A quiet window keeps membership and the connection.
+        return self._read('refresh_friend_states', snapshot, require_all=False,
+            _timeout=min(float(self.settings['timeout_seconds']),
+                         float(self.settings.get('friend_state_wait_seconds', 3))))
 
     def _hero_page(self, target, *, hero_id=None):
         """Compose only the requested page sources, gating every real request."""
@@ -198,9 +211,10 @@ class PlayerClientAdapter:
             if operation == "friends":
                 return snapshot.to_json_value(gameplay_catalog=catalog)
             if any(state.online is True for state in snapshot.players):
-                snapshot = self._read("refresh_friend_states", snapshot)
+                snapshot = self._friend_state_sample(snapshot)
             states = snapshot.players
             return {"complete": snapshot.complete, "total": len(states),
+                    "states_refreshed": snapshot.states_refreshed,
                     "players": [state.to_json_value(gameplay_catalog=catalog) for state in states]}
         if not player:
             raise ValueError("An explicitly configured target player is required")
@@ -211,7 +225,7 @@ class PlayerClientAdapter:
             snapshot = self._read("friends")
             state = snapshot.by_player(target)
             if state is not None and state.online is True:
-                state = self._read("refresh_friend_states", snapshot).by_player(target)
+                state = self._friend_state_sample(snapshot).by_player(target)
             return {"found": state is not None,
                     "state": state.to_json_value(gameplay_catalog=GameplayCatalog.bundled()) if state is not None else None}
         if operation == "profile_summary":
