@@ -93,16 +93,9 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=True)
 
     return "\n".join(lines)
 # 单一玩家、所有英雄
-def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, this_season=False):
-    """统计玩家在最近若干天内的英雄表现，返回 JSON 风格字符串和可读摘要。
-    - rcv_msg: 包含用户名的消息，使用 extract_name 解析
-    - days: 向前统计天数
-    - top_n: 每个榜单返回的条目数
-    - min_games: 计算胜率/评分榜时的最小出场次数阈值
-    返回字符串（先 JSON，再人类可读摘要）。
-    """
+def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, this_season=False, *, as_report=False):
+    """Return the existing summary, or its structured facts for the two-image reply."""
     from ..ztime import time_r, time_delta, str_to_time
-    import json
 
     userid = userlist[username]
 
@@ -116,8 +109,6 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
     history, duration = fetch_history(userid=userid, start_date=start_date, end_date=end_date)
     games = history.get(username, []) if history else []
     total_games = len(games)
-    if total_games == 0:
-        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
 
     # 聚合每个英雄的统计
     hero_stats = {}
@@ -149,6 +140,7 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
 
     # 计算指标
     metrics = {}
+    hero_ids = {name: str(hero_id) for hero_id, name in HeroList.items()}
     for hn, s in hero_stats.items():
         cnt = s['count']
         wins = s['wins']
@@ -160,10 +152,13 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
         play_rate = cnt / total_games
         metrics[hn] = {
             'hero': hn,
+            'hero_id': hero_ids.get(hn, ''),
+            'tier': tier_dict.get(hn),
             'count': cnt,
             'play_rate': play_rate,
             'win_rate': win_rate,
             'avg_grade': avg_grade,
+            'grade_available': bool(s['grades']),
             'kda': [round(avg_k, 2), round(avg_d, 2), round(avg_a, 2)],
             'mvp': s['mvp']
         }
@@ -173,6 +168,22 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
     eligible = [m for m in metrics.values() if m['count'] >= max(1, min_games)]
     top_by_win = sorted(eligible, key=lambda x: x['win_rate'], reverse=True)[:top_n]
     top_by_grade = sorted(eligible, key=lambda x: x['avg_grade'], reverse=True)[:top_n]
+
+    if as_report:
+        report = {'kind': 'hero_history', 'label': '—', 'scope': '本赛季' if this_season else TimeLim,
+                  'total': total_games, 'hero_count': len(metrics),
+                  'average_tier': round(total_tier_val / tier_counted_games, 2) if tier_counted_games else None,
+                  'sections': []}
+        for title, minimum, rows in (('出场率 TOP', None, top_by_play),
+                                     ('胜率 TOP', max(1, min_games), top_by_win),
+                                     ('评分 TOP', max(1, min_games), top_by_grade)):
+            report['sections'].append({'title': title, 'minimum_games': minimum, 'rows': [
+                {**row, 'avg_grade': row['avg_grade'] if row['grade_available'] else None}
+                for row in rows]})
+        return report
+
+    if total_games == 0:
+        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
 
     # 可读摘要
     lines = []
@@ -205,6 +216,27 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
         lines.append("  无满足最小出场次数的英雄")
 
     return "\n".join(lines)
+
+
+def hero_history_text(report):
+    """Readable fallback for the same facts used by the history leaderboard card."""
+    tier = report['average_tier'] if report['average_tier'] is not None else '—'
+    lines = [f"{report['label']} · {report['scope']}英雄汇总",
+             f"共 {report['total']} 场 · {report['hero_count']} 位英雄 · 平均梯度 {tier}"]
+    for section in report['sections']:
+        minimum = section['minimum_games']
+        lines.append(section['title'] + (f"（至少{minimum}场）" if minimum else ''))
+        for row in section['rows']:
+            grade = '—' if row['avg_grade'] is None else f"{row['avg_grade']:.1f}"
+            tier = f" · 梯度{row['tier']}" if row['tier'] is not None else ''
+            kda = '/'.join(str(value) for value in row['kda'])
+            lines.append(f"{row['hero']}{tier} · {row['count']}场 · 出场率{row['play_rate']*100:.1f}% · "
+                         f"胜率{row['win_rate']*100:.1f}% · 均分{grade} · KDA {kda}")
+        if not section['rows']:
+            lines.append('—')
+    return '\n'.join(lines)
+
+
 # 所有玩家、所有英雄
 def mult_player_mult_hero_process(days=30, top_n=5, min_games=5, this_season=False):
     """统计所有玩家在最近若干天内的英雄总体表现，返回人类可读摘要字符串。

@@ -191,8 +191,48 @@ def heroes_card(report, font, bands, avatar_bytes):
     return c.image
 
 
+def history_heroes_card(report, font, bands, avatar_bytes):
+    sections = report["sections"]
+    height = 280 + sum(104 + max(1, len(section["rows"])) * 112 for section in sections)
+    c = Card(font, height if report["total"] else 420)
+    c.text(64, 62, "英雄表现汇总", 24, ACCENT, bold=True)
+    c.text(64, 109, report["label"], 42, bold=True, width=730)
+    c.text(1056, 124, report["scope"], 27, ACCENT, anchor="rt", width=240)
+    tier = "—" if report["average_tier"] is None else str(report["average_tier"])
+    c.text(64, 170, f"共 {report['total']} 场  ·  使用 {report['hero_count']} 位英雄  ·  平均梯度 {tier}", 24, MUTED, width=992)
+    c.rule(210)
+    if not report["total"]:
+        c.text(64, 258, "暂无对局记录", 27, MUTED)
+        return c.image
+    y = 240
+    for section in sections:
+        c.text(64, y, section["title"], 25, ACCENT, bold=True)
+        if section["minimum_games"]:
+            c.text(1056, y + 4, f"至少 {section['minimum_games']} 场", 21, MUTED, anchor="rt")
+        c.text(64, y + 46, "英雄", 21, MUTED)
+        for x, title in ((480, "场次"), (660, "出场率"), (850, "胜率"), (1056, "均分")):
+            c.text(x, y + 46, title, 21, MUTED, anchor="rt")
+        for index, row in enumerate(section["rows"]):
+            top = y + 80 + index * 112
+            c.avatar(avatar_bytes.get(row["hero_id"]), 64, top)
+            c.text(156, top + 4, row["hero"], 28, bold=True, width=210)
+            if row["tier"] is not None:
+                c.text(156, top + 44, "梯度 " + str(row["tier"]), 18, MUTED, width=210)
+            c.text(156, top + 74, "KDA  " + " / ".join(str(value) for value in row["kda"]), 18, MUTED, width=900)
+            for x, value, percent in ((480, row["count"], False), (660, row["play_rate"] * 100, True),
+                                      (850, row["win_rate"] * 100, True), (1056, row["avg_grade"], False)):
+                color = win_rate_color(value, bands) if x == 850 else INK
+                c.text(x, top + 18, number(value, percent=percent), 30, color, bold=True,
+                       anchor="rt", width=100 if x == 480 else 155)
+            c.rule(top + 103)
+        if not section["rows"]:
+            c.text(64, y + 80, "—", 27, MUTED)
+        y += 104 + max(1, len(section["rows"])) * 112
+    return c.image
+
+
 def render_summary(report, font, *, win_rate_bands=(), avatar_bytes=None):
     if report["kind"] == "profile":
         return profile_card(report, font, win_rate_bands)
-    renderer = heroes_card if report["kind"] == "heroes" else statistics_card
+    renderer = {"heroes": heroes_card, "hero_history": history_heroes_card}.get(report["kind"], statistics_card)
     return renderer(report, font, win_rate_bands, avatar_bytes or {})

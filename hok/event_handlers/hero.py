@@ -15,7 +15,7 @@ async def honor_power_reply(event):
     return realname, reply
 
 
-async def hero_statistics_reply(event):
+async def hero_statistics_reply(event, *, as_report=False):
     from ..zfunc import (
         extract_heroname,
         extract_name,
@@ -47,10 +47,13 @@ async def hero_statistics_reply(event):
                 hero_name,
             )
         if not player_plural and hero_plural:
+            options = {"this_season": this_season}
+            if as_report:
+                options["as_report"] = True
             return await asyncio.to_thread(
                 single_player_mult_hero_process,
                 matching_name,
-                this_season=this_season,
+                **options,
             )
         if player_plural and not hero_plural:
             return await asyncio.to_thread(

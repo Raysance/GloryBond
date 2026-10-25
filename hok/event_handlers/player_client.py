@@ -16,7 +16,7 @@ HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
         "其他接口的玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认按最高战力展示前几个英雄。\n"
         "英雄详情支持英雄名、配置别名或数字ID；例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 小乔；"
         "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
-        "也可发送 #我的资料、#玩家的英雄名、#玩家的英雄、#玩家的数据；英雄查询保留原有文案并附图片。\n"
+        "也可发送 #我的资料、#玩家的英雄名、#玩家的英雄、#玩家的数据；英雄汇总返回原统计图和客户端英雄图，单英雄保留原文案并附图片。\n"
         "数据默认当前赛季、所有游戏、全部分路；可追加当前赛年、全部比赛、中路/对抗路/发育路/打野/游走，"
         "例如 #我本赛季对抗路数据、#我游走本赛季数据、#我打野这个赛季的数据、#我的全部数据。"
         "必须带 # 或 ＃ 前缀，资料和数据使用简洁卡片图片。")
@@ -206,7 +206,7 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=N
 
 
 async def original_hero_reply(event):
-    """Keep the existing personal hero reply before the client supplement."""
+    """Reuse personal hero statistics, returning card facts for the hero summary."""
     if parse_client_command(event.get_plaintext()) is not None:
         return None
     tokens = parse_client_request(event.get_plaintext())
@@ -223,6 +223,8 @@ async def original_hero_reply(event):
     from ..zutil import log_message
 
     try:
+        if ALIASES.get(tokens[0], tokens[0]) == "heroes":
+            return await hero_statistics_reply(event, as_report=True)
         return await hero_statistics_reply(event)
     except asyncio.CancelledError:
         raise
@@ -232,13 +234,18 @@ async def original_hero_reply(event):
 
 
 async def reply_stream(event):
-    """Fetch both sources concurrently while delivering the original reply first."""
+    """Fetch both sources concurrently; hero summaries deliver two ordered cards."""
     client = asyncio.create_task(command_reply(event))
     try:
         original = await original_hero_reply(event)
         result = await client
         if original:
-            if isinstance(result, dict) and result.get("query_label") and result.get("player_name"):
+            if isinstance(original, dict) and original.get("kind") == "hero_history":
+                from ..zfunc import hero_history_image_report
+
+                player_name = result.get("player_name") if isinstance(result, dict) else None
+                original = await asyncio.to_thread(hero_history_image_report, original, player_name=player_name)
+            elif isinstance(original, str) and isinstance(result, dict) and result.get("query_label") and result.get("player_name"):
                 label, name = result["query_label"], result["player_name"]
                 for prefix in (f"【统计信息】 {label}的", f"{label} 在"):
                     if original.startswith(prefix):

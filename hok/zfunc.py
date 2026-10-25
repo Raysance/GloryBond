@@ -977,7 +977,7 @@ def single_player_single_hero_process(
 
 
 def single_player_mult_hero_process(
-    username, days=30, top_n=3, min_games=2, this_season=False
+    username, days=30, top_n=3, min_games=2, this_season=False, *, as_report=False
 ):
     return _hero_statistics_business.single_player_mult_hero_process(
         username,
@@ -985,6 +985,7 @@ def single_player_mult_hero_process(
         top_n=top_n,
         min_games=min_games,
         this_season=this_season,
+        as_report=as_report,
     )
 
 
@@ -1912,6 +1913,24 @@ def player_client_heartbeat():
             dmc.player_client_adapter = None
     finally:
         dmc.player_client_lock.release()
+
+
+def hero_history_image_report(report, *, player_name="—"):
+    """Render the existing history leaderboards with the same client card style."""
+    from .business.player_client import _text
+    from .tools.gen_player_summary import render_summary
+    from . import zfile
+
+    report = {**report, "label": _text(player_name) or "—"}
+    try:
+        hero_ids = [row["hero_id"] for section in report["sections"] for row in section["rows"] if row["hero_id"]]
+        image = render_summary(report, zfile.player_client_report_font,
+                               avatar_bytes=player_client_hero_avatars(hero_ids),
+                               win_rate_bands=player_client_config["win_rate_bands"])
+        return {"text": "", "image_path": zfile.save_player_client_report(image)}
+    except Exception as error:
+        log_message(f"HERO_HISTORY_IMAGE_FAILED: error={type(error).__name__}")
+        return {"text": _hero_statistics_business.hero_history_text(report), "image_path": None}
 
 
 def player_client_hero_report(label, result):
