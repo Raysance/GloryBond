@@ -1843,8 +1843,13 @@ def player_client_rate_gate(kind):
 def player_client_request_error(error, *, login=False):
     """Privacy is not a risk signal; unknown rejection is never retried."""
     from .zapi import PlayerClientRateLimited
+    from hok_research import QueryTimeout
 
     if isinstance(error, PlayerClientRateLimited):
+        return
+    # An incomplete read is not a server rejection. The query facade discards
+    # its connection; the next explicit request still passes both rate gates.
+    if not login and isinstance(error, QueryTimeout):
         return
     rates = player_client_config["rate_limit"]
     code = getattr(error, "code", None)

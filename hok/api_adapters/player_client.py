@@ -15,7 +15,9 @@ class PlayerClientRateLimited(RuntimeError):
 
 
 def player_client_error_info(error):
-    """Only protocol identifiers may enter logs; never account material or payloads."""
+    """Log only types, protocol IDs and counts, never account material or payloads."""
+    from hok_research import QueryTimeout
+
     info = {"type": type(error).__name__}
     for field in ("code", "command", "message_id"):
         value = getattr(error, field, None)
@@ -26,6 +28,9 @@ def player_client_error_info(error):
         for field in ("code", "detail"):
             if type(control.get(field)) is int:
                 info["control_" + field] = control[field]
+    if isinstance(error, QueryTimeout):
+        info["response_chunks"] = len(error.partial_chunks)
+        info["response_records"] = len(error.partial_records)
     return info
 
 
@@ -103,7 +108,10 @@ class PlayerClientAdapter:
         try:
             result = getattr(self.client, method)(*args, timeout=float(self.settings["timeout_seconds"]), **options)
         except Exception as error:
-            log_message(f"PLAYER_CLIENT_REQUEST_FAILED: operation={method} info={player_client_error_info(error)}")
+            log_message(f"PLAYER_CLIENT_REQUEST_FAILED: operation={method} info={player_client_error_info(error)} "
+                        f"gate_ms={round((admitted-now)*1000)} "
+                        f"request_ms={round((ztime.monotonic_seconds()-admitted)*1000)} "
+                        f"timeout_ms={round(float(self.settings['timeout_seconds'])*1000)}")
             self.on_error(error, login=False)
             raise
         log_message(f"PLAYER_CLIENT_READ_TIMING: operation={method} cached=false "

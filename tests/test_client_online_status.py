@@ -143,6 +143,17 @@ class ClientOnlineTests(unittest.TestCase):
         self.query.side_effect = None
         self.assertEqual(self.report([]), ("🐟🐟无人在线\n\n只跟踪王者好友", ""))
 
+    def test_timeout_report_identifies_friend_query_and_safe_response_counts(self):
+        from hok_research import QueryTimeout
+        self.query.side_effect = QueryTimeout(chunks=[{'private': 'PRIVATE_SENTINEL'}])
+        message, errors = ZFUNC.online_process()
+        self.assertEqual(message, '在线查询暂时失败\n\n只跟踪王者好友')
+        for expected in ('friend_states', 'QueryTimeout', 'response_chunks', 'response_records'):
+            self.assertIn(expected, errors)
+        self.assertNotIn('PRIVATE_SENTINEL', message + errors)
+        self.query.assert_called_once_with('friend_states')
+        self.camp.assert_not_called()
+
     def test_no_bound_main_players_avoids_game_request_and_steam_failures_keep_wzry(self):
         with patch.object(ONLINE, "userlist", {}):
             self.assertEqual(ZFUNC.online_process(), ("🐟🐟无人在线\n\n只跟踪王者好友", ""))

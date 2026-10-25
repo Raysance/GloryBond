@@ -218,7 +218,7 @@ def online_process(*, use_client=True):
 
                     client_failed = True
                     traversal_errors.append(_zfunc_call("_build_traversal_error", "online.player_client",
-                        realname, {}, RuntimeError(str(player_client_error_info(error)))))
+                        realname, {"operation": "friend_states"}, RuntimeError(str(player_client_error_info(error)))))
             elif request_type == "wzry":
                 try:
                     result = future.result()

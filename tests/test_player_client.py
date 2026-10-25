@@ -160,6 +160,30 @@ class AdapterTests(unittest.TestCase):
         fake.search_players.assert_called_once()
         failed.assert_called_once()
 
+    def test_incomplete_response_logs_only_counts_and_stage_timing_without_caching_or_retry(self):
+        from hok_research import QueryTimeout
+        clock = import_hok_module('ztime')
+        util = import_hok_module('zutil')
+        error = QueryTimeout(records=[{'private': 'PRIVATE_SENTINEL'}],
+                             chunks=[{'secret': 'PRIVATE_SENTINEL'}, {'secret': 'PRIVATE_SENTINEL'}])
+        adapter, fake = self.make()
+        adapter.settings['timeout_seconds'] = 30
+        fake.friend_states.side_effect = error
+        with patch.object(clock, 'monotonic_seconds', side_effect=[0, 2, 32]), \
+             patch.object(util, 'log_message') as log:
+            with self.assertRaises(QueryTimeout):
+                adapter.query('friend_states')
+        line = log.call_args.args[0]
+        for expected in ('operation=friend_states', 'response_chunks', 'response_records',
+                         'gate_ms=2000', 'request_ms=30000', 'timeout_ms=30000'):
+            self.assertIn(expected, line)
+        self.assertNotIn('PRIVATE_SENTINEL', line)
+        self.assertEqual(ADAPTER.player_client_error_info(error),
+                         {'type': 'QueryTimeout', 'response_chunks': 2, 'response_records': 1})
+        self.assertEqual(adapter._cache, {})
+        fake.friend_states.assert_called_once_with(timeout=30)
+        adapter.on_error.assert_called_once_with(error, login=False)
+
     def test_homepage_paces_both_requests(self):
         from hok_research import Profile, PlayerRef
         gate = Mock()
@@ -215,6 +239,44 @@ class RateTests(unittest.TestCase):
             self.assertEqual(redis.eval.call_args.args[-1], 900000)
             ZFUNC.player_client_request_error(TimeoutError(), login=True)
             self.assertEqual(redis.eval.call_args.args[-1], 1800000)
+
+    def test_query_timeout_does_not_open_global_cooldown_but_login_and_rejection_still_do(self):
+        from hok_research import QueryTimeout, QueryRejected
+        redis = Mock()
+        with patch.object(DYNAMIC, 'redis_deamon', redis), patch.object(ZFUNC, 'player_client_config', self.settings):
+            ZFUNC.player_client_request_error(QueryTimeout())
+            redis.eval.assert_not_called()
+            ZFUNC.player_client_request_error(QueryRejected(12345, {}))
+            self.assertEqual(redis.eval.call_args.args[-1], 60000)
+            ZFUNC.player_client_request_error(QueryRejected(262034, {}))
+            self.assertEqual(redis.eval.call_args.args[-1], 900000)
+            ZFUNC.player_client_request_error(QueryTimeout(), login=True)
+            self.assertEqual(redis.eval.call_args.args[-1], 1800000)
+
+    def test_query_timeout_discards_connection_and_releases_slot_without_relogin_or_replay(self):
+        import threading
+        from hok_research import QueryTimeout
+        zapi = import_hok_module('zapi')
+        zfile = import_hok_module('zfile')
+        adapter, factory, lock = Mock(), Mock(), threading.Lock()
+        factory.return_value = adapter
+        adapter.query.side_effect = QueryTimeout()
+        settings = {**self.settings, 'enabled': True}
+        with patch.object(ZFUNC, 'player_client_config', settings), \
+             patch.object(DYNAMIC, 'player_client_lock', lock), \
+             patch.object(DYNAMIC, 'player_client_adapter', None), \
+             patch.object(DYNAMIC, 'player_client_session_fingerprint', None), \
+             patch.object(zapi, 'PlayerClientAdapter', factory), \
+             patch.object(zfile, 'refresh_login_credentials', return_value=''), \
+             patch.object(zfile, 'player_client_state_paths', return_value={}), \
+             patch.object(ZFUNC, 'log_message'):
+            with self.assertRaises(QueryTimeout):
+                ZFUNC.player_client_query('friend_states')
+            self.assertIsNone(DYNAMIC.player_client_adapter)
+            self.assertFalse(lock.locked())
+        factory.assert_called_once()
+        adapter.query.assert_called_once_with('friend_states')
+        adapter.close.assert_called_once()
 
     def test_normal_minute_queue_wait_keeps_connection_alive_and_retains_admission_limits(self):
         self.settings['rate_limit']['max_wait_seconds']=65
