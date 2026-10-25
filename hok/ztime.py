@@ -47,6 +47,11 @@ def sleep_seconds(seconds):
     time.sleep(max(0, float(seconds)))
 
 
+def elapsed_minutes_text(seconds):
+    """Format a known snapshot duration in the existing online-report style."""
+    return f"{seconds // 60}min" if type(seconds) is int and seconds >= 0 else ""
+
+
 def datetime_from_parts(year, month, day, hour=0, minute=0, second=0):
     """Build a naive deployment-local datetime from numeric parts."""
     return datetime.datetime(

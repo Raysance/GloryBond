@@ -55,7 +55,7 @@ class OnlineStatusTests(unittest.TestCase):
             "gameextrainfo": "测试游戏",
         }
         try:
-            message, error_report = ZFUNC.online_process()
+            message, error_report = ZFUNC.camp_online_process()
         finally:
             ONLINE_STATUS.userlist = originals["userlist"]
             ONLINE_STATUS.roleidlist = originals["roleidlist"]

@@ -877,6 +877,13 @@ from .business import online_status as _online_status_business
 
 def online_process():
     return _online_status_business.online_process()
+
+
+def camp_online_process():
+    """Retain the previous Camp-based online query for explicit legacy callers."""
+    return _online_status_business.online_process(use_client=False)
+
+
 from .business import rankings as _rankings_business
 
 

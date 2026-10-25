@@ -1048,14 +1048,29 @@
       "id": "games_3",
       "title": "在线状态",
       "parent": "games",
-      "summary": "战绩、排行与在线状态的在线状态",
+      "summary": "#在线的王者状态改用官方客户端好友快照，仅展示配置主名单内已绑定的可见在线好友；按完整战局标识分组，支持组排人数、组队模式与地图，Steam保持原样。",
       "keywords": [
-        "在线状态"
+        "在线状态",
+        "官方客户端",
+        "好友游戏状态",
+        "组排",
+        "组队地图",
+        "队伍人数"
       ],
       "document": {
         "path": "shared/agent/manual/chapters/games.md",
         "heading": "在线状态"
-      }
+      },
+      "code": [
+        {
+          "path": "hok/business/online_status.py",
+          "symbol": "_client_online_report"
+        },
+        {
+          "path": "hok/zfunc.py",
+          "symbol": "online_process"
+        }
+      ]
     },
     {
       "id": "games_4",
