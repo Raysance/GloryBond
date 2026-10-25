@@ -93,20 +93,21 @@ class FriendAdapterTests(unittest.TestCase):
         adapter.client, adapter.gate, adapter.on_error = Mock(), Mock(), Mock()
         return adapter
 
-    def test_friends_and_batch_states_each_use_one_fresh_paced_sdk_call(self):
+    def test_batch_states_read_membership_and_refresh_game_states_through_separate_gates(self):
         adapter = self.adapter()
         players = (presence(), presence("同UID另一服", world=99, online=0))
         adapter.client.friends.return_value = FriendList(tuple(p.raw for p in players), True, 2)
-        adapter.client.friend_states.return_value = players
+        adapter.client.refresh_friend_states.return_value = adapter.client.friends.return_value
         for operation in ("friends", "friend_states", "friend_states"):
             result = adapter.query(operation)
             self.assertTrue(result["complete"])
             self.assertEqual(result["total"], 2)
             self.assertEqual(len(result["players"]), 2)
             self.assertEqual(result["players"][0]["ranked_party_size"], 3)
-        self.assertEqual(adapter.client.friends.call_count, 1)
-        self.assertEqual(adapter.client.friend_states.call_count, 2)
-        self.assertEqual([c.args[0] for c in adapter.gate.call_args_list], ["query"] * 3)
+        self.assertEqual(adapter.client.friends.call_count, 3)
+        self.assertEqual(adapter.client.refresh_friend_states.call_count, 2)
+        self.assertEqual([c.args[0] for c in adapter.gate.call_args_list], ["query"] * 5)
+        adapter.client.friend_states.assert_not_called()
         adapter.client.profile.assert_not_called()
         adapter.client.friend_state.assert_not_called()
         adapter.client.add_friend.assert_not_called()
@@ -114,13 +115,27 @@ class FriendAdapterTests(unittest.TestCase):
     def test_single_friend_passes_full_reference_and_absence_is_explicit(self):
         adapter = self.adapter()
         ref = {"uid": 7, "logic_world_id": 99, "fake_description_id": 9}
-        adapter.client.friend_state.return_value = presence(world=99, online=0)
+        offline = presence(world=99, online=0)
+        adapter.client.friends.return_value = FriendList((presence().raw, offline.raw), True, 2)
         result = adapter.query("friend_state", player=ref)
-        adapter.client.friend_state.assert_called_once_with(PlayerRef(7, 99, 9), timeout=1)
+        adapter.client.friends.assert_called_once_with(timeout=1)
+        adapter.client.refresh_friend_states.assert_not_called()
         self.assertTrue(result["found"])
         self.assertFalse(result["state"]["online"])
-        adapter.client.friend_state.return_value = None
+        adapter.client.friends.return_value = FriendList((presence().raw,), True, 1)
         self.assertEqual(adapter.query("friend_state", player=ref), {"found": False, "state": None})
+        adapter.client.friend_state.assert_not_called()
+
+    def test_online_single_friend_reads_the_same_refreshed_list_by_full_uid_world(self):
+        adapter = self.adapter()
+        base = FriendList((presence().raw,), True, 1)
+        fresh = presence('刷新后的昵称')
+        adapter.client.friends.return_value = base
+        adapter.client.refresh_friend_states.return_value = FriendList((fresh.raw,), True, 1)
+        result = adapter.query('friend_state', player={'uid': 7, 'logic_world_id': 8, 'fake_description_id': 9})
+        self.assertEqual(result['state']['name'], '刷新后的昵称')
+        adapter.client.refresh_friend_states.assert_called_once_with(base, timeout=1)
+        self.assertEqual(adapter.gate.call_count, 2)
 
     def test_account_friend_list_cannot_silently_ignore_a_supplied_other_player(self):
         adapter = self.adapter()
@@ -135,13 +150,35 @@ class FriendAdapterTests(unittest.TestCase):
         adapter.gate.side_effect = ADAPTER.PlayerClientRateLimited(50)
         with self.assertRaises(ADAPTER.PlayerClientRateLimited):
             adapter.query("friend_states")
-        adapter.client.friend_states.assert_not_called()
+        adapter.client.friends.assert_not_called()
         adapter.gate.side_effect = None
-        adapter.client.friend_states.side_effect = QueryTimeout()
+        adapter.client.friends.side_effect = QueryTimeout()
         with self.assertRaises(QueryTimeout):
             adapter.query("friend_states")
-        adapter.client.friend_states.assert_called_once()
+        adapter.client.friends.assert_called_once()
         adapter.on_error.assert_called_once()
+
+    def test_failed_or_blocked_state_refresh_never_returns_the_initial_friend_list_as_fresh(self):
+        adapter = self.adapter()
+        base = FriendList((presence().raw,), True, 1)
+        adapter.client.friends.return_value = base
+        adapter.gate.side_effect = [None, ADAPTER.PlayerClientRateLimited(50)]
+        with self.assertRaises(ADAPTER.PlayerClientRateLimited):
+            adapter.query('friend_states')
+        adapter.client.refresh_friend_states.assert_not_called()
+        adapter.gate.side_effect = None
+        adapter.client.refresh_friend_states.side_effect = QueryTimeout()
+        with self.assertRaises(QueryTimeout):
+            adapter.query('friend_states')
+        adapter.client.refresh_friend_states.assert_called_once_with(base, timeout=1)
+        adapter.on_error.assert_called_once()
+
+    def test_offline_roster_does_not_send_an_unnecessary_state_refresh(self):
+        adapter = self.adapter()
+        adapter.client.friends.return_value = FriendList((presence(online=0).raw,), True, 1)
+        self.assertFalse(adapter.query('friend_states')['players'][0]['online'])
+        adapter.client.refresh_friend_states.assert_not_called()
+        self.assertEqual(adapter.gate.call_count, 1)
 
 
 class FriendPresentationTests(unittest.TestCase):

@@ -185,18 +185,24 @@ class PlayerClientAdapter:
             from hok_research import GameplayCatalog
 
             catalog = GameplayCatalog.bundled()
-            snapshot = self._read(operation)
+            snapshot = self._read("friends")
             if operation == "friends":
                 return snapshot.to_json_value(gameplay_catalog=catalog)
-            return {"complete": True, "total": len(snapshot),
-                    "players": [state.to_json_value(gameplay_catalog=catalog) for state in snapshot]}
+            if any(state.online is True for state in snapshot.players):
+                snapshot = self._read("refresh_friend_states", snapshot)
+            states = snapshot.players
+            return {"complete": snapshot.complete, "total": len(states),
+                    "players": [state.to_json_value(gameplay_catalog=catalog) for state in states]}
         if not player:
             raise ValueError("An explicitly configured target player is required")
         target = PlayerRef(**{key: int(player[key]) for key in ("uid", "logic_world_id", "fake_description_id")})
         if operation == "friend_state":
             from hok_research import GameplayCatalog
 
-            state = self._read("friend_state", target)
+            snapshot = self._read("friends")
+            state = snapshot.by_player(target)
+            if state is not None and state.online is True:
+                state = self._read("refresh_friend_states", snapshot).by_player(target)
             return {"found": state is not None,
                     "state": state.to_json_value(gameplay_catalog=GameplayCatalog.bundled()) if state is not None else None}
         if operation == "profile_summary":

@@ -168,20 +168,20 @@ class AdapterTests(unittest.TestCase):
                              chunks=[{'secret': 'PRIVATE_SENTINEL'}, {'secret': 'PRIVATE_SENTINEL'}])
         adapter, fake = self.make()
         adapter.settings['timeout_seconds'] = 30
-        fake.friend_states.side_effect = error
+        fake.friends.side_effect = error
         with patch.object(clock, 'monotonic_seconds', side_effect=[0, 2, 32]), \
              patch.object(util, 'log_message') as log:
             with self.assertRaises(QueryTimeout):
                 adapter.query('friend_states')
         line = log.call_args.args[0]
-        for expected in ('operation=friend_states', 'response_chunks', 'response_records',
+        for expected in ('operation=friends', 'response_chunks', 'response_records',
                          'gate_ms=2000', 'request_ms=30000', 'timeout_ms=30000'):
             self.assertIn(expected, line)
         self.assertNotIn('PRIVATE_SENTINEL', line)
         self.assertEqual(ADAPTER.player_client_error_info(error),
                          {'type': 'QueryTimeout', 'response_chunks': 2, 'response_records': 1})
         self.assertEqual(adapter._cache, {})
-        fake.friend_states.assert_called_once_with(timeout=30)
+        fake.friends.assert_called_once_with(timeout=30)
         adapter.on_error.assert_called_once_with(error, login=False)
 
     def test_homepage_paces_both_requests(self):

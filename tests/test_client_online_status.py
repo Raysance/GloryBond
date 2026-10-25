@@ -70,6 +70,14 @@ class ClientOnlineTests(unittest.TestCase):
         steam.assert_called_once_with("test", "steam-1")
         self.camp.assert_not_called()
 
+    def test_refreshed_team_gaming_state_from_resonance_sample_uses_game_layout_without_video_data(self):
+        player = state(1, '合成玩家', game=3, sub=3, map_type=9, map_id=5466, members=1, elapsed=572)
+        player.update(hero_id=108, hero_name='墨子', battle_id=None, ranked_party_size=None)
+        message, errors = self.report([player])
+        self.assertEqual(errors, '')
+        self.assertEqual(message, '在线 1 人\n─────────────\n🎮 共鸣之战  9min\n   • 合成玩家  墨子  1/5\n\n只跟踪王者好友')
+        self.query.assert_called_once_with('friend_states')
+
     def test_only_exact_configured_main_friends_are_counted_and_hidden_or_offline_are_skipped(self):
         self.bindings["extra"] = {"uid": 6, "logic_world_id": 100}
         players = [state(1, "A"), state(1, "A重复"), state(2, "同UID不同服", world=101),
