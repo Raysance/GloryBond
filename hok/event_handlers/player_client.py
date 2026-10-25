@@ -18,11 +18,14 @@ HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
         "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
         "也可发送 #我的资料、#玩家的英雄名、#玩家的英雄、#玩家的数据；英雄查询保留原有文案并附图片。\n"
         "数据默认当前赛季、所有游戏、全部分路；可追加当前赛年、全部比赛、中路/对抗路/发育路/打野/游走，"
-        "例如 #我的中路、#我的发育路数据、#我的本赛年中路数据、#我的全部数据。资料和数据使用简洁卡片图片。")
+        "例如 #我本赛季对抗路数据、#我游走本赛季数据、#我打野这个赛季的数据、#我的全部数据。"
+        "必须带 # 或 ＃ 前缀，资料和数据使用简洁卡片图片。")
 
 STATISTICS_OPTIONS = {
     "当前赛季": ("scope", "season"), "本赛季": ("scope", "season"), "season": ("scope", "season"),
+    "这个赛季": ("scope", "season"), "这赛季": ("scope", "season"),
     "当前赛年": ("scope", "year"), "当前塞年": ("scope", "year"), "本赛年": ("scope", "year"), "year": ("scope", "year"),
+    "这个赛年": ("scope", "year"), "这赛年": ("scope", "year"),
     "全部比赛": ("scope", "all"), "全部时间": ("scope", "all"), "全部": ("scope", "all"), "all": ("scope", "all"),
     "所有游戏": ("mode", "all"), "全部模式": ("mode", "all"), "排位赛": ("mode", "ranked"),
     "排位": ("mode", "ranked"), "匹配": ("mode", "matchmaking"), "巅峰赛": ("mode", "peak"),
@@ -84,12 +87,36 @@ def _player_matches(target, settings, nicknames, player_aliases):
         str(value).casefold() for value in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if value}]
 
 
+def _statistics_shortcut(raw, targets):
+    """Consume complete filters, with an optional 的 and 数据 in either position."""
+    for target in sorted(set(targets), key=len, reverse=True):
+        if target.casefold() == "群u" or not raw.casefold().startswith(target.casefold()):
+            continue
+        tail = raw[len(target):].strip()
+        if tail.count("数据") > 1:
+            continue
+        options = tail.replace("数据", " ", 1).replace("的", " ").strip()
+        if not options and "数据" not in tail:
+            continue
+        try:
+            statistics_options(options)
+        except ValueError:
+            continue
+        return ["游戏统计", target, *options.split()]
+    return None
+
+
 def parse_client_shortcut(text, *, settings, nicknames, player_aliases, hero_names, hero_aliases):
     """Recognize a complete prefixed player query without invoking legacy business."""
     text = text.strip()
     if not text.startswith(("#", "＃")) or text[1:].startswith(("#", "＃")):
         return None
     raw = text[1:].strip()
+    targets = ["我", *{str(value) for key in set(nicknames) | set(settings.get("players", {})) | set(player_aliases)
+                      for value in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if value}]
+    statistics = _statistics_shortcut(raw, targets)
+    if statistics is not None:
+        return statistics
     if "的" not in raw:
         return None
     player, item = (part.strip() for part in raw.rsplit("的", 1))
@@ -97,19 +124,6 @@ def parse_client_shortcut(text, *, settings, nicknames, player_aliases, hero_nam
         if player == "我" or _player_matches(player, settings, nicknames, player_aliases):
             return ["资料", player]
         return None
-    if item:
-        # Filters may surround 的; 数据 is optional when the item is a filter.
-        suffix = item.replace("数据", "", 1).strip()
-        targets = ["我", *{str(v) for key in set(nicknames) | set(settings.get("players", {})) | set(player_aliases)
-                    for v in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if v}]
-        for target in sorted(targets, key=len, reverse=True):
-            if player.casefold().startswith(target.casefold()):
-                options = (player[len(target):] + " " + suffix).strip()
-                try:
-                    statistics_options(options)
-                except ValueError:
-                    continue
-                return ["游戏统计", target, *options.split()]
     if item.removeprefix("本赛季").removesuffix("本赛季").strip() == "英雄":
         player = player.removesuffix("本赛季").strip()
     if player.casefold() == "群u" or not player or not item:

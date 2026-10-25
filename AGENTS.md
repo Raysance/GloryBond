@@ -285,6 +285,8 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 ### 玩家客户端子模块
 
+- 数据快捷语法始终要求 `#` / `＃`，不能接收无前缀聊天。`event_handlers/player_client._statistics_shortcut()` 在英雄/资料路由前完整解析已绑定玩家及时间、模式、分路，允许省略“的”及调整筛选顺序；`#我本赛季对抗路数据`、`#我游走本赛季数据`、`#我打野这个赛季的数据` 均路由 `game_statistics`。“这个赛季/这赛季”和“这个赛年/这赛年”分别归一到 season/year，冲突、未知词、额外句子和群u不匹配。普通 `#在线` 正文末尾仅固定追加用户指定备注“只跟踪王者好友”，Steam 内容及旧营地接口文案不变。
+
 - `vendor/hok-player-client` 固定 gitlink 版本（0.6.22，好友状态含完整战局标识、英雄名及服务器快照时长），`hok_research` 软链接暴露公开 Python 包；不得修改上游以实现机器人限速。
 - `api_adapters/player_client.py` 只调用公开登录与只读查询接口，主页和 Android/iOS 双端昵称搜索在适配层逐项编排以确保每个请求经过限速；不扫码、不自动重登或重试、不查询默认登录角色。英雄页面通过 _hero_page() 逐项读取 profile、hero_titles、hero_extra_statistics、hero_road_brief，个人荣誉再按需读取单英雄详情，所有请求逐次经过既有 gate；不调用会隐式追加资产/收藏查询的完整 homepage 聚合。隐私拒绝保留其他来源，限速停止后续扩展请求；普通空历史称号显示0和暂无排名，未读到时保留未知。
 - `event_handlers/player_client.py` 解析独立 `#客户端` / `＃客户端` 命令，英雄详情通过 `StaticVariables.HeroList` / `HeroName_replacements` 精确解析英雄名、别名或数字 ID，拒绝模糊、歧义与负数占位映射；省略玩家时仍绑定本人。英雄列表经 `zfunc.player_client_hero_report()` 调用 `business/player_client.py`，经上游 hero_page() 原生筛选/排序，按历史最高战力降序选取 `PlayerClient.display_hero_limit` 个（默认5个，上限5个），仅投影名称、场次、胜负、胜率和战力，不发送 raw 协议数据。`tools/gen_player_client.py` 生成统计图片，字体和独立 PNG 落盘均通过 `zfile.py`；常规/粗体使用从原 APK 提取的 Ex_GameFontYaHei.ttf / Ex_GameFont.ttf，分别由 PlayerClient.report_font_path / report_bold_font_path 配置，不依赖系统字体；空数据及绘图失败返回有界文字。`zevent.py` 经统一出口向原事件发送摘要和图片，其他客户端结果也直接发送文字；这三类自然语言查询不使用合并转发。遵守既有白名单、维修和休眠规则；不修改 AI 工具目录。

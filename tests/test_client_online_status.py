@@ -62,7 +62,7 @@ class ClientOnlineTests(unittest.TestCase):
             "   • LYG.未央  东皇太一", "   • 示例玩家70  孙尚香", "",
             "🎮 共鸣之战  5min", "   • 冰阔落加白糖  蒙犽  2/5", "",
             "─────────────", "👥 LYG.KK  排位赛 3/5", "💤 染尘烟夕", "",
-            "Steam 在线 1 人", "─────────────", "🎮 Steam昵称  Counter-Strike 2")))
+            "Steam 在线 1 人", "─────────────", "🎮 Steam昵称  Counter-Strike 2", "", "只跟踪王者好友")))
         self.assertEqual(errors, "")
         self.query.assert_called_once_with("friend_states")
         steam.assert_called_once_with("test", "steam-1")
@@ -106,7 +106,7 @@ class ClientOnlineTests(unittest.TestCase):
         self.assertIn("👥 组队共鸣  共鸣之战 3/5", message)
         self.assertIn("👥 匹配排位  排位赛 3/5", message)
         self.assertIn("👥 地图未返回  3/5", message)
-        self.assertTrue(message.endswith("💤 空闲"))
+        self.assertIn("💤 空闲\n\n只跟踪王者好友", message)
         self.assertNotIn("组队中", message)
         self.assertNotIn("未知", message)
         self.assertNotIn("🎮", message)
@@ -129,7 +129,7 @@ class ClientOnlineTests(unittest.TestCase):
              patch.dict(ONLINE.confs, {"Steam": {"api_key": "test"}}), \
              patch.object(ZAPI, "steam_api_user_status", return_value={"personaname": "Steam昵称", "personastate": 1}):
             message, errors = ZFUNC.online_process()
-        self.assertEqual(message, "Steam 在线 1 人\n─────────────\n💤 Steam昵称  在线")
+        self.assertEqual(message, "Steam 在线 1 人\n─────────────\n💤 Steam昵称  在线\n\n只跟踪王者好友")
         self.assertIn("online.player_client", errors)
         self.assertNotIn("PRIVATE_SENTINEL", message + errors)
         self.camp.assert_not_called()
@@ -138,20 +138,20 @@ class ClientOnlineTests(unittest.TestCase):
     def test_failure_is_not_no_one_online_and_a_successful_empty_snapshot_keeps_old_copy(self):
         self.query.side_effect = TimeoutError()
         message, errors = ZFUNC.online_process()
-        self.assertEqual(message, "在线查询暂时失败")
+        self.assertEqual(message, "在线查询暂时失败\n\n只跟踪王者好友")
         self.assertTrue(errors)
         self.query.side_effect = None
-        self.assertEqual(self.report([]), ("🐟🐟无人在线", ""))
+        self.assertEqual(self.report([]), ("🐟🐟无人在线\n\n只跟踪王者好友", ""))
 
     def test_no_bound_main_players_avoids_game_request_and_steam_failures_keep_wzry(self):
         with patch.object(ONLINE, "userlist", {}):
-            self.assertEqual(ZFUNC.online_process(), ("🐟🐟无人在线", ""))
+            self.assertEqual(ZFUNC.online_process(), ("🐟🐟无人在线\n\n只跟踪王者好友", ""))
         self.query.assert_not_called()
         with patch.object(ONLINE, "steam_userlist", {"steam": "steam-1"}), \
              patch.dict(ONLINE.confs, {"Steam": {"api_key": "test"}}), \
              patch.object(ZAPI, "steam_api_user_status", side_effect=RuntimeError("unavailable")):
             message, errors = self.report([state(1, "A", game=0)])
-        self.assertEqual(message, "在线 1 人\n─────────────\n💤 A")
+        self.assertEqual(message, "在线 1 人\n─────────────\n💤 A\n\n只跟踪王者好友")
         self.assertIn("online.steam_status", errors)
 
 

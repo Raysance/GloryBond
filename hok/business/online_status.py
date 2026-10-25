@@ -310,6 +310,9 @@ def online_process(*, use_client=True):
     else:
         message = "在线查询暂时失败" if client_failed else "🐟🐟无人在线"
 
+    if use_client:
+        message += "\n\n只跟踪王者好友"
+
     error_report = _zfunc_call(
         "format_traversal_error_report",
         "在线遍历",

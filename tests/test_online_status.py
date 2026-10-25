@@ -76,7 +76,7 @@ class OnlineStatusTests(unittest.TestCase):
         self.assertIn("online.profile", error_report)
         self.assertIn("bob", error_report)
 
-    def test_no_online_users_keeps_original_empty_message(self):
+    def test_no_online_users_keeps_empty_message_and_shows_friend_scope(self):
         originals = {
             "userlist": ONLINE_STATUS.userlist,
             "roleidlist": ONLINE_STATUS.roleidlist,
@@ -92,7 +92,7 @@ class OnlineStatusTests(unittest.TestCase):
             ONLINE_STATUS.roleidlist = originals["roleidlist"]
             ONLINE_STATUS.steam_userlist = originals["steam_userlist"]
 
-        self.assertEqual(message, "🐟🐟无人在线")
+        self.assertEqual(message, "🐟🐟无人在线\n\n只跟踪王者好友")
         self.assertEqual(error_report, "")
 
 

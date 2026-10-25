@@ -10,6 +10,7 @@ from local_debugger import import_hok_module
 from tests.test_player_client_pages import battle_row
 
 HANDLER = import_hok_module("event_handlers.player_client")
+RULES = import_hok_module("event_rules")
 ADAPTER = import_hok_module("api_adapters.player_client")
 MODELS = import_hok_module("business.player_client_profile")
 RENDER = import_hok_module("tools.gen_player_summary")
@@ -73,6 +74,31 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
                 qids=STATIC.qid, nicknames=STATIC.namenick, player_aliases=STATIC.nameref)
             self.assertEqual((operation, params["scope"], params["branch"], label), ("game", scope, branch, "甲"))
             self.assertEqual(params["mode"], "ranked" if "排位" in text else "all")
+
+    async def test_missing_de_and_colloquial_scopes_dispatch_to_the_bound_player(self):
+        cases = (("#我本赛季对抗路数据", "season", "top"),
+                 ("#我游走本赛季数据", "season", "assist"),
+                 ("#我打野这个赛季的数据", "season", "jungle"),
+                 ("＃我这个赛年发育路数据", "year", "bot"),
+                 ("#我的中路这赛季数据", "season", "mid"),
+                 ("#甲中路这赛年的数据", "year", "mid"),
+                 ("#我全部打野数据", "all", "jungle"),
+                 ("#我这个赛季的中路数据", "season", "mid"))
+        for text, scope, branch in cases:
+            with self.subTest(text=text), patch.object(ZFUNC, "player_client_query", return_value={}) as query, \
+                 patch.object(ZFUNC, "player_client_screen_report", return_value={"image_path": "card.png", "text": ""}):
+                self.assertTrue(await RULES.judge_player_client(self.event(text)))
+                await HANDLER.command_reply(self.event(text))
+                query.assert_called_once_with("game_statistics", player=self.player, scope=scope, mode="all", branch=branch)
+
+    async def test_hash_is_required_and_partial_or_conflicting_sentences_do_not_route(self):
+        for text in ("我本赛季对抗路数据", "我游走本赛季数据", "我打野这个赛季的数据",
+                     "##我本赛季对抗路数据", "＃＃我这个赛季中路数据", "#我本赛季对抗路数据怎么样",
+                     "#我不是要查本赛季数据", "#我本赛季本赛年中路数据", "#我中路打野数据",
+                     "#群u本赛季中路数据", "#我这个赛季的数据数据", "#我的"):
+            with self.subTest(text=text):
+                self.assertIsNone(HANDLER.parse_client_request(text))
+                self.assertFalse(await RULES.judge_player_client(self.event(text)))
 
     async def test_unbound_self_ambiguous_self_and_free_text_never_query_a_default_role(self):
         with patch.object(ZFUNC, "player_client_query") as query:
