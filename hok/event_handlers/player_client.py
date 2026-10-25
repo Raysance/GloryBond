@@ -81,10 +81,19 @@ def resolve_hero_id(value, hero_names, hero_aliases):
     return matches.pop()
 
 
-def _player_matches(target, settings, nicknames, player_aliases):
+def _prefer_primary_players(matches, primary_players):
+    primary = [key for key in matches if key in primary_players]
+    return primary if len(matches) > 1 and len(primary) == 1 else matches
+
+
+def _player_matches(target, settings, nicknames, player_aliases, *, primary_players=()):
     keys = set(settings.get("players", {})) | set(nicknames) | set(player_aliases)
-    return [key for key in keys if target.casefold() in {
+    exact = [key for key in keys if str(key).casefold() == target.casefold()]
+    if exact:
+        return exact
+    matches = [key for key in keys if target.casefold() in {
         str(value).casefold() for value in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if value}]
+    return _prefer_primary_players(matches, primary_players)
 
 
 def _statistics_shortcut(raw, targets):
@@ -153,7 +162,8 @@ def parse_client_request(text):
         hero_names=HeroList, hero_aliases=HeroName_replacements)
 
 
-def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=None, hero_aliases=None, player_aliases=None):
+def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=None, hero_aliases=None, player_aliases=None,
+                     primary_players=()):
     if not tokens or tokens[0] in {"帮助", "help"}:
         return None
     operation = ALIASES.get(tokens[0], tokens[0])
@@ -185,9 +195,9 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=N
         target, rest = (args[0], args[1:]) if args else ("我", [])
     mappings = settings.get("players", {})
     if target == "我":
-        matches = [key for key in mappings if str(qids.get(key, "")) == str(user_id)]
+        matches = _prefer_primary_players([key for key, value in qids.items() if str(value) == str(user_id)], primary_players)
     else:
-        matches = _player_matches(target, settings, nicknames, player_aliases or {})
+        matches = _player_matches(target, settings, nicknames, player_aliases or {}, primary_players=primary_players)
     if len(matches) != 1 or matches[0] not in mappings:
         raise ValueError("玩家尚未绑定或昵称不唯一，请使用已配置的账号键")
     key = matches[0]
@@ -212,11 +222,11 @@ async def original_hero_reply(event):
     tokens = parse_client_request(event.get_plaintext())
     if not tokens or ALIASES.get(tokens[0], tokens[0]) not in {"heroes", "hero_detail"}:
         return None
-    from ..zstatic import player_client_config, namenick, extra_namenick, nameref, qid
+    from ..zstatic import player_client_config, namenick, extra_namenick, nameref, qid, userlist
     if tokens[1] == "我":
-        matches = [key for key, value in qid.items() if str(value) == str(event.get_user_id())]
+        matches = _prefer_primary_players([key for key, value in qid.items() if str(value) == str(event.get_user_id())], userlist)
     else:
-        matches = _player_matches(tokens[1], player_client_config, {**extra_namenick, **namenick}, nameref)
+        matches = _player_matches(tokens[1], player_client_config, {**extra_namenick, **namenick}, nameref, primary_players=userlist)
     if len(matches) != 1:
         return None
     from .hero import hero_statistics_reply
@@ -224,8 +234,8 @@ async def original_hero_reply(event):
 
     try:
         if ALIASES.get(tokens[0], tokens[0]) == "heroes":
-            return await hero_statistics_reply(event, as_report=True)
-        return await hero_statistics_reply(event)
+            return await hero_statistics_reply(event, as_report=True, player_key=matches[0])
+        return await hero_statistics_reply(event, player_key=matches[0])
     except asyncio.CancelledError:
         raise
     except Exception as error:
@@ -260,7 +270,7 @@ async def reply_stream(event):
 
 
 async def command_reply(event):
-    from ..zstatic import player_client_config, qid, namenick, extra_namenick, nameref, HeroList, HeroName_replacements
+    from ..zstatic import player_client_config, qid, namenick, extra_namenick, nameref, HeroList, HeroName_replacements, userlist
     from ..zfunc import player_client_query, player_client_hero_report, player_client_text_report, player_client_screen_report
     from ..zapi import PlayerClientRateLimited
 
@@ -268,7 +278,8 @@ async def command_reply(event):
         parsed = query_parameters(parse_client_request(event.get_plaintext()) or [],
                                   user_id=event.get_user_id(), settings=player_client_config,
                                   qids=qid, nicknames={**extra_namenick, **namenick},
-                                  hero_names=HeroList, hero_aliases=HeroName_replacements, player_aliases=nameref)
+                                  hero_names=HeroList, hero_aliases=HeroName_replacements, player_aliases=nameref,
+                                  primary_players=userlist)
         if parsed is None:
             return [HELP]
         operation, parameters, label = parsed

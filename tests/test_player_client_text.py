@@ -131,7 +131,7 @@ class AdditiveHeroTests(unittest.IsolatedAsyncioTestCase):
             event = self.event(text)
             with self.subTest(text=text), patch.object(HERO, "hero_statistics_reply", AsyncMock(return_value="原有全部内容")) as original:
                 self.assertEqual(await HANDLER.original_hero_reply(event), "原有全部内容")
-                original.assert_awaited_once_with(event, **({"as_report": True} if "英雄" in text else {}))
+                original.assert_awaited_once_with(event, player_key="alice", **({"as_report": True} if "英雄" in text else {}))
 
     async def test_explicit_client_data_and_group_queries_do_not_duplicate_original_content(self):
         with patch.object(HERO, "hero_statistics_reply", AsyncMock()) as original:

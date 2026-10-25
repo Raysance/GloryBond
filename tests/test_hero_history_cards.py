@@ -41,6 +41,20 @@ def history_report(**options):
 
 
 class HistoryModelTests(unittest.TestCase):
+    def test_explicit_alternate_account_reads_its_own_history_and_camp_role(self):
+        with patch.object(BUSINESS, "userlist", {"alice": 11}), \
+             patch.object(BUSINESS, "extra_useridlist", {"alt": 22}), \
+             patch.object(BUSINESS, "extra_roleidlist", {"alt": 222}), \
+             patch.object(BUSINESS, "extra_namenick", {"alt": "小号"}), \
+             patch.object(BUSINESS, "fetch_history", return_value=({"alt": games()}, 0)) as fetch, \
+             patch.object(BUSINESS, "wzry_get_official", return_value={}) as official:
+            report = BUSINESS.single_player_mult_hero_process("alt", as_report=True)
+            self.assertEqual(report["total"], 8)
+            self.assertEqual(fetch.call_args.kwargs["userid"], 22)
+            text = BUSINESS.single_player_single_hero_process("alt", 106, "小乔")
+        official.assert_called_once_with(reqtype="herostatistics", userid=22, roleid=222, heroid=106)
+        self.assertIn("小号的小乔", text)
+
     def test_rankings_counts_kda_and_grade_denominators_match_existing_statistics(self):
         report = history_report()
         self.assertEqual((report["total"], report["hero_count"], report["average_tier"]), (8, 4, 1.7))

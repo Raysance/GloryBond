@@ -15,7 +15,7 @@ async def honor_power_reply(event):
     return realname, reply
 
 
-async def hero_statistics_reply(event, *, as_report=False):
+async def hero_statistics_reply(event, *, as_report=False, player_key=None):
     from ..zfunc import (
         extract_heroname,
         extract_name,
@@ -32,7 +32,7 @@ async def hero_statistics_reply(event, *, as_report=False):
     player_text, hero_text = message.split("的", 1)
     player_plural = "群u" in player_text
     hero_plural = "英雄" in hero_text
-    matching_name = None if player_plural else extract_name(player_text, precise=True)
+    matching_name = None if player_plural else (player_key if player_key is not None else extract_name(player_text, precise=True))
     if hero_plural:
         hero_id = hero_name = None
     else:

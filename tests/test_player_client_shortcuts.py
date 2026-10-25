@@ -71,3 +71,73 @@ class ShortcutTests(unittest.IsolatedAsyncioTestCase):
             reply = await HANDLER.command_reply(self.event("#同名的数据"))
         self.assertIn("不唯一", reply[0])
         query.assert_not_called()
+
+
+class PrimaryAccountTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.main = {"uid": 7, "logic_world_id": 8, "fake_description_id": 9}
+        self.alt = {"uid": 70, "logic_world_id": 80, "fake_description_id": 90}
+        self.settings = {**STATIC.player_client_config, "players": {"example_user_5": self.main, "example_user_6": self.alt}}
+        values = {"player_client_config": self.settings, "userlist": {"example_user_5": 11},
+                  "namenick": {"example_user_5": "示例玩家41"}, "extra_namenick": {"example_user_6": "示例玩家41"},
+                  # Put the alternate first and give the main an alias matching the explicit alternate key.
+                  "nameref": {"example_user_6": ["示例玩家41", "卷王"], "example_user_5": ["示例玩家41", "卷王", "example_user_6"]},
+                  "qid": {"example_user_5": "100", "example_user_6": "100"}, "HeroList": {"106": "小乔"}}
+        for name, value in values.items():
+            patcher = patch.object(STATIC, name, value)
+            patcher.start(); self.addCleanup(patcher.stop)
+
+    def event(self, text):
+        return SimpleNamespace(get_plaintext=lambda: text, get_user_id=lambda: "100")
+
+    async def test_shared_nickname_alias_and_self_use_main_across_all_client_commands(self):
+        for text, operation in (("#示例玩家41的英雄", "heroes"), ("#卷王的小乔", "hero_honors"),
+                                ("#示例玩家41的数据", "game_statistics"), ("#我的英雄", "heroes"),
+                                ("#客户端 资料 示例玩家41", "profile_summary"),
+                                ("#客户端 好友状态 示例玩家41", "friend_state")):
+            with self.subTest(text=text), patch.object(ZFUNC, "player_client_query", return_value={}) as query, \
+                 patch.object(ZFUNC, "player_client_hero_report", return_value={}), \
+                 patch.object(ZFUNC, "player_client_screen_report", return_value={}), \
+                 patch.object(ZFUNC, "player_client_text_report", return_value=[]):
+                await HANDLER.command_reply(self.event(text))
+            self.assertEqual(query.call_args.args, (operation,))
+            self.assertEqual(query.call_args.kwargs["player"], self.main)
+
+    async def test_explicit_alternate_key_beats_nickname_aliases_and_both_sources_use_that_key(self):
+        for text, key, reference in (("#示例玩家41的英雄", "example_user_5", self.main),
+                                     ("#我的英雄", "example_user_5", self.main),
+                                     ("#HYQ_的英雄", "example_user_6", self.alt)):
+            with self.subTest(text=text), patch.object(ZFUNC, "player_client_query", return_value={}) as query, \
+                 patch.object(ZFUNC, "player_client_hero_report", return_value={}), \
+                 patch.object(ZFUNC, "qid2nick", return_value="示例玩家41"), \
+                 patch.object(ZFUNC, "extract_name") as legacy_resolve, \
+                 patch.object(ZFUNC, "single_player_mult_hero_process", return_value={"kind": "hero_history"}) as aggregate:
+                await HANDLER.command_reply(self.event(text))
+                await HANDLER.original_hero_reply(self.event(text))
+            self.assertEqual(query.call_args.kwargs["player"], reference)
+            aggregate.assert_called_once_with(key, this_season=False, as_report=True)
+            legacy_resolve.assert_not_called()
+
+    async def test_two_main_matches_or_two_alternates_remain_ambiguous(self):
+        for mains in ({"example_user_5": 11, "example_user_6": 22}, {}):
+            with self.subTest(mains=mains), patch.object(STATIC, "userlist", mains), \
+                 patch.object(ZFUNC, "player_client_query") as query:
+                reply = await HANDLER.command_reply(self.event("#示例玩家41的英雄"))
+                self.assertIn("不唯一", reply[0])
+                self.assertIsNone(await HANDLER.original_hero_reply(self.event("#示例玩家41的英雄")))
+            query.assert_not_called()
+
+    async def test_unbound_main_never_silently_switches_to_the_bound_alternate(self):
+        with patch.object(STATIC, "player_client_config", {**self.settings, "players": {"example_user_6": self.alt}}), \
+             patch.object(ZFUNC, "player_client_query") as query:
+            reply = await HANDLER.command_reply(self.event("#示例玩家41的英雄"))
+        self.assertIn("尚未绑定", reply[0])
+        query.assert_not_called()
+
+    async def test_single_alternate_is_usable_when_there_is_no_matching_main(self):
+        with patch.object(STATIC, "namenick", {"example_user_5": "另一人"}), \
+             patch.object(STATIC, "nameref", {"example_user_6": ["示例玩家41"]}), \
+             patch.object(ZFUNC, "player_client_query", return_value={}) as query, \
+             patch.object(ZFUNC, "player_client_hero_report", return_value={}):
+            await HANDLER.command_reply(self.event("#示例玩家41的英雄"))
+        self.assertEqual(query.call_args.kwargs["player"], self.alt)

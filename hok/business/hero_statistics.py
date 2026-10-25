@@ -22,8 +22,9 @@ def wzry_get_official(*args, **kwargs):
 def single_player_single_hero_process(username,heroid,heroname,this_season=True):
     from ..ztime import time_r, time_delta,str_to_time
 
-    userid=userlist[username]
-    roleid=roleidlist[username]
+    userid=(extra_useridlist | userlist)[username]
+    roleid=(extra_roleidlist | roleidlist)[username]
+    player_name = namenick.get(username, extra_namenick.get(username, username))
 
     res = wzry_get_official(reqtype="herostatistics", userid=userid, roleid=roleid, heroid=heroid)
 
@@ -57,7 +58,7 @@ def single_player_single_hero_process(username,heroid,heroname,this_season=True)
 
     # 组装简洁输出
     lines = []
-    lines.append(f"【统计信息】 {namenick[username]}的{heroname} (梯度{herotier})")
+    lines.append(f"【统计信息】 {player_name}的{heroname} (梯度{herotier})")
     lines.append(line_delim)
     lines.append(f"战力  {heropower}  ({month_heropower_incre:+d})")
     lines.append(f"总战绩  {winNum}胜{failNum}负  胜率{round(win_rate*100,1)}%")
@@ -97,7 +98,8 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
     """Return the existing summary, or its structured facts for the two-image reply."""
     from ..ztime import time_r, time_delta, str_to_time
 
-    userid = userlist[username]
+    userid = (extra_useridlist | userlist)[username]
+    player_name = namenick.get(username, extra_namenick.get(username, username))
 
     end_date = time_r()
     if(this_season):
@@ -183,12 +185,12 @@ def single_player_mult_hero_process(username, days=30, top_n=3, min_games=2, thi
         return report
 
     if total_games == 0:
-        return f"{namenick[username]} 在{TimeLim}内没有对局记录。"
+        return f"{player_name} 在{TimeLim}内没有对局记录。"
 
     # 可读摘要
     lines = []
     avg_tier = round(total_tier_val / tier_counted_games, 2) if tier_counted_games > 0 else "N/A"
-    lines.append(f"【统计信息】 {namenick[username]}的英雄汇总 \n（{TimeLim}，共 {total_games} 场，均梯: {avg_tier}）")
+    lines.append(f"【统计信息】 {player_name}的英雄汇总 \n（{TimeLim}，共 {total_games} 场，均梯: {avg_tier}）")
     lines.append(line_delim)
     lines.append("出场率 TOP:")
     for it in top_by_play:
