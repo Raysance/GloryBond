@@ -2004,7 +2004,7 @@ def player_client_screen_report(kind, label, result):
                 "image_path": None}
 
 
-def player_client_text_report(operation, label, result, *, player=None, hero_id=None):
+def player_client_text_report(operation, label, result, *, player=None, hero_id=None, page=1):
     """Project client protocol results into localized user-facing facts."""
     from .business.player_client import text_report
     from . import zfile
@@ -2016,7 +2016,7 @@ def player_client_text_report(operation, label, result, *, player=None, hero_id=
         except Exception as error:
             log_message(f"PLAYER_CLIENT_SKIN_NAMES_FAILED: error={type(error).__name__}")
     return text_report(operation, label, result, player_client_config, HeroList,
-                       player=player, hero_id=hero_id, skin_names=skins)
+                       player=player, hero_id=hero_id, skin_names=skins, page=page)
 
 
 def player_client_close():

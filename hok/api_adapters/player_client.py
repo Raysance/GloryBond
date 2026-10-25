@@ -4,6 +4,7 @@ OPERATIONS = frozenset({
     "homepage", "profile", "history", "heroes", "game", "hero_assets",
     "collections", "displayed_skins", "hero_road_brief", "hero_detail", "hero_titles", "search",
     "matches", "game_statistics", "hero_honors",
+    "friends", "friend_states", "friend_state",
 })
 
 
@@ -159,9 +160,26 @@ class PlayerClientAdapter:
                 results = [self._read("search_players", name, platform=value) for value in (1, 2)]
                 return PlayerSearchResult.combine(results).to_json_value()
             return self._read("search_players", name, platform=platform).to_json_value()
+        if operation in {"friends", "friend_states"}:
+            if player is not None:
+                raise ValueError("Game friends belong to the current logged-in role")
+            from hok_research import GameplayCatalog
+
+            catalog = GameplayCatalog.bundled()
+            snapshot = self._read(operation)
+            if operation == "friends":
+                return snapshot.to_json_value(gameplay_catalog=catalog)
+            return {"complete": True, "total": len(snapshot),
+                    "players": [state.to_json_value(gameplay_catalog=catalog) for state in snapshot]}
         if not player:
             raise ValueError("An explicitly configured target player is required")
         target = PlayerRef(**{key: int(player[key]) for key in ("uid", "logic_world_id", "fake_description_id")})
+        if operation == "friend_state":
+            from hok_research import GameplayCatalog
+
+            state = self._read("friend_state", target)
+            return {"found": state is not None,
+                    "state": state.to_json_value(gameplay_catalog=GameplayCatalog.bundled()) if state is not None else None}
         if operation == "homepage":
             # Compose outside the module so each actual data request passes the gate.
             profile = self._read("profile", target)

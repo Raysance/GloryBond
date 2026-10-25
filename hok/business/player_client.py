@@ -62,6 +62,7 @@ OPERATION_NAMES = {
     "game": "游戏统计", "hero_assets": "英雄与皮肤资料", "collections": "收藏概览",
     "displayed_skins": "展示皮肤", "hero_road_brief": "英雄之路", "hero_detail": "英雄详情",
     "hero_titles": "历史英雄称号", "search": "玩家搜索",
+    "friends": "好友列表", "friend_states": "好友状态", "friend_state": "好友状态",
 }
 BATTLE_MODES = (
     ("stFiveVsFiveInfo", "5v5"), ("stLadderInfo", "排位"), ("stEntertainmentInfo", "娱乐模式"),
@@ -237,12 +238,83 @@ def _collection_lines(result):
     return lines
 
 
-def text_report(operation, label, result, settings, hero_names, *, player=None, hero_id=None, skin_names=None):
+def _friend_status(state, hero_names, *, details):
+    """Offline/hidden snapshots must not disclose their stale game fields."""
+    if state.get("hidden") is True:
+        return "隐身"
+    if state.get("online") is False:
+        return "离线"
+    if state.get("online") is not True:
+        return "状态未知"
+    parts = ["在线"]
+    if not details:
+        return parts[0]
+    game = state.get("game_state")
+    substate = state.get("game_substate")
+    states = {"idle": "空闲", "single_game": "单人游戏", "multiplayer_game": "多人游戏",
+              "team": "组队中", "waiting_multiplayer": "等待开局"}
+    substates = {"room_or_team": "房间/组队中", "ready": "准备中", "gaming": "对局中",
+                 "match_queue": "匹配中", "observing": "观战中", "single_gaming": "单人对局中"}
+    parts.append(states[game] if game == "idle" else substates.get(substate) or states.get(game) or "状态未知")
+    mode = _text(_at(state, "current_mode", "name"))
+    if mode:
+        parts.append(mode)
+    hero_id = state.get("hero_id")
+    if _number(hero_id) and game != "idle":
+        parts.append(_name(hero_id, hero_names))
+    party = state.get("ranked_party_size")
+    if type(party) is int and party in (1, 2, 3, 5):
+        parts.append({1: "单排", 2: "双排", 3: "三排", 5: "五排"}[party])
+    members, capacity = state.get("current_team_members"), state.get("team_capacity")
+    if type(members) is int and members > 0:
+        size = f"{members}/{capacity}" if type(capacity) is int and capacity >= members else str(members)
+        parts.append(f"队伍{size}人")
+    if _number(state.get("game_start_time")):
+        parts.append("开局 " + _time(state["game_start_time"]))
+    return " · ".join(parts)
+
+
+def _friend_lines(operation, result, settings, hero_names, page):
+    if operation == "friend_state":
+        state = result.get("state")
+        if result.get("found") is False:
+            return ["当前登录角色的游戏好友中没有该玩家。"]
+        if not isinstance(state, dict):
+            return ["暂未取得好友状态。"]
+        name = _text(state.get("name")) or "昵称未提供"
+        return [f"{name}：{_friend_status(state, hero_names, details=True)}"]
+
+    rows = _rows(result.get("players"))
+    rows.sort(key=lambda state: (0 if state.get("online") is True and state.get("hidden") is not True else 1,
+                                 _text(state.get("name")).casefold()))
+    online = sum(state.get("online") is True and state.get("hidden") is not True for state in rows)
+    complete = result.get("complete") is True
+    lines = [f"共{len(rows)}位好友，在线{online}位。" if complete else f"本次返回{len(rows)}位好友，列表未完整。"]
+    if not rows:
+        return lines + (["暂无游戏好友。"] if complete else [])
+    size = max(1, min(50, int(settings.get("friend_page_size", 20))))
+    pages = (len(rows) + size - 1) // size
+    if not 1 <= page <= pages:
+        return lines + [f"页码超出范围，共{pages}页。"]
+    lines.append(f"第{page}/{pages}页")
+    start = (page - 1) * size
+    for index, state in enumerate(rows[start:start + size], start + 1):
+        name = _text(state.get("name")) or "昵称未提供"
+        lines.append(f"{index}. {name}：{_friend_status(state, hero_names, details=operation == 'friend_states')}")
+    if page < pages:
+        command = "好友" if operation == "friends" else "好友状态"
+        lines.append(f"下一页：#客户端 {command} {page + 1}")
+    return lines
+
+
+def text_report(operation, label, result, settings, hero_names, *, player=None, hero_id=None, skin_names=None, page=1):
     """Explicit field projections only: no raw dictionaries or protocol fallback."""
     result = result if isinstance(result, dict) else {}
     limit = max(1, min(20, int(settings["display_item_limit"])))
     lines = []
-    if operation == "game":
+    if operation in {"friends", "friend_states", "friend_state"}:
+        lines = _friend_lines(operation, result, settings, hero_names, page)
+    elif operation == "game":
         lines = _game_lines(result)
     elif operation == "profile":
         lines = _profile_lines(result)

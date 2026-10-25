@@ -6,11 +6,14 @@ ALIASES = {
     "主页": "homepage", "资料": "profile", "战绩": "history", "英雄": "heroes",
     "统计": "game", "游戏统计": "game", "资产": "hero_assets", "收藏": "collections",
     "皮肤": "displayed_skins", "英雄之路": "hero_road_brief", "英雄详情": "hero_detail",
-    "称号": "hero_titles", "搜索": "search",
+    "称号": "hero_titles", "搜索": "search", "好友": "friends", "好友列表": "friends",
+    "好友状态": "friend_states",
 }
 HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
-        "接口：主页、资料、战绩、英雄、游戏统计（或统计）、资产、收藏、皮肤、英雄之路、英雄详情、称号、搜索。\n"
-        "玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认以图片展示场次最多的前几个英雄。\n"
+        "接口：主页、资料、战绩、英雄、游戏统计（或统计）、资产、收藏、皮肤、英雄之路、英雄详情、称号、搜索、好友、好友状态。\n"
+        "#客户端 好友 [页码]、#客户端 好友状态 [页码] 查看当前登录角色的游戏好友；"
+        "#客户端 好友状态 玩家 查看指定已绑定玩家。也可用 #客户端好友、#客户端好友状态。\n"
+        "其他接口的玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认按最高战力展示前几个英雄。\n"
         "英雄详情支持英雄名、配置别名或数字ID；例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 小乔；"
         "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
         "也可发送 #玩家的英雄名、#玩家的英雄、#玩家的数据；前两类保留原有文案并附游戏界面样式图片。\n"
@@ -53,7 +56,11 @@ def parse_client_command(text):
         return None
     tail = text[4:]
     if tail and not tail[0].isspace():
-        return None
+        for name in ("好友状态", "好友列表", "好友"):
+            if tail.startswith(name) and (len(tail) == len(name) or tail[len(name)].isspace()):
+                break
+        else:
+            return None
     try:
         return shlex.split(tail)
     except ValueError:
@@ -135,6 +142,17 @@ def query_parameters(tokens, *, user_id, settings, qids, nicknames, hero_names=N
     if operation not in OPERATIONS:
         raise ValueError("未知接口，请发送 #客户端 帮助")
     args = tokens[1:]
+    if operation in {"friends", "friend_states"}:
+        if not args or (len(args) == 1 and args[0].isascii() and args[0].isdecimal()):
+            page = int(args[0]) if args else 1
+            if page < 1:
+                raise ValueError("页码必须为正整数")
+            return operation, {"page": page}, "当前登录角色"
+        if operation == "friends" or len(args) != 1:
+            raise ValueError("用法：#客户端 好友 [页码]；#客户端 好友状态 [玩家或页码]")
+        operation = "friend_state"
+    if operation == "friend_state" and len(args) != 1:
+        raise ValueError("用法：#客户端 好友状态 玩家，例如 #客户端 好友状态 example_user_10")
     if operation == "search":
         if not 1 <= len(args) <= 2 or (len(args) == 2 and args[1] not in {"all", "android", "ios"}):
             raise ValueError("用法：#客户端 搜索 完整游戏昵称 [all/android/ios]")
@@ -224,6 +242,10 @@ async def command_reply(event):
     except ValueError as error:
         return [str(error)]
     try:
+        if operation in {"friends", "friend_states"}:
+            page = parameters.pop("page")
+            result = await asyncio.to_thread(player_client_query, operation, **parameters)
+            return await asyncio.to_thread(player_client_text_report, operation, label, result, page=page)
         if operation == "game":
             result = await asyncio.to_thread(player_client_query, "game_statistics", **parameters)
             return await asyncio.to_thread(player_client_screen_report, "game", label, result)
