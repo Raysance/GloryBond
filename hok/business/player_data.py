@@ -110,20 +110,33 @@ def _combined_battle_list(realname, userid, roleid, target_date):
     # Retain previously saved records when either provider is unavailable or has a bounded window.
     previous = zfile.read_personal_history(str(target_date), userid) or {}
     saved = previous.get("btlist", {}).get("list", [])
-    saved = [row for row in saved if (row.get("clientOnly") or camp is None or camp.get("invisible")) and
-             ztime.time_sul(ztime.stamp_to_time(int(row["dtEventTime"]))).date() == target_date]
+    client_unavailable = client is None or not client.get("collection", {}).get("entertainment_received")
+    if client_unavailable:
+        latest = zfile.read_latest_client_history(str(target_date), userid, roleid) or {}
+        saved = saved + latest.get("btlist", {}).get("list", [])
+    saved_client, saved_camp = [], []
+    for row in saved:
+        game_day = ztime.time_sul(ztime.stamp_to_time(int(row["dtEventTime"]))).date()
+        if row.get("clientOnly"):
+            identity = row.get("clientPlayer") or {}
+            if (str(identity.get("uid")) == str(player["uid"])
+                    and str(identity.get("logic_world_id")) == str(player["logic_world_id"])):
+                if game_day == target_date or (client_unavailable and game_day <= target_date):
+                    saved_client.append(row)
+        elif game_day == target_date and (camp is None or camp.get("invisible")):
+            saved_camp.append(row)
     originals = {str(row["gameSeq"]): row for row in result.get("list", [])}
-    for row in (item for item in saved if not item.get("clientOnly")):
+    for row in saved_camp:
         originals.setdefault(str(row["gameSeq"]), row)
     result["list"], added = merge_battles(list(originals.values()),
-        [row for row in saved if row.get("clientOnly")] + converted,
+        saved_client + converted,
         tolerance_seconds=int(settings["history_merge_tolerance_seconds"]))
     result["sourceWarnings"] = warnings
     result["sourceErrors"] = failures
     result["clientAdded"] = added
     result["campInvisible"] = bool(camp and camp.get("invisible"))
     result["campAvailable"] = camp is not None
-    if converted or saved or (client is not None and client.get("collection", {}).get("ordinary_complete")):
+    if converted or saved_client or saved_camp or (client is not None and client.get("collection", {}).get("ordinary_complete")):
         result["invisible"] = False
     return result
 

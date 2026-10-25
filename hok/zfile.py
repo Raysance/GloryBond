@@ -258,6 +258,36 @@ def read_personal_history(target_date, userid):
     return readerl(os.path.join(data_root, "history", "personal", str(target_date), f"{userid}.json"))
 
 
+def read_latest_client_history(target_date, userid, roleid):
+    """Recover the last saved client window without making a game request."""
+    try:
+        from .zdb import read_latest_client_snapshot
+
+        return read_latest_client_snapshot(target_date, userid, roleid)
+    except Exception as exc:
+        log_message(
+            f"POSTGRES_CLIENT_HISTORY_FALLBACK: date={target_date} userid={userid} error={repr(exc)}",
+            logging.WARNING,
+        )
+    directory = os.path.join(data_root, "history", "personal")
+    if not os.path.isdir(directory):
+        return None
+    for date in sorted(os.listdir(directory), reverse=True):
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) or date > str(target_date):
+            continue
+        payload = readerl(os.path.join(directory, date, f"{userid}.json"))
+        if not isinstance(payload, dict):
+            continue
+        profile = payload.get("profile") or {}
+        if (str(profile.get("userId")) != str(userid)
+                or str(profile.get("targetRoleId")) != str(roleid)):
+            continue
+        if any(row.get("clientOnly") for row in (payload.get("btlist") or {}).get("list", [])
+               if isinstance(row, dict)):
+            return payload
+    return None
+
+
 def iter_client_battle_snapshots(*, start_date=None, end_date=None):
     from .zdb import iter_client_battle_snapshots as read_snapshots
 

@@ -433,6 +433,30 @@ def read_personal_snapshot(snapshot_date, user_id):
             return row["payload"] if row else None
 
 
+def read_latest_client_snapshot(snapshot_date, user_id, target_role_id):
+    """Read the latest saved client window for this exact camp account/role."""
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT payload
+                FROM hok.personal_snapshots
+                WHERE user_id = %s AND target_role_id = %s AND snapshot_date <= %s
+                  AND EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(
+                      CASE WHEN jsonb_typeof(payload->'btlist'->'list') = 'array'
+                           THEN payload->'btlist'->'list' ELSE '[]'::jsonb END
+                    ) AS item WHERE item->>'clientOnly' = 'true'
+                  )
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+                """,
+                (_as_int(user_id), _as_int(target_role_id), _date_text(snapshot_date)),
+            )
+            row = cursor.fetchone()
+            return row["payload"] if row else None
+
+
 def iter_client_battle_snapshots(*, start_date=None, end_date=None):
     conditions = ["EXISTS (SELECT 1 FROM jsonb_array_elements(payload->'btlist'->'list') AS item WHERE item->>'clientOnly' = 'true')"]
     params = []

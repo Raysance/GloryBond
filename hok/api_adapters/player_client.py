@@ -103,7 +103,10 @@ class PlayerClientAdapter:
                 log_message(f"PLAYER_CLIENT_READ_TIMING: operation={method} cached=true gate_ms=0 request_ms=0")
                 return deepcopy(cached[1])
             del self._cache[key]
-        self.gate("query")
+        # The server pushes the complete roster at login and then sends deltas.
+        # Reading it does not emit a game request; pace only actual wire reads.
+        if method != "friends":
+            self.gate("query")
         admitted = ztime.monotonic_seconds()
         try:
             result = getattr(self.client, method)(*args, timeout=float(self.settings["timeout_seconds"]), **options)

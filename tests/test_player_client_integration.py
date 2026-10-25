@@ -84,12 +84,13 @@ class MergeTests(unittest.TestCase):
         rows,count = HISTORY.merge_battles([{**camp,'dtEventTime':str(START)}], [client], tolerance_seconds=90)
         self.assertEqual((len(rows), count), (2,1))  # Previous game's end is this game's start.
 
-    def collect(self, camp, client, saved=None):
+    def collect(self, camp, client, saved=None, latest=None):
         with patch.object(ZFUNC,'player_client_config',self.settings), \
              patch.object(ZFUNC,'userlist',{'alice':1001}), patch.object(ZFUNC,'roleidlist',{'alice':42}), \
              patch.object(DATA,'_battle_list_for_date',side_effect=camp), \
              patch.object(ZFUNC,'player_client_query',side_effect=client), \
-             patch.object(DATA.zfile,'read_personal_history',return_value=saved), patch.object(ZFUNC,'log_message'):
+             patch.object(DATA.zfile,'read_personal_history',return_value=saved), \
+             patch.object(DATA.zfile,'read_latest_client_history',return_value=latest), patch.object(ZFUNC,'log_message'):
             return DATA._combined_battle_list('alice',1001,42,ZTIME.str_to_time('2026-10-23').date())
 
     def test_providers_start_in_parallel_then_merge(self):
@@ -117,6 +118,38 @@ class MergeTests(unittest.TestCase):
         self.assertFalse(value['invisible'])
         with self.assertRaisesRegex(RuntimeError,'均未取得'):
             self.collect(lambda *a: (_ for _ in ()).throw(TimeoutError()),lambda *a,**k: (_ for _ in ()).throw(TimeoutError()))
+
+    def test_limited_client_recovers_the_previous_days_resonance_window(self):
+        older = self.converted(match(start=START-86400))[0]
+        latest = {'btlist': {'list': [older]}}
+        unavailable = lambda *a, **k: (_ for _ in ()).throw(ADAPTER.PlayerClientRateLimited(50, 'quota'))
+        value = self.collect(lambda *a: dict(list=[], invisible=False), unavailable, latest=latest)
+        self.assertEqual([row['gameSeq'] for row in value['list']], [older['gameSeq']])
+        self.assertEqual(value['sourceErrors'], [{'source': '客户端', 'error_type': 'PlayerClientRateLimited'}])
+        self.assertEqual(value['list'][0]['mapName'], '共鸣之战')
+        self.assertFalse(value['invisible'])
+
+    def test_missing_entertainment_also_recovers_saved_matches_but_not_future_or_other_roles(self):
+        older = self.converted(match(start=START-86400))[0]
+        future = self.converted(match(sequence=124, start=START+86400))[0]
+        other = copy.deepcopy(older)
+        other['clientPlayer']['logic_world_id'] += 1
+        other['gameSeq'] -= 1
+        latest = {'btlist': {'list': [future, other, older]}}
+        value = self.collect(lambda *a: dict(list=[], invisible=False),
+            lambda *a, **k: {'matches': [], 'collection': {
+                'ordinary_complete': True, 'entertainment_received': False}}, latest=latest)
+        self.assertEqual([row['gameSeq'] for row in value['list']], [older['gameSeq']])
+        self.assertEqual(value['sourceErrors'], [])
+        self.assertEqual(value['list'][0]['clientPlayer'], older['clientPlayer'])
+
+    def test_fresh_entertainment_does_not_add_a_second_cached_return_window(self):
+        older = self.converted(match(start=START-86400))[0]
+        latest = {'btlist': {'list': [older]}}
+        value = self.collect(lambda *a: dict(list=[], invisible=False),
+            lambda *a, **k: {'matches': [], 'collection': {
+                'ordinary_complete': True, 'entertainment_received': True}}, latest=latest)
+        self.assertEqual(value['list'], [])
 
     def test_saved_client_record_is_replaced_by_new_camp_record_without_double_counting(self):
         converted=self.converted()[0]
