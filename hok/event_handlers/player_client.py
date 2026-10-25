@@ -16,9 +16,9 @@ HELP = ("客户端查询：#客户端 <接口> [玩家] [参数]\n"
         "其他接口的玩家可用配置昵称或账号键，省略为本人；英雄可追加 all/season/year，默认按最高战力展示前几个英雄。\n"
         "英雄详情支持英雄名、配置别名或数字ID；例如：#客户端 战绩 我；#客户端 英雄 example_user_10 season；#客户端 英雄详情 example_user_10 小乔；"
         "#客户端 搜索 完整游戏昵称 [all/android/ios]。仅查询，不自动绑定搜索结果。\n"
-        "也可发送 #玩家的英雄名、#玩家的英雄、#玩家的数据；前两类保留原有文案并附游戏界面样式图片。\n"
+        "也可发送 #我的资料、#玩家的英雄名、#玩家的英雄、#玩家的数据；英雄查询保留原有文案并附图片。\n"
         "数据默认当前赛季、所有游戏、全部分路；可追加当前赛年、全部比赛、中路/对抗路/发育路/打野/游走，"
-        "例如 #我的数据 当前赛年 中路。所有客户端结果直接发送文字或图片。")
+        "例如 #我的中路、#我的发育路数据、#我的本赛年中路数据、#我的全部数据。资料和数据使用简洁卡片图片。")
 
 STATISTICS_OPTIONS = {
     "当前赛季": ("scope", "season"), "本赛季": ("scope", "season"), "season": ("scope", "season"),
@@ -29,7 +29,8 @@ STATISTICS_OPTIONS = {
     "巅峰": ("mode", "peak"), "娱乐": ("mode", "entertainment"),
     "全部分路": ("branch", None), "所有分路": ("branch", None), "对抗路": ("branch", "top"),
     "中路": ("branch", "mid"), "发育路": ("branch", "bot"), "打野": ("branch", "jungle"),
-    "游走": ("branch", "assist"), "辅助": ("branch", "assist"),
+    "游走": ("branch", "assist"), "游走路": ("branch", "assist"),
+    "辅助": ("branch", "assist"), "辅助路": ("branch", "assist"),
 }
 
 
@@ -92,8 +93,12 @@ def parse_client_shortcut(text, *, settings, nicknames, player_aliases, hero_nam
     if "的" not in raw:
         return None
     player, item = (part.strip() for part in raw.rsplit("的", 1))
-    if "数据" in item:
-        # Allow both #甲的数据 当前赛季 中路 and #甲当前赛季中路的数据.
+    if item == "资料":
+        if player == "我" or _player_matches(player, settings, nicknames, player_aliases):
+            return ["资料", player]
+        return None
+    if item:
+        # Filters may surround 的; 数据 is optional when the item is a filter.
         suffix = item.replace("数据", "", 1).strip()
         targets = ["我", *{str(v) for key in set(nicknames) | set(settings.get("players", {})) | set(player_aliases)
                     for v in (key, nicknames.get(key, ""), *player_aliases.get(key, ())) if v}]
@@ -249,6 +254,9 @@ async def command_reply(event):
         if operation == "game":
             result = await asyncio.to_thread(player_client_query, "game_statistics", **parameters)
             return await asyncio.to_thread(player_client_screen_report, "game", label, result)
+        if operation == "profile":
+            result = await asyncio.to_thread(player_client_query, "profile_summary", **parameters)
+            return await asyncio.to_thread(player_client_screen_report, "profile", label, result)
         if operation == "hero_detail" and parse_client_command(event.get_plaintext()) is None:
             result = await asyncio.to_thread(player_client_query, "hero_honors", **parameters, scope="all")
             return await asyncio.to_thread(player_client_screen_report, "hero", label, result)

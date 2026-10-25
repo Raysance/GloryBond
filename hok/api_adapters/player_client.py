@@ -3,7 +3,7 @@
 OPERATIONS = frozenset({
     "homepage", "profile", "history", "heroes", "game", "hero_assets",
     "collections", "displayed_skins", "hero_road_brief", "hero_detail", "hero_titles", "search",
-    "matches", "game_statistics", "hero_honors",
+    "matches", "game_statistics", "hero_honors", "profile_summary",
     "friends", "friend_states", "friend_state",
 })
 
@@ -180,6 +180,15 @@ class PlayerClientAdapter:
             state = self._read("friend_state", target)
             return {"found": state is not None,
                     "state": state.to_json_value(gameplay_catalog=GameplayCatalog.bundled()) if state is not None else None}
+        if operation == "profile_summary":
+            from hok_research.player_pages import branch_page
+
+            profile = self._read("profile", target)
+            radar = profile.raw.get("stStatistic", {}).get("stRadarDetail", {})
+            statistics = (profile.game.statistics(scope="season", mode="all").to_json_value()
+                          if "stCurSeason" in radar else None)
+            return {"profile": profile.to_json_value(), "statistics": statistics,
+                    "branches": branch_page(profile, catalog=ResourceCatalog.bundled())}
         if operation == "homepage":
             # Compose outside the module so each actual data request passes the gate.
             profile = self._read("profile", target)

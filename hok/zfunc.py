@@ -1979,12 +1979,19 @@ def player_client_artwork(hero_ids, *, variant="illustration"):
 
 def player_client_screen_report(kind, label, result):
     from .business.player_client_screens import screen_report
+    from .business.player_client_profile import profile_report, statistics_report
     from .tools.gen_player_client import render_screen
+    from .tools.gen_player_summary import render_summary
     from . import zfile
     from .ztime import monotonic_seconds
     from concurrent.futures import ThreadPoolExecutor
     started = monotonic_seconds()
-    report = screen_report(kind, label, result, HeroList)
+    if kind == "profile":
+        report = profile_report(label, result)
+    elif kind == "game":
+        report = statistics_report(label, result)
+    else:
+        report = screen_report(kind, label, result, HeroList)
     try:
         artwork = {}
         if kind == "hero":
@@ -1996,14 +2003,20 @@ def player_client_screen_report(kind, label, result):
                 if portrait is not None:
                     artwork["portrait"] = portrait.result().get(report["hero_id"])
         assets_ready = monotonic_seconds()
-        image = render_screen(report, zfile.player_client_report_font, artwork=artwork,
-                              win_rate_bands=player_client_config["win_rate_bands"])
+        if kind in {"profile", "game"}:
+            image = render_summary(report, zfile.player_client_report_font,
+                                   win_rate_bands=player_client_config["win_rate_bands"])
+        else:
+            image = render_screen(report, zfile.player_client_report_font, artwork=artwork,
+                                  win_rate_bands=player_client_config["win_rate_bands"])
         path = zfile.save_player_client_report(image)
         log_message(f"PLAYER_CLIENT_IMAGE_TIMING: kind={kind} assets_ms={round((assets_ready-started)*1000)} "
                     f"render_ms={round((monotonic_seconds()-assets_ready)*1000)}")
-        return {"text": report["text"], "image_path": path}
+        return {"text": "" if kind in {"profile", "game"} else report["text"], "image_path": path}
     except Exception as error:
         log_message(f"PLAYER_CLIENT_SCREEN_FAILED: kind={kind} error={type(error).__name__}")
+        if kind in {"profile", "game"}:
+            return {"text": report["text"], "image_path": None}
         values = report["values"]
         games = str(values["games"]) if values["games"] is not None else "—"
         rate = f"{values['win_rate_percent']:.1f}%" if values["win_rate_percent"] is not None else "—"
