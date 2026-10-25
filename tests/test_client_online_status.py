@@ -39,6 +39,8 @@ class ClientOnlineTests(unittest.TestCase):
         self.query, self.camp = query.start(), camp.start()
         self.addCleanup(query.stop)
         self.addCleanup(camp.stop)
+        snapshot = patch.object(ZFUNC, 'player_client_online_snapshot', side_effect=lambda: self.query('friend_states'))
+        snapshot.start(); self.addCleanup(snapshot.stop)
 
     def report(self, players):
         self.query.return_value = {"complete": True, "players": players}

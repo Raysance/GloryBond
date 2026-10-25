@@ -26,3 +26,6 @@ player_client_lock = threading.Lock()
 player_client_adapter = None
 
 player_client_session_fingerprint = None
+
+player_client_online_lock = threading.Lock()
+player_client_online_cache = None

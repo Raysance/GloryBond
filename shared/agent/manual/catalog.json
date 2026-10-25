@@ -1048,7 +1048,7 @@
       "id": "games_3",
       "title": "在线状态",
       "parent": "games",
-      "summary": "#在线使用官方客户端好友快照，仅展示主名单已绑定的可见在线好友，按完整战局标识分组，支持组排人数、组队模式与地图。超时按失败处理，不把部分名单当作全部，不额外触发全局错误冷却；不自动重试，保留可用的Steam结果。",
+      "summary": "#在线一分钟内复用官方客户端完整好友快照，并发刷新合并；仅展示主名单绑定的可见在线好友，按完整战局标识分组，支持组排人数、模式与地图。失败后一分钟内不再次刷新，不把部分或过期名单当作当前在线。切换账号失效；Steam仍每次查询，文案保持原样。",
       "keywords": [
         "在线状态",
         "官方客户端",
@@ -1057,7 +1057,9 @@
         "组队地图",
         "队伍人数",
         "QueryTimeout",
-        "好友查询超时"
+        "好友查询超时",
+        "在线缓存",
+        "一分钟缓存"
       ],
       "document": {
         "path": "shared/agent/manual/chapters/games.md",
@@ -1070,7 +1072,7 @@
         },
         {
           "path": "hok/zfunc.py",
-          "symbol": "online_process"
+          "symbol": "player_client_online_snapshot"
         },
         {
           "path": "hok/zfunc.py",

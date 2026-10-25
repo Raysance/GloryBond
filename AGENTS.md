@@ -285,6 +285,8 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 ### 玩家客户端子模块
 
+- 普通在线查询经 `zfunc.player_client_online_snapshot()` 复用一分钟完整好友状态快照，TTL 来自 `PlayerClient.online_cache_ttl_seconds`（默认60秒，0关闭）。进程内缓存与独立查询锁仅在 `zdynamic.py` 初始化，不持久化、不新增后台任务；并发未命中只刷新一次，TTL 自刷新结束计时、命中不续期，返回副本防止调用方修改。成功空名单同样缓存；超时、拒绝或不完整列表不作为数据返回，同一缓存窗口内不再次刷新，无有效快照时继续报告失败，不用过期数据冒充当前在线。缓存与连接共用 `_player_client_account_fingerprint()` 的当前会话、平台及区服指纹，换账号/路由立即失效；禁用客户端不读缓存。命中后业务层仍按最新主名单/绑定筛选，Steam 每次照常查询，文案不附缓存提示。显式客户端好友/好友状态命令维持独立实时查询，不走此在线缓存；普通在线缓存失败抑制只作用于该入口，服务端限流及既有配额门面继续生效。
+
 - `QueryTimeout` 表示未收到完整查询响应，不当成服务器拒绝：`zfunc.player_client_request_error()` 对非登录查询超时不写全局错误冷却；查询门面仍关闭并丢弃该连接、不自动重试或重登，不返回部分好友为完整列表。下一次显式请求仍经过原查询/登录间隔与配额；登录失败、未知拒绝和明确风控的冷却保持不变。`player_client_error_info()` 对该异常只额外投影已收分包/记录数量，不输出内容；适配层失败日志补 gate_ms、request_ms、timeout_ms，在线管理员错误参数固定标记 operation=friend_states。正式在线文案与 Steam 查询不变，失败不伪装为无人在线。
 
 - `tools/gen_player_summary.py` 为资料、对战数据、单英雄、客户端英雄列表及原历史英雄汇总统一绘制顶部信息栏；真实昵称、分路或英雄、统计范围和模式采用同一32px粗体，长内容换行并动态增加高度。保留原概览，下方按 `detail_sections` 绘制三列数值与自动换行表格。`business/player_client_details.py` 仅从同次返回的白名单字段构建胜负/MVP占比、五维数值、各分路表现、单英雄场均击杀/死亡/助攻、每分钟经济/输出、场均承伤、当前战力、历史称号地区/名次/次数、生涯徽章及赛年标签；`player_client.py` 补英雄胜负/熟练度/徽章与分路战力，`hero_statistics.py` 复用原历史聚合补整体表现和前10英雄明细。适配层 `_statistics_result()` 复用当前 scope/mode 的 display.source_rows 与 SDK battle_display() 本地生成五路统计，不追加请求；单分路不附其他分路。胜负与概览同口径，不混入 raw 汇总；五维数值使用 display.radar.values，绘图使用 plot_ratios，不能把能力指数标成实际伤害或KDA。未知字段保持—，零值有效；仅有真实来源的明细分区才展示，图中不附解释。

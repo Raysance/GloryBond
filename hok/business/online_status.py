@@ -12,7 +12,7 @@ def _zfunc_call(name, *args, **kwargs):
 
 
 def _client_online_report():
-    """Read one fresh friend snapshot, keeping only configured main players."""
+    """Read the shared online snapshot, keeping only configured main players."""
     from .player_client import _text
     from ..ztime import elapsed_minutes_text
 
@@ -21,7 +21,7 @@ def _client_online_report():
                for key in userlist if key in bindings}
     if not allowed:
         return {"online_cnt": 0, "text": ""}
-    snapshot = _zfunc_call("player_client_query", "friend_states")
+    snapshot = _zfunc_call("player_client_online_snapshot")
     if not isinstance(snapshot, dict) or snapshot.get("complete") is not True:
         raise ValueError("Incomplete client friend snapshot")
     games, teams, idle, seen = {}, [], [], set()

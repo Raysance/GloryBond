@@ -884,6 +884,44 @@ def camp_online_process():
     return _online_status_business.online_process(use_client=False)
 
 
+def player_client_online_snapshot():
+    """Share one complete online snapshot and one refresh attempt per cache window."""
+    from copy import deepcopy
+    from math import ceil
+    from .zapi import PlayerClientRateLimited
+    from .ztime import monotonic_seconds
+
+    if not player_client_config.get("enabled", False):
+        raise ValueError("PlayerClient is disabled")
+    ttl = max(0, float(player_client_config.get("online_cache_ttl_seconds", 60)))
+    if not dmc.player_client_online_lock.acquire(timeout=float(player_client_config["rate_limit"]["max_wait_seconds"])):
+        raise PlayerClientRateLimited(1, "busy")
+    try:
+        fingerprint = _player_client_account_fingerprint()
+        cached = dmc.player_client_online_cache
+        now = monotonic_seconds()
+        if ttl > 0 and cached is not None and cached["fingerprint"] == fingerprint and now < cached["expires_at"]:
+            if cached["snapshot"] is None:
+                raise PlayerClientRateLimited(ceil(cached["expires_at"] - now), "online_cache")
+            log_message("PLAYER_CLIENT_ONLINE_CACHE: hit=true")
+            return deepcopy(cached["snapshot"])
+        # Keep failures out of the data cache while bounding repeated refreshes.
+        dmc.player_client_online_cache = None
+        try:
+            snapshot = player_client_query("friend_states")
+            if not isinstance(snapshot, dict) or snapshot.get("complete") is not True or not isinstance(snapshot.get("players"), list):
+                raise ValueError("Incomplete client friend snapshot")
+        except Exception:
+            dmc.player_client_online_cache = {"fingerprint": fingerprint,
+                "expires_at": monotonic_seconds() + ttl, "snapshot": None}
+            raise
+        dmc.player_client_online_cache = {"fingerprint": fingerprint,
+            "expires_at": monotonic_seconds() + ttl, "snapshot": deepcopy(snapshot)}
+        return snapshot
+    finally:
+        dmc.player_client_online_lock.release()
+
+
 from .business import rankings as _rankings_business
 
 
@@ -1864,6 +1902,15 @@ def player_client_request_error(error, *, login=False):
     dmc.redis_deamon.eval(_PLAYER_CLIENT_COOLDOWN, 1, REDIS_KEY_PLAYER_CLIENT_RATE + ":cooldown", int(seconds * 1000))
 
 
+def _player_client_account_fingerprint():
+    """Bind connection and online cache to the same current game account/route."""
+    import hashlib
+    from .zfile import refresh_login_credentials
+
+    return hashlib.sha256((refresh_login_credentials() + repr((player_client_config.get("platform_id"),
+        player_client_config.get("server_id"), player_client_config.get("tree_index")))).encode()).hexdigest()
+
+
 def player_client_query(operation, **parameters):
     """Reuse one connection; release the slot only after the real thread ends."""
     from . import zapi, zfile
@@ -1876,9 +1923,7 @@ def player_client_query(operation, **parameters):
         raise zapi.PlayerClientRateLimited(1, "busy")
     acquired = monotonic_seconds()
     try:
-        import hashlib
-        fingerprint = hashlib.sha256((zfile.refresh_login_credentials() + repr((
-            player_client_config.get("server_id"), player_client_config.get("tree_index")))).encode()).hexdigest()
+        fingerprint = _player_client_account_fingerprint()
         if fingerprint != dmc.player_client_session_fingerprint and dmc.player_client_adapter is not None:
             dmc.player_client_adapter.close()
             dmc.player_client_adapter = None
