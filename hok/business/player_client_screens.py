@@ -22,15 +22,20 @@ def year_labels_model(data):
     return [_text(row.get("name")) or None for row in data.get("in_use", [])][:3]
 
 
-def rank_model(data):
+def rank_model(data, district_names=None):
     if not isinstance(data, dict):
         return None
     ranked = data.get("ranked")
     if ranked not in (True, False):
         return None
     rank = _number(data.get("rank"))
+    adcode = (data.get("raw") or {}).get("dwAdCode")
+    region = (district_names or {}).get(adcode) if type(adcode) is int and adcode > 0 and ranked else None
+    text = f"第{int(rank)}名" if rank is not None else "—"
+    if region:
+        text = region + " " + text
     return {"ranked": ranked, "rank": rank, "title_type": data.get("title_type"),
-            "text": (f"第{int(rank)}名" if rank is not None else "—") if ranked else "暂无排名"}
+            "region": region, "text": text if ranked else "暂无排名"}
 
 
 def branch_models(data):
@@ -40,7 +45,7 @@ def branch_models(data):
             for row in data["by_score"] if row.get("branch") in BRANCH_LABELS][:2]
 
 
-def screen_report(kind, label, result, hero_names):
+def screen_report(kind, label, result, hero_names, *, district_names=None):
     # display has its own native denominators and must not be mixed with raw summary rows.
     display = result.get("display")
     source = display if isinstance(display, dict) else result
@@ -75,7 +80,7 @@ def screen_report(kind, label, result, hero_names):
     historical = result.get("historical_badges")
     by_type = {row["title_type"]: row for row in historical} if isinstance(historical, list) else {}
     badge_counts = [_number(by_type.get(key, {}).get("count")) for key in BADGE_TYPES]
-    rank = rank_model(result.get("rank_badge"))
+    rank = rank_model(result.get("rank_badge"), district_names)
     if kind == "hero":
         if year_labels is None or any(value is None for value in year_labels):
             missing.append("赛年标签")

@@ -236,9 +236,16 @@ async def reply_stream(event):
     client = asyncio.create_task(command_reply(event))
     try:
         original = await original_hero_reply(event)
+        result = await client
         if original:
+            if isinstance(result, dict) and result.get("query_label") and result.get("player_name"):
+                label, name = result["query_label"], result["player_name"]
+                for prefix in (f"【统计信息】 {label}的", f"{label} 在"):
+                    if original.startswith(prefix):
+                        original = original.replace(prefix, prefix.replace(label, name, 1), 1)
+                        break
             yield original
-        yield await client
+        yield result
     finally:
         if not client.done():
             client.cancel()

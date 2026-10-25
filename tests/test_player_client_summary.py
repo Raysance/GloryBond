@@ -1,9 +1,10 @@
 """Self-bound profile cards, concise filters and native statistics; offline only."""
 import unittest
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from PIL import ImageDraw
+from PIL import Image, ImageDraw
 from hok_research import PlayerRef, Profile
 from hok_research.player_pages import battle_display
 from local_debugger import import_hok_module
@@ -26,7 +27,7 @@ def profile_result():
         "stMostUsedHero": {"dwTotalHeroNum": 126, "dwTotalSkinNum": 312},
         "stMasterMatchData": {"iMasterMatchScore": 1850, "iMaxSeasonMasterMatchScore": 2040,
                               "iMaxHistoryMasterMatchScore": 2312}},
-        "statistics": {"scope": "season", "mode": "all", "display": battle_display([battle_row()])},
+        "statistics": {"scope": "season", "mode": "all", "player_name": "LYG.未央", "display": battle_display([battle_row()])},
         "branches": {"branches": [{"branch": key, "level": level} for key, level in
             zip(("top", "mid", "bot", "jungle", "assist"), (12, 19, 15, 10, 7))]}}
 
@@ -144,6 +145,71 @@ class AdapterTests(unittest.TestCase):
 
 
 class ModelAndImageTests(unittest.TestCase):
+    def test_ten_hero_rows_keep_titles_styles_and_numbers_inside_their_rows(self):
+        cards = import_hok_module("business.player_client")
+        result = {"scope": "season", "player_name": "LYG.未央", "heroes": [
+            {"hero_id": 106 + i, "name": f"英雄{i}", "games": 1020, "win_rate_percent": 56.3,
+             "fight_value": 4000, "highest_fight_value": 5000 - i,
+             "fight_style": {"text": "均衡发展的峡谷财神"},
+             "rank_badge": {"ranked": True, "rank": 3, "raw": {"dwAdCode": 340803}}}
+            for i in range(12)]}
+        report = cards.hero_report("配置昵称", result, STATIC.player_client_config, {},
+            district_names={340803: "安徽省安庆市大观区"})
+        drawn, original = [], ImageDraw.ImageDraw.text
+        def track(draw, xy, text, *args, **kwargs):
+            box = draw.textbbox(xy, text, font=kwargs.get("font"), anchor=kwargs.get("anchor"))
+            self.assertGreaterEqual(box[0], 24, (text, box))
+            self.assertLessEqual(box[2], 1096, (text, box))
+            self.assertLess(box[3], draw._image.height - 24, (text, box))
+            if str(text).startswith("历史称号"):
+                self.assertEqual(text, "历史称号  安徽省安庆市大观区 第3名")
+                self.assertLess(box[3], 280 + len(drawn) * 132 + 107)
+                drawn.append(str(text))
+            return original(draw, xy, text, *args, **kwargs)
+        with patch.object(ImageDraw.ImageDraw, "text", track):
+            image = RENDER.render_summary(report, ZFILE.player_client_report_font)
+        self.assertEqual(len(drawn), 10)
+        self.assertEqual(image.size, (1120, 1660))
+
+    def test_hero_cards_use_real_game_names_and_icons_without_template_backgrounds(self):
+        cards = import_hok_module("business.player_client")
+        source = {"player_name": {"text": "LYG.未央"}, "hero_id": 106, "scope": "all",
+                  "highest_fight_value": 4300, "display": battle_display([battle_row()]),
+                  "medals": {"top": 0, "gold": 24, "silver": 28, "bronze": 12}, "mvp": 46, "losing_mvp": 8,
+                  "year_labels": {"in_use": [{"name": value} for value in ("团战发动机", "伐木机器", "嗜血闪现")]},
+                  "historical_badges": [{"title_type": kind, "count": 2} for kind in (1, 2, 3, 5, 4)],
+                  "rank_badge": {"ranked": True, "rank": 3}}
+        hero = MODELS.hero_summary_report(source, STATIC.HeroList)
+        heroes = cards.hero_report("配置昵称", {"scope": "season", "player_name": "LYG.未央", "heroes": [
+            {"hero_id": key, "games": 100, "win_rate_percent": 55, "fight_value": 3000, "highest_fight_value": 4300}
+            for key in (106, 112)]}, STATIC.player_client_config, STATIC.HeroList)
+        content = BytesIO()
+        Image.new("RGB", (72, 72), "#123abc").save(content, format="PNG")
+        drawn, original = [], ImageDraw.ImageDraw.text
+        def track(draw, xy, text, *args, **kwargs):
+            drawn.append(str(text))
+            box = draw.textbbox(xy, text, font=kwargs.get("font"), anchor=kwargs.get("anchor"))
+            self.assertGreaterEqual(box[0], 24, (text, box))
+            self.assertLessEqual(box[2], 1096, (text, box))
+            self.assertLess(box[3], draw._image.height - 24, (text, box))
+            return original(draw, xy, text, *args, **kwargs)
+        with patch.object(ZFILE, "player_client_reference_image", side_effect=AssertionError("No screenshot templates")), \
+             patch.object(ImageDraw.ImageDraw, "text", track):
+            one = RENDER.render_summary(hero, ZFILE.player_client_report_font, avatar_bytes={"106": content.getvalue()})
+            many = RENDER.render_summary(heroes, ZFILE.player_client_report_font, avatar_bytes={"106": content.getvalue()})
+        self.assertEqual(one.getpixel((100, 146)), (18, 58, 188))
+        self.assertEqual(many.getpixel((100, 316)), (18, 58, 188))
+        self.assertIn("LYG.未央", drawn)
+        self.assertIn("团战发动机", drawn)
+        self.assertFalse(any(word in text for text in drawn for word in ("配置昵称", "暂缺", "未取得", "说明", "raw", "UID")))
+
+    def test_missing_game_name_never_falls_back_to_a_configured_alias(self):
+        cards = import_hok_module("business.player_client")
+        self.assertEqual(MODELS.statistics_report("配置昵称", {})["label"], "—")
+        self.assertEqual(MODELS.profile_report("配置昵称", {})["name"], "—")
+        self.assertEqual(MODELS.hero_summary_report({}, {})["label"], "—")
+        self.assertEqual(cards.hero_report("配置昵称", {"heroes": []}, STATIC.player_client_config, {})["label"], "—")
+
     def test_only_whitelisted_fields_are_exposed_and_unknown_values_stay_unknown(self):
         source = profile_result()
         source["profile"].update(ullUid=9876543210123456789, szOpenID="PRIVATE_SENTINEL", raw={"private": "PRIVATE_SENTINEL"})
@@ -205,7 +271,7 @@ class ModelAndImageTests(unittest.TestCase):
             with self.subTest(kind=kind), patch.object(ZFILE, "save_player_client_report", return_value="/tmp/card.png"), \
                  patch.object(ZFUNC, "player_client_artwork") as artwork:
                 result = ZFUNC.player_client_screen_report(kind, "甲", data)
-                self.assertEqual(result, {"text": "", "image_path": "/tmp/card.png"})
+                self.assertEqual(result, {"text": "", "image_path": "/tmp/card.png", "player_name": "LYG.未央", "query_label": "甲"})
                 artwork.assert_not_called()
             with patch.object(RENDER, "render_summary", side_effect=OSError("PRIVATE_SENTINEL")):
                 result = ZFUNC.player_client_screen_report(kind, "甲", data)

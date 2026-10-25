@@ -205,17 +205,21 @@ class PlayerClientAdapter:
             return self._read("matches", target).to_json_value(
                 catalog=ResourceCatalog.bundled(), gameplay_catalog=GameplayCatalog.bundled())
         elif operation == "game_statistics":
-            game = self._read("profile", target).game
-            return game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
+            profile = self._read("profile", target)
+            result = profile.game.statistics(scope=scope, mode=mode, branch=branch).to_json_value()
+            result["player_name"] = json_value(profile.raw.get("szAcntName"))
+            return result
         elif operation == "hero_honors":
             page = self._hero_page(target, hero_id=hero_id)
             result = page.hero_honors(int(hero_id), scope=scope).to_json_value(catalog=ResourceCatalog.bundled())
             result["errors"] = page.errors
+            result["player_name"] = json_value(page.profile.raw.get("szAcntName"))
             return result
         elif operation == "heroes":
             page = self._hero_page(target)
             result = page.hero_page(scope=scope, sort_by="highest_fight_value").to_json_value(catalog=ResourceCatalog.bundled())
-            return {"scope": scope, "heroes": result["cards"], "branches": result["branches"], "errors": page.errors}
+            return {"scope": scope, "heroes": result["cards"], "branches": result["branches"], "errors": page.errors,
+                    "player_name": json_value(page.profile.raw.get("szAcntName"))}
         elif operation == "hero_detail":
             result = self._read(operation, target, int(hero_id))
         else:

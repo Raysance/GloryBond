@@ -16,6 +16,8 @@ CARDS=import_hok_module('business.player_client')
 RENDER=import_hok_module('tools.gen_player_client')
 ZFILE=import_hok_module('zfile')
 STATIC=import_hok_module('zstatic')
+ZFUNC=import_hok_module('zfunc')
+SUMMARY_RENDER=import_hok_module('tools.gen_player_summary')
 FIXTURES=Path(__file__).parents[1]/'vendor/hok-player-client/tests/fixtures'
 
 
@@ -58,8 +60,8 @@ class PlayerPageTests(unittest.TestCase):
         titles=HeroTitles(player,dict(ullUid=player.uid,dwLogicWorldID=player.logic_world_id,
             stResultInfo=dict(iResultId=0),stHistoryHeroLbsTitleInfo=dict(dwHeroCnt=1,
             astHeroLbsTitleData=[dict(dwHeroID=106,dwTitleTypeCnt=2,astOneTitleTypeData=[
-                dict(dwTitleType=1,dwLeastRankNo=50,dwTitleGetCnt=7),
-                dict(dwTitleType=5,dwLeastRankNo=3,dwTitleGetCnt=2)])])))
+                dict(dwTitleType=1,dwLeastRankNo=50,dwTitleGetCnt=7,dwAdCode=340803),
+                dict(dwTitleType=5,dwLeastRankNo=3,dwTitleGetCnt=2,dwAdCode=110101)])])))
         brief=dict(stHeroRoadBriefInfo=dict(astHeroRoadBriefData=[dict(dwHeroID=106,dwUnLockBadgeNum=23,
             stShowTitle=dict(dwShowTitleID=2,dwShowBigType=2,iStyleLvl=0))]))
         detail=dict(stDetailHeroExtraInfo=dict(astDetailHeroExtraData=[]))
@@ -109,14 +111,52 @@ class PlayerPageTests(unittest.TestCase):
         self.assertNotIn('暂缺',model['hint'])
         self.assertNotIn('raw',repr(model))
 
+    def test_historical_title_region_survives_sdk_projection_and_both_image_facades(self):
+        adapter,fake,player=self.adapter()
+        # The title belongs to Beijing even when the current profile location differs.
+        fake.profile.return_value.raw['stAcntLocation']={'dwAdCode':440300}
+        cards=adapter.query('heroes',player=vars(player),scope='all')
+        honors=adapter.query('hero_honors',player=vars(player),hero_id=106)
+        self.assertEqual(honors['rank_badge']['raw']['dwAdCode'],110101)
+        with patch.object(ZFUNC,'player_client_hero_avatars',return_value={}), \
+             patch.object(SUMMARY_RENDER,'render_summary') as render, \
+             patch.object(ZFILE,'save_player_client_report',return_value='card.png'):
+            ZFUNC.player_client_hero_report('甲',cards)
+            ZFUNC.player_client_screen_report('hero','甲',honors)
+        reports=[call.args[0] for call in render.call_args_list]
+        badges=[reports[0]['rows'][0]['rank_badge'],reports[1]['rank_badge']]
+        for badge in badges:
+            self.assertEqual(badge['region'],'北京市东城区')
+            self.assertEqual(badge['text'],'北京市东城区 第3名')
+        self.assertIn('历史称号北京市东城区 第3名',reports[0]['text'])
+        self.assertIn('历史称号 北京市东城区 第3名',reports[1]['text'])
+        self.assertEqual(adapter.gate.call_count,5)
+
+    def test_unknown_or_missing_title_regions_do_not_guess_a_location(self):
+        regions={110101:'北京市东城区',156:'全国'}
+        for adcode in (None,0,999999,True,'110101'):
+            with self.subTest(adcode=adcode):
+                rank=SCREENS.rank_model({'ranked':True,'rank':3,'raw':{'dwAdCode':adcode}},regions)
+                self.assertIsNone(rank['region'])
+                self.assertEqual(rank['text'],'第3名')
+        rank=SCREENS.rank_model({'ranked':True,'rank':1,'raw':{'dwAdCode':156}},regions)
+        self.assertEqual(rank['text'],'全国 第1名')
+        with patch.object(ZFILE,'read_honor_districts',side_effect=OSError('missing catalog')):
+            self.assertEqual(ZFUNC._player_client_title_regions(),{})
+
     def test_hero_list_single_hero_and_game_share_the_same_profile_sources(self):
         adapter,fake,player=self.adapter()
+        fake.profile.return_value.raw['szAcntName']='LYG.未央'.encode()
         cards=adapter.query('heroes',player=vars(player),scope='all')
         honors=adapter.query('hero_honors',player=vars(player),hero_id=106,scope='all')
         game=adapter.query('game_statistics',player=vars(player),scope='season')
         self.assertTrue(cards['heroes'])
         self.assertEqual(honors['hero_id'],106)
         self.assertEqual(game['scope'],'season')
+        models=import_hok_module('business.player_client_profile')
+        self.assertEqual(CARDS.hero_report('配置昵称',cards,STATIC.player_client_config,STATIC.HeroList)['label'],'LYG.未央')
+        self.assertEqual(models.hero_summary_report(honors,STATIC.HeroList)['label'],'LYG.未央')
+        self.assertEqual(models.statistics_report('配置昵称',game)['label'],'LYG.未央')
         fake.profile.assert_called_once()
         fake.hero_titles.assert_called_once()
         fake.hero_extra_statistics.assert_called_once()

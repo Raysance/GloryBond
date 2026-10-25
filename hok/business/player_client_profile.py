@@ -20,7 +20,7 @@ def profile_report(label, result):
                 if isinstance(row, dict) and row.get("branch") in BRANCH_LABELS}
     branch_rows = [{"name": BRANCH_LABELS[key], "level": _number(branches.get(key, {}).get("level"))}
                    for key in ("top", "mid", "bot", "jungle", "assist")]
-    name = _text(profile.get("szAcntName")) or str(label)
+    name = _text(profile.get("szAcntName")) or "—"
     signature = _text(profile.get("szSignatureInfo"))
     summary = statistics["values"]
     rate = "—" if summary["win_rate_percent"] is None else f"{summary['win_rate_percent']:.1f}%"
@@ -34,6 +34,7 @@ def profile_report(label, result):
 
 
 def statistics_report(label, result):
+    label = _text(result.get("player_name")) or "—"
     report = screen_report("game", label, result, {})
     report["branch_label"] = "全部分路" if report["branch"] is None else BRANCH_LABELS[report["branch"]]
     # The card carries its scope and filters; delivery adds no explanatory copy.
@@ -42,4 +43,20 @@ def statistics_report(label, result):
     rate = "—" if values["win_rate_percent"] is None else f"{values['win_rate_percent']:.1f}%"
     report["text"] = (f"{title}\n{report['mode']}\n场次 {_number_text(values['games'])} · 胜率 {rate}\n"
                       f"综合得分 {'—' if values['score'] is None else format(values['score'], '.1f')}")
+    return report
+
+
+def hero_summary_report(result, hero_names, *, district_names=None):
+    name = _text(result.get("player_name")) or "—"
+    report = screen_report("hero", name, result, hero_names, district_names=district_names)
+    report["branch_label"] = report["title"]
+    counts = report["historical_badges"]
+    report["honor_count"] = sum(counts) if all(value is not None for value in counts) else None
+    values = report["values"]
+    rate = "—" if values["win_rate_percent"] is None else f"{values['win_rate_percent']:.1f}%"
+    report["text"] = (f"{name} · {report['title']} · {report['scope']}\n"
+                      f"场次 {_number_text(values['games'])} · 胜率 {rate}\n"
+                      f"综合得分 {'—' if values['score'] is None else format(values['score'], '.1f')}\n"
+                      f"最高战力 {_number_text(values['highest_fight_value'])}\n"
+                      f"历史称号 {(report['rank_badge'] or {}).get('text') or '—'}")
     return report

@@ -1,10 +1,11 @@
-"""Clean profile/statistics cards; no template assets, network or file IO."""
+"""Clean player/hero cards; no template assets, network or file IO."""
 
 from math import cos, sin, pi
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 from .gen_player_client import win_rate_color
+from ..zfile import pil_image_from_bytes
 
 BG, PAPER, INK, MUTED = "#eff4f5", "#ffffff", "#243746", "#788a96"
 LINE, ACCENT, TINT = "#e7edef", "#24897d", "#edf7f4"
@@ -34,6 +35,20 @@ class Card:
     def metric(self, x, y, label, value, *, color=INK, size=40, width=290):
         self.text(x, y, label, 22, MUTED, width=width)
         self.text(x, y + 36, value, size, color, bold=True, width=width)
+
+    def avatar(self, content, x, y, size=72):
+        box = (x, y, x + size, y + size)
+        self.draw.rounded_rectangle(box, radius=16, fill=TINT)
+        if not content:
+            return
+        try:
+            source = pil_image_from_bytes(content, max_pixels=8_000_000).convert("RGB")
+            photo = ImageOps.fit(source, (size, size), Image.Resampling.LANCZOS)
+        except (OSError, ValueError):
+            return
+        mask = Image.new("L", (size, size))
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=16, fill=255)
+        self.image.paste(photo, (x, y), mask)
 
 
 def number(value, *, percent=False):
@@ -97,12 +112,17 @@ def _radar(c, ratios):
         c.text(cx + 135 * x, cy + 135 * y, title, 23, MUTED, anchor="mm")
 
 
-def statistics_card(report, font, bands):
-    c, values = Card(font, 920), report["values"]
-    c.text(64, 62, "对战数据", 24, ACCENT, bold=True)
-    c.text(64, 109, report["label"], 42, bold=True, width=730)
+def statistics_card(report, font, bands, avatar_bytes):
+    hero = report["kind"] == "hero"
+    c, values = Card(font, 1080 if hero else 920), report["values"]
+    c.text(64, 62, "英雄表现" if hero else "对战数据", 24, ACCENT, bold=True)
+    if hero:
+        c.avatar(avatar_bytes.get(report["hero_id"]), 64, 110)
+    left = 156 if hero else 64
+    c.text(left, 109, report["label"], 38 if hero else 42, bold=True, width=790 - left)
     c.text(1056, 124, report["branch_label"], 27, ACCENT, anchor="rt", width=240)
-    c.text(64, 170, report["scope"] + "  ·  " + report["mode"], 24, MUTED, width=992)
+    subtitle = report["scope"] if hero else report["scope"] + "  ·  " + report["mode"]
+    c.text(left, 170, subtitle, 24, MUTED, width=1056 - left)
     for index, (key, title) in enumerate((("games", "场次"), ("win_rate_percent", "胜率"), ("score", "综合得分"))):
         color = win_rate_color(values[key], bands) if key == "win_rate_percent" else INK
         c.metric(64 + index * 338, 232, title, number(values[key], percent=key == "win_rate_percent"), size=52, color=color)
@@ -117,6 +137,20 @@ def statistics_card(report, font, bands):
         if index < 3:
             c.draw.line((636, y + 42, 1056, y + 42), fill=LINE, width=1)
     c.rule(712)
+    if hero:
+        for index, (key, title) in enumerate((("highest_fight_value", "最高战力"), ("mvp", "全场最佳"), ("losing_mvp", "败方最佳"))):
+            c.metric(64 + index * 338, 748, title, number(values[key]), size=36)
+        c.rule(854)
+        c.text(64, 888, "赛年标签", 25, bold=True)
+        for index, text in enumerate((report["year_labels"] or [None] * 3)[:3]):
+            x = 64 + index * 338
+            c.draw.rounded_rectangle((x, 932, x + 316, 982), radius=12, fill=TINT)
+            c.text(x + 158, 957, text or "—", 23, ACCENT, anchor="mm", width=288)
+        c.text(64, 1016, "历史称号", 23, MUTED)
+        rank = (report["rank_badge"] or {}).get("text") or "—"
+        count = report["honor_count"]
+        c.text(1056, 1016, rank + "  ·  " + number(count) + "次", 24, ACCENT, anchor="rt", width=760)
+        return c.image
     honors = (("mvp", "全场最佳"), ("losing_mvp", "败方最佳"), ("triple_kills", "三连决胜"),
               ("quadra_kills", "四连超凡"), ("penta_kills", "五连绝世"), ("legendary", "超神"))
     for index, (key, title) in enumerate(honors):
@@ -127,6 +161,38 @@ def statistics_card(report, font, bands):
     return c.image
 
 
-def render_summary(report, font, *, win_rate_bands=()):
-    renderer = profile_card if report["kind"] == "profile" else statistics_card
-    return renderer(report, font, win_rate_bands)
+def heroes_card(report, font, bands, avatar_bytes):
+    c = Card(font, 340 + len(report["rows"]) * 132)
+    c.text(64, 62, "英雄统计", 24, ACCENT, bold=True)
+    c.text(64, 109, report["label"], 42, bold=True, width=730)
+    c.text(1056, 124, report["scope"], 27, ACCENT, anchor="rt", width=240)
+    c.text(64, 170, f"5v5  ·  最高战力  ·  {len(report['rows'])}/{report['total']}", 24, MUTED)
+    c.rule(210)
+    c.text(64, 240, "英雄", 21, MUTED)
+    for x, title in ((480, "场次"), (660, "胜率"), (850, "当前战力"), (1056, "最高战力")):
+        c.text(x, 240, title, 21, MUTED, anchor="rt")
+    for index, row in enumerate(report["rows"]):
+        y = 280 + index * 132
+        c.avatar(avatar_bytes.get(row["hero_id"]), 64, y)
+        c.text(156, y + 4, row["name"], 28, bold=True, width=210)
+        rank = (row["rank_badge"] or {}).get("text")
+        if row["fight_style"]:
+            c.text(156, y + 48, row["fight_style"], 18, MUTED, width=264)
+        if rank:
+            c.text(156, y + 78, "历史称号  " + rank, 18, MUTED, width=900)
+        for x, key in ((480, "games"), (660, "win_rate_percent"), (850, "fight_value"), (1056, "highest_fight_value")):
+            rate = key == "win_rate_percent"
+            color = win_rate_color(row[key], bands) if rate else INK
+            c.text(x, y + 18, number(row[key], percent=rate), 30, color, bold=True, anchor="rt", width=100 if key == "games" else 155)
+        c.rule(y + 107)
+    branches = [row["text"] for row in report["branches"] or [] if row.get("text")]
+    if branches:
+        c.text(64, c.image.height - 60, "我的分路  ·  " + "  ·  ".join(branches), 23, ACCENT, width=992)
+    return c.image
+
+
+def render_summary(report, font, *, win_rate_bands=(), avatar_bytes=None):
+    if report["kind"] == "profile":
+        return profile_card(report, font, win_rate_bands)
+    renderer = heroes_card if report["kind"] == "heroes" else statistics_card
+    return renderer(report, font, win_rate_bands, avatar_bytes or {})

@@ -12,6 +12,7 @@ from local_debugger import import_hok_module
 BUSINESS = import_hok_module("business.player_client")
 HANDLER = import_hok_module("event_handlers.player_client")
 RENDER = import_hok_module("tools.gen_player_client")
+SUMMARY_RENDER = import_hok_module("tools.gen_player_summary")
 ZFUNC = import_hok_module("zfunc")
 ZFILE = import_hok_module("zfile")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
@@ -20,7 +21,7 @@ STATIC = import_hok_module("zstatic")
 
 
 def hero_result():
-    return {"scope": "season", "heroes": [
+    return {"scope": "season", "player_name": "LYG.未央", "heroes": [
         {"hero_id": 106 + i, "name": f"英雄{i}", "games": 60 - i * 5,
          "wins": 40 - i * 4, "losses": 20 - i, "win_rate_percent": (40 - i * 4) / (60 - i * 5) * 100,
          "fight_value": 8000 - i * 600, "highest_fight_value": 12000 - i * 500,
@@ -57,9 +58,26 @@ class HeroReportTests(unittest.TestCase):
         self.assertIsNone(report["rows"][0]["fight_value"])
         self.assertIn("当前战力—", report["text"])
 
+    def test_default_selects_ten_heroes_and_caps_larger_limits_before_loading_avatars(self):
+        data = hero_result()
+        data["heroes"] = [{**data["heroes"][0], "hero_id": 106 + i,
+                           "highest_fight_value": 12000 - i * 100} for i in range(15)]
+        self.assertEqual(STATIC.player_client_config["display_hero_limit"], 10)
+        for limit in (10, 99):
+            settings = {**self.settings, "display_hero_limit": limit}
+            with self.subTest(limit=limit), patch.object(ZFUNC, "player_client_config", settings), \
+                 patch.object(ZFUNC, "player_client_hero_avatars", return_value={}) as avatars, \
+                 patch.object(SUMMARY_RENDER, "render_summary") as render, \
+                 patch.object(ZFILE, "save_player_client_report", return_value="card.png"):
+                ZFUNC.player_client_hero_report("甲", data)
+            selected = [str(i) for i in range(106, 116)]
+            self.assertEqual([row["hero_id"] for row in render.call_args.args[0]["rows"]], selected)
+            self.assertIn("10/15", render.call_args.args[0]["summary"])
+            avatars.assert_called_once_with(selected)
+
     def test_empty_list_sends_a_readable_message_without_rendering(self):
         with patch.object(ZFUNC, "player_client_config", self.settings), \
-             patch.object(RENDER, "render_hero_report") as render:
+             patch.object(SUMMARY_RENDER, "render_summary") as render:
             result = ZFUNC.player_client_hero_report("甲", {"scope": "year", "heroes": []})
         render.assert_not_called()
         self.assertIsNone(result["image_path"])
@@ -67,7 +85,7 @@ class HeroReportTests(unittest.TestCase):
 
     def test_render_failure_falls_back_to_only_the_selected_heroes_without_querying_again(self):
         with patch.object(ZFUNC, "player_client_config", self.settings), \
-             patch.object(RENDER, "render_hero_report", side_effect=OSError("font unavailable")), \
+             patch.object(SUMMARY_RENDER, "render_summary", side_effect=OSError("font unavailable")), \
              patch.object(ZFUNC, "player_client_query") as query:
             result = ZFUNC.player_client_hero_report("甲", hero_result())
         self.assertIsNone(result["image_path"])
@@ -94,7 +112,7 @@ class HeroReportTests(unittest.TestCase):
              patch.object(ZFILE, "load_hero_tier_avatar_cache", return_value=({"106": b"cached"}, [{"heroId": "107"}])) as load, \
              patch.object(api, "tianyuanzhiyi_hero_avatars_api", return_value={"107": b"downloaded"}) as fetch, \
              patch.object(ZFILE, "save_hero_tier_avatar_cache") as save, \
-             patch.object(RENDER, "render_hero_report") as render, \
+             patch.object(SUMMARY_RENDER, "render_summary") as render, \
              patch.object(ZFILE, "save_player_client_report", return_value="/tmp/card.png"):
             result = ZFUNC.player_client_hero_report("甲", hero_result())
         self.assertEqual(len(load.call_args.args[0]), 5)
@@ -107,34 +125,32 @@ class HeroReportTests(unittest.TestCase):
     def test_avatar_failure_does_not_discard_the_statistics_image(self):
         with patch.object(ZFUNC, "player_client_config", self.settings), \
              patch.object(ZFILE, "load_hero_tier_avatar_cache", side_effect=OSError("cache unavailable")), \
-             patch.object(RENDER, "render_hero_report") as render, \
+             patch.object(SUMMARY_RENDER, "render_summary") as render, \
              patch.object(ZFILE, "save_player_client_report", return_value="/tmp/card.png"):
             result = ZFUNC.player_client_hero_report("甲", hero_result())
         render.assert_called_once()
         self.assertEqual(result["image_path"], "/tmp/card.png")
 
-    def test_portrait_fallback_is_not_downloaded_when_card_art_is_available(self):
-        artwork={str(i):b'card' for i in range(106,111)}
-        with patch.object(ZFUNC,'player_client_artwork',return_value=artwork), \
-             patch.object(ZFILE,'load_hero_tier_avatar_cache') as avatars, \
-             patch.object(RENDER,'render_hero_report') as render, \
+    def test_hero_list_uses_cached_avatars_without_downloading_illustrations(self):
+        artwork={str(i):b'avatar' for i in range(106,111)}
+        with patch.object(ZFUNC,'player_client_artwork') as illustration, \
+             patch.object(ZFILE,'load_hero_tier_avatar_cache',return_value=(artwork,[])), \
+             patch.object(SUMMARY_RENDER,'render_summary') as render, \
              patch.object(ZFILE,'save_player_client_report',return_value='card.png'):
             ZFUNC.player_client_hero_report('甲',hero_result())
-        avatars.assert_not_called()
-        self.assertEqual(render.call_args.kwargs['artwork'],artwork)
+        illustration.assert_not_called()
+        self.assertEqual(render.call_args.kwargs['avatar_bytes'],artwork)
 
-    def test_single_hero_illustration_and_portrait_load_concurrently(self):
-        import threading
-        ready=threading.Barrier(2,timeout=2)
-        def artwork(ids,variant='illustration'):
-            ready.wait()
-            return {ids[0]:variant.encode()}
-        with patch.object(ZFUNC,'player_client_artwork',side_effect=artwork), \
-             patch.object(RENDER,'render_screen') as render, \
+    def test_single_hero_uses_one_avatar_and_the_clean_renderer(self):
+        with patch.object(ZFUNC,'player_client_artwork') as illustration, \
+             patch.object(ZFUNC,'player_client_hero_avatars',return_value={'112':b'avatar'}) as avatars, \
+             patch.object(SUMMARY_RENDER,'render_summary') as render, \
              patch.object(ZFILE,'save_player_client_report',return_value='hero.png'):
             result=ZFUNC.player_client_screen_report('hero','甲',{'hero_id':112})
         self.assertEqual(result['image_path'],'hero.png')
-        self.assertEqual(render.call_args.kwargs['artwork'],{'112':b'illustration','portrait':b'avatar'})
+        avatars.assert_called_once_with(['112'])
+        illustration.assert_not_called()
+        self.assertEqual(render.call_args.kwargs['avatar_bytes'],{'112':b'avatar'})
 
     def test_win_rate_colors_distinguish_low_mid_high_and_missing_values(self):
         bands = self.settings["win_rate_bands"]
@@ -282,8 +298,19 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
              patch.object(HANDLER, "command_reply", side_effect=client), \
              patch.object(SENDER, "add_forward_msg", side_effect=lambda *args, **kwargs: order.append(("supplement", args[0]))):
             await namespace["f_player_client"](event)
-        self.assertEqual(order, [("original", "原有统计，近30天"), ("client_query", None),
+        self.assertEqual(order, [("client_query", None), ("original", "原有统计，近30天"),
                                   ("original", "客户端资料暂时未能取得。")])
+
+    async def test_legacy_player_heading_uses_the_same_game_name_as_the_card(self):
+        from contextlib import aclosing
+        client = {"player_name": "LYG.未央", "query_label": "配置昵称", "text": "", "image_path": "hero.png"}
+        for original, expected in (("【统计信息】 配置昵称的小乔 (梯度T1)\n10场", "【统计信息】 LYG.未央的小乔 (梯度T1)\n10场"),
+                                   ("配置昵称 在近30日内没有对局记录。", "LYG.未央 在近30日内没有对局记录。")):
+            with patch.object(HANDLER, "original_hero_reply", AsyncMock(return_value=original)), \
+                 patch.object(HANDLER, "command_reply", AsyncMock(return_value=client)):
+                async with aclosing(HANDLER.reply_stream(object())) as stream:
+                    self.assertEqual(await anext(stream), expected)
+                    self.assertEqual(await anext(stream), client)
 
     async def test_forward_preview_survives_queue_for_both_destinations_without_replacing_body(self):
         for event, kind, target in ((SimpleNamespace(group_id=123, user_id=456), "group", 123),

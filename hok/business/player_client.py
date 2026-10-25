@@ -16,11 +16,12 @@ def _number_text(value):
     return f"{value:,}" if type(value) is int else f"{value:,.0f}"
 
 
-def hero_report(label, result, settings, hero_names):
+def hero_report(label, result, settings, hero_names, *, district_names=None):
     """Select bounded 5v5 cards by highest power; never carry raw protocol fields."""
     from .player_client_screens import branch_models, rank_model
+    label = _text(result.get("player_name")) or "—"
     heroes = result["heroes"]
-    limit = max(1, min(5, int(settings["display_hero_limit"])))
+    limit = max(1, min(10, int(settings["display_hero_limit"])))
     ordered = sorted(heroes, key=lambda row: (-(_number(row.get("highest_fight_value")) or 0), int(row["hero_id"])))
     rows = []
     for hero in ordered[:limit]:
@@ -32,28 +33,21 @@ def hero_report(label, result, settings, hero_names):
         row.update(hero_id=hero_id, name=str(hero_names.get(hero_id) or hero.get("name") or "未知英雄"),
                    artwork_focus=settings.get("artwork_focus", {}).get(hero_id, [.5, .4]),
                    fight_style=_text((hero.get("fight_style") or {}).get("text")) or None,
-                   rank_badge=rank_model(hero.get("rank_badge")))
+                   rank_badge=rank_model(hero.get("rank_badge"), district_names))
         rows.append(row)
     scope = SCOPE_NAMES.get(result.get("scope"), "当前范围")
-    summary = f"{label} · {scope}英雄\n5v5 · 按最高战力降序，展示 {len(rows)}/{len(heroes)} 个返回英雄。"
+    summary = f"{label} · {scope}英雄\n5v5 · 最高战力 · {len(rows)}/{len(heroes)}"
     branches = branch_models(result.get("branches"))
-    missing = []
-    if any(row["fight_style"] is None for row in rows):
-        missing.append("部分战斗风格")
-    if any(row["rank_badge"] is None for row in rows):
-        missing.append("部分历史称号")
-    if branches is None or any(row["text"] is None for row in branches):
-        missing.append("分路段位")
-    hint = "查看单个英雄：#玩家的英雄名，例如 #我的小乔。"
-    if missing:
-        hint += "暂缺：" + "、".join(missing) + "。"
+    hint = ""
     text_rows = []
     for index, row in enumerate(rows, 1):
         rate = "—" if row["win_rate_percent"] is None else f"{row['win_rate_percent']:.1f}%"
+        rank = row["rank_badge"]
+        title = f"，历史称号{rank['text']}" if rank and rank["ranked"] else ""
         text_rows.append(f"{index}. {row['name']}：{_number_text(row['games'])}场，胜率{rate}，"
-                         f"当前战力{_number_text(row['fight_value'])}，历史最高{_number_text(row['highest_fight_value'])}")
+                         f"当前战力{_number_text(row['fight_value'])}，历史最高{_number_text(row['highest_fight_value'])}{title}")
     text = "\n".join([summary, *text_rows, hint] if rows else [summary, "当前范围没有返回英雄数据。"])
-    return {"label": str(label), "scope": scope, "rows": rows, "total": len(heroes), "branches": branches,
+    return {"kind": "heroes", "label": label, "scope": scope, "rows": rows, "total": len(heroes), "branches": branches,
             "summary": summary, "hint": hint, "text": text}
 
 

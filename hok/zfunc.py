@@ -1917,46 +1917,58 @@ def player_client_heartbeat():
 def player_client_hero_report(label, result):
     """Render one bounded hero list without issuing further game requests."""
     from .business.player_client import hero_report
-    from .tools.gen_player_client import render_hero_report
+    from .tools.gen_player_summary import render_summary
     from . import zfile
     from .ztime import monotonic_seconds
 
     started = monotonic_seconds()
-    report = hero_report(label, result, player_client_config, HeroList)
+    report = hero_report(label, result, player_client_config, HeroList,
+                         district_names=_player_client_title_regions())
+    identity = {"player_name": report["label"], "query_label": label}
     if not report["rows"]:
-        return {"text": report["text"], "image_path": None}
-    artwork = {}
+        return {"text": report["text"], "image_path": None, **identity}
+    avatars = player_client_hero_avatars([row["hero_id"] for row in report["rows"]])
+    assets_ready = monotonic_seconds()
     try:
-        artwork = player_client_artwork([r["hero_id"] for r in report["rows"]], variant="card")
+        image = render_summary(report, zfile.player_client_report_font, avatar_bytes=avatars,
+                               win_rate_bands=player_client_config["win_rate_bands"])
+        path = zfile.save_player_client_report(image)
     except Exception as error:
-        log_message(f"PLAYER_CLIENT_ARTWORK_FAILED: error={type(error).__name__}")
+        log_message(f"PLAYER_CLIENT_REPORT_FAILED: error={type(error).__name__}")
+        return {"text": report["text"], "image_path": None, **identity}
+    log_message(f"PLAYER_CLIENT_IMAGE_TIMING: kind=heroes assets_ms={round((assets_ready-started)*1000)} "
+                f"render_ms={round((monotonic_seconds()-assets_ready)*1000)}")
+    return {"text": "", "image_path": path, **identity}
+
+
+def _player_client_title_regions():
+    """Resolve title adcodes with the existing local honor district catalog."""
+    from . import zfile
+
+    try:
+        return {row["adcode"]: row["display_name"]
+                for row in _honor_district_entries(zfile.read_honor_districts())}
+    except Exception as error:
+        log_message(f"PLAYER_CLIENT_TITLE_REGIONS_FAILED: error={type(error).__name__}")
+        return {}
+
+
+def player_client_hero_avatars(hero_ids):
+    """Reuse the existing ID/URL avatar cache for just the displayed heroes."""
+    from . import zapi, zfile
+
     avatars = {}
     try:
-        from . import zapi
-        items = [{"heroId": row["hero_id"], "avatarUrl": player_client_config["hero_avatar_url_template"].format(
-            hero_id=row["hero_id"])} for row in report["rows"] if row["hero_id"] not in artwork]
-        if items:
-            avatars, missing = zfile.load_hero_tier_avatar_cache(items)
-        else:
-            missing = []
+        items = [{"heroId": str(hero_id), "avatarUrl": player_client_config["hero_avatar_url_template"].format(
+            hero_id=hero_id)} for hero_id in dict.fromkeys(hero_ids)]
+        avatars, missing = zfile.load_hero_tier_avatar_cache(items)
         if missing:
             downloaded = zapi.tianyuanzhiyi_hero_avatars_api(missing)
             avatars.update(downloaded)
             zfile.save_hero_tier_avatar_cache(missing, downloaded)
     except Exception as error:
         log_message(f"PLAYER_CLIENT_AVATAR_FAILED: error={type(error).__name__}")
-    assets_ready = monotonic_seconds()
-    try:
-        image = render_hero_report(report, zfile.player_client_report_font, avatar_bytes=avatars,
-                                   artwork=artwork,
-                                   win_rate_bands=player_client_config["win_rate_bands"])
-        path = zfile.save_player_client_report(image)
-    except Exception as error:
-        log_message(f"PLAYER_CLIENT_REPORT_FAILED: error={type(error).__name__}")
-        return {"text": report["text"], "image_path": None}
-    log_message(f"PLAYER_CLIENT_IMAGE_TIMING: kind=heroes assets_ms={round((assets_ready-started)*1000)} "
-                f"render_ms={round((monotonic_seconds()-assets_ready)*1000)}")
-    return {"text": report["summary"] + "\n" + report["hint"], "image_path": path}
+    return avatars
 
 
 def player_client_artwork(hero_ids, *, variant="illustration"):
@@ -1978,50 +1990,30 @@ def player_client_artwork(hero_ids, *, variant="illustration"):
 
 
 def player_client_screen_report(kind, label, result):
-    from .business.player_client_screens import screen_report
-    from .business.player_client_profile import profile_report, statistics_report
-    from .tools.gen_player_client import render_screen
+    from .business.player_client_profile import profile_report, statistics_report, hero_summary_report
     from .tools.gen_player_summary import render_summary
     from . import zfile
     from .ztime import monotonic_seconds
-    from concurrent.futures import ThreadPoolExecutor
     started = monotonic_seconds()
     if kind == "profile":
         report = profile_report(label, result)
     elif kind == "game":
         report = statistics_report(label, result)
     else:
-        report = screen_report(kind, label, result, HeroList)
+        report = hero_summary_report(result, HeroList, district_names=_player_client_title_regions())
+    identity = {"player_name": report["name"] if kind == "profile" else report["label"], "query_label": label}
     try:
-        artwork = {}
-        if kind == "hero":
-            hero_ids = [report["hero_id"]]
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                illustration = pool.submit(player_client_artwork, hero_ids)
-                portrait = pool.submit(player_client_artwork, hero_ids, variant="avatar") if report["hero_id"] != "106" else None
-                artwork = illustration.result()
-                if portrait is not None:
-                    artwork["portrait"] = portrait.result().get(report["hero_id"])
+        avatars = player_client_hero_avatars([report["hero_id"]]) if kind == "hero" else {}
         assets_ready = monotonic_seconds()
-        if kind in {"profile", "game"}:
-            image = render_summary(report, zfile.player_client_report_font,
-                                   win_rate_bands=player_client_config["win_rate_bands"])
-        else:
-            image = render_screen(report, zfile.player_client_report_font, artwork=artwork,
-                                  win_rate_bands=player_client_config["win_rate_bands"])
+        image = render_summary(report, zfile.player_client_report_font, avatar_bytes=avatars,
+                               win_rate_bands=player_client_config["win_rate_bands"])
         path = zfile.save_player_client_report(image)
         log_message(f"PLAYER_CLIENT_IMAGE_TIMING: kind={kind} assets_ms={round((assets_ready-started)*1000)} "
                     f"render_ms={round((monotonic_seconds()-assets_ready)*1000)}")
-        return {"text": "" if kind in {"profile", "game"} else report["text"], "image_path": path}
+        return {"text": "", "image_path": path, **identity}
     except Exception as error:
         log_message(f"PLAYER_CLIENT_SCREEN_FAILED: kind={kind} error={type(error).__name__}")
-        if kind in {"profile", "game"}:
-            return {"text": report["text"], "image_path": None}
-        values = report["values"]
-        games = str(values["games"]) if values["games"] is not None else "—"
-        rate = f"{values['win_rate_percent']:.1f}%" if values["win_rate_percent"] is not None else "—"
-        return {"text": report["text"] + f"\n图片生成失败；场次 {games}，胜率 {rate}",
-                "image_path": None}
+        return {"text": report["text"], "image_path": None, **identity}
 
 
 def player_client_text_report(operation, label, result, *, player=None, hero_id=None, page=1):
