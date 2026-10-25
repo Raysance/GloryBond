@@ -1869,7 +1869,7 @@ def player_client_rate_gate(kind):
         if reason == 1 or ztime.monotonic_seconds() + delay > deadline:
             raise PlayerClientRateLimited(math.ceil(delay), {1: "cooldown", 2: "interval", 3: "quota"}[reason])
         remaining = delay
-        heartbeat_interval = float(player_client_config.get("heartbeat_interval_seconds", 20))
+        heartbeat_interval = float(player_client_config.get("heartbeat_interval_seconds", 3))
         while remaining > 0:
             pause = min(remaining, heartbeat_interval)
             ztime.sleep_seconds(pause)

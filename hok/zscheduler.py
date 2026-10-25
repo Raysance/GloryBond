@@ -63,7 +63,7 @@ async def qq_agent_tasks():
     await agent_task_tick()
 
 
-@scheduler.scheduled_job("interval", seconds=player_client_config.get("heartbeat_interval_seconds", 20),
+@scheduler.scheduled_job("interval", seconds=player_client_config.get("heartbeat_interval_seconds", 3),
                          id="player_client_heartbeat", max_instances=1, coalesce=True)
 async def player_client_heartbeat():
     from .zfunc import player_client_heartbeat as maintain_connection

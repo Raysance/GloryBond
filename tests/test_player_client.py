@@ -226,7 +226,7 @@ class RateTests(unittest.TestCase):
         with patch.object(DYNAMIC, "redis_deamon", redis), patch.object(ZFUNC, "player_client_config", self.settings), \
              patch.object(ztime, "sleep_seconds") as sleep:
             ZFUNC.player_client_rate_gate("query")
-        sleep.assert_called_once_with(5)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [3, 2])
         self.assertEqual(redis.eval.call_count, 2)
 
     def test_privacy_does_not_open_circuit_but_risk_and_login_do(self):
@@ -285,8 +285,8 @@ class RateTests(unittest.TestCase):
         with patch.object(DYNAMIC,'redis_deamon',redis),patch.object(DYNAMIC,'player_client_adapter',adapter), \
              patch.object(ZFUNC,'player_client_config',self.settings),patch.object(clock,'sleep_seconds') as sleep:
             ZFUNC.player_client_rate_gate('query')
-        self.assertEqual([call.args[0] for call in sleep.call_args_list],[20,20,10])
-        self.assertEqual(adapter.heartbeat.call_count,3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list],[3]*16+[2])
+        self.assertEqual(adapter.heartbeat.call_count,17)
         self.assertEqual(redis.eval.call_count,2)
 
     def test_heartbeat_never_logs_in_and_skips_an_active_query(self):
