@@ -92,14 +92,77 @@ class ClientOnlineTests(unittest.TestCase):
         self.assertEqual(errors, "")
         self.query.assert_called_once_with("friend_states")
 
-    def test_distinct_or_missing_battle_identity_never_merges_similar_games(self):
+    def test_distinct_battle_identities_stay_separate_from_snapshot_groups(self):
         players = [state(1, "A"), state(2, "B", sequence=31), state(3, "C", relay=21),
                    state(4, "D", desk=11), state(5, "E")]
         players[0]["battle_id"] = None
         players[4]["battle_id"] = None
         message, _ = self.report(players)
-        self.assertEqual(message.count("🎮 排位赛"), 5)
+        self.assertEqual(message.count("🎮 排位赛"), 4)
         self.assertIn("在线 5 人", message)
+        self.assertIn("• A  小乔\n   • E  小乔", message)
+
+    def test_missing_battle_ids_group_resonance_players_with_identical_precise_snapshots(self):
+        players = [state(index, name, game=3, sub=3, map_type=9, map_id=5466, elapsed=370)
+                   for index, name in enumerate(("A", "B", "C"), 1)]
+        for player, hero in zip(players, ("刘禅", "孙权", "雅典娜")):
+            player.update(battle_id=None, hero_name=hero)
+        players.append(state(4, "D"))
+        message, errors = self.report(players)
+        self.assertEqual(errors, "")
+        self.assertEqual(message.count("🎮"), 2)
+        self.assertIn("🎮 共鸣之战  6min\n   • A  刘禅  3/5\n"
+                      "   • B  孙权  3/5\n   • C  雅典娜  3/5", message)
+        self.assertIn("在线 4 人", message)
+        self.query.assert_called_once_with("friend_states")
+
+    def test_missing_battle_ids_require_identical_mode_seconds_members_and_capacity(self):
+        variants = (
+            ("current_mode", {"map_type": 8, "map_id": 5466, "name": "共鸣之战"}),
+            ("current_mode", {"map_type": 9, "map_id": 5467, "name": "共鸣之战"}),
+            ("game_elapsed_seconds", 371),
+            ("current_team_members", 2),
+            ("team_capacity", 6),
+        )
+        for field, value in variants:
+            with self.subTest(field=field, value=value):
+                players = [state(index, name, game=3, sub=3, map_type=9, map_id=5466, elapsed=370)
+                           for index, name in enumerate(("A", "B"), 1)]
+                for player in players:
+                    player["battle_id"] = None
+                players[1][field] = value
+                message, errors = self.report(players)
+                self.assertEqual(errors, "")
+                self.assertEqual(message.count("🎮"), 2)
+
+    def test_missing_battle_ids_do_not_group_when_a_snapshot_field_is_unknown(self):
+        variants = (
+            ("current_mode", None),
+            ("current_mode", {"map_type": 9, "map_id": None, "name": "共鸣之战"}),
+            ("current_mode", {"map_type": None, "map_id": 5466, "name": "共鸣之战"}),
+            ("game_elapsed_seconds", None),
+            ("current_team_members", None),
+            ("team_capacity", None),
+        )
+        for field, value in variants:
+            with self.subTest(field=field, value=value):
+                players = [state(index, name, game=3, sub=3, map_type=9, map_id=5466, elapsed=370)
+                           for index, name in enumerate(("A", "B"), 1)]
+                for player in players:
+                    player.update(battle_id=None)
+                    player[field] = value
+                message, errors = self.report(players)
+                self.assertEqual(errors, "")
+                self.assertEqual(message.count("🎮"), 2)
+
+    def test_missing_battle_ids_can_group_at_zero_elapsed_seconds(self):
+        players = [state(1, "A", elapsed=0), state(2, "B", elapsed=0)]
+        for player in players:
+            player["battle_id"] = None
+        message, errors = self.report(players)
+        self.assertEqual(errors, "")
+        self.assertEqual(message.count("🎮"), 1)
+        self.assertIn("0min", message)
 
     def test_shared_battle_with_different_party_sizes_keeps_party_on_each_player(self):
         message, _ = self.report([state(1, "A"), state(2, "B", members=2)])

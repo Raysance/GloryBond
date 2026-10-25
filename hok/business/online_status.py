@@ -11,6 +11,24 @@ def _zfunc_call(name, *args, **kwargs):
     return getattr(zfunc, name)(*args, **kwargs)
 
 
+def _battle_group_key(state, identity):
+    """Prefer desk identity, then an exact complete snapshot for missing desks."""
+    battle = state.get("battle_id") or {}
+    values = tuple(battle.get(key) for key in ("relay_entity", "desk_id", "creation_sequence"))
+    if all(type(value) is int and 0 <= value < 2**32 for value in values) and any(values):
+        return ("battle", *values)
+
+    mode = state.get("current_mode") or {}
+    map_type, map_id = mode.get("map_type"), mode.get("map_id")
+    elapsed = state.get("game_elapsed_seconds")
+    members, capacity = state.get("current_team_members"), state.get("team_capacity")
+    snapshot = (map_type, map_id, elapsed, members, capacity)
+    if (all(type(value) is int for value in snapshot)
+            and map_type > 0 and map_id > 0 and elapsed >= 0 and 0 < members <= capacity):
+        return ("snapshot", *snapshot)
+    return ("player", *identity)
+
+
 def _client_online_report():
     """Read the shared online snapshot, keeping only configured main players."""
     from .player_client import _text
@@ -43,11 +61,7 @@ def _client_online_report():
         player = {"name": name, "mode": mode, "size": size, "party": party,
                   "hero": _text(state.get("hero_name")), "elapsed": state.get("game_elapsed_seconds")}
         if state.get("is_in_game") is True:
-            battle = state.get("battle_id") or {}
-            values = tuple(battle.get(key) for key in ("relay_entity", "desk_id", "creation_sequence"))
-            # A missing identity must never merge unrelated games, even at the same time.
-            known_battle = all(type(v) is int and 0 <= v < 2**32 for v in values) and any(values)
-            key = ("battle", *values) if known_battle else ("player", *identity)
+            key = _battle_group_key(state, identity)
             games.setdefault(key, []).append(player)
         elif state.get("game_state") in {"team", "waiting_multiplayer"} or state.get("game_substate") in {"room_or_team", "match_queue"}:
             teams.append(player)
