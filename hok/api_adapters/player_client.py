@@ -82,7 +82,13 @@ class PlayerClientAdapter:
             self._cache.clear()
 
     def heartbeat(self):
-        self.client.heartbeat()
+        try:
+            self.client.heartbeat()
+        except Exception as error:
+            # Idle polling can receive the same server stop as a business read.
+            # Apply its cooldown before the facade discards this connection.
+            self.on_error(error, login=False)
+            raise
 
     def _read(self, method, *args, **options):
         from collections import OrderedDict

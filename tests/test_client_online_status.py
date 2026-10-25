@@ -164,6 +164,22 @@ class ClientOnlineTests(unittest.TestCase):
         self.query.assert_called_once_with('friend_states')
         self.camp.assert_not_called()
 
+    def test_server_stop_keeps_protocol_codes_without_exposing_payload_or_reporting_offline(self):
+        from hok_research.apollo import ServerControl
+        error = ServerControl(20482, b'')
+        error.body = b'PRIVATE_SENTINEL'
+        error.error = {'code': 7, 'detail': 14, 'private': 'PRIVATE_SENTINEL'}
+        self.query.side_effect = error
+        message, errors = ZFUNC.online_process()
+        self.assertEqual(message, '在线查询暂时失败\n\n只跟踪王者好友')
+        self.assertIn('params={"operation":"friend_states"}', errors)
+        self.assertIn(str(ZAPI.player_client_error_info(error)), errors)
+        self.assertEqual(ZAPI.player_client_error_info(error),
+                         {'type': 'ServerControl', 'command': 20482, 'control_code': 7, 'control_detail': 14})
+        self.assertNotIn('PRIVATE_SENTINEL', message + errors)
+        self.query.assert_called_once_with('friend_states')
+        self.camp.assert_not_called()
+
     def test_no_bound_main_players_avoids_game_request_and_steam_failures_keep_wzry(self):
         with patch.object(ONLINE, "userlist", {}):
             self.assertEqual(ZFUNC.online_process(), ("🐟🐟无人在线\n\n只跟踪王者好友", ""))
