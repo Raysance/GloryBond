@@ -63,12 +63,6 @@ async def qq_agent_tasks():
     await agent_task_tick()
 
 
-@scheduler.scheduled_job("interval", seconds=player_client_config.get("heartbeat_interval_seconds", 3),
-                         id="player_client_heartbeat", max_instances=1, coalesce=True)
-async def player_client_heartbeat():
-    from .zfunc import player_client_heartbeat as maintain_connection
-    await asyncio.to_thread(maintain_connection)
-
 # 配置执行器和作业默认值，确保在任务运行时间不可控时不轻易跳过任务
 # - 使用线程池以支持并发执行
 # - 提高 max_instances 以允许多个并发实例

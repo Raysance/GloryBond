@@ -160,30 +160,6 @@ class AdapterTests(unittest.TestCase):
         fake.search_players.assert_called_once()
         failed.assert_called_once()
 
-    def test_heartbeat_server_stop_uses_query_cooldown_without_retry_or_login(self):
-        from hok_research.apollo import ServerControl
-        error = ServerControl(20482, b'')
-        error.error = {'code': 7, 'detail': 14}
-        adapter, fake = self.make()
-        adapter.gate.reset_mock()
-        fake.reset_mock()
-        fake.heartbeat.side_effect = error
-        with self.assertRaises(ServerControl) as caught:
-            adapter.heartbeat()
-        self.assertIs(caught.exception, error)
-        fake.heartbeat.assert_called_once_with()
-        fake.login.assert_not_called()
-        adapter.gate.assert_not_called()
-        adapter.on_error.assert_called_once_with(error, login=False)
-
-    def test_successful_heartbeat_does_not_consume_query_quota_or_open_cooldown(self):
-        adapter, fake = self.make()
-        adapter.gate.reset_mock()
-        adapter.heartbeat()
-        fake.heartbeat.assert_called_once_with()
-        adapter.gate.assert_not_called()
-        adapter.on_error.assert_not_called()
-
     def test_incomplete_response_logs_only_counts_and_stage_timing_without_caching_or_retry(self):
         from hok_research import QueryTimeout
         clock = import_hok_module('ztime')
@@ -250,7 +226,7 @@ class RateTests(unittest.TestCase):
         with patch.object(DYNAMIC, "redis_deamon", redis), patch.object(ZFUNC, "player_client_config", self.settings), \
              patch.object(ztime, "sleep_seconds") as sleep:
             ZFUNC.player_client_rate_gate("query")
-        self.assertEqual([call.args[0] for call in sleep.call_args_list], [3, 2])
+        sleep.assert_called_once_with(5)
         self.assertEqual(redis.eval.call_count, 2)
 
     def test_privacy_does_not_open_circuit_but_risk_and_login_do(self):
@@ -277,6 +253,20 @@ class RateTests(unittest.TestCase):
             ZFUNC.player_client_request_error(QueryTimeout(), login=True)
             self.assertEqual(redis.eval.call_args.args[-1], 1800000)
 
+    def test_project_default_failure_cooldowns_persist_one_minute(self):
+        from hok_research import QueryRejected
+
+        settings = import_hok_module('zstatic').player_client_config
+        redis = Mock()
+        with patch.object(DYNAMIC, 'redis_deamon', redis), patch.object(ZFUNC, 'player_client_config', settings):
+            for error, login in ((TimeoutError(), True), (QueryRejected(262034, {}), False),
+                                 (TimeoutError(), False)):
+                with self.subTest(error=type(error).__name__, login=login):
+                    redis.reset_mock()
+                    ZFUNC.player_client_request_error(error, login=login)
+                    redis.eval.assert_called_once_with(ZFUNC._PLAYER_CLIENT_COOLDOWN, 1,
+                        ZFUNC.REDIS_KEY_PLAYER_CLIENT_RATE + ':cooldown', 60000)
+
     def test_query_timeout_discards_connection_and_releases_slot_without_relogin_or_replay(self):
         import threading
         from hok_research import QueryTimeout
@@ -302,76 +292,30 @@ class RateTests(unittest.TestCase):
         adapter.query.assert_called_once_with('friend_states')
         adapter.close.assert_called_once()
 
-    def test_normal_minute_queue_wait_keeps_connection_alive_and_retains_admission_limits(self):
+    def test_normal_minute_queue_wait_preserves_limits_without_driving_sdk(self):
         self.settings['rate_limit']['max_wait_seconds']=65
         redis=Mock();redis.eval.side_effect=[[0,50000,3],[1,0,0]]
         adapter=Mock();clock=import_hok_module('ztime')
         with patch.object(DYNAMIC,'redis_deamon',redis),patch.object(DYNAMIC,'player_client_adapter',adapter), \
              patch.object(ZFUNC,'player_client_config',self.settings),patch.object(clock,'sleep_seconds') as sleep:
             ZFUNC.player_client_rate_gate('query')
-        self.assertEqual([call.args[0] for call in sleep.call_args_list],[3]*16+[2])
-        self.assertEqual(adapter.heartbeat.call_count,17)
+        sleep.assert_called_once_with(50)
+        self.assertEqual(adapter.mock_calls, [])
         self.assertEqual(redis.eval.call_count,2)
 
-    def test_heartbeat_never_logs_in_and_skips_an_active_query(self):
-        adapter=Mock();factory=Mock()
-        import threading
-        lock=threading.Lock()
-        with patch.object(DYNAMIC,'player_client_lock',lock),patch.object(DYNAMIC,'player_client_adapter',adapter), \
-             patch.object(ZFUNC,'player_client_config',{'enabled':True}):
-            lock.acquire()
-            ZFUNC.player_client_heartbeat()
-            adapter.heartbeat.assert_not_called()
-            lock.release()
-            ZFUNC.player_client_heartbeat()
-            adapter.heartbeat.assert_called_once()
-        with patch.object(DYNAMIC,'player_client_adapter',None),patch.object(ZFUNC,'player_client_config',{'enabled':True}), \
-             patch.object(import_hok_module('zapi'),'PlayerClientAdapter',factory):
-            ZFUNC.player_client_heartbeat()
-        factory.assert_not_called()
-
-    def test_idle_server_stop_opens_cooldown_and_discards_connection_without_login(self):
+    def test_sdk_server_stop_after_rate_wait_cools_down_without_replay(self):
         import threading
         from hok_research.apollo import ServerControl
         error = ServerControl(20482, b'')
         error.error = {'code': 7, 'detail': 14}
         adapter = ADAPTER.PlayerClientAdapter.__new__(ADAPTER.PlayerClientAdapter)
         adapter.client = Mock()
-        adapter.client.heartbeat.side_effect = error
-        adapter.on_error = ZFUNC.player_client_request_error
-        redis, factory, lock = Mock(), Mock(), threading.Lock()
-        with patch.object(DYNAMIC, 'player_client_lock', lock), \
-             patch.object(DYNAMIC, 'player_client_adapter', adapter), \
-             patch.object(DYNAMIC, 'redis_deamon', redis), \
-             patch.object(ZFUNC, 'player_client_config', {**self.settings, 'enabled': True}), \
-             patch.object(ZFUNC, 'log_message') as log, \
-             patch.object(import_hok_module('zapi'), 'PlayerClientAdapter', factory):
-            ZFUNC.player_client_heartbeat()
-            self.assertIsNone(DYNAMIC.player_client_adapter)
-            self.assertFalse(lock.locked())
-            ZFUNC.player_client_heartbeat()
-        redis.eval.assert_called_once_with(ZFUNC._PLAYER_CLIENT_COOLDOWN, 1,
-            ZFUNC.REDIS_KEY_PLAYER_CLIENT_RATE + ':cooldown', 60000)
-        adapter.client.close.assert_called_once_with()
-        adapter.client.heartbeat.assert_called_once_with()
-        factory.assert_not_called()
-        line = log.call_args.args[0]
-        for value in ('ServerControl', '20482', 'control_code', '7', 'control_detail', '14'):
-            self.assertIn(value, line)
-
-    def test_server_stop_during_rate_wait_cools_down_and_aborts_query_without_replay(self):
-        import threading
-        from hok_research.apollo import ServerControl
-        error = ServerControl(20482, b'')
-        error.error = {'code': 7, 'detail': 14}
-        adapter = ADAPTER.PlayerClientAdapter.__new__(ADAPTER.PlayerClientAdapter)
-        adapter.client = Mock()
-        adapter.client.heartbeat.side_effect = error
+        adapter.client.history.side_effect = error
         adapter.settings = {'timeout_seconds': 30}
         adapter.gate = ZFUNC.player_client_rate_gate
         adapter.on_error = ZFUNC.player_client_request_error
         redis, factory, lock = Mock(), Mock(), threading.Lock()
-        redis.eval.side_effect = [[0, 5000, 3], None]
+        redis.eval.side_effect = [[0, 5000, 3], [1, 0, 0], None]
         clock = import_hok_module('ztime')
         with patch.object(DYNAMIC, 'player_client_lock', lock), \
              patch.object(DYNAMIC, 'player_client_adapter', adapter), \
@@ -388,12 +332,11 @@ class RateTests(unittest.TestCase):
             self.assertIs(caught.exception, error)
             self.assertIsNone(DYNAMIC.player_client_adapter)
             self.assertFalse(lock.locked())
-        self.assertEqual(redis.eval.call_count, 2)
+        self.assertEqual(redis.eval.call_count, 3)
         self.assertEqual(redis.eval.call_args.args,
             (ZFUNC._PLAYER_CLIENT_COOLDOWN, 1, ZFUNC.REDIS_KEY_PLAYER_CLIENT_RATE + ':cooldown', 60000))
-        sleep.assert_called_once_with(3)
-        adapter.client.heartbeat.assert_called_once_with()
-        adapter.client.history.assert_not_called()
+        sleep.assert_called_once_with(5)
+        adapter.client.history.assert_called_once()
         adapter.client.close.assert_called_once_with()
         factory.assert_not_called()
 

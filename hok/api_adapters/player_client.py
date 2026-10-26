@@ -86,15 +86,6 @@ class PlayerClientAdapter:
         if hasattr(self, "_cache"):
             self._cache.clear()
 
-    def heartbeat(self):
-        try:
-            self.client.heartbeat()
-        except Exception as error:
-            # Idle polling can receive the same server stop as a business read.
-            # Apply its cooldown before the facade discards this connection.
-            self.on_error(error, login=False)
-            raise
-
     def _read(self, method, *args, _timeout=None, **options):
         from collections import OrderedDict
         from copy import deepcopy
@@ -116,7 +107,7 @@ class PlayerClientAdapter:
                 return deepcopy(cached[1])
             del self._cache[key]
         # The server pushes the complete roster at login and then sends deltas.
-        # Reading it does not emit a game request; pace only actual wire reads.
+        # Reading it is passive; pace explicit query API calls conservatively.
         if method != "friends":
             self.gate("query")
         admitted = ztime.monotonic_seconds()
@@ -148,13 +139,6 @@ class PlayerClientAdapter:
         result["branch_statistics"] = ([{"branch": key, "display": battle_display([row])}
             for key, row in zip(("top", "mid", "bot", "jungle", "assist"), rows)] if branch is None else [])
         return result
-
-    def _friend_state_sample(self, snapshot):
-        # 5233 elicits an uncounted notification stream, not one reply per
-        # online friend. A quiet window keeps membership and the connection.
-        return self._read('refresh_friend_states', snapshot, require_all=False,
-            _timeout=min(float(self.settings['timeout_seconds']),
-                         float(self.settings.get('friend_state_wait_seconds', 3))))
 
     def _hero_page(self, target, *, hero_id=None):
         """Compose only the requested page sources, gating every real request."""
@@ -207,11 +191,10 @@ class PlayerClientAdapter:
             from hok_research import GameplayCatalog
 
             catalog = GameplayCatalog.bundled()
-            snapshot = self._read("friends")
             if operation == "friends":
-                return snapshot.to_json_value(gameplay_catalog=catalog)
-            if any(state.online is True for state in snapshot.players):
-                snapshot = self._friend_state_sample(snapshot)
+                return self._read("friends").to_json_value(gameplay_catalog=catalog)
+            snapshot = self._read("refresh_friend_states", _timeout=min(
+                float(self.settings["timeout_seconds"]), float(self.settings.get("friend_state_wait_seconds", 3))))
             states = snapshot.players
             return {"complete": snapshot.complete, "total": len(states),
                     "states_refreshed": snapshot.states_refreshed,
@@ -222,10 +205,8 @@ class PlayerClientAdapter:
         if operation == "friend_state":
             from hok_research import GameplayCatalog
 
-            snapshot = self._read("friends")
-            state = snapshot.by_player(target)
-            if state is not None and state.online is True:
-                state = self._friend_state_sample(snapshot).by_player(target)
+            state = self._read("friend_state", target, _timeout=min(
+                float(self.settings["timeout_seconds"]), float(self.settings.get("friend_state_wait_seconds", 3))))
             return {"found": state is not None,
                     "state": state.to_json_value(gameplay_catalog=GameplayCatalog.bundled()) if state is not None else None}
         if operation == "profile_summary":
