@@ -414,7 +414,9 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     if group:
                         self.script.insert(0, {'role': 'assistant', 'content': '', 'tool_calls': [
                             call('search_chat_history', {'queries': ['近期群聊', '授权范围']}, 's')]})
-                    result = await self.gateway.chat(user_text=question, user_id='101', nickname='用户', group_id=group)
+                    original = ' ＃原话 ' + question + '\n'
+                    result = await self.gateway.chat(user_text=question, user_id='101', nickname='用户', group_id=group,
+                                                     original_user_text=original)
                     self.assertEqual(result['text'], self.reply_text)
                     session = 'qq_g_200_101' if group else 'qq_p_101'
                     self.assertEqual(self.dialogue[session][-1]['content'], self.reply_text)
@@ -424,7 +426,12 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     with patch.object(sender, '_enqueue_payload') as enqueue:
                         sender.add_chat_result_msg(packet, destination=destination)
                     payload = enqueue.call_args.args[0]
-                    detail = ''.join(part['data']['text'] for node in payload['messages']
+                    self.assertEqual(payload['messages'][0]['data']['content'], [{'type': 'text', 'data': {'text': original}}])
+                    self.assertEqual(payload['messages'][0]['data']['uin'], '101')
+                    self.assertEqual(payload['messages'][0]['data']['name'], '用户')
+                    self.assertEqual(payload['messages'][-1]['data']['content'],
+                                     [{'type': 'text', 'data': {'text': '思考轨迹：' + packet['trace_url']}}])
+                    detail = ''.join(part['data']['text'] for node in payload['messages'][1:-1]
                                      for part in node['data']['content'] if part['type'] == 'text')
                     brief = Message(payload['reply_direct']['content']).extract_plain_text().strip()
                     self.assertEqual(detail, draft)

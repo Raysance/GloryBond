@@ -292,7 +292,7 @@ class QQAgentService:
         return await asyncio.to_thread(save)
 
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
-                   use_memory=True, quoted_message=None, image_urls=()):
+                   use_memory=True, quoted_message=None, image_urls=(), original_user_text=None):
         await self.start()
         snapshot = await self.bridge.call("reference_snapshot")
         principal = qq_principal(user_id, group_id, nickname, admin_id=self.admin_id,
@@ -341,7 +341,9 @@ class QQAgentService:
             system_prompt=prompt, required_tools=("search_chat_history", "discover_tools") if "chat.read" in principal.scopes else ("discover_tools",),
             budget=application_budget(self.config.get("budget")), images=images,
             context_messages=context_messages,
-            metadata={"delivery": principal.attributes["delivery"], "message_id": message_id},
+            metadata={"delivery": principal.attributes["delivery"], "message_id": message_id,
+                      "reply_question": {"text": str(user_text if original_user_text is None else original_user_text),
+                                         "user_id": principal.user_id, "name": str(nickname)}},
         )
         run_id = self.runtime.submit(request)
         result = await self.runtime.active[run_id]

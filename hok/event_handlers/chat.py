@@ -216,6 +216,10 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
 
     user_id = event.get_user_id()
     group_id = getattr(event, "group_id", None)
+    segments = message_segments(getattr(event, "original_message", None) or getattr(event, "message", None))
+    original_parts = [str(_field(segment, "data", {}).get("text", ""))
+                      for segment in segments if _field(segment, "type") == "text"]
+    original_text = "".join(original_parts) if original_parts else event.get_plaintext()
     text = event.get_plaintext().strip().lstrip("#＃").strip()
     for source in sorted(common_expressions, key=len, reverse=True):
         text = re.sub(re.escape(source), common_expressions[source], text)
@@ -225,7 +229,6 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         use_memory = False
         text = text.replace("nomem", "").strip()
 
-    segments = message_segments(getattr(event, "original_message", None) or getattr(event, "message", None))
     mentioned_users = list(dict.fromkeys(str(_field(segment, "data", {}).get("qq", ""))
         for segment in segments if _field(segment, "type") == "at"
         and re.fullmatch(r"[1-9][0-9]{0,19}", str(_field(segment, "data", {}).get("qq", "")))
@@ -242,6 +245,7 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
 
     return {
         "user_text": text,
+        "original_user_text": original_text,
         "user_id": user_id,
         "nickname": qid2nick(user_id),
         "group_id": group_id,

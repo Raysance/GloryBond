@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 from local_debugger import import_hok_module
 from agent_console.capabilities import application_prompt
 from agent_console.replies import ReplyPolicy, reply_instruction
+from qq_agent.output import QQOutput
 
 ZFUNC = import_hok_module("zfunc")
 TEXT = import_hok_module("tools.chat_text")
@@ -71,6 +72,74 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("reply_notice", payload)
             mentions = [part.data["qq"] for part in SENDER.Message(direct["content"]) if part.type == "at"]
             self.assertEqual(mentions, ["all"] if destination.get("mention_user_id") == "all" else [])
+
+    def test_forward_wraps_existing_detail_with_literal_original_and_existing_trace_url(self):
+        original = " ＃ab nomem [CQ:at,qq=all]\n" + "完整原话" * 700
+        packet = {**self.packet, "_reply_question": {"text": original, "user_id": "101", "name": "提问者"},
+                  "trace": {"question": "已经替换过缩写的模型输入"},
+                  "trace_url": "https://hok.example.com/chat-trace?key=0123456789abcdef"}
+        before = copy.deepcopy(packet)
+        for channel in ("private", "group"):
+            payload = self.enqueue(packet, destination={**self.destination, "channel": channel})
+            nodes = payload["messages"]
+            self.assertEqual(nodes[0]["data"], {"name": "提问者", "uin": "101",
+                "content": [{"type": "text", "data": {"text": original}}]})
+            self.assertEqual(forward_text({"messages": nodes[1:-1]}), self.detail)
+            self.assertEqual(nodes[-2]["data"]["content"][0]["type"], "image")
+            self.assertEqual(nodes[-1]["data"]["content"],
+                             [{"type": "text", "data": {"text": "思考轨迹：" + packet["trace_url"]}}])
+            self.assertNotIn(packet["trace_url"], payload["reply_direct"]["content"])
+            self.assertNotIn("完整原话", payload["reply_direct"]["content"])
+        self.assertEqual(packet, before)
+
+    def test_empty_original_and_failed_trace_keep_detailed_and_brief_replies(self):
+        payload = self.enqueue({**self.packet, "_reply_question": {"text": "", "user_id": "101", "name": "提问者"},
+                                "trace_error": "PRIVATE_TRANSPORT_RESPONSE"})
+        self.assertEqual(payload["messages"][0]["data"]["content"][0]["data"]["text"], "（本次消息无文字）")
+        self.assertEqual(payload["messages"][-1]["data"]["content"][0]["data"]["text"], "思考轨迹链接生成失败")
+        self.assertEqual(forward_text({"messages": payload["messages"][1:-1]}), self.detail)
+        self.assertNotIn("PRIVATE_TRANSPORT_RESPONSE", str(payload))
+        self.assertIn("这是简略结论", payload["reply_direct"]["content"])
+
+    def test_background_question_fallback_does_not_guess_user_from_mention(self):
+        payload = self.enqueue({**self.packet, "trace": {"question": "保存的任务指令"}})
+        self.assertEqual(payload["messages"][0]["data"]["name"], "提问内容")
+        self.assertEqual(payload["messages"][0]["data"]["uin"], str(SENDER.confs["QQBot"]["bot_qid"]))
+        self.assertEqual(payload["messages"][0]["data"]["content"][0]["data"]["text"], "保存的任务指令")
+
+    async def test_interleaved_runs_keep_original_sender_and_existing_trace_link_together(self):
+        bridge = SimpleNamespace(redact=lambda value: value)
+
+        async def prepare(packet):
+            return {**packet, "trace_url": "https://hok.example.com/chat-trace?key=" + packet["trace"]["run_id"]}
+
+        async def send(packet, delivery):
+            SENDER.add_chat_result_msg(packet, destination=delivery)
+
+        output = QQOutput(bridge=bridge, local_log=AsyncMock(), sender=send,
+                          prepare_reply=prepare, store_artifact=AsyncMock())
+
+        def event(run, kind, data):
+            return {"id": run + kind, "run_id": run, "session_id": "qq_p_" + run,
+                    "kind": kind, "data": data, "time": "2026-10-26T12:00:00+08:00",
+                    "metadata": {"delivery": {"platform": "qq", "channel": "private", "recipient_id": run},
+                                 "reply_question": {"text": "原话" + run, "user_id": run, "name": "用户" + run}}}
+
+        with patch.object(SENDER, "_enqueue_payload", return_value=1) as enqueue:
+            for run in ("101", "102"):
+                await output.publish(event(run, "run.start", {"message": "处理后的输入" + run}))
+                await output.publish(event(run, "output.message", {"kind": "final", "text": "简版" + run,
+                    "variants": {"chat": "简版" + run, "detailed": "详细版" + run}}))
+            for run in ("102", "101"):
+                await output.publish(event(run, "run.end", {"status": "completed"}))
+        self.assertEqual(enqueue.call_count, 2)
+        for call, run in zip(enqueue.call_args_list, ("102", "101")):
+            payload = call.args[0]
+            self.assertEqual(payload["messages"][0]["data"]["uin"], run)
+            self.assertEqual(payload["messages"][0]["data"]["content"][0]["data"]["text"], "原话" + run)
+            self.assertEqual(payload["messages"][-1]["data"]["content"][0]["data"]["text"],
+                             "思考轨迹：https://hok.example.com/chat-trace?key=" + run)
+            self.assertEqual(payload["reply_direct"]["content"], "简版" + run)
 
     def test_fixed_and_partial_messages_without_two_versions_stay_direct(self):
         payload = self.enqueue({"text": "详细内容完整如下。" * 100, "artifacts": []})

@@ -41,6 +41,7 @@ class ChatEventTests(unittest.TestCase):
         )
 
         self.assertEqual(request["user_text"], "长词 短词 &")
+        self.assertEqual(request["original_user_text"], "＃ ab a & nomem")
         self.assertEqual(request["nickname"], "Alice")
         self.assertEqual(request["group_id"], 123)
         self.assertEqual(request["message_id"], 456)
@@ -55,9 +56,19 @@ class ChatEventTests(unittest.TestCase):
         )
 
         self.assertEqual(request["user_text"], "hello")
+        self.assertEqual(request["original_user_text"], "# hello")
         self.assertIsNone(request["group_id"])
         self.assertTrue(request["use_memory"])
         self.assertNotIn("network", request)
+
+    def test_original_native_text_is_kept_before_entry_normalization(self):
+        event = FakeEvent("缩写", group_id=200)
+        event.self_id = "10"
+        event.original_message = [{"type": "at", "data": {"qq": "10"}},
+                                  {"type": "text", "data": {"text": " ＃缩写 nomem\n"}}]
+        request = CHAT_HANDLER.prepare_chat_request(event, {"缩写": "完整名称"}, True)
+        self.assertEqual(request["original_user_text"], " ＃缩写 nomem\n")
+        self.assertEqual(request["user_text"], "完整名称")
 
     def test_native_and_cq_mentions_preserve_current_target_but_exclude_bot_and_quote_author(self):
         for message in (

@@ -226,6 +226,23 @@ class ChatMessageTests(unittest.TestCase):
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda function: function)):
             return import_hok_module("utils.message_sender")
 
+    def test_detailed_forward_reuses_the_url_from_existing_trace_publication(self):
+        sender = self.sender()
+        trace = {"kind": "chat_trace", "version": 1, "question": "模型输入", "rounds": []}
+        url = "https://hok.example.com/chat-trace?key=0123456789abcdef"
+        packet = {"text": "简略回复", "variants": {"chat": "简略回复", "detailed": "详细回复"}, "trace": trace,
+                  "_reply_question": {"text": "用户原话", "user_id": "101", "name": "用户"}}
+        with patch.object(FUNC, "chat_publish_trace", return_value=url) as publish, \
+             patch.object(sender, "_enqueue_payload") as enqueue:
+            prepared = FUNC.chat_prepare_reply(packet)
+            sender.add_chat_result_msg(prepared,
+                destination={"platform": "qq", "channel": "private", "recipient_id": "101"})
+        publish.assert_called_once()
+        payload = enqueue.call_args.args[0]
+        self.assertEqual(payload["messages"][0]["data"]["content"][0]["data"]["text"], "用户原话")
+        self.assertEqual(payload["messages"][-1]["data"]["content"][0]["data"]["text"], "思考轨迹：" + url)
+        self.assertEqual(payload["reply_direct"]["content"], "简略回复")
+
     def test_group_mentions_trusted_requester_before_text_images_and_trace(self):
         from nonebot.adapters.onebot.v11 import Message
         sender = self.sender()

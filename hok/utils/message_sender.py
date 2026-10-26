@@ -427,9 +427,9 @@ async def send_group_member_private_message(*, group_id, user_id, text):
     return {"message_id": str(receipt)}
 
 
-def _forward_node(content, sender_name):
+def _forward_node(content, sender_name, *, sender_id=None):
     return {"type": "node", "data": {
-        "name": str(sender_name), "uin": str(confs["QQBot"]["bot_qid"]), "content": content,
+        "name": str(sender_name), "uin": str(confs["QQBot"]["bot_qid"] if sender_id is None else sender_id), "content": content,
     }}
 
 
@@ -550,16 +550,28 @@ def _chat_forward_payload(result, *, event, destination, task_id, mention_id):
     policy = confs.get("QQAgent", {}).get("reply_forward", {})
     limit = max(500, min(4000, int(policy.get("node_max_chars", 2500))))
     sender = policy.get("sender_name", "机器人")
-    messages = [_forward_node([{"type": "text", "data": {"text": text}}], sender)
-                for text in split_chat_forward_text(result["text"], limit)]
+    messages = []
+    question = result.get("_reply_question")
+    if isinstance(question, dict) and isinstance(question.get("text"), str):
+        user_id = question.get("user_id")
+        if type(user_id) in (str, int) and re.fullmatch(r"[1-9][0-9]{0,19}", str(user_id)):
+            question_sender, question_id = question.get("name") or "用户原话", user_id
+        else:
+            question_sender, question_id = "提问内容", None
+        messages.append(_forward_node([{"type": "text", "data": {"text": question["text"] or "（本次消息无文字）"}}],
+                                      question_sender, sender_id=question_id))
+    elif isinstance(result.get("trace", {}).get("question"), str) and result["trace"]["question"]:
+        messages.extend(_forward_nodes([result["trace"]["question"]], "提问内容"))
+    messages.extend(_forward_node([{"type": "text", "data": {"text": text}}], sender)
+                    for text in split_chat_forward_text(result["text"], limit))
     for artifact in result.get("artifacts", []):
         segment = MessageSegment.image(artifact["path"])
         messages.append(_forward_node([{"type": segment.type, "data": segment.data}], sender))
-    if confs.get("QQAgent", {}).get("show_trace_link", False):
+    if policy.get("show_trace_link", True):
         if result.get("trace_url"):
-            messages.extend(_forward_nodes(["运行记录：" + result["trace_url"]], sender))
+            messages.extend(_forward_nodes(["思考轨迹：" + result["trace_url"]], sender))
         elif result.get("trace_error"):
-            messages.extend(_forward_nodes(["运行记录链接暂不可用（" + result["trace_error"] + "）"], sender))
+            messages.extend(_forward_nodes(["思考轨迹链接生成失败"], sender))
     payload = _bind_task_id({"kind": channel + "_forward", "type": channel, "toid": target,
         "messages": messages, "automation_metadata": result.get("_automation_metadata", {})}, task_id)
     payload.update(_forward_card_fields(policy.get("title", "详细回复"), None))

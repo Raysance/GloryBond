@@ -86,6 +86,8 @@ class QQOutput:
                           status="error" if failed else "cancelled" if data.get("status") == "cancelled" else "ok")}
             if final and final.get("variants"):
                 packet["variants"] = final["variants"]
+            if final and clean.get("metadata", {}).get("reply_question"):
+                packet["_reply_question"] = clean["metadata"]["reply_question"]
             prepared = await self.prepare_reply(packet)
             if final or failed:
                 await self.send(prepared, delivery, event)
