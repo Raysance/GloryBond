@@ -243,7 +243,8 @@ chat_prepare_reply已发布的trace_url，不重新生成或重复留存轨迹�
 运行记录在 Web 管理控制台的“AI 运行记录”中统一查看，支持摘要/QQ/运行ID搜索、群号与状态筛选及分页，详情复用完整轨迹查看器。
 正常、失败、取消和固定后台提醒都在结束时保存，取消/提醒不会额外发送一条消息。NBot 在同一 DB0 事务中写脱敏完整载荷与
 `hok:chat:traces` 摘要索引；索引默认最多1000条（DynamicVariables.ChatTraceMaxRecords），载荷和索引TTL默认7天。
-新载荷标记 `visibility=admin`，公开 `/chat-trace` 入口也必须验证管理员后才能查看；已有公开链接沿用原有效期。
+新载荷标记 `visibility=public`，公开 `/chat-trace` 持有效链接即可匿名查看；此前标记admin的已分享链接也可直接打开，沿用原有效期。
+管理控制台的运行记录列表与详情入口继续验证管理员，公开分享入口不提供列表。
 索引从新版本启用后开始记录，不扫描或搬迁旧日志。原始模型/工具事件、实际请求响应、两版答案
 和 token 用量另外保存在 `log/qq_agent/<会话>/runs/<run_id>.jsonl`，对话输出为
 `dialogue.jsonl`；凭据脱敏，输入图片使用附件引用。日志和原图不会进 Git 或部署包。

@@ -125,7 +125,7 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(pipe.set.call_args.args[0], FUNC.REDIS_KEY_WEB_ARTIFACT_PREFIX + token)
         self.assertIn("/chat-trace?key=", url)
         self.assertEqual(pipe.set.call_args.kwargs["ex"], 604800)
-        self.assertEqual(json.loads(pipe.set.call_args.args[1])['visibility'], 'admin')
+        self.assertEqual(json.loads(pipe.set.call_args.args[1])['visibility'], 'public')
         entry = json.loads(pipe.lpush.call_args.args[1])
         self.assertEqual(pipe.lpush.call_args.args[0], FUNC.REDIS_KEY_CHAT_TRACE_INDEX)
         self.assertEqual(entry['key'], token)

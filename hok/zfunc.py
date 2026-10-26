@@ -1159,7 +1159,7 @@ def agent_register_function(**spec):
 
 
 def chat_publish_trace(trace, artifacts=()):
-    """Store an admin-only execution record and its bounded discovery index."""
+    """Publish an expiring shared record and its bounded admin discovery index."""
     from .business.chat_trace import public_value, trace_index_entry
     from .zfile import chat_plot_public_path
     from .ztime import current_epoch_seconds
@@ -1171,7 +1171,7 @@ def chat_publish_trace(trace, artifacts=()):
         for item in artifacts if (url := chat_plot_public_path(item.get("path", "")))
     ]
     payload["expires_in_seconds"] = max(60, int(getattr(dmc, "ChatTraceExpireSeconds", 604800)))
-    payload["visibility"] = "admin"
+    payload["visibility"] = "public"
     serialized = json.dumps(payload, ensure_ascii=False)
     entry = trace_index_entry(payload, token, current_epoch_seconds())
     with dmc.redis_deamon.pipeline(transaction=True) as pipe:
