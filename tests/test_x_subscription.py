@@ -29,6 +29,7 @@ class Event:
 class MemoryState:
     def __init__(self):
         self.records, self.cursors, self.seen, self.sent = [], {}, set(), []
+        self.sent_metadata = []
 
     @contextmanager
     def _x_lock(self):
@@ -58,8 +59,9 @@ class MemoryState:
     def _x_mark_seen(self, account, post):
         self.seen.add((account, post))
 
-    def _x_send_message(self, message):
+    def _x_send_message(self, message, *, metadata=None):
         self.sent.append(message)
+        self.sent_metadata.append(metadata)
 
     def _x_render_message(self, bundle):
         return json.dumps(bundle, ensure_ascii=False)
@@ -100,6 +102,8 @@ class XBusinessTests(unittest.TestCase):
         self.assertEqual(request.call_count, 1)
         self.assertEqual([json.loads(m)['post']['id'] for m in self.state.sent], ['11', '12'])
         self.assertEqual(self.state.cursors['1']['since_id'], '12')
+        self.assertTrue(all(item == {"source": "x_subscription", "author_id": "1", "author_name": "example"}
+                            for item in self.state.sent_metadata))
 
     def test_enqueue_failure_keeps_cursor_and_other_account_still_runs(self):
         self.state.records.append({"id":"2", "username":"other", "name":"Other", "user_qid":"10001"})

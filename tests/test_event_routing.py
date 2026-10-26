@@ -118,7 +118,8 @@ class EventRoutingTests(unittest.IsolatedAsyncioTestCase):
             ("history", args, kwargs)
         )
         try:
-            await EVENT_INGRESS.capture_group_message(event)
+            with patch.object(ZFUNC, "automation_publish_event", return_value=[]):
+                await EVENT_INGRESS.capture_group_message(event)
         finally:
             ZFUNC.record_group_chat_message = original_record
 

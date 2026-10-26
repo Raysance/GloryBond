@@ -3,6 +3,7 @@ from .zutil import *
 from .zstatic import *
 
 qq_agent_service = None
+automation_action_catalog = None
 service_health_lock = threading.Lock()
 import redis
 

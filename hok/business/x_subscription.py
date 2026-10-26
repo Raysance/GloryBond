@@ -183,7 +183,8 @@ def x_check_and_push():
                         if not facade._x_seen(account_id, post["id"]):
                             message = post_card(item, post)
                             facade._x_refresh_lock(token)
-                            facade._x_send_message(message)
+                            facade._x_send_message(message, metadata={"source": "x_subscription",
+                                "author_id": str(account_id), "author_name": item["username"]})
                             facade._x_mark_seen(account_id, post["id"])
                             result["pushed"] += 1
                         facade._x_save_cursor(account_id, dict(cursor, since_id=post["id"]))

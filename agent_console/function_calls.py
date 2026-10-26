@@ -77,7 +77,8 @@ class FunctionCatalog:
 
     def available(self, ctx):
         return {name: spec for name, spec in self.functions.items()
-                if spec.scopes <= ctx.principal.scopes}
+                if spec.scopes <= ctx.principal.scopes
+                and (not ctx.request.metadata.get("automation_rule_id") or spec.effect == "read")}
 
     def search(self, args, ctx):
         terms = args.query.casefold().split()

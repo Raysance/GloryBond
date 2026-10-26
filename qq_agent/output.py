@@ -35,6 +35,7 @@ class QQOutput:
         metadata = event.get("metadata", {})
         task_id = metadata.get("task_id") if metadata.get("origin") == "background" else None
         packet = {key: value for key, value in packet.items() if key != "task_id"}
+        packet["_automation_metadata"] = {"source": "agent", "origin_run_id": event["run_id"]}
         if task_id:
             packet["task_id"] = task_id
         await self.sender(packet, delivery)

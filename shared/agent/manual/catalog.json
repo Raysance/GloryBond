@@ -67,7 +67,7 @@
       "id": "automation",
       "title": "提醒、订阅与互动",
       "parent": "manual",
-      "summary": "定时提醒与多次消息、视频与X账号订阅、AI领域日报、自动推送、戳一戳互动",
+      "summary": "定时提醒与多次消息、消息关键词条件触发动作、视频与X账号订阅、AI领域日报、自动推送、戳一戳互动",
       "keywords": [],
       "tools": [],
       "code": []
@@ -2160,6 +2160,53 @@
         {
           "path": "hok/tools/gen_player_summary.py",
           "symbol": "render_summary"
+        }
+      ]
+    },
+    {
+      "id": "event_rules",
+      "title": "条件触发提醒与动作",
+      "parent": "automation",
+      "summary": "在某人说到关键词或机器人推送指定内容时提醒本人、在B站/X原推送追加@、固定文字及查询分析动作；查看修改暂停删除本人规则",
+      "keywords": [
+        "在…时",
+        "提醒我",
+        "条件",
+        "关键词",
+        "触发",
+        "自动动作",
+        "规则",
+        "推送时@我",
+        "B站",
+        "X",
+        "Twitter",
+        "暂停提醒"
+      ],
+      "tools": [
+        "list_automation_actions",
+        "save_automation_rule",
+        "list_automation_rules",
+        "delete_automation_rule"
+      ],
+      "document": {
+        "path": "shared/agent/manual/chapters/event_rules.md"
+      },
+      "code": [
+        {
+          "path": "qq_agent/automation.py",
+          "symbol": "register_automation_tools"
+        },
+        {
+          "path": "hok/zfunc.py",
+          "symbol": "automation_publish_event"
+        },
+        {
+          "path": "hok/business/automation.py",
+          "symbol": "execute_job"
+        },
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQAgentService.run_automation"
         }
       ]
     }

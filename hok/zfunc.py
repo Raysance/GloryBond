@@ -7,6 +7,376 @@ _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
 _GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
+def automation_policy():
+    from agent_console.automation import AutomationPolicy
+    return AutomationPolicy.model_validate(confs.get("QQAgent", {}).get("automation", {}))
+
+
+def automation_actions():
+    if dmc.automation_action_catalog is None:
+        from .business.automation import build_actions
+        dmc.automation_action_catalog = build_actions()
+    return dmc.automation_action_catalog
+
+
+def agent_register_automation_action(name, **spec):
+    """Explicit startup extension; never accept handler paths from a model."""
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
+    automation_actions().register(name, **spec)
+
+
+def automation_owner_allowed(rule, *, disabled=None):
+    from .ztime import is_within_daily_time_window
+    owner = str(rule["owner_id"])
+    return (automation_policy().enabled and confs.get("QQAgent", {}).get("enabled", True)
+        and owner in {str(value) for value in qid.values()}
+        and owner not in (set(get_battle_invisible_disabled_qids()) if disabled is None else disabled)
+        and not is_within_daily_time_window(bound_hour, bound_minute, window_seconds=600)
+        and (not dmc.repair or owner == str(confs["QQBot"]["super_qid"])))
+
+
+def automation_effective_scopes(rule):
+    from qq_agent.service import qq_principal
+    channel, recipient = rule["scope"].split(":", 1)
+    current = qq_principal(rule["owner_id"], recipient if channel == "group" else None, "",
+        admin_id=confs["QQBot"]["super_qid"], bot_id=confs["QQBot"]["bot_qid"],
+        references={"context": {"catalogs": {}}})
+    return set(current.scopes) & set(rule["scopes"])
+
+
+def _automation_scope(principal):
+    user = str(principal.user_id)
+    delivery = principal.attributes.get("delivery", {})
+    channel, recipient = delivery.get("channel"), str(delivery.get("recipient_id", ""))
+    if ("automation.use" not in principal.scopes or delivery.get("platform") != "qq"
+            or not re.fullmatch(r"[1-9][0-9]{0,19}", user)
+            or not re.fullmatch(r"[1-9][0-9]{0,19}", recipient)):
+        raise PermissionError("事件规则需要可信QQ身份和会话范围")
+    if channel == "group" and str(principal.attributes.get("chat", {}).get("group_id")) == recipient:
+        return "group:" + recipient
+    if channel == "private" and recipient == user:
+        return "private:" + user
+    raise PermissionError("事件规则不能改变当前群或私聊目的地")
+
+
+def _automation_rules(scope, *, include_state=False):
+    rules = [json.loads(raw) for raw in dmc.redis_deamon.hvals(REDIS_KEY_AUTOMATION_PREFIX + "rules:" + scope)]
+    for rule in rules:
+        if not include_state:
+            continue
+        state = dmc.redis_deamon.hgetall(REDIS_KEY_AUTOMATION_PREFIX + "rule_state:" + rule["id"])
+        state = {(key.decode() if isinstance(key, bytes) else key): value for key, value in state.items()}
+        for field in ("run_count", "last_triggered"):
+            if field in state:
+                rule[field] = int(state[field])
+        if state.get("last_execution_id"):
+            value = state["last_execution_id"]
+            rule["last_execution_id"] = value.decode() if isinstance(value, bytes) else value
+    return rules
+
+
+def _automation_job(identifier):
+    fields = dmc.redis_deamon.hgetall(REDIS_KEY_AUTOMATION_PREFIX + "execution:" + identifier)
+    fields = {(key.decode() if isinstance(key, bytes) else key): value for key, value in fields.items()}
+    if not fields:
+        return None
+    job = json.loads(fields["payload"])
+    for name in ("status", "lease_token"):
+        if name in fields:
+            job[name] = fields[name].decode() if isinstance(fields[name], bytes) else fields[name]
+    if "deadline" in fields:
+        job["deadline"] = int(fields["deadline"])
+    return job
+
+
+def _automation_public(rule):
+    result = {key: rule.get(key) for key in ("id", "definition", "created_at", "expires_at", "run_count", "last_triggered")}
+    identifier = rule.get("last_execution_id")
+    if identifier:
+        job = _automation_job(identifier)
+        result["last_execution"] = {"id": identifier, "status": job["status"] if job else "expired"}
+    return result
+
+
+def _automation_source_authors(source):
+    if source == "bili_video":
+        return [{"author_id": str(item["up_mid"]), "author_name": item["up_name"]}
+                for item in _bili_video_subscribers_by_up().values() if item["up_mid"]]
+    if source == "x_subscription":
+        authors = {str(item["id"]): {"author_id": str(item["id"]), "author_name": item["username"],
+                    "display_name": item.get("name") or item["username"]} for item in _x_subscriptions()}
+        return list(authors.values())
+    return []
+
+
+def automation_rule_operation(action, arguments, *, principal, run_id, message_id=None):
+    from agent_console.automation import RuleDefinition
+    from .ztime import current_epoch_seconds
+    import hashlib
+    import uuid
+
+    policy = automation_policy()
+    if not policy.enabled:
+        raise PermissionError("事件规则功能已关闭")
+    scope = _automation_scope(principal)
+    if not automation_owner_allowed({"owner_id": principal.user_id}):
+        raise PermissionError("当前身份、休眠或维修状态不允许管理规则")
+    rules = _automation_rules(scope, include_state=True)
+    if action == "actions":
+        current_push_group = scope == "group:" + str(confs["QQBot"]["group_qid"])
+        return {"actions": automation_actions().describe(principal.scopes),
+                "sources": {source: _automation_source_authors(source) if current_push_group else []
+                            for source in ("bili_video", "x_subscription")},
+                "notice": "仅当前会话；规则只匹配保存后的消息。B站/X条件不自动新增内容订阅。"}
+    if action == "list":
+        return {"rules": [_automation_public(rule) for rule in rules if rule["owner_id"] == principal.user_id]}
+    identifier = arguments.get("rule_id")
+    old = next((rule for rule in rules if rule["id"] == identifier), None) if identifier else None
+    if identifier and (old is None or old["owner_id"] != principal.user_id):
+        raise PermissionError("规则不存在或不属于本人当前会话")
+    key = REDIS_KEY_AUTOMATION_PREFIX + "rules:" + scope
+    if action == "delete":
+        script = """
+        local raw = redis.call('HGET', KEYS[1], ARGV[1])
+        if not raw or cjson.decode(raw).owner_id ~= ARGV[2] then return 0 end
+        redis.call('DEL', KEYS[2]); return redis.call('HDEL', KEYS[1], ARGV[1])
+        """
+        return {"deleted": bool(dmc.redis_deamon.eval(script, 2, key,
+            REDIS_KEY_AUTOMATION_PREFIX + "rule_state:" + identifier, identifier, principal.user_id)), "id": identifier}
+    if action != "save":
+        raise ValueError("未知规则操作")
+    definition = RuleDefinition.model_validate(arguments["definition"])
+    automation_actions().validate(definition.action, definition.condition.event, principal.scopes)
+    if scope.startswith("private:") and definition.action.type == "append_owner_mention":
+        raise ValueError("私聊不能使用原生群提及动作")
+    if definition.condition.source in {"bili_video", "x_subscription"}:
+        source = definition.condition.source
+        if scope != "group:" + str(confs["QQBot"]["group_qid"]):
+            raise PermissionError("B站/X当前仅向配置的推送群发送，请在该群管理规则")
+        condition = definition.condition
+        if condition.author_name or condition.author_id:
+            query = (condition.author_name or "").casefold()
+            if source == "x_subscription":
+                query = query.lstrip("@＠")
+            authors = [item for item in _automation_source_authors(source)
+                       if (not condition.author_id or condition.author_id == item["author_id"])
+                       and (not condition.author_name or query == item["author_name"].casefold())]
+            if len(authors) != 1:
+                raise ValueError("未唯一匹配已订阅作者，请先读取动作目录确认账号；规则不会新增内容订阅")
+            condition.author_id, condition.author_name = authors[0]["author_id"], None
+    body = definition.model_dump(mode="json")
+    if old and old["definition"] == body:
+        return {"changed": False, "rule": _automation_public(old)}
+    now = current_epoch_seconds()
+    identifier = identifier or hashlib.sha256((scope + ":" + principal.user_id + ":" +
+        json.dumps(body, ensure_ascii=False, sort_keys=True)).encode()).hexdigest()[:32]
+    duplicate = next((rule for rule in rules if rule["id"] == identifier), None)
+    if not old and duplicate:
+        return {"changed": False, "rule": _automation_public(duplicate)}
+    rule = {"id": identifier, "scope": scope, "owner_id": principal.user_id,
+        "definition": body, "revision": uuid.uuid4().hex, "scopes": sorted(principal.scopes),
+        "created_at": old["created_at"] if old else now, "creation_run_id": run_id,
+        "creation_event_id": f"qq:{scope}:{message_id}" if message_id is not None else None,
+        "expires_at": now + definition.expires_after_seconds if definition.expires_after_seconds else None,
+        "run_count": old.get("run_count", 0) if old else 0}
+    script = """
+    local raw = redis.call('HGET', KEYS[1], ARGV[1])
+    if raw then
+      local old = cjson.decode(raw)
+      if old.owner_id ~= ARGV[3] then return -1 end
+      if old.revision ~= ARGV[4] then return -2 end
+    else
+      if ARGV[4] ~= '' then return -2 end
+      if redis.call('HLEN', KEYS[1]) >= tonumber(ARGV[5]) then return -3 end
+      local count = 0
+      for _, value in ipairs(redis.call('HVALS', KEYS[1])) do
+        if cjson.decode(value).owner_id == ARGV[3] then count = count + 1 end
+      end
+      if count >= tonumber(ARGV[6]) then return -3 end
+    end
+    redis.call('HSET', KEYS[1], ARGV[1], ARGV[2]); return 1
+    """
+    result = dmc.redis_deamon.eval(script, 1, key, identifier, json.dumps(rule, ensure_ascii=False),
+        principal.user_id, old["revision"] if old else "", policy.max_rules_per_scope, policy.max_rules_per_owner)
+    if result != 1:
+        raise ValueError("规则已并发改变，请重新查询" if result == -2 else "规则数量超限或未获授权")
+    return {"changed": True, "rule": _automation_public(rule)}
+
+
+def automation_publish_event(event):
+    """Atomically reserve matches and persist work; never invoke a model here."""
+    from agent_console.automation import matches
+    from .ztime import current_epoch_seconds
+    import hashlib
+
+    policy = automation_policy()
+    if not policy.enabled:
+        return []
+    scope = event["scope"]
+    if not re.fullmatch(r"(?:group|private):[1-9][0-9]{0,19}", scope):
+        raise ValueError("无效事件范围")
+    now = current_epoch_seconds()
+    accepted = []
+    allowed = {}
+    disabled = None
+    for rule in _automation_rules(scope):
+        if not matches(rule, event, max_depth=policy.max_chain_depth):
+            continue
+        if disabled is None:
+            disabled = set(get_battle_invisible_disabled_qids())
+        if rule["owner_id"] not in allowed:
+            allowed[rule["owner_id"]] = automation_owner_allowed(rule, disabled=disabled)
+        if not allowed[rule["owner_id"]]:
+            continue
+        identifier = hashlib.sha256((rule["id"] + ":" + event["id"]).encode()).hexdigest()[:32]
+        immediate = rule["definition"]["action"]["type"] == "append_owner_mention"
+        job = {"id": identifier, "rule": rule, "event": event, "status": "queued" if immediate else "pending"}
+        root = hashlib.sha256((event.get("root_id") or event["id"]).encode()).hexdigest()
+        script = """
+        local raw = redis.call('HGET', KEYS[1], ARGV[1])
+        if not raw or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
+        local rule = cjson.decode(raw)
+        local now = tonumber(ARGV[3])
+        if rule.revision ~= ARGV[2] or not rule.definition.enabled then return 0 end
+        if rule.expires_at ~= cjson.null and rule.expires_at and rule.expires_at <= now then return 0 end
+        local last = tonumber(redis.call('HGET', KEYS[5], 'last_triggered'))
+        local count = tonumber(redis.call('HGET', KEYS[5], 'run_count') or '0')
+        if last and now - last < rule.definition.cooldown_seconds then return 0 end
+        if rule.definition.max_runs ~= cjson.null and rule.definition.max_runs and count >= rule.definition.max_runs then return 0 end
+        if tonumber(redis.call('GET', KEYS[4]) or '0') >= tonumber(ARGV[7]) then return 0 end
+        if ARGV[6] ~= '1' and redis.call('ZCARD', KEYS[3]) >= tonumber(ARGV[8]) then return 0 end
+        redis.call('INCR', KEYS[4]); redis.call('EXPIRE', KEYS[4], ARGV[4])
+        local job = cjson.decode(ARGV[5])
+        redis.call('HSET', KEYS[5], 'run_count', count + 1, 'last_triggered', now, 'last_execution_id', job.id)
+        redis.call('HSET', KEYS[2], 'payload', ARGV[5], 'status', job.status)
+        redis.call('EXPIRE', KEYS[2], ARGV[4])
+        if ARGV[6] ~= '1' then redis.call('ZADD', KEYS[3], now, job.id)
+        else
+          redis.call('HSET', KEYS[2], 'deadline', ARGV[9])
+          redis.call('ZADD', KEYS[6], ARGV[9], job.id)
+        end
+        return 1
+        """
+        result = dmc.redis_deamon.eval(script, 6, REDIS_KEY_AUTOMATION_PREFIX + "rules:" + scope,
+            REDIS_KEY_AUTOMATION_PREFIX + "execution:" + identifier, REDIS_KEY_AUTOMATION_PREFIX + "pending",
+            REDIS_KEY_AUTOMATION_PREFIX + "root:" + root, REDIS_KEY_AUTOMATION_PREFIX + "rule_state:" + rule["id"],
+            REDIS_KEY_AUTOMATION_PREFIX + "active",
+            rule["id"], rule["revision"], now,
+            policy.execution_ttl_seconds, json.dumps(job, ensure_ascii=False), int(immediate),
+            policy.max_actions_per_root, policy.max_pending, now + policy.agent_timeout_seconds + 300)
+        if result == 1:
+            accepted.append(job)
+    return accepted
+
+
+def automation_current_rule(job):
+    from .ztime import current_epoch_seconds
+    saved = job["rule"]
+    raw = dmc.redis_deamon.hget(REDIS_KEY_AUTOMATION_PREFIX + "rules:" + saved["scope"], saved["id"])
+    rule = json.loads(raw) if raw else None
+    if (rule and rule["revision"] == saved["revision"] and rule["definition"]["enabled"]
+            and (not rule.get("expires_at") or rule["expires_at"] > current_epoch_seconds())):
+        return rule
+    return None
+
+
+def automation_claim_jobs():
+    from .ztime import current_epoch_seconds
+    import uuid
+    policy, now = automation_policy(), current_epoch_seconds()
+    pending, active = REDIS_KEY_AUTOMATION_PREFIX + "pending", REDIS_KEY_AUTOMATION_PREFIX + "active"
+    for identifier in dmc.redis_deamon.zrangebyscore(active, "-inf", now, start=0, num=policy.batch_size):
+        identifier = identifier.decode() if isinstance(identifier, bytes) else identifier
+        automation_finish({"id": identifier}, "unknown", expired_at=now)
+    jobs = []
+    for identifier in dmc.redis_deamon.zrange(pending, 0, policy.batch_size - 1):
+        identifier = identifier.decode() if isinstance(identifier, bytes) else identifier
+        script = """
+        if redis.call('ZREM', KEYS[1], ARGV[1]) == 0 then return nil end
+        local raw = redis.call('HGET', KEYS[2], 'payload'); if not raw then return nil end
+        if redis.call('HGET', KEYS[2], 'status') ~= 'pending' then return nil end
+        redis.call('HSET', KEYS[2], 'status', 'running', 'lease_token', ARGV[2], 'deadline', ARGV[3])
+        redis.call('ZADD', KEYS[3], ARGV[3], ARGV[1]); return raw
+        """
+        token, deadline = uuid.uuid4().hex, now + policy.agent_timeout_seconds + 300
+        raw = dmc.redis_deamon.eval(script, 3, pending, REDIS_KEY_AUTOMATION_PREFIX + "execution:" + identifier,
+            active, identifier, token, deadline)
+        if raw:
+            jobs.append({**json.loads(raw), "status": "running", "lease_token": token, "deadline": deadline})
+    return jobs
+
+
+def automation_finish(job, status, *, expired_at=None):
+    script = """
+    if redis.call('EXISTS', KEYS[1]) == 0 then redis.call('ZREM', KEYS[2], ARGV[1]); return 0 end
+    local status = redis.call('HGET', KEYS[1], 'status')
+    if ARGV[4] ~= '' then
+      local deadline = tonumber(redis.call('HGET', KEYS[1], 'deadline'))
+      if not deadline or deadline > tonumber(ARGV[4]) then return 0 end
+    elseif ARGV[3] ~= '' and redis.call('HGET', KEYS[1], 'lease_token') ~= ARGV[3] then return 0 end
+    if status ~= 'running' and status ~= 'queued' and not (status == 'unknown' and ARGV[2] == 'sent') then return 0 end
+    if status == 'queued' and ARGV[2] == 'completed' then return 0 end
+    redis.call('HSET', KEYS[1], 'status', ARGV[2])
+    redis.call('ZREM', KEYS[2], ARGV[1]); return 1
+    """
+    return dmc.redis_deamon.eval(script, 2, REDIS_KEY_AUTOMATION_PREFIX + "execution:" + job["id"],
+        REDIS_KEY_AUTOMATION_PREFIX + "active", job["id"], status, job.get("lease_token", ""),
+        expired_at if expired_at is not None else "")
+
+
+def automation_enqueue_action(job, payload):
+    """Reserve the outgoing action and enqueue it in one DB0 transaction."""
+    script = """
+    local raw = redis.call('HGET', KEYS[1], 'payload'); if not raw then return 0 end
+    local job = cjson.decode(raw)
+    local current = redis.call('HGET', KEYS[4], job.rule.id)
+    if not current then return 0 end
+    local rule = cjson.decode(current)
+    if not rule.definition.enabled or rule.revision ~= job.rule.revision then return 0 end
+    if redis.call('HGET', KEYS[1], 'status') ~= 'running' or redis.call('HGET', KEYS[1], 'lease_token') ~= ARGV[2] then return 0 end
+    redis.call('LPUSH', KEYS[2], ARGV[3])
+    redis.call('HSET', KEYS[1], 'status', 'queued')
+    return 1
+    """
+    return dmc.redis_deamon.eval(script, 4, REDIS_KEY_AUTOMATION_PREFIX + "execution:" + job["id"],
+        REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, REDIS_KEY_AUTOMATION_PREFIX + "active",
+        REDIS_KEY_AUTOMATION_PREFIX + "rules:" + job["rule"]["scope"], job["id"], job["lease_token"],
+        json.dumps(payload, ensure_ascii=False))
+
+
+async def agent_automation_operation(action, arguments, context):
+    scope = _automation_scope(context.principal)
+    if scope.startswith("group:"):
+        await agent_read_group_member_profile(group_id=scope.split(":", 1)[1],
+            user_id=context.principal.user_id, include_avatar=False)
+        sender = arguments.get("definition", {}).get("condition", {}).get("sender_id")
+        if action == "save" and sender and sender != context.principal.user_id:
+            await agent_read_group_member_profile(group_id=scope.split(":", 1)[1], user_id=sender, include_avatar=False)
+    return await asyncio.to_thread(automation_rule_operation, action, arguments,
+        principal=context.principal, run_id=context.request.run_id,
+        message_id=context.request.metadata.get("message_id"))
+
+
+async def automation_tick():
+    from .business.automation import execute_job
+    if not automation_policy().enabled:
+        return
+    jobs = await asyncio.to_thread(automation_claim_jobs)
+
+    async def perform(job):
+        try:
+            async with asyncio.timeout(automation_policy().agent_timeout_seconds + 15):
+                await execute_job(job)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            await asyncio.to_thread(automation_finish, job, "unknown")
+            log_message(f"AUTOMATION_ACTION_FAILED: execution={job['id']} error_type={type(error).__name__}")
+
+    await asyncio.gather(*(perform(job) for job in jobs))
+
+
 def service_health_redis(timeout):
     """PING the same DB0 connection settings with a separate bounded pool."""
     import redis
@@ -735,7 +1105,8 @@ async def agent_runtime_start():
                              private_message_sender=agent_send_group_member_private_message,
                              business_functions=build_hok_function_catalog(globals(), player_keys=tuple(userlist), player_aliases=nameref,
                                  policy=config.get("business_functions")),
-                             business_image_loader=load_business_image, webpage_proxy_url=clash_proxy_url)
+                             business_image_loader=load_business_image, webpage_proxy_url=clash_proxy_url,
+                             automation_operation=agent_automation_operation)
     dmc.qq_agent_service = service
     try:
         await service.start()
@@ -1347,9 +1718,9 @@ def _x_render_message(bundle):
     return str(MessageSegment.text(text)) + pictures + str(MessageSegment.text(link))
 
 
-def _x_send_message(message):
+def _x_send_message(message, *, metadata=None):
     from .utils.message_sender import add_msg
-    return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+    return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"], metadata=metadata)
 
 
 def x_subscribe_user(user_qid, query):
@@ -1468,10 +1839,10 @@ def _bili_video_release_push_lock():
     return dmc.redis_deamon.delete("hok:lock:bili:video_push")
 
 
-def _bili_video_send_group_message(message):
+def _bili_video_send_group_message(message, *, metadata=None):
     from .utils.message_sender import add_msg
 
-    return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"])
+    return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"], metadata=metadata)
 
 
 def _bili_video_subscribed_at_epoch(item):

@@ -49,6 +49,14 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 - 分批回答由外部 application_prompt 与 emit_message 描述引导：信息较多、多子问题、步骤和对比可按完整语义块交付，保持当前角色/偏好，不按字数机械切割、不逐句刷屏、不重复全文。QQOutput 与 Web EventBroker 在输出接受后通过 DeliveryHistory 按 run_id 收集 partial；最终整理只处理未发送的最后一段，保存直接对话时按顺序合并已发送分批正文与当前最终 history_text。progress/notification 不入此回答历史，并发隔离，run.end 清理；内核与双版本展示协议不变，失败/取消的已发送内容继续保留在运行日志。
 
+### 1.0.1 消息事件规则
+
+- `agent_console/automation.py` 定义严格规则模型、纯匹配、显式动作目录及 ContextVar 因果链；不修改独立 `agent_runtime`。`qq_agent/automation.py` 注册 automation 类别的动作目录、保存、本人当前范围列表和删除工具，先读动作参数再保存；同一ReAct模型语义判断用户的条件动作请求，不新增自然语言关键词路由。普通群只管理本人当前群规则，私聊只管理本人私聊规则，管理员私聊也不扩大范围；后台和业务函数禁止重入规则管理。
+- `hok/business/automation.py` 通过公开门面编排动作；`zfunc.py` 是规则、执行记录、原子领取和出站入队的DB0访问边界，key统一由 `zstatic.REDIS_KEY_AUTOMATION_PREFIX` 暴露（`hok:automation:*`）。规则按会话索引，执行状态和因果链跨重启保存；原始JSON保留不经Lua cjson重新编码，避免空数组变对象。动作目录引用在 `zdynamic.py` 初始化，可信启动代码可调用 `agent_register_automation_action()` 显式扩展，不能执行模型提供的模块/函数/路径。
+- `event_ingress.py` 在原始归档之外独立观察收到的群/私聊消息；归档失败不阻断观察，机器人自身回传忽略。`utils/message_sender.py` 在普通群消息发送前追加提及，在普通消息、合并转发及工具私发取得真实回执后发布发送事件；没有回执不发布成功事件，失败不自动重发。B站/X推送的 `source=bili_video` / `source=x_subscription`、作者稳定ID/名称由业务代码提供，群友复制文字不能伪造来源。两类条件仅允许配置的推送群及已订阅作者，不自动增加订阅；X的@username忽略大小写并绑定账号数字ID。
+- 内置动作是notify_owner、send_text、run_agent及append_owner_mention；发送前当前仅允许普通群消息追加原生@，耗时动作使用发送后事件。复杂动作重建真实创建者当前principal并与保存scope取交集，群动作重新校验群成员；触发消息仅作user补充资料，放在规则专属会话，不存本人直接聊天历史。自动agent不授予规则/定时任务/记忆/角色写入、改头像、跨会话私发和提及覆盖；HOK函数目录只披露read函数，仍受原有串行渲染器保护。
+- 条件按scope过滤并做字面匹配，每条消息不调用模型；Lua原子执行规则版本、启停、有效期、次数、冷却、事件幂等、队列容量和整条因果链预算检查。创建消息与同轮确认不触发新规则，同规则不在同一因果链重入。pending可跨重启领取，过期running/queued转unknown且不重放；真实迟到回执可更新为sent。定时消费仅在 `zscheduler.qq_automation_events` 注册，配置集中 `config.yaml#QQAgent.automation`，观察和记录失败只记脱敏错误类型、不阻断原消息路由或投递。手册为 `shared/agent/manual/chapters/event_rules.md`。
+
 ### 1.1 Tools（`hok/tools/`）
 
 `hok/tools/` 目录用于放置可复用、可抽象的“工具”模块：

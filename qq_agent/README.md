@@ -330,6 +330,57 @@ QQ 和网页 worker 接收同一份源码。`AgentSQL` 配置只读查询限制�
 调试日志和其他会话不会被这个命令删除。表情包从当前群的本人归档读取发言，短期
 去重缓存使用 `hok:emoji:*`，不再写被动聊天或读取历史摘要。
 
+## 消息条件触发动作
+
+`automation` 类别提供 `list_automation_actions`、`save_automation_rule`、
+`list_automation_rules` 和 `delete_automation_rule`。同一ReAct模型解释“在…时提醒我”
+及同义请求，先读取动作schema再保存完整规则；无额外关键词意图路由。
+规则的身份、群/私聊范围由入口绑定，后台任务不能管理规则。修改、暂停和删除只作用于
+本人当前范围。规则和执行记录保存在DB0 `hok:automation:*`，不新增数据库schema。
+
+收到的消息由event_ingress观察，机器人普通消息、合并转发和工具私发从统一出口的
+真实发送回执产生事件；自身回传忽略。普通群消息发送前可执行append_owner_mention，
+在同一条消息上追加多个创建者的原生@。B站/X业务代码附加可信来源与作者稳定ID，
+创建规则时从现有订阅目录确认UP或@username，并绑定mid或X账号数字ID；规则本身
+不增加内容订阅。其他消息支持可见文字的
+任一/全部关键词、发送者和来源条件，不自动解析视频或图片内容。
+
+默认动作是notify_owner、send_text、run_agent和append_owner_mention。复杂动作复用
+现有内核，按创建者当前权限与保存权限的交集运行在规则独立会话，触发消息仅作本轮
+资料；不授予任务/规则/记忆/角色管理、改头像、私发或提及覆盖，业务函数只披露read。
+自定义动作由可信启动代码显式登记，无模块扫描或模型指定的函数路径，例如在现有
+启动hook中、agent启动后登记：
+
+```python
+from agent_console.automation import TextArgs
+from hok import zfunc
+from hok.utils.message_sender import add_automation_message
+
+async def custom_notice(args, job):
+    # 使用统一出口，保留当前事件因果链；入队与执行状态原子保存。
+    return add_automation_message(job, args.text, mention=True)
+
+zfunc.agent_register_automation_action(
+    "custom_notice", description="按规则向创建者发送自定义通知",
+    args_model=TextArgs, handler=custom_notice,
+    events=("message.received", "message.sent"), scopes=("automation.use",),
+)
+```
+
+自定义动作的参数模型必须extra=forbid，处理器接收已校验参数和可信job，遵守现有IO、
+Redis、时间和消息出口边界。新scope仍需入口显式授予。运行时登记重启后需重新执行。
+发送前事件仅支持内置追加提及，查询和其他耗时动作在发送后执行。
+
+规则消费只在zscheduler注册，设置集中config.yaml#QQAgent.automation。默认每人每
+会话20条、每会话100条、冷却300秒、链深2、每个源事件最多10个动作、待执行最多500条。
+版本、有效期、冷却、次数、幂等和根事件预算在Lua内原子检查；固定消息动作入队和
+queued状态在同一事务完成。pending跨重启领取，过期running/queued标unknown且不重放，
+真实迟到回执可改为sent。sent只代表QQ有回执，completed代表动作处理完成。存储故障
+期间的事件不保证补发；已经开始的动作不会因删除规则而宣称被撤回。
+
+`tests.test_automation`覆盖纯匹配、工具权限和agent隔离；可选测试依赖
+`fakeredis[lua]`用于执行实际Lua的并发领取、持久化、消息出口和防循环契约测试。
+
 ## 更换机器人QQ头像
 
 `set_bot_avatar` 仅配置管理员在QQ群或私聊中可用，发送或引用图片后明确要求更换即可。参数 `image_index` 从1开始，直接图片优先，随后为引用图片；可取本次已验证附件，或传本轮 `generate_image` 返回的 `image_resource_id`；二者互斥。生成后直接换头像无需重新发图，资源不能跨轮使用。生成图片经QQBot的zfile接口读取已保存PNG，不接受模型URL、路径或目标QQ。通过注入的QQBot账号写接口提交Base64，兼容分离部署的NapCat，不向独立内核加入QQ逻辑。超时结果未知，不自动重放；本地Web不注册此工具。

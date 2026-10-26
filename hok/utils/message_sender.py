@@ -61,7 +61,96 @@ def _resolve_destination(event=None, msg_type=None, to_id=None):
 
 
 def _enqueue_payload(payload):
+    payload = _prepare_automation_payload(payload)
     return dmc.MessageQueue.lpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, json.dumps(payload, ensure_ascii=False))
+
+
+def _prepare_automation_payload(payload):
+    from uuid import uuid4
+    from agent_console.automation import delivery_cause
+    payload = dict(payload)
+    payload.setdefault("delivery_id_internal", uuid4().hex)
+    metadata = {"source": "bot", **payload.get("automation_metadata", {})}
+    metadata.update(delivery_cause.get() or {})
+    metadata.setdefault("root_id", "outbound:" + payload["delivery_id_internal"])
+    metadata.setdefault("depth", 0)
+    payload["automation_metadata"] = metadata
+    return payload
+
+
+def _automation_event(payload, kind, message_id=None):
+    from ..ztime import current_epoch_seconds
+    channel, recipient = payload.get("type", "group"), str(payload["toid"])
+    scope = channel + ":" + recipient
+    metadata = payload.get("automation_metadata", {})
+    if payload.get("kind") in {"group_forward", "private_forward"}:
+        text = "\n".join(Message(node.get("data", {}).get("content", "")).extract_plain_text()
+                         for node in payload.get("messages", []))
+    else:
+        text = Message(payload.get("content", "")).extract_plain_text()
+    return {"id": f"qq:{scope}:{message_id}" if message_id is not None else "outbound:" + payload["delivery_id_internal"],
+        "kind": kind, "scope": scope, "sender_id": str(confs["QQBot"]["bot_qid"]),
+        "text": text[:12000], "timestamp": current_epoch_seconds(),
+        **{key: metadata[key] for key in ("source", "author_id", "author_name", "root_id", "chain", "depth", "origin_run_id") if key in metadata}}
+
+
+async def _automation_before_send(payload):
+    from ..zfunc import automation_publish_event, automation_current_rule, automation_finish
+    from .qq_profiles import load_group_member_profile
+    payload = _prepare_automation_payload(payload)
+    if payload.get("type") != "group" or payload.get("kind") in {"group_forward", "private_forward"}:
+        return payload
+    jobs = await asyncio.to_thread(automation_publish_event, _automation_event(payload, "message.before_send"))
+    message = Message(payload.get("content", ""))
+    depth = payload["automation_metadata"].get("depth", 0)
+    existing = {str(segment.data.get("qq")) for segment in message if segment.type == "at"}
+    for job in jobs:
+        owner = job["rule"]["owner_id"]
+        try:
+            profile = await load_group_member_profile(str(payload["toid"]), owner)
+            if (str(profile.get("user_id")) != owner or str(profile.get("group_id")) != str(payload["toid"])
+                    or not await asyncio.to_thread(automation_current_rule, job)):
+                raise PermissionError("规则创建者已失去当前群成员身份或规则已取消")
+        except Exception:
+            await asyncio.to_thread(automation_finish, job, "cancelled")
+            continue
+        if owner not in existing:
+            message += MessageSegment.text(" ") + MessageSegment.at(owner)
+            existing.add(owner)
+        payload.setdefault("automation_executions", []).append(job["id"])
+        cause = payload["automation_metadata"]
+        cause["chain"] = list(dict.fromkeys([*cause.get("chain", []), job["rule"]["id"]]))
+        cause["depth"] = depth + 1
+    payload["content"] = str(message)
+    return payload
+
+
+async def _automation_sent(payload, result=None, *, status=None):
+    """Observe confirmed receipts; hook failures never replay or break delivery."""
+    from ..zfunc import automation_publish_event, automation_finish
+    identifier = result.get("message_id") if isinstance(result, dict) else None
+    confirmed = type(identifier) in (str, int) and re.fullmatch(r"-?[0-9]{1,20}", str(identifier)) and int(identifier) != 0
+    try:
+        for execution in payload.get("automation_executions", []):
+            await asyncio.to_thread(automation_finish, {"id": execution}, status or ("sent" if confirmed else "unknown"))
+        if confirmed and status is None:
+            await asyncio.to_thread(automation_publish_event, _automation_event(payload, "message.sent", identifier))
+    except Exception as error:
+        log_message(f"AUTOMATION_RECEIPT_FAILED: error_type={type(error).__name__}")
+
+
+def add_automation_message(job, text, *, mention):
+    from ..zfunc import automation_enqueue_action
+    channel, recipient = job["rule"]["scope"].split(":", 1)
+    message = Message()
+    if mention and channel == "group":
+        message += MessageSegment.at(job["rule"]["owner_id"]) + MessageSegment.text(" ")
+    message += MessageSegment.text(str(text))
+    payload = _prepare_automation_payload({"type": channel, "toid": int(recipient), "content": str(message),
+        "automation_metadata": {"source": "automation"}, "automation_executions": [job["id"]]})
+    if not automation_enqueue_action(job, payload):
+        raise RuntimeError("规则已取消或动作已入队，未重复发送")
+    return {"queued": True}
 
 
 def _format_group_ban_action(duration):
@@ -142,6 +231,7 @@ async def _handle_forward_msg(bot, payload):
             result = await bot.send_group_forward_msg(group_id=target, messages=payload["messages"], **card_options)
         if not isinstance(result, dict) or not result.get("message_id"):
             raise RuntimeError("FORWARD_RESULT: missing message_id; delivery outcome unknown")
+        await _automation_sent(_prepare_automation_payload(payload), result)
     except Exception as error:
         status = "failed"
         log_message(f"FORWARD_FAILED: type={payload.get('type', 'group')} target={payload.get('toid')} delivery={delivery_id} error={error!r}")
@@ -160,10 +250,24 @@ async def _handle_forward_msg(bot, payload):
 
 
 async def _send_queued_message(bot, payload):
+    try:
+        payload = await _automation_before_send(payload)
+    except Exception as error:
+        log_message(f"AUTOMATION_BEFORE_SEND_FAILED: error_type={type(error).__name__}")
     msg_type, to_id = payload.get("type"), payload.get("toid")
     message = Message(payload.get("content", ""))
+    try:
+        if msg_type == "group":
+            result = await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=message)
+        elif msg_type == "private":
+            result = await bot.send_private_msg(user_id=_normalize_target_id(to_id), message=message)
+        else:
+            raise ValueError("Invalid queued message channel")
+    except BaseException as error:
+        await _automation_sent(payload, status="failed" if isinstance(error, ActionFailed) else "unknown")
+        raise
+    await _automation_sent(payload, result)
     if msg_type == "group":
-        result = await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=message)
         if payload.get("task_id"):
             try:
                 from ..zfunc import agent_record_task_message
@@ -176,7 +280,7 @@ async def _send_queued_message(bot, payload):
                 log_message(f"TASK_MESSAGE_RECEIPT_SAVE_FAILED: task_id={payload['task_id']} error={type(exc).__name__}")
         return result
     if msg_type == "private":
-        return await bot.send_private_msg(user_id=_normalize_target_id(to_id), message=message)
+        return result
 
 
 async def message_sender_loop():
@@ -216,7 +320,7 @@ async def message_sender_loop():
 
 
 
-def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None):
+def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None, metadata=None):
     resolved_type, resolved_id = _resolve_destination(event=event, msg_type=msg_type, to_id=to_id)
     resolved_id = _normalize_target_id(resolved_id)
     if resolved_type not in {"group", "private"} or resolved_id is None:
@@ -226,6 +330,8 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None):
         "toid": resolved_id,
         "content": _stringify_message_content(content),
     }
+    if metadata:
+        payload["automation_metadata"] = dict(metadata)
     if task_id is not None and resolved_type == "group":
         if not isinstance(task_id, str) or not re.fullmatch(r"[a-f0-9]{32}", task_id):
             raise ValueError("Invalid trusted task ID")
@@ -281,6 +387,8 @@ async def send_group_member_private_message(*, group_id, user_id, text):
         receipt = 0
     if not receipt:
         raise PrivateMessageOutcomeUnknown("QQ未返回有效私发消息ID，结果未知，禁止自动重发")
+    await _automation_sent(_prepare_automation_payload({"type": "private", "toid": int(user),
+        "content": str(Message(MessageSegment.text(text))), "automation_metadata": {"source": "agent"}}), result)
     return {"message_id": str(receipt)}
 
 
@@ -370,7 +478,8 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
         elif result.get("trace_error"):
             message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
     if destination is not None:
-        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"], task_id=task_id)
+        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"], task_id=task_id,
+                       metadata=result.get("_automation_metadata"))
     return add_msg(message, event=event, task_id=task_id)
 
 

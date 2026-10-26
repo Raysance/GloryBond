@@ -14,6 +14,13 @@ class DiagnosticToolRegistry(ToolRegistry):
         super().__init__()
         self.redactor = redactor or redact_error
 
+    def available(self, context):
+        available = super().available(context)
+        if context.request.metadata.get("automation_rule_id"):
+            from agent_console.automation import automation_tool_allowed
+            return {name: spec for name, spec in available.items() if automation_tool_allowed(spec)}
+        return available
+
     def register(self, *, handler, timeout=30, effect="read", **spec):
         name = spec["name"]
 

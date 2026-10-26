@@ -31,6 +31,7 @@
 ## 提醒、订阅与互动
 
 - [定时提醒与多次消息](chapters/tasks.md)
+- [条件触发提醒与动作](chapters/event_rules.md)
 - [视频订阅与自动推送](chapters/subscriptions.md)
 - [AI 领域日报](chapters/subscriptions.md#ai-领域日报)
 - [戳一戳互动](chapters/poke.md)

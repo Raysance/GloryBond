@@ -633,7 +633,8 @@ def bili_video_check_and_push(*, debug=False):
             new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
             for video in new_videos:
                 message = _bili_video_format_push_message(up_name, video, subscribers)
-                _zfunc_attr("_bili_video_send_group_message")(message)
+                _zfunc_attr("_bili_video_send_group_message")(message, metadata={"source": "bili_video",
+                    "author_id": str(up_mid), "author_name": str(up_name)})
                 _zfunc_attr("_bili_video_mark_seen")(
                     up_mid,
                     up_name,

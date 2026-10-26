@@ -14,9 +14,11 @@ with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda 
 
 class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def run_queue(self, entries, bot, logger):
+        zfunc = import_hok_module('zfunc')
         queue = Mock()
         queue.rpop.side_effect = [*entries, asyncio.CancelledError()]
-        with patch.object(SENDER.dmc, 'MessageQueue', queue), \
+        with patch.object(zfunc, 'automation_publish_event', return_value=[]), \
+             patch.object(SENDER.dmc, 'MessageQueue', queue), \
              patch.object(SENDER.dmc, 'last_msg_send_ts', 0, create=True), \
              patch.object(SENDER, 'MESSAGE_SEND_INTERVAL', 0), \
              patch.object(SENDER.nonebot, 'get_bot', return_value=bot), \

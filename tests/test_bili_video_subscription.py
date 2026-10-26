@@ -107,7 +107,7 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
                 "up_mid": "123",
             }
         ]
-        ZFUNC._bili_video_send_group_message = sent.append
+        ZFUNC._bili_video_send_group_message = lambda message, **kwargs: sent.append(message)
         try:
             result = ZFUNC.bili_video_check_and_push(debug=True)
         finally:
