@@ -699,6 +699,42 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         wire, _ = self.gateway.image_store.model_messages([{"role":"user", "content":[images[0].content_part()]}])
         self.assertTrue(wire[0]["content"][1]["image_url"]["url"].startswith("data:image/png;"))
 
+    async def test_rule_media_catalog_binds_current_faces_and_validated_quoted_animation(self):
+        from tests.test_agent_animations import animation
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["references"]}, "d")]},
+            {"role": "assistant", "content": "读到了表情和动图。"},
+        ]
+        saved = self.gateway.image_store.save(animation())
+        image = self.gateway.image_store.inputs([saved["id"]])[0]
+        with patch.object(self.gateway, "input_images", AsyncMock(return_value=(image,))):
+            await self.gateway.chat(user_text="以后他发话发这个动图", user_id="101", nickname="B",
+                native_faces=[{"id": "14"}], quoted_message={"available": True, "text": "QUOTE_MEDIA_ONLY",
+                    "native_faces": [{"id": "66"}], "image_urls": ["https://gchat.qpic.cn/animated"]})
+        metadata = next(row["metadata"] for row in self.events["qq_p_101"] if row["kind"] == "run.start")
+        media = metadata["automation_media"]
+        self.assertEqual([(x["kind"], x["source"]) for x in media],
+                         [("face", "message"), ("face", "quote"), ("image", "quote")])
+        self.assertEqual(media[-1]["image_id"], saved["id"])
+        self.assertTrue(media[-1]["animated"])
+        catalog = next(row["content"] for row in self.gateway.model.requests[0].messages
+                       if isinstance(row.get("content"), str) and row["content"].startswith("本次可用于规则回复的原生素材"))
+        self.assertEqual(json.loads(catalog.split("\n", 1)[1])[-1]["media_index"], 3)
+        self.assertNotIn("QUOTE_MEDIA_ONLY", json.dumps(self.dialogue))
+        self.assertNotIn("media_index", json.dumps(self.dialogue))
+
+    async def test_unavailable_quote_cannot_supply_rule_faces_and_face_budget_is_shared(self):
+        self.gateway.automation_policy = self.gateway.automation_policy.model_copy(update={"max_input_faces": 1})
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["references"]}, "d")]},
+            {"role": "assistant", "content": "已读取。"},
+        ]
+        await self.gateway.chat(user_text="发这个表情", user_id="101", nickname="B", native_faces=[{"id": "14"}, {"id": "66"}],
+            quoted_message={"available": False, "text": "不可读取", "native_faces": [{"id": "99"}]})
+        metadata = next(row["metadata"] for row in self.events["qq_p_101"] if row["kind"] == "run.start")
+        self.assertEqual(metadata["automation_media"], [{"kind": "face", "source": "message", "face_id": "14"}])
+        self.assertIn("原生表情数量超限", json.dumps(self.gateway.model.requests[0].messages, ensure_ascii=False))
+
     async def test_fixed_background_messages_emit_once_and_keep_bound_destination(self):
         from agent_console.tasks import task_request
         principal = qq_principal("101", "200", "B", admin_id="999", references=REFERENCES)

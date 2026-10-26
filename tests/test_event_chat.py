@@ -95,6 +95,25 @@ class ChatEventTests(unittest.TestCase):
         self.assertEqual(request["image_urls"], ["https://gxh.vip.qq.com/raw300.gif", "https://gchat.qpic.cn/face.gif"])
         self.assertEqual(CHAT_HANDLER.image_urls("[CQ:mface,url=https://gxh.vip.qq.com/raw300.gif]"), ["https://gxh.vip.qq.com/raw300.gif"])
 
+    def test_native_face_ids_are_kept_for_rule_media_without_guessing_from_text(self):
+        for message in ([{"type": "face", "data": {"id": 14}},
+                         {"type": "text", "data": {"text": "[CQ:face,id=999]"}}],
+                        "[CQ:face,id=14]"):
+            event = FakeEvent("他发话之后发这个表情")
+            event.original_message = message
+            request = CHAT_HANDLER.prepare_chat_request(event, {}, True)
+            self.assertEqual(request["native_faces"], [{"id": "14"}])
+        self.assertEqual(CHAT_HANDLER.native_faces("普通文字[微笑]"), [])
+
+    def test_quote_faces_require_matching_message_and_current_group(self):
+        event = FakeEvent("他发话之后发引用里的表情", group_id=200)
+        event.original_message = "[CQ:reply,id=42]"
+        event.reply = {"message_id": 42, "message_type": "group", "group_id": 200,
+                       "sender": {"user_id": 101}, "message": "[CQ:face,id=14]"}
+        self.assertEqual(CHAT_HANDLER.normalize_quoted_message(event)["native_faces"], [{"id": "14"}])
+        for mismatch in ({**event.reply, "group_id": 201}, {**event.reply, "message_id": 43}):
+            self.assertNotIn("native_faces", CHAT_HANDLER.normalize_quoted_message(event, mismatch))
+
     def test_unresolved_faces_are_explicitly_unseen_without_inventing_an_asset_url(self):
         event = FakeEvent("#解释这个表情")
         event.original_message = [{"type":"face", "data":{"id":"14"}}]

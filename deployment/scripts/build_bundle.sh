@@ -65,7 +65,7 @@ copy_source() {
         --exclude='dist' --exclude='deployment' --exclude='local_debugger/.venv' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
-        --exclude='data/agent_inputs' --exclude='data/player_client' --exclude='data/account_sessions' \
+        --exclude='data/agent_inputs' --exclude='data/automation_media' --exclude='data/player_client' --exclude='data/account_sessions' \
         --exclude='resources/wzry_images/hero_avatars/*' \
         --exclude='resources/wzry_images/generated/*' \
         --exclude='resources/wzry_images/kpl/*' \

@@ -45,6 +45,32 @@ def service_health_systemd(units, timeout=4):
     return reports
 
 
+def _automation_media_store():
+    from pathlib import Path
+    from agent_console.image_inputs import ImageLimits, ImageStore
+    return ImageStore(Path(data_root) / "automation_media", ImageLimits(**confs.get("QQAgent", {}).get("images", {})))
+
+
+def store_automation_media(raw):
+    """Keep the original validated bytes, including animation, outside public artifacts."""
+    store = _automation_media_store()
+    store.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    saved = store.save(raw)
+    for suffix in (".image", ".json"):
+        store._path(saved["id"], suffix).chmod(0o600)
+    return {"kind": "image", "id": saved["id"], "animated": saved.get("frames", 1) > 1}
+
+
+def automation_media_uri(identifier):
+    """Validate an owned private asset and return a local URI only to the QQ sender."""
+    store = _automation_media_store()
+    store.load(identifier)
+    path = store._path(identifier, ".image").resolve(strict=True)
+    if not path.is_relative_to(store.directory.resolve()):
+        raise ValueError("无效规则图片路径")
+    return path.as_uri()
+
+
 def load_agent_artifact_image(identifier):
     """Read an already validated, locally stored agent PNG by opaque ID."""
     import re

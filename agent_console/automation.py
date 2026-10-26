@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Literal
 import asyncio
 import inspect
+import re
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -32,6 +33,7 @@ class AutomationPolicy(Args):
     execution_ttl_seconds: int = Field(default=2592000, ge=3600, le=31536000)
     agent_timeout_seconds: int = Field(default=180, ge=30, le=1200)
     poll_seconds: int = Field(default=1, ge=1, le=60)
+    max_input_faces: int = Field(default=20, ge=1, le=100)
 
 
 class EventCondition(Args):
@@ -87,6 +89,23 @@ class NotifyArgs(Args):
 
 class TextArgs(Args):
     text: str = Field(min_length=1, max_length=4000)
+
+
+class MediaSelectionArgs(Args):
+    media_index: int | None = Field(default=None, ge=1, strict=True,
+        description="list_automation_actions返回的input_media序号，从1开始；仅修改已有媒体规则并沿用原素材时可省略")
+
+
+class StoredMediaArgs(Args):
+    kind: Literal["face", "image"]
+    id: str
+    animated: bool = False
+
+    @model_validator(mode="after")
+    def bound_identifier(self):
+        if not re.fullmatch(r"[0-9]{1,6}" if self.kind == "face" else r"[a-f0-9]{32}", self.id):
+            raise ValueError("无效的已绑定消息素材")
+        return self
 
 
 class AgentArgs(Args):

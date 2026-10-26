@@ -35,6 +35,7 @@ __MACOSX/
 /resources/wzry_images/battle_assets/
 /file_transfer/
 /data/agent_inputs/
+/data/automation_media/
 /redis-migration-backups/
 /hok/debug_tools/*/
 !/hok/debug_tools/AGENTS.md

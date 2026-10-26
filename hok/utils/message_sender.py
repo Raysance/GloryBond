@@ -152,12 +152,28 @@ def _confirmed_message_id(result):
 
 
 def add_automation_message(job, text, *, mention):
-    from ..zfunc import automation_enqueue_action
-    channel, recipient = job["rule"]["scope"].split(":", 1)
+    channel = job["rule"]["scope"].split(":", 1)[0]
     message = Message()
     if mention and channel == "group":
         message += MessageSegment.at(job["rule"]["owner_id"]) + MessageSegment.text(" ")
     message += MessageSegment.text(str(text))
+    return _enqueue_automation_message(job, message)
+
+
+def add_automation_media(job, media):
+    from agent_console.automation import StoredMediaArgs
+    media = StoredMediaArgs.model_validate(media.model_dump() if isinstance(media, StoredMediaArgs) else media)
+    if media.kind == "face":
+        message = MessageSegment.face(int(media.id))
+    else:
+        from ..zfile import automation_media_uri
+        message = MessageSegment.image(automation_media_uri(media.id))
+    return _enqueue_automation_message(job, Message(message))
+
+
+def _enqueue_automation_message(job, message):
+    from ..zfunc import automation_enqueue_action
+    channel, recipient = job["rule"]["scope"].split(":", 1)
     payload = _prepare_automation_payload({"type": channel, "toid": int(recipient), "content": str(message),
         "automation_metadata": {"source": "automation"}, "automation_executions": [job["id"]]})
     if not automation_enqueue_action(job, payload):

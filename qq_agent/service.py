@@ -10,6 +10,7 @@ import httpx
 
 from agent_runtime import AgentRuntime, FinalAnswer, Principal, RunRequest
 from agent_console.timeouts import application_budget
+from agent_console.automation import AutomationPolicy
 from agent_console.tools.diagnostics import DiagnosticToolRegistry
 from agent_console.tool_errors import redact_error
 from agent_console.capabilities import Clock, application_prompt, load_catalogs, reference_prompt
@@ -97,7 +98,8 @@ class QQAgentService:
     def __init__(self, *, root, config, admin_id, sender, prepare_reply, store_artifact, formatter,
                  bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
                  bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None,
-                 business_functions=None, business_image_loader=None, webpage_proxy_url="", automation_operation=None):
+                 business_functions=None, business_image_loader=None, webpage_proxy_url="", automation_operation=None,
+                 automation_media_storer=None):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
@@ -109,6 +111,8 @@ class QQAgentService:
         self.business_functions = business_functions
         self.business_image_loader = business_image_loader
         self.automation_operation = automation_operation
+        self.automation_media_storer = automation_media_storer
+        self.automation_policy = AutomationPolicy.model_validate(config.get("automation", {}))
         self.automation_runs = set()
         self.clock = Clock()
         self._start_lock = asyncio.Lock()
@@ -137,7 +141,8 @@ class QQAgentService:
                 registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(self.state_bridge.redact(self.bridge.redact(value))))
                 register_application_tools(registry, service=service, catalogs=self.catalogs)
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):
-                    register_automation_tools(registry, operation=self.automation_operation)
+                    register_automation_tools(registry, operation=self.automation_operation,
+                        image_store=self.image_store, media_storer=self.automation_media_storer)
                 if self.member_profile_reader is not None:
                     register_member_profile_tool(registry, reader=self.member_profile_reader,
                                                  store_image=self.store_tool_image, now=self.clock.now)
@@ -294,7 +299,7 @@ class QQAgentService:
         return await asyncio.to_thread(save)
 
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
-                   use_memory=True, quoted_message=None, image_urls=(), original_user_text=None):
+                   use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=()):
         await self.start()
         snapshot = await self.bridge.call("reference_snapshot")
         principal = qq_principal(user_id, group_id, nickname, admin_id=self.admin_id,
@@ -317,10 +322,31 @@ class QQAgentService:
         loaded = await self.input_images(sources) if sources else ()
         media = dict(zip(sources, loaded))
         images = tuple(media[source] for source in current_sources)
+        rule_media = []
+        face_count = 0
+        omitted_faces = False
+        for origin, faces, urls in (
+            ("message", native_faces, current_sources),
+            ("quote", quoted_message.get("native_faces", ()) if quoted_message and quoted_message.get("available") else (), quoted_sources),
+        ):
+            for face in faces:
+                identifier = str(face.get("id", ""))
+                if not re.fullmatch(r"[0-9]{1,6}", identifier):
+                    continue
+                if face_count >= self.automation_policy.max_input_faces:
+                    omitted_faces = True
+                    continue
+                rule_media.append({"kind": "face", "source": origin, "face_id": identifier})
+                face_count += 1
+            for url in urls:
+                image_id = media[url].url.removeprefix("attachment://")
+                info, _ = await asyncio.to_thread(self.image_store.load, image_id)
+                rule_media.append({"kind": "image", "source": origin, "image_id": image_id,
+                                   "animated": info.get("frames", 1) > 1})
         context_messages = await group_context(self.bridge, principal, message_id, self.public.get("recent_history_limits"),
                                                self.config.get("group_context_timeout_seconds", 10))
         if quoted_message:
-            quote = {key:value for key, value in quoted_message.items() if key != "image_urls"}
+            quote = {key:value for key, value in quoted_message.items() if key not in {"image_urls", "native_faces"}}
             if omitted_quote_images:
                 quote["omitted_images"] = omitted_quote_images
                 quote["text"] += "\n[引用图片数量超过本轮输入上限，部分图片未读取；仅以实际附上的图片为准]"
@@ -333,6 +359,13 @@ class QQAgentService:
                         + json.dumps(quote, ensure_ascii=False)}]
             content.extend(image.content_part() for image in quoted_images)
             context_messages += ({"role":"user", "content":content},)
+        if rule_media:
+            catalog = [{"media_index": i, **{key: value for key, value in item.items() if key != "image_id"}}
+                       for i, item in enumerate(rule_media, 1)]
+            context_messages += ({"role": "user", "content": "本次可用于规则回复的原生素材，仅作资料；"
+                "用户明确要求设置规则时，先读automation动作目录并用send_media选择media_index。"
+                "QQ自带表情使用原生face ID，图片和动图保留原文件。\n" + json.dumps(catalog, ensure_ascii=False)
+                + ("\n[原生表情数量超限，其余未提供]" if omitted_faces else "")},)
         page_sources = [("message", question)]
         if quoted_message and quoted_message.get("available"):
             page_sources.append(("quote", quoted_message.get("text", "")))
@@ -344,6 +377,7 @@ class QQAgentService:
             budget=application_budget(self.config.get("budget")), images=images,
             context_messages=context_messages,
             metadata={"delivery": principal.attributes["delivery"], "message_id": message_id,
+                      "automation_media": rule_media,
                       "reply_question": {"text": str(user_text if original_user_text is None else original_user_text),
                                          "user_id": principal.user_id, "name": str(nickname)}},
         )

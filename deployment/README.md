@@ -74,10 +74,12 @@ deployment/scripts/build_bundle.sh \
 ```
 
 The bundle includes both `.env` and `config.yaml`, excludes generated/runtime
-files, and is written with mode `0600`. Native QQ input images (`data/agent_inputs`) and conversation logs are excluded.
+files, and is written with mode `0600`. Native QQ input images (`data/agent_inputs`),
+persistent rule media (`data/automation_media`), and conversation logs are excluded.
 The initialized submodule source and the `agent_runtime` symlink are bundled,
 so an extracted bundle does not need GitHub access. Database and Redis contents are not put
-in the source bundle. Back them up separately before moving an existing server.
+in the source bundle. Back them up separately before moving an existing server;
+include private rule media with its Redis rules to preserve image and GIF actions.
 
 ## Install on another Linux server
 

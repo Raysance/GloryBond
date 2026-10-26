@@ -43,6 +43,19 @@ def image_urls(message):
     return urls
 
 
+def native_faces(message):
+    """Keep native QQ face IDs as data; never infer them from visible text."""
+    faces = []
+    for segment in message_segments(message):
+        if _field(segment, "type") != "face":
+            continue
+        data = _field(segment, "data", {})
+        identifier = str(data.get("id", ""))
+        if re.fullmatch(r"[0-9]{1,6}", identifier):
+            faces.append({"id": identifier})
+    return faces
+
+
 def quoted_message_id(event):
     """Only consider the message explicitly quoted by the current event."""
     reply = getattr(event, "reply", None)
@@ -98,12 +111,12 @@ def normalize_quoted_message(event, reply=None):
             "sender_id": str(_field(sender, "user_id", "")),
             "sender_name": str(_field(sender, "card") or _field(sender, "nickname") or ""),
             "text": text[:12000], "truncated": len(text) > 12000,
-            "image_urls": image_urls(message)}
+            "image_urls": image_urls(message), "native_faces": native_faces(message)}
 
 
 async def _expand_quoted_forwards(event, message, quote, fetch_forward_message, limits):
     """Read only forwards attached to the validated outer quote, never child IDs."""
-    parts, sources, seen = [], [], set()
+    parts, sources, faces, seen = [], [], [], set()
     size = node_count = forward_count = 0
     truncated = False
     bot_id = getattr(event, "self_id", "")
@@ -124,6 +137,7 @@ async def _expand_quoted_forwards(event, message, quote, fetch_forward_message, 
                 if _field(segment, "type") != "forward":
                     append(_quoted_text([segment], bot_id))
                     sources.extend(image_urls([segment]))
+                    faces.extend(native_faces([segment]))
                     continue
                 if forward_count >= limits["max_forwards"] or node_count >= limits["max_messages"]:
                     append("[合并转发读取数量已达上限，其余未读取]")
@@ -179,13 +193,14 @@ async def _expand_quoted_forwards(event, message, quote, fetch_forward_message, 
                     label = f"{name}（QQ:{user_id}）" if user_id else name
                     append(label + "：" + text + "\n")
                     sources.extend(images)
+                    faces.extend(native_faces(content))
                 append("[合并转发聊天记录结束]\n")
     except TimeoutError:
         append("[合并转发读取超时，其余内容未读取]")
         truncated = True
     return {**quote, "forward_expanded": True,
             "text": "".join(parts).strip().lstrip("#＃").strip(),
-            "truncated": truncated, "image_urls": list(dict.fromkeys(sources))}
+            "truncated": truncated, "image_urls": list(dict.fromkeys(sources)), "native_faces": faces}
 
 
 async def read_quoted_message(event, fetch_message, fetch_forward_message=None, *, forward_limits=None):
@@ -253,4 +268,5 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "use_memory": use_memory,
         "quoted_message": normalize_quoted_message(event),
         "image_urls": image_urls(segments),
+        "native_faces": native_faces(segments),
     }

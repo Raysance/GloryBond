@@ -92,6 +92,11 @@ def _automation_job(identifier):
 
 def _automation_public(rule):
     result = {key: rule.get(key) for key in ("id", "definition", "created_at", "expires_at", "run_count", "last_triggered")}
+    if result["definition"]["action"]["type"] == "send_media":
+        result["definition"] = json.loads(json.dumps(result["definition"]))
+        media = result["definition"]["action"]["arguments"]
+        result["media"] = {key: media[key] for key in ("kind", "animated") if key in media}
+        result["definition"]["action"]["arguments"] = {}
     identifier = rule.get("last_execution_id")
     if identifier:
         job = _automation_job(identifier)
@@ -154,6 +159,10 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
         definition.condition.sender_id = sender
         definition.condition.sender_name = None
         definition = RuleDefinition.model_validate(definition.model_dump())
+    if definition.action.type == "send_media" and not definition.action.arguments:
+        if not old or old["definition"]["action"]["type"] != "send_media":
+            raise ValueError("新媒体规则必须绑定本次消息或引用中的素材")
+        definition.action.arguments = dict(old["definition"]["action"]["arguments"])
     automation_actions().validate(definition.action, definition.condition.event, principal.scopes)
     if scope.startswith("private:") and definition.action.type == "append_owner_mention":
         raise ValueError("私聊不能使用原生群提及动作")
@@ -1065,7 +1074,7 @@ async def agent_runtime_start():
     from agent_console.function_calls import assert_outside_function
     assert_outside_function()
     from qq_agent import QQAgentService
-    from .zfile import store_agent_artifact
+    from .zfile import store_agent_artifact, store_automation_media
     from .tools.chat_text import normalize_qq_text, format_chat_reply
     from .utils.message_sender import add_chat_result_msg
 
@@ -1113,7 +1122,8 @@ async def agent_runtime_start():
                              business_functions=build_hok_function_catalog(globals(), player_keys=tuple(userlist), player_aliases=nameref,
                                  policy=config.get("business_functions")),
                              business_image_loader=load_business_image, webpage_proxy_url=clash_proxy_url,
-                             automation_operation=agent_automation_operation)
+                             automation_operation=agent_automation_operation,
+                             automation_media_storer=store_automation_media)
     dmc.qq_agent_service = service
     try:
         await service.start()

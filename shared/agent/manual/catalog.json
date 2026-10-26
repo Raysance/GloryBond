@@ -2177,7 +2177,7 @@
       "id": "event_rules",
       "title": "条件触发提醒与动作",
       "parent": "automation",
-      "summary": "在某人说到关键词或机器人推送指定内容时提醒本人、在B站/X原推送追加@、固定文字及查询分析动作；昵称缺QQ时沿sameuser绑定大号QQ；查看修改暂停删除本人规则",
+      "summary": "在某人发言、说到关键词或机器人推送指定内容时提醒本人、在B站/X原推送追加@、发送固定文字/QQ表情/引用图片/GIF及查询分析；查看修改暂停删除本人规则",
       "keywords": [
         "在…时",
         "提醒我",
@@ -2190,7 +2190,11 @@
         "B站",
         "X",
         "Twitter",
-        "暂停提醒"
+        "暂停提醒",
+        "QQ表情",
+        "引用图片",
+        "动图",
+        "GIF"
       ],
       "tools": [
         "list_automation_actions",
@@ -2205,6 +2209,14 @@
         {
           "path": "qq_agent/automation.py",
           "symbol": "register_automation_tools"
+        },
+        {
+          "path": "hok/zfile.py",
+          "symbol": "store_automation_media"
+        },
+        {
+          "path": "hok/utils/message_sender.py",
+          "symbol": "add_automation_media"
         },
         {
           "path": "hok/zfunc.py",
