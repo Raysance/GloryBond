@@ -147,6 +147,13 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     if action != "save":
         raise ValueError("未知规则操作")
     definition = RuleDefinition.model_validate(arguments["definition"])
+    if definition.condition.sender_name:
+        sender = _user_helpers_business.resolve_chat_qq_ids(players=[definition.condition.sender_name])[0]
+        if definition.condition.sender_id and definition.condition.sender_id != sender:
+            raise ValueError("发送者昵称与QQ不一致，请核对目标后保存")
+        definition.condition.sender_id = sender
+        definition.condition.sender_name = None
+        definition = RuleDefinition.model_validate(definition.model_dump())
     automation_actions().validate(definition.action, definition.condition.event, principal.scopes)
     if scope.startswith("private:") and definition.action.type == "append_owner_mention":
         raise ValueError("私聊不能使用原生群提及动作")

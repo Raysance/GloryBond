@@ -76,6 +76,11 @@ class MatchingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 EventCondition.model_validate(value)
 
+    def test_unresolved_sender_name_never_matches_an_event(self):
+        rule = {"id": "rule", "created_at": 1000,
+                "definition": definition(condition={"event": "message.received", "sender_name": "示例玩家34"})}
+        self.assertFalse(matches(rule, event(), max_depth=2))
+
     def test_actions_are_explicit_and_strict(self):
         catalog = BUSINESS.build_actions()
         with self.assertRaises(PermissionError):
@@ -146,6 +151,27 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(ZFUNC.automation_publish_event(event())), 1)
         ZFUNC.dmc.automation_action_catalog = None
         self.assertEqual(len(ZFUNC.automation_claim_jobs()), 1)
+
+    def test_sender_name_is_bound_to_sameuser_main_qq_before_persisting_and_matching(self):
+        with patch.multiple(ZFUNC._user_helpers_business, qid={"main": "101", "wrong": "102"},
+                namenick={"alt": "示例玩家34", "wrong": "示例玩家51"}, nameref={"alt": ["example_user_7", "示例玩家34"]},
+                sameuser={"main": ["main", "alt"]}, userlist={}, roleidlist={}):
+            value = definition(condition={"event": "message.received", "sender_name": "示例玩家34"})
+            rule = self.save(value)
+            self.assertEqual(rule["definition"]["condition"]["sender_id"], "101")
+            self.assertIsNone(rule["definition"]["condition"]["sender_name"])
+            stored = json.loads(self.store.hget("hok:automation:rules:group:200", rule["id"]))
+            self.assertEqual(stored["definition"]["condition"]["sender_id"], "101")
+            self.assertEqual(ZFUNC.automation_publish_event(event(sender_id="102")), [])
+            self.assertEqual(len(ZFUNC.automation_publish_event(event("2", sender_id="101"))), 1)
+            with self.assertRaisesRegex(ValueError, "昵称与QQ不一致"):
+                self.save(definition(condition={"event": "message.received", "sender_name": "示例玩家34", "sender_id": "102"}))
+            for alias in ("example_user_7", "main"):
+                same = self.save(definition(condition={"event": "message.received", "sender_name": alias}))
+                self.assertEqual(same["id"], rule["id"])
+            with self.assertRaisesRegex(ValueError, "chat_player_identity"):
+                self.save(definition(condition={"event": "message.received", "sender_name": "未知"}))
+            self.assertEqual(self.store.hlen("hok:automation:rules:group:200"), 1)
 
     def test_duplicate_events_concurrent_workers_and_cooldown_are_atomic(self):
         self.save(definition(cooldown_seconds=60))

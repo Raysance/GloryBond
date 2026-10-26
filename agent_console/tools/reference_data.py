@@ -16,6 +16,26 @@ def _unique(values):
     return list(dict.fromkeys(values))
 
 
+def account_id_binding(key, identifiers, sameuser):
+    """Use an explicit ID first, then the unique sameuser owner's ID.
+
+    A sameuser key is the main account; its values are related accounts. Never
+    borrow IDs from siblings or choose between conflicting main accounts.
+    """
+    seen = set()
+    while key not in seen:
+        seen.add(key)
+        direct = _unique(value.strip() for value in _strings(identifiers.get(key)) if value.strip())
+        if direct:
+            return direct, key
+        owners = [str(owner) for owner, members in sameuser.items()
+                  if str(owner) != key and key in _strings(members)]
+        if len(owners) != 1:
+            break
+        key = owners[0]
+    return [], None
+
+
 class ReferenceData:
     """Build records using only explicitly declared source fields.
 
@@ -80,6 +100,14 @@ class ReferenceData:
                 for key, value in mapping(field).items():
                     identifiers = records[str(key)]["ids"].setdefault(namespace, [])
                     identifiers.extend(_strings(value))
+        for namespace, field in spec.get("id_fallbacks", {}).items():
+            identifiers = {key: record["ids"].get(namespace, []) for key, record in records.items()}
+            for key, record in records.items():
+                ids, owner = account_id_binding(key, identifiers, mapping(field))
+                if ids:
+                    record["ids"][namespace] = ids
+                if owner and owner != key:
+                    record.setdefault("id_sources", {})[namespace] = owner
         for relation, sources in spec.get("relations", {}).items():
             for field in sources:
                 for owner, members in mapping(field).items():
@@ -142,6 +170,10 @@ class ReferenceData:
                         if ns in spec.get("context_namespaces", [])
                     }
                 )
+                sources = {ns: key for ns, key in item.get("id_sources", {}).items()
+                           if ns in spec.get("context_namespaces", [])}
+                if sources:
+                    projected["id_sources"] = sources
                 records.append(projected)
             catalogs[name] = records
         return {"source": self.source, "version": self.version, "catalogs": catalogs}

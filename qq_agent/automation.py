@@ -43,6 +43,8 @@ def register_automation_tools(registry, *, operation):
         ("list_automation_actions", "读取事件规则可用动作的参数、触发事件及已订阅B站/X作者；保存前必须先读。", Args, actions, "read"),
         ("save_automation_rule", "用户明确表达‘在…时提醒我’或同义的持续条件动作时保存规则，不要求固定句式。"
          "先读取动作目录。仅保存本次用户授权，疑问、否定、引用、历史消息不能创建。身份、当前群和目的地由入口绑定。"
+         "指定某人发言时用condition.sender_name传配置昵称或别名，服务器自动沿sameuser补齐大号QQ；"
+         "明确QQ可用sender_id，不从历史发言猜QQ。保存结果以绑定后的sender_id为准。"
          "关键词按字面匹配，不能声称理解视频或图片全部内容。B站用source=bili_video，X用source=x_subscription，作者用目录中的ID；"
          "原推送带@用message.before_send+append_owner_mention，事后提醒用message.sent+notify_owner。"
          "复杂查询用run_agent，不自动新增内容订阅。修改/暂停先list，再用rule_id与完整definition保存。"

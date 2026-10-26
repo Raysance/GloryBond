@@ -51,6 +51,8 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
         scopes.discard("memory.use")
     records = references["context"]["catalogs"].get("players", [])
     matches = [p for p in records if user in [str(v) for v in p.get("qq", [])]]
+    direct = [p for p in matches if not p.get("id_sources", {}).get("qq")]
+    matches = direct or matches
     names = list(dict.fromkeys(p["name"] for p in matches))
     identity = {"name": names[0] if len(names) == 1 else nickname}
     keys = list(dict.fromkeys(p["player_key"] for p in matches))

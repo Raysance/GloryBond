@@ -10,7 +10,7 @@ from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_console.tools.application import register_application_tools
 from agent_runtime.tools.executor import execute
-from agent_console.tools.reference_data import ReferenceData
+from agent_console.tools.reference_data import ReferenceData, account_id_binding
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +71,34 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(ranks["total_matches"], 2)
         expressions = self.references.lookup(catalogs=["expressions"], terms=["图书馆"])
         self.assertEqual(expressions["total_matches"], 2)
+
+    def test_missing_qq_uses_main_account_and_exposes_binding_source(self):
+        data = values()
+        data["qid"]["p3"] = None
+        references = ReferenceData(MANIFEST, data, source="fixture")
+        player = references.lookup(catalogs=["players"], terms=["p3"])["matches"][0]
+        self.assertEqual(player["ids"]["qq"], ["10002"])
+        self.assertEqual(player["id_sources"], {"qq": "p2"})
+        context = references.context()["catalogs"]["players"]
+        projected = next(item for item in context if item["player_key"] == "p3")
+        self.assertEqual(projected["qq"], ["10002"])
+        self.assertEqual(projected["id_sources"], {"qq": "p2"})
+        data["qid"]["p3"] = "10003"
+        explicit = ReferenceData(MANIFEST, data, source="fixture").lookup(
+            catalogs=["players"], terms=["p3"])["matches"][0]
+        self.assertEqual(explicit["ids"]["qq"], ["10003"])
+        self.assertNotIn("id_sources", explicit)
+
+    def test_account_fallback_handles_chains_and_rejects_conflicts_cycles_and_siblings(self):
+        self.assertEqual(account_id_binding("alt", {"main": "100"},
+            {"main": ["main", "middle"], "middle": ["middle", "alt"]}), (["100"], "main"))
+        for ids, groups in [
+            ({"a": "100", "b": "200"}, {"a": ["alt"], "b": ["alt"]}),
+            ({}, {"a": ["alt"], "alt": ["a"]}),
+            ({"sibling": "100"}, {"main": ["alt", "sibling"]}),
+        ]:
+            with self.subTest(groups=groups):
+                self.assertEqual(account_id_binding("alt", ids, groups), ([], None))
 
     def test_context_projection_and_catalogs_exclude_undeclared_fields(self):
         context = self.references.context()

@@ -116,6 +116,7 @@ def reference_prompt(snapshot):
     return (
         "权威参考数据目录及常用名称关系如下，来自项目静态配置。"
         "名称/别名匹配需要考虑多个账号对应同一QQ或同名账号，不猜测唯一身份。"
+        "账号缺少自身QQ时已沿sameuser主账号补齐，id_sources.qq标明来源；按昵称保存事件规则使用sender_name由服务器绑定QQ。"
         "查询游戏SQL使用player_key；群聊user_id表示QQ；其他API标识按需发现references类别查询。"
         "正式回答与图表用配置name，保留缩写；无法匹配时说明未知。"
         "参考映射不是长期记忆，无需从群聊或记忆推断配置中已有的关系。\n"

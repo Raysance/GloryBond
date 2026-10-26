@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from local_debugger import import_hok_module
 
@@ -45,6 +46,26 @@ class UserHelperTests(unittest.TestCase):
             ZFUNC.extract_url_params("https://example/path?a=1&b=2&b=3"),
             {"a": "1", "b": ["2", "3"]},
         )
+
+    def test_chat_alias_uses_sameuser_main_qq_and_preserves_explicit_subaccount_qq(self):
+        with patch.multiple(USER_HELPERS, qid={"main": 10001},
+                namenick={"main": "大号", "alt": "示例玩家34"},
+                nameref={"alt": ["example_user_7", "示例玩家34"]}, sameuser={"main": ["main", "alt"]},
+                userlist={"alt": 88888}, roleidlist={}):
+            for alias in ("示例玩家34", "example_user_7", "alt"):
+                self.assertEqual(USER_HELPERS.resolve_chat_qq_ids(players=[alias]), ["10001"])
+            with self.assertRaisesRegex(ValueError, "chat_game_id_not_qq"):
+                USER_HELPERS.resolve_chat_qq_ids(qq_ids=["88888"])
+            USER_HELPERS.qid["alt"] = 20002
+            self.assertEqual(USER_HELPERS.resolve_chat_qq_ids(players=["示例玩家34"]), ["20002"])
+
+    def test_chat_alias_rejects_unresolved_or_ambiguous_accounts(self):
+        with patch.multiple(USER_HELPERS, qid={"a": 10001, "b": 20002},
+                namenick={"a": "重名", "b": "重名", "alt": "示例玩家34"}, nameref={},
+                sameuser={"a": ["alt"], "b": ["alt"]}, userlist={}, roleidlist={}):
+            for alias in ("重名", "示例玩家34", "未知"):
+                with self.subTest(alias=alias), self.assertRaisesRegex(ValueError, "chat_player_identity"):
+                    USER_HELPERS.resolve_chat_qq_ids(players=[alias])
 
     def test_peak_changes_merge_contiguous_segments(self):
         details = [

@@ -39,7 +39,9 @@ class EventCondition(Args):
     source: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,39}$",
         description="可信来源，bili_video为B站推送，x_subscription为X订阅推送，agent为AI回复，bot为其他机器人消息；省略不限来源")
     sender_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$",
-        description="真实发送者QQ；名字须先用资料工具确认，不猜测QQ")
+        description="用户明确提供或资料工具确认的真实发送者QQ；按昵称指定对象时用sender_name由服务器解析")
+    sender_name: str | None = Field(default=None, min_length=1, max_length=100,
+        description="配置玩家键、昵称或精确别名；保存时解析QQ，自身缺QQ时沿sameuser取大号QQ。与sender_id同时提供时须一致")
     author_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$",
         description="业务来源的作者ID，例如B站mid或X账号数字ID；须从动作目录确认，不能用QQ或猜测的ID代替")
     author_name: str | None = Field(default=None, min_length=1, max_length=100,
@@ -54,7 +56,7 @@ class EventCondition(Args):
         for words in (self.contains_any, self.contains_all):
             if any(not word.strip() or len(word) > 100 for word in words):
                 raise ValueError("关键词必须是1至100字的非空文字")
-        if not any((self.source, self.sender_id, self.author_id, self.author_name,
+        if not any((self.source, self.sender_id, self.sender_name, self.author_id, self.author_name,
                     self.contains_any, self.contains_all)):
             raise ValueError("至少指定一项来源、发送者、作者或关键词条件")
         if (self.author_id or self.author_name) and not self.source:
@@ -140,6 +142,8 @@ class ActionCatalog:
 def matches(rule, event, *, max_depth):
     """Pure matching. Event provenance and owner authorization are caller-owned."""
     condition = rule["definition"]["condition"]
+    if condition.get("sender_name"):
+        return False  # A stored rule must already be bound to a numeric QQ.
     chain = event.get("chain", [])
     if (not rule["definition"]["enabled"] or event.get("depth", len(chain)) >= max_depth
             or rule["id"] in chain or event["timestamp"] < rule["created_at"]

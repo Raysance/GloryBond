@@ -29,6 +29,15 @@ def call(name, args, identifier):
 
 
 class IdentityTests(unittest.TestCase):
+    def test_inherited_qq_reference_keeps_the_real_senders_main_identity(self):
+        references = copy.deepcopy(REFERENCES)
+        references["context"]["catalogs"]["players"].append({
+            "player_key": "alt", "name": "示例玩家34", "qq": ["100"], "id_sources": {"qq": "example_user_10"}})
+        bound = qq_principal("100", "200", "临时昵称", admin_id="999", references=references)
+        original = qq_principal("100", "200", "临时昵称", admin_id="999", references=REFERENCES)
+        self.assertEqual(bound.attributes, original.attributes)
+        self.assertEqual(bound.scopes, original.scopes)
+
     def test_bot_identity_is_bound_without_replacing_sender_or_authority(self):
         principal = qq_principal('100', '200', '', admin_id='999', references=REFERENCES, bot_id='300')
         self.assertEqual(principal.attributes['bot'], {'user_id': '300'})
