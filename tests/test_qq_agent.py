@@ -386,30 +386,50 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             sender = import_hok_module('utils.message_sender')
         with patch.object(sender, '_enqueue_payload') as enqueue:
             sender.add_chat_result_msg(packet, destination=destination, task_id=task['task_id'])
-        message = Message(enqueue.call_args.args[0]['content'])
+        payload = enqueue.call_args.args[0]
+        message = Message(payload.get('reply_direct', payload)['content'])
         self.assertEqual([part.data['qq'] for part in message if part.type == 'at'], ['all'])
         self.assertNotIn('[CQ:at', json.dumps(self.dialogue))
 
-    async def test_reply_delivery_uses_model_intent_instead_of_question_keywords(self):
+    async def test_final_reply_passes_existing_two_variants_to_both_qq_channels(self):
+        from local_debugger import import_hok_module
+        from types import SimpleNamespace
+        from nonebot.adapters.onebot.v11 import Message
+        with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda function: function)):
+            sender = import_hok_module('utils.message_sender')
         composer = self.gateway.runtime.finalizer.composer
         composer.policy = composer.policy.model_copy(update={'select_delivery_variant': True})
         draft = '事实底稿：机器人支持查询近期群聊，但只读取授权范围。'
         self.reply_text = '可以查近期群聊，范围受当前会话权限限制。'
-        cases = [('不用详细解释，简短说能否逐一统计所有玩家。', 'chat', self.reply_text),
-                 ('Please show the full explanation and supporting evidence.', 'detailed', draft)]
-        for question, variant, expected in cases:
-            with self.subTest(question=question):
-                self.reply_variant = variant
-                self.script = [
-                    {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['bot_info']}, 'd')]},
-                    {'role': 'assistant', 'content': draft},
-                ]
-                result = await self.gateway.chat(user_text=question, user_id='101', nickname='用户')
-                self.assertEqual(result['text'], expected)
-                self.assertEqual(self.dialogue['qq_p_101'][-1]['content'], expected)
-                self.assertEqual(result['variants']['detailed'], draft)
-                self.assertEqual(result['delivery_variant'], variant)
-                self.assertEqual(self.sent[-1][0]['delivery_variant'], variant)
+        cases = [('不用详细解释，简短说能否逐一统计所有玩家。', 'chat'),
+                 ('Please show the full explanation and supporting evidence.', 'detailed')]
+        for group in (None, '200'):
+            for question, variant in cases:
+                with self.subTest(group=group, question=question):
+                    self.reply_variant = variant
+                    self.script = [
+                        {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['bot_info']}, 'd')]},
+                        {'role': 'assistant', 'content': draft},
+                    ]
+                    if group:
+                        self.script.insert(0, {'role': 'assistant', 'content': '', 'tool_calls': [
+                            call('search_chat_history', {'queries': ['近期群聊', '授权范围']}, 's')]})
+                    result = await self.gateway.chat(user_text=question, user_id='101', nickname='用户', group_id=group)
+                    self.assertEqual(result['text'], self.reply_text)
+                    session = 'qq_g_200_101' if group else 'qq_p_101'
+                    self.assertEqual(self.dialogue[session][-1]['content'], self.reply_text)
+                    self.assertEqual(result['variants'], {'detailed': draft, 'chat': self.reply_text})
+                    self.assertNotIn('delivery_variant', result)
+                    packet, destination = self.sent[-1]
+                    with patch.object(sender, '_enqueue_payload') as enqueue:
+                        sender.add_chat_result_msg(packet, destination=destination)
+                    payload = enqueue.call_args.args[0]
+                    detail = ''.join(part['data']['text'] for node in payload['messages']
+                                     for part in node['data']['content'] if part['type'] == 'text')
+                    brief = Message(payload['reply_direct']['content']).extract_plain_text().strip()
+                    self.assertEqual(detail, draft)
+                    self.assertEqual(brief, self.reply_text)
+                    self.assertNotEqual(detail, brief)
 
     async def test_bot_avatar_request_uses_bound_bot_and_keeps_sender_history(self):
         reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '300', 'nickname': '机器人'},

@@ -84,8 +84,13 @@ def _automation_event(payload, kind, message_id=None):
     scope = channel + ":" + recipient
     metadata = payload.get("automation_metadata", {})
     if payload.get("kind") in {"group_forward", "private_forward"}:
-        text = "\n".join(Message(node.get("data", {}).get("content", "")).extract_plain_text()
-                         for node in payload.get("messages", []))
+        parts = []
+        for node in payload.get("messages", []):
+            content = node.get("data", {}).get("content", "")
+            if isinstance(content, list):
+                content = [MessageSegment(part["type"], part.get("data", {})) for part in content]
+            parts.append(Message(content).extract_plain_text())
+        text = "\n".join(parts)
     else:
         text = Message(payload.get("content", "")).extract_plain_text()
     return {"id": f"qq:{scope}:{message_id}" if message_id is not None else "outbound:" + payload["delivery_id_internal"],
@@ -133,7 +138,7 @@ async def _automation_sent(payload, result=None, *, status=None):
     try:
         for execution in payload.get("automation_executions", []):
             await asyncio.to_thread(automation_finish, {"id": execution}, status or ("sent" if confirmed else "unknown"))
-        if confirmed and status is None and not payload.get("chat_forward_mirror"):
+        if confirmed and status is None:
             await asyncio.to_thread(automation_publish_event, _automation_event(payload, "message.sent", identifier))
     except Exception as error:
         log_message(f"AUTOMATION_RECEIPT_FAILED: error_type={type(error).__name__}")
@@ -260,6 +265,13 @@ async def _handle_forward_msg(bot, payload):
         except Exception as error:
             # The QQ call may already have succeeded. Never enqueue the report again here.
             log_message(f"FORWARD_STATE_FAILED: delivery={delivery_id} status={status} error={error!r}")
+    if payload.get("reply_direct"):
+        try:
+            direct = dict(payload["reply_direct"])
+            direct["automation_metadata"] = dict(payload.get("automation_metadata", {}))
+            _enqueue_payload(direct)
+        except Exception as error:
+            log_message(f"CHAT_BRIEF_QUEUE_FAILED: error_type={type(error).__name__}")
 
 
 async def _send_queued_message(bot, payload):
@@ -281,16 +293,6 @@ async def _send_queued_message(bot, payload):
         raise
     await _automation_sent(payload, result)
     await _record_task_receipt(payload, result)
-    if payload.get("chat_forward_copy"):
-        if _confirmed_message_id(result) is None:
-            log_message("CHAT_FORWARD_COPY_SKIPPED: missing confirmed message_id")
-        else:
-            try:
-                copy_payload = dict(payload["chat_forward_copy"])
-                copy_payload["automation_metadata"] = dict(payload.get("automation_metadata", {}))
-                _enqueue_payload(copy_payload)
-            except Exception as error:
-                log_message(f"CHAT_FORWARD_COPY_QUEUE_FAILED: error_type={type(error).__name__}")
     return result
 
 
@@ -484,7 +486,7 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
 
 
 def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
-    """Queue an AI reply with a native mention validated by the QQ adapter."""
+    """Queue detailed records followed by the existing brief reply for AI finals."""
     mention_id = None
     if destination is not None:
         if destination.get("platform") != "qq" or destination.get("channel") not in {"group", "private"}:
@@ -503,12 +505,14 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
             mention_id = _normalize_target_id(mention_id)
             if type(mention_id) is not int or mention_id <= 0:
                 raise ValueError("Invalid trusted QQ mention target")
-    if result.get("delivery_variant") == "detailed":
+    variants = result.get("variants", {})
+    dual = all(isinstance(variants.get(key), str) and variants[key].strip() for key in ("chat", "detailed"))
+    if not dual and result.get("delivery_variant") == "detailed":
         return _add_chat_forward_result(result, event=event, destination=destination,
                                         task_id=task_id, mention_id=mention_id)
     if mention_id is not None:
         message += MessageSegment.at(str(mention_id)) + MessageSegment.text(" ")
-    message += MessageSegment.text(str(result["text"]))
+    message += MessageSegment.text(variants["chat"] if dual else str(result["text"]))
     for artifact in result.get("artifacts", []):
         message += MessageSegment.image(artifact["path"])
     if confs.get("QQAgent", {}).get("show_trace_link", False):
@@ -521,11 +525,11 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
                                    task_id=task_id, metadata=result.get("_automation_metadata"))
     else:
         payload = _message_payload(message, event=event, task_id=task_id, metadata=result.get("_automation_metadata"))
-    if result.get("delivery_variant") == "chat":
-        forward = _chat_forward_payload(result, event=event, destination=destination,
+    if dual:
+        forward = _chat_forward_payload({**result, "text": variants["detailed"]}, event=event, destination=destination,
                                         task_id=task_id, mention_id=None)
-        forward["chat_forward_mirror"] = True
-        payload["chat_forward_copy"] = forward
+        forward["reply_direct"] = payload
+        return _enqueue_payload(forward)
     return _enqueue_payload(payload)
 
 
@@ -558,8 +562,7 @@ def _chat_forward_payload(result, *, event, destination, task_id, mention_id):
             messages.extend(_forward_nodes(["运行记录链接暂不可用（" + result["trace_error"] + "）"], sender))
     payload = _bind_task_id({"kind": channel + "_forward", "type": channel, "toid": target,
         "messages": messages, "automation_metadata": result.get("_automation_metadata", {})}, task_id)
-    title = policy.get("chat_title", "群聊回复") if result.get("delivery_variant") == "chat" else policy.get("title", "详细回复")
-    payload.update(_forward_card_fields(title, None))
+    payload.update(_forward_card_fields(policy.get("title", "详细回复"), None))
     if channel == "group" and mention_id is not None:
         payload["reply_notice"] = str(MessageSegment.at(str(mention_id)) +
             MessageSegment.text(" " + policy.get("mention_text", "详细回复见聊天记录。")))
