@@ -666,8 +666,7 @@ async def show_benefit_visualizer(request: Request, key: str):
 async def show_chat_trace(request: Request, key: str = ""):
     from chat_trace import chat_trace_response
 
-    return await chat_trace_response(request, key, load_artifact=get_web_artifact, templates=templates,
-                                     admin_authorized=request.cookies.get("AdminKey") == SECRET_KEY)
+    return await chat_trace_response(request, key, load_artifact=get_web_artifact, templates=templates)
 
 
 @app.get("/bili-video")
@@ -1065,7 +1064,7 @@ async def admin_chat_trace_detail(request: Request, key: str, AdminKey: str = Co
     if AdminKey != SECRET_KEY:
         return RedirectResponse(url="/admin/login", headers=TRACE_HEADERS)
     return await chat_trace_response(request, key, load_artifact=get_web_artifact,
-                                     templates=templates, admin_authorized=True)
+                                     templates=templates, admin_view=True)
 
 
 @app.get("/admin/funcs/direct-navigate", response_class=HTMLResponse)

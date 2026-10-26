@@ -77,10 +77,18 @@ class AdminTraceTests(unittest.TestCase):
         self.assertEqual([row['run_id'] for row in selected['records']], ['run-102'])
         self.store.get.assert_not_called()
 
-    def test_authenticated_detail_reuses_full_viewer_and_public_route_cannot_bypass_admin(self):
+    def test_existing_shared_link_is_public_and_admin_detail_keeps_full_viewer(self):
         response = self.client.get('/chat-trace?key=' + 'a' * 16, follow_redirects=False)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('location', response.headers)
+        self.assertIn('PRIVATE-QUESTION', response.text)
+        self.assertIn('PRIVATE-ANSWER', response.text)
+        self.assertNotIn('← AI 运行记录', response.text)
+        self.assertEqual(response.headers['cache-control'], 'no-store')
+        self.assertEqual(response.headers['referrer-policy'], 'no-referrer')
+        self.store.lrange.assert_not_called()
+        response = self.client.get('/admin/funcs/chat-traces/' + 'a' * 16, follow_redirects=False)
         self.assertEqual(response.headers['location'], '/admin/login')
-        self.assertNotIn('PRIVATE-QUESTION', response.text)
         self.login()
         response = self.client.get('/admin/funcs/chat-traces/' + 'a' * 16)
         self.assertEqual(response.status_code, 200)

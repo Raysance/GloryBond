@@ -43,6 +43,16 @@ class TracePageTests(unittest.TestCase):
         self.assertEqual(self.client.get("/chat-trace", params={"key": "b" * 48}).status_code, 200)
         self.loader.assert_called_once_with("b" * 48)
 
+    def test_shared_records_ignore_old_visibility_and_do_not_require_admin_cookies(self):
+        for visibility in ("public", "admin"):
+            for key in (self.key, "b" * 48):
+                with self.subTest(visibility=visibility, key=key):
+                    self.payload["visibility"] = visibility
+                    response = self.client.get("/chat-trace", params={"key": key}, follow_redirects=False)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertNotIn("location", response.headers)
+                    self.assertNotIn('← AI 运行记录', response.text)
+
     def test_missing_or_wrong_kind_is_expired(self):
         for raw in [None, b"bad", b'{"kind":"bili_video"}', b'[]']:
             self.loader.side_effect = lambda key: raw
