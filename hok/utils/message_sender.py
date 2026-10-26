@@ -133,7 +133,7 @@ async def _automation_sent(payload, result=None, *, status=None):
     try:
         for execution in payload.get("automation_executions", []):
             await asyncio.to_thread(automation_finish, {"id": execution}, status or ("sent" if confirmed else "unknown"))
-        if confirmed and status is None:
+        if confirmed and status is None and not payload.get("chat_forward_mirror"):
             await asyncio.to_thread(automation_publish_event, _automation_event(payload, "message.sent", identifier))
     except Exception as error:
         log_message(f"AUTOMATION_RECEIPT_FAILED: error_type={type(error).__name__}")
@@ -281,6 +281,16 @@ async def _send_queued_message(bot, payload):
         raise
     await _automation_sent(payload, result)
     await _record_task_receipt(payload, result)
+    if payload.get("chat_forward_copy"):
+        if _confirmed_message_id(result) is None:
+            log_message("CHAT_FORWARD_COPY_SKIPPED: missing confirmed message_id")
+        else:
+            try:
+                copy_payload = dict(payload["chat_forward_copy"])
+                copy_payload["automation_metadata"] = dict(payload.get("automation_metadata", {}))
+                _enqueue_payload(copy_payload)
+            except Exception as error:
+                log_message(f"CHAT_FORWARD_COPY_QUEUE_FAILED: error_type={type(error).__name__}")
     return result
 
 
@@ -343,6 +353,11 @@ async def message_sender_loop():
 
 
 def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None, metadata=None):
+    return _enqueue_payload(_message_payload(content, event=event, msg_type=msg_type, to_id=to_id,
+                                             task_id=task_id, metadata=metadata))
+
+
+def _message_payload(content, *, event=None, msg_type=None, to_id=None, task_id=None, metadata=None):
     resolved_type, resolved_id = _resolve_destination(event=event, msg_type=msg_type, to_id=to_id)
     resolved_id = _normalize_target_id(resolved_id)
     if resolved_type not in {"group", "private"} or resolved_id is None:
@@ -354,8 +369,7 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None, met
     }
     if metadata:
         payload["automation_metadata"] = dict(metadata)
-    _bind_task_id(payload, task_id)
-    return _enqueue_payload(payload)
+    return _bind_task_id(payload, task_id)
 
 
 class PrivateMessageOutcomeUnknown(RuntimeError):
@@ -503,12 +517,24 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
         elif result.get("trace_error"):
             message += MessageSegment.text("\n\n运行记录链接暂不可用（" + result["trace_error"] + "）")
     if destination is not None:
-        return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"], task_id=task_id,
-                       metadata=result.get("_automation_metadata"))
-    return add_msg(message, event=event, task_id=task_id)
+        payload = _message_payload(message, msg_type=destination["channel"], to_id=destination["recipient_id"],
+                                   task_id=task_id, metadata=result.get("_automation_metadata"))
+    else:
+        payload = _message_payload(message, event=event, task_id=task_id, metadata=result.get("_automation_metadata"))
+    if result.get("delivery_variant") == "chat":
+        forward = _chat_forward_payload(result, event=event, destination=destination,
+                                        task_id=task_id, mention_id=None)
+        forward["chat_forward_mirror"] = True
+        payload["chat_forward_copy"] = forward
+    return _enqueue_payload(payload)
 
 
 def _add_chat_forward_result(result, *, event, destination, task_id, mention_id):
+    return _enqueue_payload(_chat_forward_payload(result, event=event, destination=destination,
+                                                  task_id=task_id, mention_id=mention_id))
+
+
+def _chat_forward_payload(result, *, event, destination, task_id, mention_id):
     from ..tools.chat_text import split_chat_forward_text
     if destination is not None:
         channel, target = destination["channel"], destination["recipient_id"]
@@ -532,11 +558,12 @@ def _add_chat_forward_result(result, *, event, destination, task_id, mention_id)
             messages.extend(_forward_nodes(["运行记录链接暂不可用（" + result["trace_error"] + "）"], sender))
     payload = _bind_task_id({"kind": channel + "_forward", "type": channel, "toid": target,
         "messages": messages, "automation_metadata": result.get("_automation_metadata", {})}, task_id)
-    payload.update(_forward_card_fields(policy.get("title", "详细回复"), None))
+    title = policy.get("chat_title", "群聊回复") if result.get("delivery_variant") == "chat" else policy.get("title", "详细回复")
+    payload.update(_forward_card_fields(title, None))
     if channel == "group" and mention_id is not None:
         payload["reply_notice"] = str(MessageSegment.at(str(mention_id)) +
             MessageSegment.text(" " + policy.get("mention_text", "详细回复见聊天记录。")))
-    return _enqueue_payload(payload)
+    return payload
 
 
 def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):
