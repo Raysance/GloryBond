@@ -92,6 +92,7 @@ def _automation_job(identifier):
 
 def _automation_public(rule):
     result = {key: rule.get(key) for key in ("id", "definition", "created_at", "expires_at", "run_count", "last_triggered")}
+    result["creator"] = {"user_id": rule["owner_id"], "name": qid2nick(rule["owner_id"])}
     if result["definition"]["action"]["type"] == "send_media":
         result["definition"] = json.loads(json.dumps(result["definition"]))
         media = result["definition"]["action"]["arguments"]
@@ -127,7 +128,9 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     scope = _automation_scope(principal)
     if not automation_owner_allowed({"owner_id": principal.user_id}):
         raise PermissionError("当前身份、休眠或维修状态不允许管理规则")
-    rules = _automation_rules(scope, include_state=True)
+    group_scope = scope.startswith("group:")
+    rules = [rule for rule in _automation_rules(scope, include_state=True)
+             if rule.get("scope") == scope and (group_scope or rule["owner_id"] == principal.user_id)]
     if action == "actions":
         current_push_group = scope == "group:" + str(confs["QQBot"]["group_qid"])
         return {"actions": automation_actions().describe(principal.scopes),
@@ -135,20 +138,26 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
                             for source in ("bili_video", "x_subscription")},
                 "notice": "仅当前会话；规则只匹配保存后的消息。B站/X条件不自动新增内容订阅。"}
     if action == "list":
-        return {"rules": [_automation_public(rule) for rule in rules if rule["owner_id"] == principal.user_id]}
+        return {"rules": [_automation_public(rule) for rule in rules]}
     identifier = arguments.get("rule_id")
     old = next((rule for rule in rules if rule["id"] == identifier), None) if identifier else None
-    if identifier and (old is None or old["owner_id"] != principal.user_id):
-        raise PermissionError("规则不存在或不属于本人当前会话")
+    if identifier and old is None:
+        raise PermissionError("规则不存在或不属于当前群/本人私聊")
     key = REDIS_KEY_AUTOMATION_PREFIX + "rules:" + scope
     if action == "delete":
         script = """
         local raw = redis.call('HGET', KEYS[1], ARGV[1])
-        if not raw or cjson.decode(raw).owner_id ~= ARGV[2] then return 0 end
+        if not raw then return 0 end
+        local rule = cjson.decode(raw)
+        if rule.scope ~= ARGV[2] or rule.owner_id ~= ARGV[3] or rule.revision ~= ARGV[4] then return -2 end
         redis.call('DEL', KEYS[2]); return redis.call('HDEL', KEYS[1], ARGV[1])
         """
-        return {"deleted": bool(dmc.redis_deamon.eval(script, 2, key,
-            REDIS_KEY_AUTOMATION_PREFIX + "rule_state:" + identifier, identifier, principal.user_id)), "id": identifier}
+        result = dmc.redis_deamon.eval(script, 2, key,
+            REDIS_KEY_AUTOMATION_PREFIX + "rule_state:" + identifier,
+            identifier, scope, old["owner_id"], old["revision"])
+        if result == -2:
+            raise ValueError("规则已并发改变，请重新查询")
+        return {"deleted": bool(result), "id": identifier}
     if action != "save":
         raise ValueError("未知规则操作")
     definition = RuleDefinition.model_validate(arguments["definition"])
@@ -163,7 +172,9 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
         if not old or old["definition"]["action"]["type"] != "send_media":
             raise ValueError("新媒体规则必须绑定本次消息或引用中的素材")
         definition.action.arguments = dict(old["definition"]["action"]["arguments"])
-    automation_actions().validate(definition.action, definition.condition.event, principal.scopes)
+    saved_scopes = old["scopes"] if old else sorted(principal.scopes)
+    automation_actions().validate(definition.action, definition.condition.event,
+                                 set(saved_scopes) & set(principal.scopes))
     if scope.startswith("private:") and definition.action.type == "append_owner_mention":
         raise ValueError("私聊不能使用原生群提及动作")
     if definition.condition.source in {"bili_video", "x_subscription"}:
@@ -190,8 +201,9 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     duplicate = next((rule for rule in rules if rule["id"] == identifier), None)
     if not old and duplicate:
         return {"changed": False, "rule": _automation_public(duplicate)}
-    rule = {"id": identifier, "scope": scope, "owner_id": principal.user_id,
-        "definition": body, "revision": uuid.uuid4().hex, "scopes": sorted(principal.scopes),
+    owner_id = old["owner_id"] if old else principal.user_id
+    rule = {"id": identifier, "scope": scope, "owner_id": owner_id,
+        "definition": body, "revision": uuid.uuid4().hex, "scopes": saved_scopes,
         "created_at": old["created_at"] if old else now, "creation_run_id": run_id,
         "creation_event_id": f"qq:{scope}:{message_id}" if message_id is not None else None,
         "expires_at": now + definition.expires_after_seconds if definition.expires_after_seconds else None,
@@ -200,7 +212,7 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     local raw = redis.call('HGET', KEYS[1], ARGV[1])
     if raw then
       local old = cjson.decode(raw)
-      if old.owner_id ~= ARGV[3] then return -1 end
+      if old.owner_id ~= ARGV[3] or old.scope ~= ARGV[7] then return -1 end
       if old.revision ~= ARGV[4] then return -2 end
     else
       if ARGV[4] ~= '' then return -2 end
@@ -214,7 +226,7 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     redis.call('HSET', KEYS[1], ARGV[1], ARGV[2]); return 1
     """
     result = dmc.redis_deamon.eval(script, 1, key, identifier, json.dumps(rule, ensure_ascii=False),
-        principal.user_id, old["revision"] if old else "", policy.max_rules_per_scope, policy.max_rules_per_owner)
+        owner_id, old["revision"] if old else "", policy.max_rules_per_scope, policy.max_rules_per_owner, scope)
     if result != 1:
         raise ValueError("规则已并发改变，请重新查询" if result == -2 else "规则数量超限或未获授权")
     return {"changed": True, "rule": _automation_public(rule)}

@@ -101,7 +101,8 @@ class MediaToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         with Image.open(path) as image:
             self.assertEqual(image.n_frames, 8)
-        public = FUNCS._automation_public({"id": "rule", "definition": media_definition(asset)})
+        public = FUNCS._automation_public({"id": "rule", "owner_id": "100", "definition": media_definition(asset)})
+        self.assertEqual(public["creator"]["user_id"], "100")
         self.assertEqual(public["definition"]["action"]["arguments"], {})
         self.assertEqual(public["media"], {"kind": "image", "animated": True})
         self.assertNotIn(asset["id"], json.dumps(public))

@@ -1,4 +1,4 @@
-"""Natural-language rule management with trusted QQ ownership and scope."""
+"""Natural-language rule management shared within a trusted QQ group."""
 
 import asyncio
 from pydantic import Field
@@ -9,7 +9,7 @@ from agent_console.function_calls import assert_outside_function
 
 class SaveRuleArgs(Args):
     rule_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$",
-        description="修改本人已有规则时先list取得ID；省略创建。definition为完整的新定义")
+        description="修改当前群或本人私聊已有规则时先list取得ID；群内各成员均可修改。省略创建。definition为完整的新定义")
     definition: RuleDefinition
 
 
@@ -95,9 +95,10 @@ def register_automation_tools(registry, *, operation, image_store=None, media_st
          "先从list_automation_actions.input_media选择media_index；图片原始动画会保留，不使用URL、路径或猜测表情ID。"
          "修改已有媒体规则并沿用原素材时arguments填空对象；更换素材须提供本次input_media的序号。"
          "复杂查询用run_agent，不自动新增内容订阅。修改/暂停先list，再用rule_id与完整definition保存。"
+         "同群成员均可修改或删除当前群规则；私聊管理本人规则。修改保留原创建者、提醒对象与执行权限。"
          "保存成功后说明实际条件、动作、冷却、次数或期限，不把保存当成动作已执行。", SaveRuleArgs, save, "write"),
-        ("list_automation_rules", "查看本人在当前群/私聊的事件规则及最近执行状态，取得修改或删除用的rule_id。", Args, listing, "read"),
-        ("delete_automation_rule", "删除本人当前会话范围的指定事件规则；先list确认ID，后续未开始的执行也会取消。", RuleIdArgs, delete, "write"),
+        ("list_automation_rules", "查看当前群全部成员创建的事件规则、创建者及最近执行状态；私聊查看本人规则。取得修改或删除用的rule_id。", Args, listing, "read"),
+        ("delete_automation_rule", "删除当前群任意成员创建的指定事件规则；私聊删除本人规则。先list确认ID，后续未开始的执行也会取消。", RuleIdArgs, delete, "write"),
     ]:
         registry.register(name=name, description=description, args_model=model, handler=handler,
             category="automation", scopes=("automation.use",), initially_visible=False, effect=effect, timeout=15)

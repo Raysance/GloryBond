@@ -144,13 +144,121 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         listed = ZFUNC.automation_rule_operation("list", {}, principal=principal(), run_id="next")["rules"]
         self.assertEqual(len(listed), 1)
         self.assertEqual(listed[0]["definition"]["condition"]["contains_all"], [])
-        for other in (principal("101"), principal("100", "201")):
+        for other in (principal("101", "201"), principal("100", "201")):
             with self.assertRaises(PermissionError):
                 ZFUNC.automation_rule_operation("delete", {"rule_id": rule["id"]}, principal=other, run_id="next")
         # A new client and registry see the same persistent rules and pending work.
         self.assertEqual(len(ZFUNC.automation_publish_event(event())), 1)
         ZFUNC.dmc.automation_action_catalog = None
         self.assertEqual(len(ZFUNC.automation_claim_jobs()), 1)
+
+    def test_group_members_list_edit_pause_and_delete_each_others_rules(self):
+        first = self.save()
+        second = self.save(definition(title="第二个人的规则"), user="101")
+        key = "hok:automation:rules:group:200"
+        original = json.loads(self.store.hget(key, first["id"]))
+        listed = ZFUNC.automation_rule_operation("list", {}, principal=principal("101"), run_id="list")["rules"]
+        self.assertEqual({item["id"] for item in listed}, {first["id"], second["id"]})
+        self.assertEqual({item["creator"]["user_id"] for item in listed}, {"100", "101"})
+        for item in listed:
+            self.assertNotIn("scopes", item)
+            self.assertNotIn("creation_run_id", item)
+            self.assertNotIn("revision", item)
+        job = ZFUNC.automation_publish_event(event())[0]
+        updated = self.save(definition(title="群友已暂停", enabled=False), user="101", rule_id=first["id"])
+        self.assertEqual(updated["id"], first["id"])
+        self.assertEqual(updated["creator"]["user_id"], "100")
+        self.assertFalse(updated["definition"]["enabled"])
+        self.assertIsNone(ZFUNC.automation_current_rule(job))
+        saved = json.loads(self.store.hget(key, first["id"]))
+        for field in ("owner_id", "scope", "scopes", "created_at"):
+            self.assertEqual(saved[field], original[field])
+        deleted = ZFUNC.automation_rule_operation("delete", {"rule_id": first["id"]},
+            principal=principal("101"), run_id="delete")
+        self.assertTrue(deleted["deleted"])
+        self.assertIsNone(self.store.hget(key, first["id"]))
+        self.assertFalse(self.store.exists("hok:automation:rule_state:" + first["id"]))
+        self.assertIsNotNone(self.store.hget(key, second["id"]))
+
+    def test_group_edit_preserves_creator_authorization_and_media_binding(self):
+        rule = self.save(definition(action={"type": "send_media", "arguments": {"kind": "face", "id": "14"}}))
+        listed = ZFUNC.automation_rule_operation("list", {}, principal=principal("101"), run_id="list")["rules"][0]
+        self.assertEqual(listed["definition"]["action"]["arguments"], {})
+        editor = principal("101")
+        editor = Principal(editor.user_id, editor.scopes | {"qq.avatar.write", "roleplay.manage_others"}, editor.attributes)
+        changed = copy.deepcopy(listed["definition"])
+        changed.update(title="群友修改", cooldown_seconds=60)
+        ZFUNC.automation_rule_operation("save", {"rule_id": rule["id"], "definition": changed},
+            principal=editor, run_id="edit")
+        saved = json.loads(self.store.hget("hok:automation:rules:group:200", rule["id"]))
+        self.assertEqual(saved["owner_id"], "100")
+        self.assertEqual(saved["scopes"], sorted(principal().scopes))
+        self.assertEqual(saved["definition"]["action"]["arguments"]["id"], "14")
+
+    def test_edit_cannot_add_action_permissions_missing_from_creator_or_editor(self):
+        rule = self.save()
+        ZFUNC.automation_actions().register("restricted", description="受限扩展动作", args_model=Args,
+            handler=lambda args, job: None, events=("message.received",), scopes=("extension.restricted",))
+        changed = definition(action={"type": "restricted"})
+        editor = principal("101")
+        elevated = Principal(editor.user_id, editor.scopes | {"extension.restricted"}, editor.attributes)
+        for caller in (editor, elevated):
+            with self.subTest(scopes=caller.scopes), self.assertRaises(PermissionError):
+                ZFUNC.automation_rule_operation("save", {"rule_id": rule["id"], "definition": changed},
+                    principal=caller, run_id="denied")
+        saved = json.loads(self.store.hget("hok:automation:rules:group:200", rule["id"]))
+        self.assertEqual(saved["definition"]["action"]["type"], "notify_owner")
+
+    def test_cross_group_and_private_rules_remain_isolated_even_for_admin_private(self):
+        group_rule = self.save()
+        private_rule = self.save(group=None)
+        self.save(user="101", group=None)
+        with patch.object(ZFUNC, "qid", {"owner": "100", "second": "101", "admin": "999"}):
+            for caller, visible, blocked in [
+                (principal("101"), {group_rule["id"]}, private_rule),
+                (principal("100", None), {private_rule["id"]}, group_rule),
+                (principal("101", None), None, private_rule),
+                (principal("101", "201"), set(), group_rule),
+                (principal("999", None), set(), group_rule),
+            ]:
+                with self.subTest(user=caller.user_id, delivery=caller.attributes["delivery"]):
+                    listed = ZFUNC.automation_rule_operation("list", {}, principal=caller, run_id="list")["rules"]
+                    if visible is not None:
+                        self.assertEqual({item["id"] for item in listed}, visible)
+                    else:
+                        self.assertEqual(len(listed), 1)
+                        self.assertEqual(listed[0]["creator"]["user_id"], "101")
+                    for action, args in [("delete", {}), ("save", {"definition": definition(title="越界修改")})]:
+                        with self.assertRaises(PermissionError):
+                            ZFUNC.automation_rule_operation(action, {"rule_id": blocked["id"], **args},
+                                principal=caller, run_id="denied")
+
+    async def test_shared_rule_tools_validate_current_membership_before_access(self):
+        rule = self.save()
+        caller = principal("101")
+        ctx = ToolContext(RunRequest("删除这个群的规则", "qq_g_200_101", caller), AsyncMock())
+        with patch.object(ZFUNC, "agent_read_group_member_profile", new=AsyncMock(side_effect=PermissionError("已退群"))), \
+                patch.object(ZFUNC, "automation_rule_operation") as operation:
+            for action, args in [("list", {}), ("delete", {"rule_id": rule["id"]}),
+                                 ("save", {"rule_id": rule["id"], "definition": definition()})]:
+                with self.assertRaises(PermissionError):
+                    await ZFUNC.agent_automation_operation(action, args, ctx)
+            operation.assert_not_called()
+
+    def test_stale_group_edit_and_delete_cannot_overwrite_a_newer_revision(self):
+        rule = self.save()
+        key = "hok:automation:rules:group:200"
+        stale = json.loads(self.store.hget(key, rule["id"]))
+        newer = {**stale, "revision": "newer-revision"}
+        self.store.hset(key, rule["id"], json.dumps(newer))
+        self.store.hset("hok:automation:rule_state:" + rule["id"], "run_count", 3)
+        with patch.object(ZFUNC, "_automation_rules", return_value=[stale]):
+            for action, args in [("delete", {}), ("save", {"definition": definition(title="旧版本修改")})]:
+                with self.subTest(action=action), self.assertRaisesRegex(ValueError, "并发改变"):
+                    ZFUNC.automation_rule_operation(action, {"rule_id": rule["id"], **args},
+                        principal=principal("101"), run_id="stale")
+        self.assertEqual(json.loads(self.store.hget(key, rule["id"])), newer)
+        self.assertEqual(self.store.hget("hok:automation:rule_state:" + rule["id"], "run_count"), b"3")
 
     def test_sender_name_is_bound_to_sameuser_main_qq_before_persisting_and_matching(self):
         with patch.multiple(ZFUNC._user_helpers_business, qid={"main": "101", "wrong": "102"},
