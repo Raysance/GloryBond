@@ -50,6 +50,8 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 - 分批回答由外部 application_prompt 与 emit_message 描述引导：信息较多、多子问题、步骤和对比可按完整语义块交付，保持当前角色/偏好，不按字数机械切割、不逐句刷屏、不重复全文。QQOutput 与 Web EventBroker 在输出接受后通过 DeliveryHistory 按 run_id 收集 partial；最终整理只处理未发送的最后一段，保存直接对话时按顺序合并已发送分批正文与当前最终 history_text。progress/notification 不入此回答历史，并发隔离，run.end 清理；内核与双版本展示协议不变，失败/取消的已发送内容继续保留在运行日志。
 
+- 超级管理员代改角色沿用 `QQBot.super_qid`，`qq_principal()` 仅给真实配置QQ授予 `roleplay.manage_others`。`list_roles` / `select_role` / `add_role_from_web` 用 `target_user_id` 管理目标角色；`QQAgentService.authorize_role_target()` 再次校验实际超级管理员与可信QQ目的地，群内实时校验目标为当前群成员，管理员私聊可明确指定QQ。共享角色服务只允许跨用户list/select/add，不披露或改写目标回复偏好；不替换调用者principal、记忆、原生提及、回复目的地或管理员本人角色。跨用户变更使用 `roleplay.user_changed`，本人变更继续 `roleplay.changed`；目标随后对话及agent任务读取其最新角色。普通用户、本地Web默认身份和群主/群管理员不自动获得此scope，消息规则显式剥离；旧任务仍保留原授权。
+
 ### 1.0.1 消息事件规则
 
 - `agent_console/automation.py` 定义严格规则模型、纯匹配、显式动作目录及 ContextVar 因果链；不修改独立 `agent_runtime`。`qq_agent/automation.py` 注册 automation 类别的动作目录、保存、本人当前范围列表和删除工具，先读动作参数再保存；同一ReAct模型语义判断用户的条件动作请求，不新增自然语言关键词路由。`agent_console/capabilities.py` 与保存工具说明要求用户明确指定的固定回复以 `send_text` 原样保存，群内玩笑、调侃、轻度粗口（如sb）和重复字符本身不构成拒绝理由，不说教、不按角色喜好替换文案；每次匹配发送一条固定消息，仍遵守冷却、次数与防循环约束。普通群只管理本人当前群规则，私聊只管理本人私聊规则，管理员私聊也不扩大范围；后台和业务函数禁止重入规则管理。

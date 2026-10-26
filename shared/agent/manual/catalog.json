@@ -476,7 +476,10 @@
         "详细",
         "回复风格",
         "偏好",
-        "联网增加角色"
+        "联网增加角色",
+        "给别人换角色",
+        "超级管理员",
+        "super_id"
       ],
       "tools": [
         "list_roles",
@@ -492,10 +495,18 @@
         {
           "path": "qq_agent/service.py",
           "symbol": "QQFinalizer.finalize"
+        },
+        {
+          "path": "qq_agent/service.py",
+          "symbol": "QQAgentService.authorize_role_target"
+        },
+        {
+          "path": "agent_console/roleplay.py",
+          "symbol": "RoleplayService.manage"
         }
       ],
       "parent": "conversation",
-      "summary": "用途\n查看和选择角色，添加新的角色，调整回复长短、称呼和语气。\n使用示例\n@机器人 有哪些角色可以选？\n@机器人 切换成通用助手\n@机器人 联网添加《原神》的安柏并选用\n@机器人 以后叫我阿阳，回复简短一点，少用表情\n返回内容与注意事项\n机器人会说明当前角色、变更结果或添加失败的"
+      "summary": "查看选择角色、联网添加角色及调整本人回复偏好；QQ超级管理员可给指定QQ用户换角色或添加并选用，群内确认当前群成员，不修改目标个人偏好或管理员自己的角色"
     },
     {
       "id": "roles_1",

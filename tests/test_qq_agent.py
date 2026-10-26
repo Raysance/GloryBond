@@ -11,7 +11,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from PIL import Image
 
-from agent_runtime import AgentRuntime
+from agent_runtime import AgentRuntime, RunRequest
+from agent_runtime.models import ToolContext
 from qq_agent.service import QQAgentService, qq_principal
 from qq_agent.member_profiles import register_member_profile_tool
 from agent_console.remote import RemoteBridge
@@ -29,6 +30,15 @@ def call(name, args, identifier):
 
 
 class IdentityTests(unittest.TestCase):
+    def test_only_the_real_super_qq_receives_other_user_role_authority(self):
+        for group in (None, "200"):
+            admin = qq_principal("999", group, "admin", admin_id="999", references=REFERENCES)
+            ordinary = qq_principal("101", group, "超级管理员999", admin_id="999", references=REFERENCES)
+            self.assertIn("roleplay.manage_others", admin.scopes)
+            self.assertNotIn("roleplay.manage_others", ordinary.scopes)
+        from agent_console.identity import LOCAL_SCOPES
+        self.assertNotIn("roleplay.manage_others", LOCAL_SCOPES)
+
     def test_inherited_qq_reference_keeps_the_real_senders_main_identity(self):
         references = copy.deepcopy(REFERENCES)
         references["context"]["catalogs"]["players"].append({
@@ -186,6 +196,74 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_uses_configured_remote_proxy_and_model_as_vision_fallback(self):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
+
+    async def test_role_target_requires_actual_super_identity_and_current_group_membership(self):
+        from dataclasses import replace
+        admin = qq_principal("999", "200", "admin", admin_id="999", references=REFERENCES)
+        ctx = ToolContext(RunRequest("给101换角色", "s", admin), AsyncMock())
+        before = copy.deepcopy(admin.attributes)
+        reader = AsyncMock(return_value={"profile": {"group_id": "200", "user_id": "101"}})
+        self.gateway.member_profile_reader = reader
+        await self.gateway.authorize_role_target(ctx, "101")
+        reader.assert_awaited_once_with(group_id="200", user_id="101", include_avatar=False)
+        self.assertEqual(admin.attributes, before)
+        for profile in ({"group_id": "201", "user_id": "101"}, {"group_id": "200", "user_id": "102"}):
+            reader.return_value = {"profile": profile}
+            with self.assertRaises(ValueError):
+                await self.gateway.authorize_role_target(ctx, "101")
+        for principal in (replace(admin, user_id="101"), replace(admin, scopes=frozenset({"roleplay.use"}))):
+            with self.assertRaises(PermissionError):
+                await self.gateway.authorize_role_target(ToolContext(RunRequest("", "s", principal), AsyncMock()), "101")
+        with self.assertRaises(ValueError):
+            await self.gateway.authorize_role_target(ctx, "not-a-qq")
+        self.gateway.member_profile_reader = None
+        with self.assertRaises(PermissionError):
+            await self.gateway.authorize_role_target(ctx, "101")
+
+    async def test_super_private_role_target_keeps_current_delivery_and_needs_no_group_lookup(self):
+        from dataclasses import replace
+        admin = qq_principal("999", None, "admin", admin_id="999", references=REFERENCES)
+        ctx = ToolContext(RunRequest("给101换角色", "s", admin), AsyncMock())
+        self.gateway.member_profile_reader = AsyncMock()
+        await self.gateway.authorize_role_target(ctx, "101")
+        self.gateway.member_profile_reader.assert_not_awaited()
+        self.assertEqual(admin.attributes["delivery"], {"platform": "qq", "channel": "private", "recipient_id": "999"})
+        for delivery in ({"platform": "web", "channel": "private", "recipient_id": "999"},
+                         {"platform": "qq", "channel": "private", "recipient_id": "101"},
+                         {"platform": "qq", "channel": "group", "recipient_id": "200"}):
+            forged = replace(admin, attributes={**admin.attributes, "delivery": delivery})
+            with self.assertRaises(PermissionError):
+                await self.gateway.authorize_role_target(ToolContext(RunRequest("", "s", forged), AsyncMock()), "101")
+
+    async def test_super_role_change_uses_target_store_and_admin_reply_role_and_destination(self):
+        from tests.test_agent_roleplay import Store, BUILTINS
+        from agent_console.roleplay_store import roleplay_operation
+        store = Store()
+        original = self.gateway.state_bridge.call
+        async def dispatch(op, **args):
+            if op == "roleplay":
+                return roleplay_operation(store, builtins=BUILTINS, **args)
+            return await original(op, **args)
+        self.gateway.member_profile_reader = AsyncMock(return_value={"profile": {"group_id": "200", "user_id": "100"}})
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("search_chat_history", {"queries": ["角色", "切换角色"]}, "h")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["roleplay"]}, "d")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("list_roles", {"target_user_id": "100"}, "l")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("select_role", {"target_user_id": "100", "role_id": "assistant"}, "c")]},
+            {"role": "assistant", "content": "已将示例玩家65的角色切换为通用助手。"},
+        ]
+        self.reply_text = "已将示例玩家65的角色切换为通用助手。"
+        with patch.object(self.gateway.state_bridge, "call", side_effect=dispatch):
+            await self.gateway.chat(user_text="把@示例玩家65的角色换成通用助手", user_id="999", nickname="admin", group_id="200")
+        target = roleplay_operation(store, user_id="100", action="list", builtins=BUILTINS, default_role="makise_kurisu")
+        admin = roleplay_operation(store, user_id="999", action="list", builtins=BUILTINS, default_role="makise_kurisu")
+        self.assertEqual(target["selected"]["role_id"], "assistant")
+        self.assertEqual(admin["selected"]["role_id"], "makise_kurisu")
+        final = next(row["data"] for row in self.events["qq_g_200_999"] if row["kind"] == "output.message" and row["data"].get("kind") == "final")
+        self.assertEqual(final["presentation"]["role_id"], "makise_kurisu")
+        self.assertEqual(self.sent[0][1]["recipient_id"], "200")
+        self.assertEqual(self.sent[0][1]["mention_user_id"], "999")
+        self.assertTrue(any(row["kind"] == "roleplay.user_changed" for row in self.events["qq_g_200_999"]))
 
     async def test_lazy_business_image_uses_trusted_local_output_and_bound_destination(self):
         from agent_console.function_calls import FunctionArgs, FunctionCatalog, FunctionOutput

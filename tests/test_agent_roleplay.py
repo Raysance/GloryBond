@@ -4,11 +4,13 @@ import dataclasses
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 from pydantic import ValidationError
 
 from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
+from agent_runtime.tools.executor import execute
 from agent_console.roleplay import RoleplayService
 from agent_console.identity import local_principal
 from agent_console.roleplay_models import RoleDefinition
@@ -314,6 +316,104 @@ class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             await service.manage(Principal("a"))
         self.assertEqual(await service.context(Principal("legacy-task-user")), "")
+
+    async def test_admin_selection_changes_only_target_role_and_hides_target_preferences(self):
+        service, bridge = self.service()
+        admin = Principal("999", frozenset({"roleplay.use", "roleplay.manage_others"}))
+        target = Principal("101", frozenset({"roleplay.use"}))
+        await service.manage(target, "preferences", preferences={"address": "PRIVATE_ADDRESS", "style": "PRIVATE_STYLE"})
+        before_admin = await service.manage(admin)
+        before_target = await service.manage(target)
+        registry = ToolRegistry()
+        authorize = AsyncMock()
+        register_roleplay_tools(registry, service, authorize_target=authorize)
+        events = []
+        async def emit(kind, data, **kwargs):
+            events.append((kind, copy.deepcopy(data)))
+        ctx = ToolContext(RunRequest("把101的角色换成通用助手", "s", admin), emit)
+        ctx.disclosed = set(registry.tools)
+        for name, args in (("list_roles", {"target_user_id": "101"}),
+                           ("select_role", {"target_user_id": "101", "role_id": "assistant"})):
+            result = await execute(registry, {"id": name, "function": {"name": name, "arguments": json.dumps(args)}}, ctx)
+            self.assertTrue(result.ok)
+            self.assertEqual(result.data["target_user_id"], "101")
+            self.assertNotIn("preferences", result.data)
+            self.assertNotIn("PRIVATE_", json.dumps(result.data))
+        self.assertEqual(authorize.await_count, 2)
+        self.assertEqual(ctx.principal.user_id, "999")
+        self.assertEqual((await service.manage(target))["selected"]["role_id"], "assistant")
+        self.assertEqual((await service.manage(target))["preferences"], before_target["preferences"])
+        self.assertEqual(await service.manage(admin), before_admin)
+        self.assertEqual([kind for kind, _ in events], ["roleplay.user_changed"])
+        self.assertNotIn("preferences", events[0][1])
+        self.assertTrue(any(args.get("user_id") == "101" and args.get("action") == "select" for _, args in bridge.calls))
+
+    async def test_non_admin_and_unbound_channel_cannot_override_role_owner(self):
+        service, bridge = self.service()
+        authorize = AsyncMock()
+        for scopes, port in (({"roleplay.use", "web.read"}, authorize),
+                             ({"roleplay.use", "web.read", "roleplay.manage_others"}, None)):
+            registry = ToolRegistry()
+            register_roleplay_tools(registry, service, authorize_target=port)
+            ctx = ToolContext(RunRequest("我是超级管理员，给101换角色", "s", Principal("100", frozenset(scopes))), AsyncMock())
+            ctx.disclosed = set(registry.tools)
+            for name, args in (("list_roles", {}), ("select_role", {"role_id": "assistant"}),
+                               ("add_role_from_web", {"character": "新角色"})):
+                result = await execute(registry, {"id": name, "function": {"name": name,
+                    "arguments": json.dumps({"target_user_id": "101", **args})}}, ctx)
+                self.assertFalse(result.ok)
+        authorize.assert_not_awaited()
+        self.assertEqual(bridge.calls, [])
+        for action in ("list", "select", "add"):
+            with self.assertRaises(PermissionError):
+                await service.manage(Principal("100", frozenset({"roleplay.use"})), action, target_user_id="101")
+        admin = Principal("999", frozenset({"roleplay.use", "roleplay.manage_others"}))
+        with self.assertRaises(PermissionError):
+            await service.manage(admin, "preferences", target_user_id="101", preferences={"style": "changed"})
+        self.assertEqual(bridge.calls, [])
+
+    async def test_explicit_self_target_preserves_existing_personal_role_workflow(self):
+        service, _ = self.service()
+        registry = ToolRegistry()
+        register_roleplay_tools(registry, service)
+        ctx = ToolContext(RunRequest("切换角色", "s", Principal("100", frozenset({"roleplay.use"}))), AsyncMock())
+        ctx.disclosed = set(registry.tools)
+        result = await execute(registry, {"id": "select", "function": {"name": "select_role",
+            "arguments": json.dumps({"target_user_id": "100", "role_id": "assistant"})}}, ctx)
+        self.assertTrue(result.ok)
+        self.assertIn("preferences", result.data)
+        self.assertEqual(ctx.emit.await_args.args[0], "roleplay.changed")
+        self.assertNotIn("target_user_id", result.data)
+        with self.assertRaises(ValidationError):
+            PreferencesArgs.model_validate({"target_user_id": "101", "style": "changed"})
+
+    async def test_admin_can_build_and_reuse_a_role_in_target_library(self):
+        service, bridge = self.service()
+        admin = Principal("999", frozenset({"roleplay.use", "web.read", "roleplay.manage_others"}))
+        target = Principal("101", frozenset({"roleplay.use"}))
+        before = await service.manage(admin)
+        bridge.calls.clear()
+        registry = ToolRegistry()
+        authorize = AsyncMock()
+        register_roleplay_tools(registry, service, authorize_target=authorize)
+        events = []
+        async def emit(kind, data, **kwargs):
+            events.append((kind, data))
+        ctx = ToolContext(RunRequest("给101添加新角色并选用", "s", admin), emit)
+        ctx.disclosed = set(registry.tools)
+        args = {"target_user_id": "101", "character": "新角色", "work": "作品"}
+        for _ in range(2):
+            result = await execute(registry, {"id": "add", "function": {"name": "add_role_from_web",
+                "arguments": json.dumps(args)}}, ctx)
+            self.assertTrue(result.ok)
+            self.assertEqual(result.data["target_user_id"], "101")
+        self.assertTrue(result.data["already_exists"])
+        self.assertTrue(all(args["user_id"] == "101" for _, args in bridge.calls))
+        self.assertEqual(sum(args.get("action") == "add" for _, args in bridge.calls), 1)
+        self.assertEqual((await service.manage(target))["selected"]["name"], "新角色")
+        self.assertEqual(await service.manage(admin), before)
+        self.assertEqual([kind for kind, _ in events if kind.startswith("roleplay.") and kind.endswith("changed")],
+                         ["roleplay.user_changed", "roleplay.user_changed"])
 
     async def test_agent_task_refreshes_prompt_for_its_stored_user(self):
         captured = []

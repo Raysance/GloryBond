@@ -7,6 +7,18 @@ from .capabilities import Clock
 from .roleplay_models import GeneratedProfile, RoleDefinition
 
 
+def role_change_applies(target_user_id=None):
+    return ("目标用户的后续对话及后台agent任务生效"
+            if target_user_id else "本次最终回复、后续对话及后台agent任务生效")
+
+
+async def emit_role_change(ctx, current, target_user_id=None):
+    if target_user_id:
+        await ctx.emit("roleplay.user_changed", {"target_user_id": target_user_id, "selected": current["selected"]})
+    else:
+        await ctx.emit("roleplay.changed", {"selected": current["selected"], "preferences": current["preferences"]})
+
+
 def persona_prompt(principal, snapshot, memories):
     """Data never defines permissions or changes the generic execution loop."""
     role = snapshot["selected"]
@@ -52,16 +64,23 @@ class RoleplayService:
         self.bridge, self.capabilities, self.model = bridge, capabilities, model
         self.default_role = default_role
 
-    async def manage(self, principal, action="list", **args):
+    async def manage(self, principal, action="list", *, target_user_id=None, **args):
         if "roleplay.use" not in principal.scopes:
             raise PermissionError("未授权角色管理")
-        return await self.bridge.call(
+        owner = target_user_id if target_user_id is not None else principal.user_id
+        other = owner != principal.user_id
+        if other and ("roleplay.manage_others" not in principal.scopes or action not in {"list", "select", "add"}):
+            raise PermissionError("未授权为其他用户管理角色，回复偏好仅本人可修改")
+        result = await self.bridge.call(
             "roleplay",
-            user_id=principal.user_id,
+            user_id=owner,
             action=action,
             default_role=self.default_role,
             **args,
         )
+        if other:
+            return {"target_user_id": owner, "selected": result["selected"], "roles": result["roles"]}
+        return result
 
     async def snapshot(self, principal, query=""):
         # Older persisted tasks retain their original scopes and identity.
@@ -96,10 +115,10 @@ class RoleplayService:
             else ""
         )
 
-    async def add_from_web(self, args, ctx):
+    async def add_from_web(self, args, ctx, *, target_user_id=None):
         if "web.read" not in ctx.principal.scopes:
             raise PermissionError("未授权联网角色添加")
-        current = await self.manage(ctx.principal)
+        current = await self.manage(ctx.principal, target_user_id=target_user_id)
         existing = [
             r
             for r in current["roles"]
@@ -110,19 +129,14 @@ class RoleplayService:
         if existing:
             if args.select:
                 current = await self.manage(
-                    ctx.principal, "select", role_id=existing[0]["role_id"]
+                    ctx.principal, "select", role_id=existing[0]["role_id"], target_user_id=target_user_id
                 )
-                await ctx.emit(
-                    "roleplay.changed",
-                    {
-                        "selected": current["selected"],
-                        "preferences": current["preferences"],
-                    },
-                )
+                await emit_role_change(ctx, current, target_user_id)
             return {
                 "already_exists": True,
                 "role": existing[0],
                 "selected": current["selected"],
+                **({"target_user_id": target_user_id} if target_user_id else {}),
             }
         query = f"{args.work} {args.character} 官方 角色介绍 性格 说话风格".strip()
         await ctx.emit("roleplay.search", {"query": query, "status": "started"})
@@ -183,15 +197,13 @@ class RoleplayService:
             created_at=Clock().now(),
         )
         current = await self.manage(
-            ctx.principal, "add", role=role.model_dump(), select=args.select
+            ctx.principal, "add", role=role.model_dump(), select=args.select, target_user_id=target_user_id
         )
-        await ctx.emit(
-            "roleplay.changed",
-            {"selected": current["selected"], "preferences": current["preferences"]},
-        )
+        await emit_role_change(ctx, current, target_user_id)
         return {
             "added": True,
             "role": role.model_dump(),
             "selected": current["selected"],
-            "applies": "角色选择在本次最终回复、后续对话和后台agent任务中生效",
+            "applies": role_change_applies(target_user_id),
+            **({"target_user_id": target_user_id} if target_user_id else {}),
         }

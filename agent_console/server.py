@@ -367,8 +367,10 @@ def create_app(*, config_path=None):
     async def select_role(body: SelectArgs):
         try:
             return await app.state.roles.manage(
-                app.state.principal, "select", role_id=body.role_id
+                app.state.principal, "select", role_id=body.role_id, target_user_id=body.target_user_id
             )
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
         except (RuntimeError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
 

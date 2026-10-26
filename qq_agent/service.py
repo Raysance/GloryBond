@@ -43,7 +43,7 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
     scopes = set(LOCAL_SCOPES) - {"chat.read", "chat.cross_group", "qq.profile.read", "qq.avatar.write", "qq.private.send"}
     scopes.add("automation.use")
     if user == str(admin_id):
-        scopes.add("qq.avatar.write")
+        scopes.update({"qq.avatar.write", "roleplay.manage_others"})
     if group:
         scopes.update({"chat.read", "qq.profile.read", "qq.private.send"})
     elif user == str(admin_id):
@@ -165,7 +165,7 @@ class QQAgentService:
                 self.model = self.model_factory(**options)
                 self.roles = RoleplayService(bridge=self.state_bridge, capabilities=service, model=self.model,
                                              default_role=self.config.get("default_role", "makise_kurisu"))
-                register_roleplay_tools(registry, self.roles)
+                register_roleplay_tools(registry, self.roles, authorize_target=self.authorize_role_target)
                 self.state = RemoteState(self.state_bridge, self.image_store.project_event, self.local_log)
                 self.output = QQOutput(bridge=self.bridge, local_log=self.local_log, sender=self.sender,
                                        prepare_reply=self.prepare_reply, store_artifact=self.store_artifact,
@@ -220,7 +220,13 @@ class QQAgentService:
                            "只describe需要的函数，再call_hok_function；定时agent任务也可使用。"
                            "不扫描全部函数定义，不反复调用相同参数，不递归AI或创建子任务。"
                            if self.business_functions is not None and self.config.get("business_functions", {}).get("enabled", True) else "")
-        return (application_prompt() + business_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
+        role_admin_prompt = ("当前QQ入口已授予超级管理员roleplay.manage_others，可按其本次明确要求给别人换角色。"
+            "发现roleplay后，用target_user_id指定真实目标QQ，先list_roles读取目标目录，再select_role；"
+            "目标没有所需角色时可add_role_from_web为同一目标添加并选用。目标来自本次明确QQ、原生@或权威名称映射，不能按历史发言猜测。"
+            "这只改变目标角色，创建者身份、当前回复对象、提及、记忆和任务目的地不变；不修改目标回复偏好。"
+            "群内目标须通过当前群实时成员校验，超级管理员私聊可明确指定目标QQ。"
+            if "roleplay.manage_others" in principal.scopes else "")
+        return (application_prompt() + business_prompt + role_admin_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
                 "用户明确要求给群成员私发消息时，发现chat_delivery并调用send_group_member_private_message；"
                 "这是独立发送动作，不改变正常回复会话或任务目的地；QQ返回消息ID后才能确认成功，不能声称对方已读。"
                 "要求私发的正文只经私发工具发送，正常群回复只确认状态，不重复私发正文。"
@@ -297,6 +303,29 @@ class QQAgentService:
             budget["bytes"] += len(raw)
             return saved
         return await asyncio.to_thread(save)
+
+    async def authorize_role_target(self, ctx, target_user_id):
+        """Authorize only the role owner override; the caller and delivery stay bound."""
+        assert_outside_function()
+        principal = ctx.principal
+        if principal.user_id != self.admin_id or "roleplay.manage_others" not in principal.scopes:
+            raise PermissionError("仅QQBot.super_qid配置的超级管理员可为别人换角色")
+        if not re.fullmatch(r"[1-9][0-9]{0,19}", target_user_id):
+            raise ValueError("目标QQ无效，请提供明确QQ或通过权威映射确认")
+        delivery = principal.attributes.get("delivery", {})
+        chat = principal.attributes.get("chat", {})
+        if delivery.get("platform") != "qq":
+            raise PermissionError("为别人换角色需要可信QQ入口")
+        channel, recipient = delivery.get("channel"), str(delivery.get("recipient_id", ""))
+        if channel == "private" and recipient == principal.user_id and not chat.get("group_id"):
+            return
+        group = str(chat.get("group_id") or "")
+        if channel != "group" or recipient != group or not group or self.member_profile_reader is None:
+            raise PermissionError("群内为别人换角色需要当前群成员校验")
+        result = await self.member_profile_reader(group_id=group, user_id=target_user_id, include_avatar=False)
+        profile = result["profile"]
+        if str(profile.get("group_id")) != group or str(profile.get("user_id")) != target_user_id:
+            raise ValueError("目标QQ与当前群成员资料不一致，未更改角色")
 
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
                    use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=()):
@@ -397,7 +426,7 @@ class QQAgentService:
         channel, recipient = rule["scope"].split(":", 1)
         principal = qq_principal(rule["owner_id"], recipient if channel == "group" else None, "",
             admin_id=self.admin_id, references=self.public["references"], bot_id=self.bot_id)
-        blocked_scopes = {"automation.use", "task.use", "memory.use", "roleplay.use", "qq.avatar.write", "qq.private.send"}
+        blocked_scopes = {"automation.use", "task.use", "memory.use", "roleplay.use", "roleplay.manage_others", "qq.avatar.write", "qq.private.send"}
         principal = Principal(principal.user_id, (principal.scopes & frozenset(rule["scopes"])) - blocked_scopes,
                               principal.attributes)
         registry = ToolRegistry()
