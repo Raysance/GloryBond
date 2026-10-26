@@ -5,6 +5,7 @@ from pathlib import Path
 import time
 from .tools.memory import memory_policy_prompt, recent_history_limits
 from .timeouts import IMAGE_TASK_TIMEOUT_SECONDS
+from .reply_style import reply_style_instruction
 
 
 class Clock:
@@ -136,7 +137,8 @@ def remote_chat_identity(principal):
 
 def application_prompt():
     return (
-        "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
+        reply_style_instruction()
+        + "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
         "工具失败时读取error、code和data.error_details，以及批量查询各observation的error_details；"
         "依据错误类型、失败阶段、底层原因和诊断字段有限修复，不能原样反复重试。"
         "retryable仅说明读取故障是否可重试；OUTCOME_UNKNOWN或写操作必须先核对状态，禁止自动重放。"

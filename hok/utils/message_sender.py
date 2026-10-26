@@ -128,8 +128,8 @@ async def _automation_before_send(payload):
 async def _automation_sent(payload, result=None, *, status=None):
     """Observe confirmed receipts; hook failures never replay or break delivery."""
     from ..zfunc import automation_publish_event, automation_finish
-    identifier = result.get("message_id") if isinstance(result, dict) else None
-    confirmed = type(identifier) in (str, int) and re.fullmatch(r"-?[0-9]{1,20}", str(identifier)) and int(identifier) != 0
+    identifier = _confirmed_message_id(result)
+    confirmed = identifier is not None
     try:
         for execution in payload.get("automation_executions", []):
             await asyncio.to_thread(automation_finish, {"id": execution}, status or ("sent" if confirmed else "unknown"))
@@ -137,6 +137,13 @@ async def _automation_sent(payload, result=None, *, status=None):
             await asyncio.to_thread(automation_publish_event, _automation_event(payload, "message.sent", identifier))
     except Exception as error:
         log_message(f"AUTOMATION_RECEIPT_FAILED: error_type={type(error).__name__}")
+
+
+def _confirmed_message_id(result):
+    value = result.get("message_id") if isinstance(result, dict) else None
+    if type(value) in (str, int) and re.fullmatch(r"-?[0-9]{1,20}", str(value)) and int(value) != 0:
+        return value
+    return None
 
 
 def add_automation_message(job, text, *, mention):
@@ -214,7 +221,6 @@ async def _handle_group_poke(bot, msg_json):
 
 async def _handle_forward_msg(bot, payload):
     from ..zfunc import finish_forward_delivery
-    from ..zutil import log_message
 
     delivery_id = payload.get("delivery_id")
     status = "sent"
@@ -229,9 +235,16 @@ async def _handle_forward_msg(bot, payload):
             result = await bot.send_private_forward_msg(user_id=target, messages=payload["messages"], **card_options)
         else:
             result = await bot.send_group_forward_msg(group_id=target, messages=payload["messages"], **card_options)
-        if not isinstance(result, dict) or not result.get("message_id"):
+        if _confirmed_message_id(result) is None:
             raise RuntimeError("FORWARD_RESULT: missing message_id; delivery outcome unknown")
         await _automation_sent(_prepare_automation_payload(payload), result)
+        await _record_task_receipt(payload, result)
+        if payload.get("reply_notice"):
+            try:
+                add_msg(Message(payload["reply_notice"]), msg_type="group", to_id=target,
+                        task_id=payload.get("task_id"), metadata=payload.get("automation_metadata"))
+            except Exception as error:
+                log_message(f"CHAT_FORWARD_MENTION_FAILED: error_type={type(error).__name__}")
     except Exception as error:
         status = "failed"
         log_message(f"FORWARD_FAILED: type={payload.get('type', 'group')} target={payload.get('toid')} delivery={delivery_id} error={error!r}")
@@ -267,20 +280,29 @@ async def _send_queued_message(bot, payload):
         await _automation_sent(payload, status="failed" if isinstance(error, ActionFailed) else "unknown")
         raise
     await _automation_sent(payload, result)
-    if msg_type == "group":
-        if payload.get("task_id"):
-            try:
-                from ..zfunc import agent_record_task_message
-                saved = await asyncio.to_thread(agent_record_task_message, group_id=to_id,
-                    message_id=result.get("message_id") if isinstance(result, dict) else None,
-                    task_id=payload["task_id"])
-                if not saved:
-                    raise RuntimeError("Task receipt association was not saved")
-            except Exception as exc:
-                log_message(f"TASK_MESSAGE_RECEIPT_SAVE_FAILED: task_id={payload['task_id']} error={type(exc).__name__}")
-        return result
-    if msg_type == "private":
-        return result
+    await _record_task_receipt(payload, result)
+    return result
+
+
+async def _record_task_receipt(payload, result):
+    if payload.get("type", "group") != "group" or not payload.get("task_id"):
+        return
+    try:
+        from ..zfunc import agent_record_task_message
+        saved = await asyncio.to_thread(agent_record_task_message, group_id=payload["toid"],
+            message_id=result.get("message_id") if isinstance(result, dict) else None, task_id=payload["task_id"])
+        if not saved:
+            raise RuntimeError("Task receipt association was not saved")
+    except Exception as exc:
+        log_message(f"TASK_MESSAGE_RECEIPT_SAVE_FAILED: task_id={payload['task_id']} error={type(exc).__name__}")
+
+
+def _bind_task_id(payload, task_id):
+    if task_id is not None and payload["type"] == "group":
+        if not isinstance(task_id, str) or not re.fullmatch(r"[a-f0-9]{32}", task_id):
+            raise ValueError("Invalid trusted task ID")
+        payload["task_id"] = task_id
+    return payload
 
 
 async def message_sender_loop():
@@ -332,10 +354,7 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None, met
     }
     if metadata:
         payload["automation_metadata"] = dict(metadata)
-    if task_id is not None and resolved_type == "group":
-        if not isinstance(task_id, str) or not re.fullmatch(r"[a-f0-9]{32}", task_id):
-            raise ValueError("Invalid trusted task ID")
-        payload["task_id"] = task_id
+    _bind_task_id(payload, task_id)
     return _enqueue_payload(payload)
 
 
@@ -392,13 +411,16 @@ async def send_group_member_private_message(*, group_id, user_id, text):
     return {"message_id": str(receipt)}
 
 
+def _forward_node(content, sender_name):
+    return {"type": "node", "data": {
+        "name": str(sender_name), "uin": str(confs["QQBot"]["bot_qid"]), "content": content,
+    }}
+
+
 def _forward_nodes(text_nodes, sender_name):
     if not text_nodes or any(not isinstance(text, str) or not text.strip() for text in text_nodes):
         raise ValueError("Forward requires non-empty text nodes")
-    return [{"type": "node", "data": {
-        "name": str(sender_name), "uin": str(confs["QQBot"]["bot_qid"]),
-        "content": [{"type": "text", "data": {"text": text}}],
-    }} for text in text_nodes]
+    return [_forward_node([{"type": "text", "data": {"text": text}}], sender_name) for text in text_nodes]
 
 
 def _forward_card_fields(title, preview):
@@ -467,8 +489,11 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
             mention_id = _normalize_target_id(mention_id)
             if type(mention_id) is not int or mention_id <= 0:
                 raise ValueError("Invalid trusted QQ mention target")
-        message += MessageSegment.at(str(mention_id))
-        message += MessageSegment.text(" ")
+    if result.get("delivery_variant") == "detailed":
+        return _add_chat_forward_result(result, event=event, destination=destination,
+                                        task_id=task_id, mention_id=mention_id)
+    if mention_id is not None:
+        message += MessageSegment.at(str(mention_id)) + MessageSegment.text(" ")
     message += MessageSegment.text(str(result["text"]))
     for artifact in result.get("artifacts", []):
         message += MessageSegment.image(artifact["path"])
@@ -481,6 +506,37 @@ def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):
         return add_msg(message, msg_type=destination["channel"], to_id=destination["recipient_id"], task_id=task_id,
                        metadata=result.get("_automation_metadata"))
     return add_msg(message, event=event, task_id=task_id)
+
+
+def _add_chat_forward_result(result, *, event, destination, task_id, mention_id):
+    from ..tools.chat_text import split_chat_forward_text
+    if destination is not None:
+        channel, target = destination["channel"], destination["recipient_id"]
+    else:
+        channel, target = _resolve_destination(event=event)
+    target = _normalize_target_id(target)
+    if channel not in {"group", "private"} or type(target) is not int or target <= 0:
+        raise ValueError("Invalid trusted chat forward destination")
+    policy = confs.get("QQAgent", {}).get("reply_forward", {})
+    limit = max(500, min(4000, int(policy.get("node_max_chars", 2500))))
+    sender = policy.get("sender_name", "机器人")
+    messages = [_forward_node([{"type": "text", "data": {"text": text}}], sender)
+                for text in split_chat_forward_text(result["text"], limit)]
+    for artifact in result.get("artifacts", []):
+        segment = MessageSegment.image(artifact["path"])
+        messages.append(_forward_node([{"type": segment.type, "data": segment.data}], sender))
+    if confs.get("QQAgent", {}).get("show_trace_link", False):
+        if result.get("trace_url"):
+            messages.extend(_forward_nodes(["运行记录：" + result["trace_url"]], sender))
+        elif result.get("trace_error"):
+            messages.extend(_forward_nodes(["运行记录链接暂不可用（" + result["trace_error"] + "）"], sender))
+    payload = _bind_task_id({"kind": channel + "_forward", "type": channel, "toid": target,
+        "messages": messages, "automation_metadata": result.get("_automation_metadata", {})}, task_id)
+    payload.update(_forward_card_fields(policy.get("title", "详细回复"), None))
+    if channel == "group" and mention_id is not None:
+        payload["reply_notice"] = str(MessageSegment.at(str(mention_id)) +
+            MessageSegment.text(" " + policy.get("mention_text", "详细回复见聊天记录。")))
+    return _enqueue_payload(payload)
 
 
 def add_group_ban_task(user_qid, *, duration=BATTLE_INVISIBLE_MUTE_SECONDS, group_qid=None, source=""):

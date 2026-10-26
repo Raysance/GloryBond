@@ -4,6 +4,28 @@ from markdown_it import MarkdownIt
 import re
 
 
+def split_chat_forward_text(text, max_chars):
+    """Split complete text at paragraph/line boundaries, keeping every character."""
+    remaining = str(text)
+    if max_chars <= 0:
+        raise ValueError("转发节点文字预算须大于0")
+    nodes = []
+    while len(remaining) > max_chars:
+        end = remaining.rfind("\n\n", 0, max_chars)
+        if end >= 0:
+            end += 2
+        else:
+            end = remaining.rfind("\n", 0, max_chars)
+            end = end + 1 if end >= 0 else remaining.rfind(" ", 0, max_chars) + 1
+        if end <= 0 or not remaining[:end].strip():
+            end = max_chars
+        nodes.append(remaining[:end])
+        remaining = remaining[end:]
+    if remaining:
+        nodes.append(remaining)
+    return nodes
+
+
 def _inline_text(tokens):
     parts = []
     for token in tokens or []:

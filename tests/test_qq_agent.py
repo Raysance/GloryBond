@@ -408,6 +408,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result['text'], expected)
                 self.assertEqual(self.dialogue['qq_p_101'][-1]['content'], expected)
                 self.assertEqual(result['variants']['detailed'], draft)
+                self.assertEqual(result['delivery_variant'], variant)
+                self.assertEqual(self.sent[-1][0]['delivery_variant'], variant)
 
     async def test_bot_avatar_request_uses_bound_bot_and_keeps_sender_history(self):
         reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '300', 'nickname': '机器人'},

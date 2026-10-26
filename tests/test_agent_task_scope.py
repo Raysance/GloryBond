@@ -165,6 +165,11 @@ class TaskScopeTests(unittest.TestCase):
 
 
 class TaskDeliveryTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        observer = patch.object(FUNC, "automation_publish_event", return_value=[])
+        observer.start()
+        self.addCleanup(observer.stop)
+
     def sender(self):
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
             return import_hok_module("utils.message_sender")

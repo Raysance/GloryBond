@@ -22,8 +22,8 @@ from tests.test_agent_runtime import ScriptedModel
 
 
 ROLE = json.loads(Path("shared/agent/roles/makise_kurisu.json").read_text())
-DETAIL = "数据为8场5胜，胜率62.5%，样本还小，不能据此断言实力。"
-CHAT = "8场5胜，62.5%。先别急着下结论，样本还小，证据总得够吧。"
+DETAIL = "这8场拿下5胜，胜率62.5%，这段战绩整体表现不错。统计范围为这8场。"
+CHAT = "这8场拿下5胜，胜率62.5%，这段表现不错。"
 
 
 def context():
@@ -77,6 +77,14 @@ def response(chat=CHAT):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_defensive_narration_is_repaired_and_quoted_source_keeps_its_words(self):
+        for chat in ("只能参考这些数据。", "不是实力提升，而是队友配合。", "这不能表明实力。",
+                     "没有详细的证据。", "先说清楚，统计覆盖这8场。"):
+            with self.subTest(chat=chat), self.assertRaises(ValueError):
+                validate_chat(response(chat=chat)["content"], DETAIL, ReplyPolicy())
+        quoted = '原话是“只能参考这些数据”。统计覆盖这8场。'
+        self.assertEqual(validate_chat(response(chat=quoted)["content"], DETAIL, ReplyPolicy()), quoted)
+
     def test_unknown_delivery_variant_cannot_select_an_arbitrary_output(self):
         with self.assertRaises(ValueError):
             validate_chat(json.dumps({'chat': CHAT, 'default_variant': 'private'}), DETAIL, ReplyPolicy())
@@ -140,6 +148,25 @@ class ValidationTests(unittest.TestCase):
 
 
 class ComposerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_expression_repairs_style_with_existing_budget_and_keeps_detail(self):
+        model = ScriptedModel([response(chat="只能参考这8场。"), response()])
+        emitted = []
+        async def emit(kind, data, **kwargs):
+            emitted.append(kind)
+        answer = await ReplyComposer(model=model, roles=Roles()).finalize(context(), emit)
+        self.assertEqual(answer.text, CHAT)
+        self.assertEqual(answer.variants["detailed"], DETAIL)
+        self.assertEqual(len(model.requests), 2)
+        self.assertIn("reply.validation", emitted)
+        self.assertIn("回复表达约定", model.requests[0][0]["content"])
+
+    async def test_qq_degraded_full_draft_retains_detailed_delivery(self):
+        model = ScriptedModel([{"role": "assistant", "content": "invalid"}])
+        answer = await ReplyComposer(model=model, roles=Roles(),
+            policy=ReplyPolicy(select_delivery_variant=True, max_attempts=1)).finalize(context(), AsyncMock())
+        self.assertEqual(answer.text, DETAIL)
+        self.assertEqual(answer.metadata["default_variant"], "detailed")
+
     async def test_qq_variant_selection_requires_a_valid_explicit_choice(self):
         invalid = response()
         valid = response()
