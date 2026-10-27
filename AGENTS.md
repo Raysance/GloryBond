@@ -207,7 +207,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 
 通用规则：
 
-1. Git commit message 必须使用英文，不得使用中文提交信息。
+1. Git commit message 必须使用英文，不得使用中文提交信息。提交说明不得包含人员姓名、昵称、姓名缩写或角色人名；使用通用的功能描述，不将私有身份信息写入历史。
 2. 一个完整的逻辑变更应形成一个语义清晰的最终提交；禁止 `A backup`、`Update config`等无法说明变更目的的泛化提交信息。
 3. 发布前必须先同步并确认 `origin/main` 的最新状态；禁止通过多层 merge commit 解决本可避免的历史分叉。
 
