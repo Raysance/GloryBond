@@ -27,5 +27,6 @@ if [[ "$install_dependencies" == true ]]; then
     .venv/bin/python -m pip install --no-build-isolation --editable .
 fi
 .venv/bin/python -c 'from agent_runtime import AgentRuntime; from qq_agent import QQAgentService; from hok_research import HokClient; from hok_camp_client import CampClient; import login_console.worker; import web.app'
+.venv/bin/python deployment/scripts/public_artifact_permissions.py --directory "$HOK_FILE_TRANSFER_DIR" --apply
 systemctl restart hok-nbot.service hok-web.service
 .venv/bin/python deployment/scripts/verify_startup.py

@@ -29,6 +29,7 @@
 - 根GitHub Actions在 `/srv/modules/hok/apps/HOK_QQBot` 同步一次代码，并重启Bot和Web。两项服务共享根 `.venv`、`.env` 与 `config.yaml`，Web启动为 `.venv/bin/python -m web`，不再直接运行独立目录的 `app.py`。
 - Aliyun代码位于 `/srv/modules/hok/apps/HOK_QQBot/web`；`hok-web.service` 的WorkingDirectory为统一项目根，归属 `hok.target`。共享公开产物仍在 `/srv/modules/hok/data/file_transfer`，Nginx路由与端口保持原值。
 - 个人网站、Clash、Nginx、Redis、PostgreSQL及CI runner保持现有独立职责，不移入本Web模块。服务维护与恢复见[服务器维护说明](../deployment/server_modules/README.md)。
+- 公开 `file_transfer` 使用 Nginx 可读取的共享组，目录设置 setgid，使 Bot/Web 在 `UMask=0027` 下生成的 JSON、图片和子目录继承读取组。根部署流程调用 `deployment/scripts/public_artifact_permissions.py` 校验并修复现有产物；保留安装器已配置且 Nginx 可读的公开组，跳过目录内软链接，私有文件权限独立维护。
 
 ## 数据路径约定
 

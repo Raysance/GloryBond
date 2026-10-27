@@ -104,6 +104,15 @@ sudo /opt/hok-qqbot/deployment/scripts/doctor.sh \
 sudo systemctl restart hok-nbot.service hok-web.service
 ```
 
+Public artifacts use a Nginx-readable group and setgid directories, so new JSON
+and images remain readable with the services' `UMask=0027`. Every Actions deployment
+runs `deployment/scripts/public_artifact_permissions.py` against the shared
+`file_transfer` directory before restarting Bot/Web. The helper preserves an
+accessible installer public group, otherwise selects the running Nginx workers'
+primary group. It skips symlinks inside the artifact tree; private configuration,
+input images and database files retain their own permissions. Use `--group` to
+select the public read group when running maintenance without Nginx workers.
+
 ## Chat and web search
 
 Ordinary chat uses the configured DeepSeek-compatible endpoint directly with
