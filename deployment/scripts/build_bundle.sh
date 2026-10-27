@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+export COPYFILE_DISABLE=1
+
+usage() {
+    cat <<'EOF'
+Usage: deployment/scripts/build_bundle.sh [options]
+
+Options:
+  --output PATH            Output .tar.gz path
+  -h, --help               Show this help
+EOF
+}
+
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+deployment_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
+nbot_source="$(CDPATH= cd -- "$deployment_root/.." && pwd)"
+output_path=""
+
+while (($#)); do
+    case "$1" in
+        --output) output_path="$2"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) printf 'HOK_BUNDLE_ERROR: unknown option: %s\n' "$1" >&2; exit 64 ;;
+    esac
+done
+
+if [[ ! -f "$nbot_source/web/app.py" ]]; then
+    printf 'HOK_BUNDLE_ERROR: unified web source is missing\n' >&2
+    exit 66
+fi
+
+if [[ ! -f "$nbot_source/vendor/hok-camp-client/src/hok_camp_client/__init__.py" || ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" || ! -f "$nbot_source/vendor/hok-player-client/src/hok_research/__init__.py" ]]; then
+    printf 'HOK_BUNDLE_ERROR: run git submodule update --init --recursive first\n' >&2
+    exit 66
+fi
+version="$(git -C "$nbot_source" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)"
+if [[ -z "$output_path" ]]; then
+    output_path="$nbot_source/dist/hok-qqbot-$version.tar.gz"
+fi
+mkdir -p "$(dirname -- "$output_path")"
+output_path="$(CDPATH= cd -- "$(dirname -- "$output_path")" && pwd)/$(basename -- "$output_path")"
+
+stage_root="$(mktemp -d)"
+trap 'rm -rf -- "$stage_root"' EXIT
+bundle_root="$stage_root/hok-qqbot-$version"
+mkdir -p "$bundle_root"
+
+copy_source() {
+    local source_dir="$1"
+    local target_dir="$2"
+    tar -C "$source_dir" \
+        --exclude='.git' --exclude='.venv' --exclude='.local' \
+        --exclude='.env' --exclude='.env.*' --exclude='config.yaml' \
+        --exclude='__pycache__' --exclude='*.pyc' \
+        --exclude='.DS_Store' --exclude='._*' --exclude='log' --exclude='file_transfer' \
+        --exclude='dist' --exclude='build' --exclude='*.egg-info' --exclude='.ruff_cache' --exclude='local_debugger/.venv' \
+        --exclude='data/history/*' --exclude='data/herotier/*' \
+        --exclude='data/herorank/*' --exclude='data/news/*' \
+        --exclude='data/agent_inputs' --exclude='data/automation_media' --exclude='data/player_client' --exclude='data/account_sessions' \
+        --exclude='resources/wzry_images/hero_avatars/*' \
+        --exclude='resources/wzry_images/generated/*' \
+        --exclude='resources/wzry_images/kpl/*' \
+        --exclude='resources/wzry_images/tmp/*' \
+        -cf - . | tar -C "$target_dir" -xf -
+}
+
+copy_source "$nbot_source" "$bundle_root"
+
+tar -C "$stage_root" -czf "$output_path" "$(basename -- "$bundle_root")"
+chmod 0600 "$output_path"
+
+printf 'Bundle: %s\n' "$output_path"
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$output_path"
+else
+    shasum -a 256 "$output_path"
+fi

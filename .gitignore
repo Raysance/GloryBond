@@ -1,64 +1,68 @@
-# Public repository safety boundary.
-# Root rules protect secrets and private runtime data from the public showcase repo.
-# Subproject .gitignore files should only ignore local caches, generated files, and other unnecessary artifacts.
+# ENV
+/.venv/
+/local_debugger/.venv/
+/build/
+/agent_runtime/build/
+/dist/
+/web/html/
+*.egg-info/
 
-# Python/runtime caches
-__pycache__/
+# TEMP LOG
 **/__pycache__/
 *.pyc
-*.pyo
+**/.mypy_cache/
+*.log
+/log/
+/nbot_thisrun.log
+.DS_Store
+__MACOSX/
 
-# Secrets and environment files
+# UNNECESSARY
+/data/history/personal/
+/data/history/battles/
+/data/history/doubt/
+/data/history/power/
+/data/history/power_failed/
+/data/history/*.json
+!/data/history/BEGIN_TEMPLATE.json
+/data/herotier/*.json
+/data/herorank/
+/data/news/*.txt
+/resources/wzry_images/skins/
+/resources/wzry_images/generated/
+/resources/wzry_images/kpl/
+/resources/wzry_images/tmp/
+/resources/wzry_images/player_client/
+/resources/wzry_images/battle_assets/
+/file_transfer/
+/data/agent_inputs/
+/data/automation_media/
+/redis-migration-backups/
+/hok/debug_tools/*/
+!/hok/debug_tools/AGENTS.md
+emojiref.json
+
+/data/player_client/
+
+/data/account_sessions/
+
+# Private host configuration and runtime identities
 .env
 .env.*
-!.env.example
-!.env.sample
 **/.env
 **/.env.*
-!**/.env.example
-!**/.env.sample
+config.yaml
 **/config.yaml
-**/config.local.yaml
-**/config.*.yaml
-!**/config.example.yaml
-!**/config.sample.yaml
-!**/config.template.yaml
+variables_static*.json
+variables_dynamic*.json
+redis.json
 *.pem
 *.key
 *.p12
 *.pfx
-*.crt
-*.csr
-*.secret
-*.secrets
-*secret*
-*token*
-*credential*
-
-# Private bot configuration and user data
-**/variables_static.json
-**/variables_dynamic.json
-**/emojiref.json
-NBot/data/*
-!NBot/data/honor/
-NBot/data/honor/*
-!NBot/data/honor/districts.json
-NBot/file_transfer/
-NBot/log/
-Web/log/
-**/.venv/
-**/build/
-**/dist/
-**/*.egg-info/
-.DS_Store
-**/.DS_Store
-**/redis-migration-backups/
-NBot/deployment/
-NBot/deploy_runner.sh
-NBot/.github/
-Web/.github/
-
-# Logs may contain private identifiers or request details
-*.log
-logs/
-**/logs/
+._*
+/data/*
+!/data/honor/
+/data/honor/*
+!/data/honor/districts.json
+/resources/wzry_images/hero_avatars/

@@ -1,0 +1,9 @@
+# Public source and private state
+
+The sole maintained repository is `Raysance/GloryBond`. Application implementation, README, AGENTS, manuals and deployment scripts are public. `Raysance-Studio/HOK_QQBot` and `HOK_QQBot_Web` are retired archives. `hok-player-client`, `hok-camp-client` and `react-agent-runtime` remain private submodules; only fixed gitlinks and compatibility symlinks are published.
+
+The two real application configuration files, `.env` and `config.yaml`, are ignored by Git. Credentials, account sessions and database DSNs belong in `.env`; settings and real user/account mappings belong in `config.yaml`. Runtime messages, exports, caches and backups stay outside version control. Publication checks inspect staged bytes, rather than relying on ignore rules alone.
+
+Configuration is synchronized separately over SSH with `deployment/scripts/sync_private_config.py`; the command and precautions are in `docs/DEVELOPMENT.md`. Application source continues through GitHub Actions. The deployment scripts preserve both real configuration files, and stop before deployment if either is absent. Source bundles and installers do not silently copy private configuration.
+
+The migration removes private configuration, runtime records, opaque user artifacts and former embedded private SDK implementations from imported history, and redacts historical credential/user literals. Original commit messages and parent relationships are retained; content and author-privacy changes necessarily produce new commit IDs. The original repositories and exact configuration have private, recoverable backups. Do not reintroduce their original Git objects into the public repository.

@@ -1,0 +1,22 @@
+[Unit]
+Description=Remove HOK temporary transfer files older than one week
+ConditionPathIsDirectory=@FILE_TRANSFER_DIR@/temp_files
+
+[Service]
+Type=oneshot
+User=@RUN_USER@
+Group=@RUN_GROUP@
+ExecStart=@FIND_BIN@ @FILE_TRANSFER_DIR@/temp_files -xdev -ignore_readdir_race -type f -mmin +10080 -delete
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@FILE_TRANSFER_DIR@/temp_files
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+Nice=10
+IOSchedulingClass=idle
+UMask=0077

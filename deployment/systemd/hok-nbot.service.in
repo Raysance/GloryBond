@@ -1,0 +1,27 @@
+[Unit]
+Description=HOK QQBot NoneBot service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@NBOT_ROOT@
+EnvironmentFile=@NBOT_ROOT@/.env
+Environment=BOT_PATH=@NBOT_ROOT@
+Environment=HOK_CONFIG_FILE=@NBOT_ROOT@/config.yaml
+Environment=HOK_DATA_DIR=@STATE_DIR@/data
+Environment=HOK_FILE_TRANSFER_DIR=@FILE_TRANSFER_DIR@
+Environment=HOK_LOG_DIR=@LOG_DIR@/nbot
+Environment=VIRTUAL_ENV=@NBOT_ROOT@/.venv
+Environment=PATH=@NBOT_ROOT@/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=@NBOT_ROOT@/deploy_runner.sh
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,32 @@
+
+from .zutil import *
+from .zstatic import *
+
+qq_agent_service = None
+automation_action_catalog = None
+service_health_lock = threading.Lock()
+import redis
+
+# Dynamic defaults are loaded from the sole non-secret config file.
+globals().update(dynamic_variables)
+redis_deamon = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+redis_deamon_liked_btl = redis_deamon
+redis_deamon_share_btl = redis_deamon
+redis_deamon_analyze_btl = redis_deamon
+MessageQueue = redis_deamon
+TodayHeroPool = redis_deamon
+BtlAnalyzeEvaluatorPool = redis_deamon
+redis_deamon_diy_code = redis_deamon
+redis_deamon_chat_memory = redis_deamon
+
+BattlePowerInProgressLock = threading.Lock()
+BattlePowerInProgress = {}
+
+player_client_lock = threading.Lock()
+
+player_client_adapter = None
+
+player_client_session_fingerprint = None
+
+player_client_online_lock = threading.Lock()
+player_client_online_cache = None

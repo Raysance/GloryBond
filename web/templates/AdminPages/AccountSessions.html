@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>账号登录态 · 管理控制台</title>
+<style>
+:root{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;color:#24324a;background:#f4f7fb}*{box-sizing:border-box}body{margin:0}main{max-width:1100px;margin:48px auto;padding:0 24px}a{color:#2563eb;text-decoration:none}h1{margin:28px 0 10px;font-size:28px}p{line-height:1.7;color:#64748b}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:28px}.card{background:white;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 4px 18px #21345505}h2{font-size:19px;margin:0 0 18px}.badge{display:inline-block;background:#f1f5f9;color:#475569;border-radius:20px;padding:5px 12px;font-size:13px}.valid{background:#dcfce7;color:#166534}.invalid{background:#ffedd5;color:#9a3412}.message{min-height:50px;font-size:14px}.time{font-size:12px;min-height:20px;color:#94a3b8}.actions{display:flex;gap:8px;flex-wrap:wrap}button{font:inherit;font-size:14px;background:#2563eb;border:1px solid #2563eb;color:white;padding:9px 13px;border-radius:8px;cursor:pointer}button.secondary{background:white;color:#2563eb}button:disabled{opacity:.45;cursor:default}.qr{display:none;text-align:center;border-top:1px solid #e2e8f0;margin-top:20px;padding-top:18px}.qr img{display:block;width:100%;max-width:230px;margin:auto;image-rendering:pixelated}.qr p{font-size:13px}.roles{margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0}.roles select{display:block;width:100%;margin:10px 0;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}.notice{padding:14px 18px;border-radius:10px;background:#eaf1ff;color:#405c87;font-size:14px}#error{color:#b45309;min-height:24px}@media(max-width:850px){.grid{grid-template-columns:1fr}main{margin-top:25px}.message{min-height:0}}
+</style>
+</head>
+<body><main>
+<a href="/admin/dashboard">← 管理控制台</a>
+<h1>账号登录态</h1><p>管理员可使用不同账号重新扫码；验证成功后更新该服务的身份、登录态和角色参数。三种服务分别授权。</p>
+<div class="notice">状态来自最近一次手动检查，5 分钟后需重新核验。扫码二维码只在本管理页展示。请勿转发二维码。</div>
+<p id="error" role="status" aria-live="polite"></p>
+<div class="grid" id="cards">
+{% for provider, label in [('camp','王者营地'), ('official','王者官方客户端'), ('napcat','NapCat QQ')] %}
+<section class="card" data-provider="{{ provider }}"><h2>{{ label }}</h2>
+<span class="badge">尚未检查</span><p class="message" role="status" aria-live="polite">请手动检查登录状态</p><p class="time"></p>
+<div class="actions"><button data-action="check">检查状态</button><button class="secondary" data-action="start">{{ '同步 / 扫码登录' if provider == 'napcat' else '扫码登录 / 切换账号' }}</button><button class="secondary" data-action="resume" hidden>继续扫码</button></div>
+<div class="roles" hidden><label>选择王者角色 <select aria-label="王者角色"></select></label><button data-action="select_role">使用该角色</button></div>
+<div class="qr"><img alt="QQ 扫码登录二维码"><p class="hint"></p></div></section>
+{% endfor %}
+</div></main>
+<script>
+'use strict';
+const csrf = {{ csrf|tojson }};
+const endpoint = '/admin/funcs/account-sessions';
+const error = document.getElementById('error');
+const cards = [...document.querySelectorAll('.card')];
+let busy = false;
+let unloaded = false;
+const active = new Map();
+function message(card, text){card.querySelector('.message').textContent = text;}
+function render(card, data){
+ const badge=card.querySelector('.badge');
+ badge.className='badge'+(data.authenticated===true?' valid':data.authenticated===false?' invalid':'');
+ badge.textContent=data.authenticated===true?'登录有效':data.authenticated===false?'已失效 / 未登录':'待确认';
+ message(card,data.message||'暂时无法确认');
+ card.querySelector('.time').textContent=data.checked_at?'检查于 '+new Date(data.checked_at*1000).toLocaleString():'';
+ card.querySelector('[data-action=start]').disabled=false;
+}
+async function call(payload){
+ const response=await fetch(endpoint+'/action',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-Account-CSRF':csrf},body:JSON.stringify(payload)});
+ if(response.status===401){location.href='/admin/login';throw Error('请重新登录管理后台');}
+ const data=await response.json();
+ if(!data.ok){const e=Error(data.error||'请求失败');e.retry=data.retry_after;throw e;}
+ return data.result;
+}
+function clearQR(card){
+ const entry=active.get(card.dataset.provider);if(entry)clearTimeout(entry.timer);
+ active.delete(card.dataset.provider);card.querySelector('.qr').style.display='none';card.querySelector('.roles').hidden=true;
+ card.querySelector('img').removeAttribute('src');card.querySelector('[data-action=resume]').hidden=true;
+}
+function showRoles(card,result){
+ const entry=active.get(card.dataset.provider);if(!entry)throw Error('登录会话已失效，请重新扫码');
+ clearTimeout(entry.timer);card.querySelector('.qr').style.display='none';card.querySelector('img').removeAttribute('src');
+ const select=card.querySelector('select');select.replaceChildren();
+ if(!Array.isArray(result.roles)||!result.roles.length||result.roles.length>100)throw Error('无法读取角色列表');
+ for(const role of result.roles){const option=document.createElement('option');option.value=String(role.choice);option.textContent=role.label;select.appendChild(option);}
+ card.querySelector('.roles').hidden=false;card.querySelector('[data-action=resume]').hidden=true;
+ message(card,result.message);
+}
+async function load(){
+ try{const response=await fetch(endpoint+'/state',{cache:'no-store'});if(response.status===401){location.href='/admin/login';return;}
+ const data=await response.json();if(!data.ok)throw Error(data.error);
+ for(const item of data.result.accounts){const card=cards.find(c=>c.dataset.provider===item.provider);if(card)render(card,item);}
+ }catch(e){error.textContent=e.message||'无法读取状态';}
+}
+function schedule(card,delay=6000){
+ const entry=active.get(card.dataset.provider);if(!entry)return;
+ clearTimeout(entry.timer);entry.timer=setTimeout(()=>poll(card),delay);
+}
+async function poll(card){
+ const provider=card.dataset.provider,entry=active.get(provider);if(!entry||unloaded)return;
+ if(Date.now()>=entry.expires*1000){clearQR(card);message(card,'二维码已过期，请重新生成');return;}
+ if(busy||document.hidden){schedule(card);return;}
+ busy=true;
+ try{const result=await call({provider,action:'poll',challenge_id:entry.id});message(card,result.message);
+ if(result.state==='authenticated'){clearQR(card);render(card,{authenticated:true,message:result.message,checked_at:Date.now()/1000});}
+ else if(result.state==='select_role'){showRoles(card,result);}
+ else if(['waiting_scan','waiting_confirmation'].includes(result.state)){schedule(card);}
+ else{clearQR(card);}
+ }catch(e){message(card,e.message);if(e.retry)schedule(card,Math.max(6000,e.retry*1000));else clearQR(card);}
+ finally{busy=false;}
+}
+for(const card of cards){
+ card.addEventListener('click',async event=>{
+ const button=event.target.closest('button');if(!button||busy)return;
+ const action=button.dataset.action,provider=card.dataset.provider;
+ if(action==='resume'){schedule(card,50);return;}
+ busy=true;button.disabled=true;error.textContent='';message(card,'正在处理，请稍候…');
+ try{if(action==='select_role'){
+ const entry=active.get(provider);if(!entry)throw Error('登录会话已失效，请重新扫码');
+ const result=await call({provider,action,challenge_id:entry.id,role_choice:Number(card.querySelector('select').value)});
+ if(result.state!=='authenticated'){if(result.state==='expired')clearQR(card);throw Error(result.message||'角色未保存');}
+ clearQR(card);render(card,{authenticated:true,message:result.message,checked_at:Date.now()/1000});
+ }else if(action==='check'){const result=await call({provider,action});render(card,result);}
+ else{const result=await call({provider,action});
+ if(result.state==='authenticated'){render(card,{authenticated:true,message:result.message});return;}
+ if(typeof result.qr!=='string'||!result.qr.startsWith('data:image/png;base64,'))throw Error('二维码格式异常');
+ clearQR(card);card.querySelector('img').src=result.qr;card.querySelector('.qr').style.display='block';
+ card.querySelector('.hint').textContent='请在 QQ 中扫码并确认。会话最长 4 分钟，二维码可能提前失效';
+ message(card,result.message);active.set(provider,{id:result.challenge_id,expires:result.expires_at});schedule(card);
+ card.querySelector('[data-action=resume]').hidden=false;
+ }}catch(e){message(card,e.message);}
+ finally{busy=false;button.disabled=false;}
+ });
+}
+window.addEventListener('pagehide',()=>{unloaded=true;for(const card of cards)clearQR(card);});
+load();
+</script></body></html>

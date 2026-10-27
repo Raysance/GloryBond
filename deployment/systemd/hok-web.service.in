@@ -1,0 +1,28 @@
+[Unit]
+Description=HOK QQBot FastAPI web service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=@RUN_USER@
+Group=@RUN_GROUP@
+WorkingDirectory=@NBOT_ROOT@
+EnvironmentFile=@NBOT_ROOT@/.env
+Environment=BOT_PATH=@NBOT_ROOT@
+Environment=WEB_PATH=@WEB_ROOT@
+Environment=HOK_CONFIG_FILE=@NBOT_ROOT@/config.yaml
+Environment=HOK_DATA_DIR=@STATE_DIR@/data
+Environment=HOK_FILE_TRANSFER_DIR=@FILE_TRANSFER_DIR@
+Environment=HOK_LOG_DIR=@LOG_DIR@/nbot
+Environment=HOK_WEB_HOST=127.0.0.1
+Environment=HOK_WEB_PORT=8000
+ExecStart=@NBOT_ROOT@/.venv/bin/python -m web
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=30
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

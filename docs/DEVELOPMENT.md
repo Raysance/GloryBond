@@ -1,25 +1,32 @@
-# Public snapshot development
+# Development and deployment
 
-This repository contains the public NBot/Web source snapshot and user documentation. Source revision identifiers are recorded in [RELEASE.md](RELEASE.md). Deployment credentials, personal mappings, runtime records, private server operations and newly generated binary assets are excluded.
+`Raysance/GloryBond` is the only maintained application repository. Bot (`hok/`), Web (`web/`), adapters, tests, README, AGENTS, manuals and deployment methods are public. The former organization application repositories are retired. The three SDK repositories remain private and are referenced by fixed submodules.
 
-## Agent dependency
+## Local setup
 
-`NBot/vendor/react-agent-runtime` remains a private Git submodule, pinned to the source application's recorded commit. The public snapshot exports its reference and the relative `NBot/agent_runtime` compatibility link, **not the private runtime implementation**. Running the AI agent requires authorized access to that dependency. Ordinary clones and public CodeQL checkout do not automatically retrieve it.
+Initialize dependencies with `git submodule update --init --recursive` using an SSH account authorized for `hok-player-client`, `hok-camp-client` and `react-agent-runtime`. Their implementations must never be copied into this repository or a public Actions artifact.
 
-If you have access, initialize it with `git submodule update --init NBot/vendor/react-agent-runtime`. Do not replace the pinned commit with an unverified public package of the same name. Other business code, external adapters, tool schemas, manual documents and Web templates remain visible for inspection.
+Python 3.12+ is required by the application syntax. The root `pyproject.toml` is the only application dependency manifest. Production shares one root `.venv`; existing local debugging uses `local_debugger/.venv`. Bot starts through `./deploy_runner.sh`, Web through `python -m web`. Importing Web does not start NoneBot.
 
-## Configuration and data
+Prepare the real root `.env` and `config.yaml` separately. Both are ignored by Git. `.env` contains keys, tokens, passwords, database DSNs and verified login sessions; `config.yaml` contains settings plus private user/account mappings. They are never public templates or part of source bundles. `HOK_ENV_FILE` and `HOK_CONFIG_FILE` can explicitly override their paths.
 
-Prepare your own `NBot/.env` and `NBot/config.yaml`, or point `HOK_ENV_FILE` and `HOK_CONFIG_FILE` at private files. These two files are the application's sole credential and non-secret settings sources; this public repository intentionally provides no live configuration, user list or extra example configuration files. Follow `NBot/AGENTS.md` for the configuration interfaces and integration boundaries, subject to the public safety rules in the root `AGENTS.md`.
+## Production updates
 
-Sample payload files preserve field structure with empty strings and zero values. They are schema references, not playable match histories. Public district data and previously published demonstration assets are included; private screenshots, chat attachments and live exports are not copied.
+A code-only change is committed and pushed to `main`. The GloryBond Actions workflow uses the dedicated `hok-production` runner, updates the shared checkout and pinned submodules, verifies imports, restarts Bot/Web and checks startup. Existing live configuration is retained. Missing private configuration stops deployment before source changes or service restarts.
 
-The public mirror removes configured credential literals from Python fallback strings and anonymizes deployment identity literals. Configure required database and API credentials explicitly; do not expect any production default password.
+For a configuration change, back up and verify the intended local files, then synchronize them separately over SSH:
 
-## Updating the public mirror
+```bash
+local_debugger/.venv/bin/python deployment/scripts/sync_private_config.py \
+  --host <ssh-alias> --project-root /srv/modules/hok/apps/HOK_QQBot --check
+local_debugger/.venv/bin/python deployment/scripts/sync_private_config.py \
+  --host <ssh-alias> --project-root /srv/modules/hok/apps/HOK_QQBot
+```
 
-Use `tools/sync_public_snapshot.py --nbot <source checkout> --web <source checkout>` to inspect the planned sync, then add `--apply` after review. Run it with the source project's existing local-debugger Python environment, which provides PyYAML and python-dotenv. It copies only tracked source files from clean mirror directories, omits deployment/configuration/runtime data, redacts sample values and identity literals, rejects remaining configured credential values, and preserves the private runtime dependency reference. Review changes to README and public governance documents separately.
+The tool sends contents on SSH stdin, locks against login-session writers, checks that the remote version did not change during transfer, creates a private remote backup, replaces files atomically and suppresses credential output. Synchronizing configuration does not restart services. Follow with the usual main push, or dispatch the deploy workflow if only configuration changed. Do not replace newer server login sessions with an older local copy.
 
-After updating, review the staged tree for ignored or private files, validate Python/JS syntax and local documentation links, and run `NBot/scripts/validate_agent_manual.py` from `NBot/` with the source virtual environment. The mirror's copied tests may require your own configuration and authorized agent runtime checkout; public checkout alone is not a turnkey deployment.
+## Checks and manuals
 
-Before publishing, stage the reviewed snapshot and run `tools/verify_public_snapshot.py --nbot-private-source <source checkout>`. It checks the actual Git index for excluded files, configured credential and identity literals, empty sample values and the private dependency reference. It does not output secret values or include dependency contents in the published tree.
+Run publication checks against the actual index with `python tools/verify_repository.py`. `--history` additionally inspects reachable history. For the one-time migration, `--inventory-source <private-backup.git>` checks against the historical credential and user inventory without storing it in Git.
+
+Functional manuals are complete in `shared/agent/manual/`; Web guides are in `web/docs/`. Validate the manual using `python scripts/validate_agent_manual.py`. Source history/provenance is described in [RELEASE.md](RELEASE.md), and configuration ownership in [publication rules](../deployment/PUBLICATION.md).

@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily cleanup of HOK temporary transfer files
+
+[Timer]
+OnCalendar=*-*-* 04:20:00
+RandomizedDelaySec=15m
+AccuracySec=1m
+Persistent=true
+Unit=hok-temp-files-cleanup.service
+
+[Install]
+WantedBy=timers.target
