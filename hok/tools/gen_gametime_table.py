@@ -239,6 +239,7 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
     cell_h = max(S(110), text_h + S(26))
     cell_w = S(240)
     total_w = S(190)
+    share_w = S(190)
     gap_x = S(16)
     gap_y = S(16)
 
@@ -260,7 +261,8 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
     grid_h = rows_n * cell_h + max(0, rows_n - 1) * gap_y
 
     total_x = left_w + S(54)
-    x0 = total_x + total_w + S(22)
+    share_x = total_x + total_w + S(22)
+    x0 = share_x + share_w + S(22)
     y0 = top_h + header_h
 
     canvas_w = x0 + grid_w + S(54)
@@ -301,6 +303,17 @@ def gen(rows, games, save_path: str, title: str = "游戏时长排行"):
         txt = f"{round(total, 1)}h"
         ttw, tth = measure(draw, font_total, txt)
         draw.text((total_x + (total_w - ttw) / 2, py + (cell_h - tth) / 2), txt, fill="#000000", font=font_total)
+
+    share_label = "总时长占比"
+    gw, gh = measure(draw, font_total, share_label)
+    draw.text((share_x + (share_w - gw) / 2, top_h + (header_h - gh) / 2), share_label, fill="#000000", font=font_total)
+    all_hours = sum(totals)
+    for i, total in enumerate(totals):
+        py = y0 + i * (cell_h + gap_y)
+        share = total / all_hours * 100 if all_hours else 0.0
+        txt = f"{share:.1f}%"
+        ttw, tth = measure(draw, font_total, txt)
+        draw.text((share_x + (share_w - ttw) / 2, py + (cell_h - tth) / 2), txt, fill="#000000", font=font_total)
 
     for j, g in enumerate(games):
         gx = x0 + j * (cell_w + gap_x)

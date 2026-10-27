@@ -57,6 +57,55 @@ class GameActivityTests(unittest.TestCase):
         self.assertIn("👑 王者荣耀: 1.5h", result)
         self.assertIn("♨️ Game A: 1.5h", result)
         self.assertIn("📊 总计时长：3.0h", result)
+        self.assertIn("📈 占所有玩家总时长：100.0%", result)
+
+    def test_recent_share_includes_hok_and_steam_only_players(self):
+        ZFUNC.userlist = {"alice": 1001, "bob": 1002}
+        ZFUNC.steam_userlist = {"alice": "steam-1", "carol": "steam-3"}
+        calls = []
+
+        def fetch(**kwargs):
+            calls.append(kwargs)
+            return {
+                "alice": [{"Duration_Second": 3600}],
+                "bob": [{"Duration_Second": 7200}],
+                "unconfigured": [{"Duration_Second": 360000}],
+            }, 1
+
+        ZFUNC.fetch_history = fetch
+        ZAPI.steam_api_recent_games = lambda api_key, steam_id: [
+            {"name": "Game A", "playtime_2weeks": 60}
+        ]
+
+        result = ZFUNC.recentgames_process("alice")
+
+        self.assertIn("📊 总计时长：2.0h", result)
+        self.assertIn("📈 占所有玩家总时长：40.0%", result)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(calls[0]["filter_official"])
+        self.assertNotIn("userid", calls[0])
+
+    def test_recent_share_uses_unrounded_hours(self):
+        ZFUNC.userlist = {"alice": 1001, "bob": 1002}
+        ZFUNC.steam_userlist = {}
+        ZFUNC.fetch_history = lambda **kwargs: (
+            {"alice": [{"Duration_Second": 61}], "bob": [{"Duration_Second": 122}]},
+            1,
+        )
+
+        result = ZFUNC.recentgames_process("alice")
+
+        self.assertIn("👑 王者荣耀: 0.0h", result)
+        self.assertIn("📈 占所有玩家总时长：33.3%", result)
+
+    def test_recent_share_handles_no_playtime(self):
+        ZFUNC.fetch_history = lambda **kwargs: ({}, 0)
+        ZAPI.steam_api_recent_games = lambda *args: []
+
+        result = ZFUNC.recentgames_process("alice")
+
+        self.assertIn("最近2周没有游戏记录", result)
+        self.assertIn("📈 占所有玩家总时长：0.0%", result)
 
     def test_rank_keeps_game_order_and_image_contract(self):
         generated = []

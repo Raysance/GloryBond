@@ -11,51 +11,24 @@ def _runtime():
     return zfunc
 
 
-def _history_hours(realname, start_date, end_date):
-    runtime = _runtime()
-    userid = runtime.userlist.get(realname)
-    if not userid:
-        return 0.0
-    game_details, _ = runtime.fetch_history(
-        userid=userid,
-        start_date=start_date,
-        end_date=end_date,
-        filter_official=False,
-    )
-    seconds = sum(
-        detail.get("Duration_Second", 0)
-        for detail in game_details.get(realname, [])
-    )
-    return seconds / 3600.0
-
-
 def recentgames_process(realname):
     runtime = _runtime()
     display_name = runtime.namenick.get(realname, realname)
-    end_date = ztime.time_r()
-    start_date = ztime.time_delta(end_date, -14)
-    wzry_hours = round(_history_hours(realname, start_date, end_date), 1)
-
-    steam_hours = 0.0
-    game_list = []
-    if wzry_hours > 0:
-        game_list.append(f"👑 王者荣耀: {wzry_hours}h")
-
-    steam_id = runtime.steam_userlist.get(realname)
-    steam_api_key = runtime.confs.get("Steam", {}).get("api_key")
-    if steam_id and steam_api_key:
-        games = zapi.steam_api_recent_games(steam_api_key, steam_id)
-        for game in games or []:
-            hours = round(game.get("playtime_2weeks", 0) / 60, 1)
-            if hours > 0:
-                steam_hours += hours
-                game_list.append(f"♨️ {game.get('name')}: {hours}h")
-
-    total_hours = round(wzry_hours + steam_hours, 1)
+    rows, _ = _gametime_rows(14)
+    player = next((row for row in rows if row["realname"] == realname), None)
+    total_hours = player["total"] if player else 0.0
+    all_hours = sum(row["total"] for row in rows)
+    share = total_hours / all_hours * 100 if all_hours else 0.0
+    game_list = [
+        f"{'👑' if game == '王者荣耀' else '♨️'} {game}: {hours:.1f}h"
+        for game, hours in (player["games"] if player else {}).items()
+    ]
     result = f"🎮 {display_name} 最近2周的游戏时长：\n"
     if game_list:
-        return result + "\n".join(game_list) + f"\n\n📊 总计时长：{total_hours}h"
-    return result + "最近2周没有游戏记录哦~"
+        result += "\n".join(game_list) + f"\n\n📊 总计时长：{total_hours:.1f}h"
+    else:
+        result += "最近2周没有游戏记录哦~"
+    return result + f"\n📈 占所有玩家总时长：{share:.1f}%"
 
 
 def _steam_games_by_player(api_key, steam_userlist):
@@ -96,10 +69,8 @@ def _sorted_games(rows, all_games):
     return (["王者荣耀"] if "王者荣耀" in all_games else []) + other_games
 
 
-def gametime_rank_process(days=14):
-    from ..tools import gen_gametime_table
-    from ..tools.gen_gametime_table import merge_gametime_rows
-
+def _gametime_rows(days):
+    """Collect both sources once, keeping full precision for totals and shares."""
     runtime = _runtime()
     end_date = ztime.time_r()
     start_date = ztime.time_delta(end_date, -days)
@@ -107,13 +78,19 @@ def gametime_rank_process(days=14):
         runtime.confs.get("Steam", {}).get("api_key"),
         runtime.steam_userlist,
     )
+    history, _ = runtime.fetch_history(
+        start_date=start_date, end_date=end_date, filter_official=False,
+    ) if runtime.userlist else ({}, 0)
 
     raw_rows = []
     all_games = set()
     realnames = sorted(set(runtime.userlist) | set(runtime.steam_userlist))
     for realname in realnames:
         per_game = {}
-        wzry_hours = _history_hours(realname, start_date, end_date)
+        wzry_hours = sum(
+            detail.get("Duration_Second", 0)
+            for detail in history.get(realname, [])
+        ) / 3600.0 if runtime.userlist.get(realname) else 0.0
         if wzry_hours > 0:
             per_game["王者荣耀"] = wzry_hours
         steam_hours = 0.0
@@ -137,7 +114,15 @@ def gametime_rank_process(days=14):
             }
         )
         all_games.update(per_game)
+    return raw_rows, all_games
 
+
+def gametime_rank_process(days=14):
+    from ..tools import gen_gametime_table
+    from ..tools.gen_gametime_table import merge_gametime_rows
+
+    runtime = _runtime()
+    raw_rows, all_games = _gametime_rows(days)
     rows = merge_gametime_rows(
         raw_rows,
         getattr(runtime, "sameuser", {}),

@@ -87,7 +87,7 @@ HOK_QQBot 与 Web 的全部 Redis 数据统一存放在 `REDIS_DB`（DB0），�
 - `hok/tools/gen_battle_shot.py`：RTMP 监听与对局截图工具。
 - `hok/tools/gen_coplayer_analyses.py`：共玩关系、头像、胜率、评价等图表生成器。
 - `hok/tools/gen_emoji_image.py`：表情包生成链路与模板；仅通过 `tools/emoji_context.py` 读取当前群的本人发言及表情决策缓存，不加载旧聊天记忆/摘要，Redis 与归档访问经 zfunc。
-- `hok/tools/gen_gametime_table.py`：游戏时长表格聚合与渲染辅助。
+- `hok/tools/gen_gametime_table.py`：游戏时长表格聚合与渲染辅助；个人查询与排行通过 `business/game_activity.py` 共用一次全玩家历史读取及Steam采集，按未舍入时长计算占全部已配置玩家总时长的比例，排行在同人账号合并后展示占比。
 - `hok/tools/gen_grade_chart.py`：评分/星数趋势图生成工具。
 - `hok/tools/gen_hero_tier.py`：天元之弈英雄梯度数据按网页版梯度分层、临界区和英雄头像布局生成可视化长图。
 - `hok/tools/gen_player_client.py`：保留旧截图模板渲染及共享胜率配色兼容接口；当前客户端图片由 `hok/tools/gen_player_summary.py` 生成，统一浅色卡片，资料分区、对战雷达、单英雄头像和荣誉、最多10行英雄头像表格；历史称号显示地区和名次，不显示英雄 ID 或额外说明。字体、头像解码与图片落盘经 `zfile.py`，不请求网络或展开 raw 协议数据。
