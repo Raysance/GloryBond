@@ -5,6 +5,7 @@ import asyncio
 import logging
 from .trace import build_trace
 from agent_console.replies import DeliveryHistory
+from agent_console.model_metadata import observe_model_event
 
 
 class QQOutput:
@@ -21,6 +22,7 @@ class QQOutput:
         self.context_timeout_seconds = context_timeout_seconds
 
     async def publish(self, event):
+        observe_model_event(event)
         try:
             await self._publish(event)
         finally:

@@ -92,7 +92,8 @@ class FailoverTests(unittest.IsolatedAsyncioTestCase):
                                          choice={'type': 'function', 'function': {'name': 'allowed'}})
         self.assertEqual(bodies[0]['tool_choice'], 'required')
         self.assertEqual([t['function']['name'] for t in bodies[0]['tools']], ['allowed'])
-        self.assertEqual(bodies[0]['messages'][0]['reasoning_content'], 'earlier reasoning')
+        assistant = next(message for message in bodies[0]['messages'] if message['role'] == 'assistant')
+        self.assertEqual(assistant['reasoning_content'], 'earlier reasoning')
         self.assertEqual(result['message']['tool_calls'][0]['function']['name'], 'allowed')
 
     async def test_image_request_uses_backup_vision_model(self):
@@ -105,7 +106,7 @@ class FailoverTests(unittest.IsolatedAsyncioTestCase):
         messages = [{'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,test'}}]}]
         result, _ = await self.run_model(respond, messages=messages)
         self.assertEqual(bodies[0]['model'], 'kimi-k3')
-        self.assertEqual(bodies[0]['messages'], messages)
+        self.assertEqual([message for message in bodies[0]['messages'] if message['role'] != 'system'], messages)
         self.assertEqual(result['model'], 'kimi-k3')
 
     async def test_partial_output_does_not_restart_on_backup(self):

@@ -322,7 +322,7 @@ class ProviderImageTests(unittest.IsolatedAsyncioTestCase):
                 ["deepseek-v4-flash", "deepseek-v4-flash", "text-model"],
             )
             self.assertTrue(
-                observed[0]["messages"][0]["content"][0]["image_url"]["url"].startswith(
+                next(message for message in observed[0]["messages"] if message["role"] == "user")["content"][0]["image_url"]["url"].startswith(
                     "data:image/png;base64,"
                 )
             )

@@ -38,6 +38,7 @@ from .remote import BridgeUnavailable, RemoteBridge, RemoteState
 from .roleplay import RoleplayService
 from .replies import DeliveryHistory, ReplyComposer, ReplyPolicy
 from .identity import local_principal
+from .model_metadata import observe_model_event
 from .webpages import WebPageFetcher, WebPageLimits
 from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
 
@@ -52,6 +53,7 @@ class EventBroker:
         self.condition = asyncio.Condition()
 
     async def publish(self, event):
+        observe_model_event(event)
         if self.event_projector:
             event = self.event_projector(event)
         clean = self.bridge.redact(event)

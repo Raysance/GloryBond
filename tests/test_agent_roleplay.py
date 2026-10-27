@@ -132,6 +132,18 @@ class StoreTests(unittest.TestCase):
 
 
 class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_firm_default_applies_to_assistant_and_keeps_personal_preferences(self):
+        service, _ = self.service()
+        principal = Principal("owner", frozenset({"roleplay.use"}))
+        self.assertNotIn("默认立场鲜明", await service.context(principal))
+        await service.manage(principal, "select", role_id="assistant")
+        await service.manage(principal, "preferences", preferences={"style": "这次温和一点"})
+        prompt = await service.context(principal)
+        self.assertIn("默认立场鲜明", prompt)
+        self.assertIn("这次温和一点", prompt)
+        await service.manage(principal, "select", role_id="makise_kurisu")
+        self.assertNotIn("默认立场鲜明", await service.context(principal))
+
     async def test_web_role_voice_examples_are_validated_and_persisted(self):
         service, bridge = self.service(
             model_output={
@@ -300,7 +312,7 @@ class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(args["user_id"] == "owner" for _, args in bridge.calls))
 
     async def test_role_tools_require_discovery_and_trusted_identity(self):
-        service, _ = self.service()
+        service, bridge = self.service()
         registry = ToolRegistry()
         register_roleplay_tools(registry, service)
 
@@ -315,7 +327,9 @@ class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("select_role", registry.available(ctx))
         with self.assertRaises(PermissionError):
             await service.manage(Principal("a"))
-        self.assertEqual(await service.context(Principal("legacy-task-user")), "")
+        before = len(bridge.calls)
+        self.assertIn("语气坚定", await service.context(Principal("legacy-task-user")))
+        self.assertEqual(len(bridge.calls), before)
 
     async def test_admin_selection_changes_only_target_role_and_hides_target_preferences(self):
         service, bridge = self.service()
