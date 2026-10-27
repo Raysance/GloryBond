@@ -197,6 +197,30 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
 
+    async def test_group_member_discovers_ignore_tool_and_calls_bound_operation(self):
+        await self.gateway.close()
+        operation = AsyncMock(return_value={"ignored": True, "user_id": "100", "group_id": "200"})
+        self.gateway.chat_ignore_operation = operation
+        await self.gateway.start()
+        self.script = [
+            {"role": "assistant", "content": "", "tool_calls": [call("search_chat_history", {"queries": ["忽略", "AI聊天"]}, "h")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["chat_control"]}, "d")]},
+            {"role": "assistant", "content": "", "tool_calls": [call("manage_chat_ignored_users", {"action": "ignore", "user_id": "100"}, "i")]},
+            {"role": "assistant", "content": "已忽略该用户在本群的AI聊天。"},
+        ]
+        self.reply_text = "已忽略该用户在本群的AI聊天。"
+
+        await self.gateway.chat(user_text="以后忽略QQ100的AI聊天", user_id="101", nickname="群成员", group_id="200")
+
+        operation.assert_awaited_once()
+        arguments, ctx = operation.call_args.args
+        self.assertEqual(arguments, {"action": "ignore", "user_id": "100"})
+        self.assertEqual(ctx.principal.user_id, "101")
+        self.assertEqual(ctx.principal.attributes["delivery"]["recipient_id"], "200")
+        self.assertTrue(any("manage_chat_ignored_users" in message.get("content", "")
+                            for request in self.gateway.model.requests for message in request.messages
+                            if message.get("role") == "system"))
+
     async def test_role_target_requires_actual_super_identity_and_current_group_membership(self):
         from dataclasses import replace
         admin = qq_principal("999", "200", "admin", admin_id="999", references=REFERENCES)

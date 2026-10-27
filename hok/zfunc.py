@@ -7,6 +7,50 @@ _BATTLE_INVISIBLE_DISABLED_QIDS_REDIS_KEY = "hok:battle:invisible_disabled_qids"
 _GROUP_CHAT_HISTORY_REDIS_PREFIX = "hok:chat:group:"
 
 
+def _agent_chat_ignore_key(group_id):
+    group = str(group_id)
+    if not re.fullmatch(r"[1-9][0-9]{0,19}", group):
+        raise ValueError("忽略名单需要有效的当前群号")
+    return REDIS_KEY_CHAT_IGNORED_USERS_PREFIX + group
+
+
+def is_agent_chat_ignored(user_id, group_id=None):
+    """Read durable group state on every foreground request; private chat is separate."""
+    if group_id is None:
+        return False
+    user = str(user_id)
+    if not re.fullmatch(r"[1-9][0-9]{0,19}", user):
+        raise ValueError("忽略检查需要真实发送者QQ")
+    return bool(dmc.redis_deamon.sismember(_agent_chat_ignore_key(group_id), user))
+
+
+def _agent_chat_ignore_store(action, user_id, group_id):
+    key = _agent_chat_ignore_key(group_id)
+    if action == "list":
+        users = sorted((value.decode() if isinstance(value, bytes) else str(value)
+                        for value in dmc.redis_deamon.smembers(key)), key=int)
+        return {"group_id": group_id, "users": [{"user_id": user, "name": qid2nick(user) or None} for user in users]}
+    changed = (dmc.redis_deamon.sadd(key, user_id) if action == "ignore"
+               else dmc.redis_deamon.srem(key, user_id))
+    return {"group_id": group_id, "user_id": user_id, "ignored": action == "ignore", "changed": bool(changed)}
+
+
+async def agent_chat_ignore_operation(arguments, context):
+    from qq_agent.ignored_users import ChatIgnoreArgs, chat_ignore_group
+
+    group = chat_ignore_group(context)
+    args = ChatIgnoreArgs.model_validate(arguments)
+    users = [context.principal.user_id]
+    if args.action == "ignore" and args.user_id not in users:
+        users.append(args.user_id)
+    for user in users:
+        snapshot = await agent_read_group_member_profile(group_id=group, user_id=user, include_avatar=False)
+        profile = snapshot["profile"]
+        if str(profile.get("group_id")) != group or str(profile.get("user_id")) != user:
+            raise PermissionError("未确认操作者或目标为当前群成员，未修改忽略名单")
+    return await asyncio.to_thread(_agent_chat_ignore_store, args.action, args.user_id, group)
+
+
 def automation_policy():
     from agent_console.automation import AutomationPolicy
     return AutomationPolicy.model_validate(confs.get("QQAgent", {}).get("automation", {}))
@@ -1135,7 +1179,8 @@ async def agent_runtime_start():
                                  policy=config.get("business_functions")),
                              business_image_loader=load_business_image, webpage_proxy_url=clash_proxy_url,
                              automation_operation=agent_automation_operation,
-                             automation_media_storer=store_automation_media)
+                             automation_media_storer=store_automation_media,
+                             chat_ignore_operation=agent_chat_ignore_operation)
     dmc.qq_agent_service = service
     try:
         await service.start()
@@ -1146,6 +1191,10 @@ async def agent_runtime_start():
 
 
 async def agent_chat(**request):
+    from agent_console.function_calls import assert_outside_function
+    assert_outside_function()
+    if await asyncio.to_thread(is_agent_chat_ignored, request.get("user_id"), request.get("group_id")):
+        return {"ignored": True}
     service = await agent_runtime_start()
     return await service.chat(**request)
 

@@ -226,6 +226,17 @@ async def read_quoted_message(event, fetch_message, fetch_forward_message=None, 
     return await _expand_quoted_forwards(event, message, quote, fetch_forward_message, limits)
 
 
+async def prepare_live_chat_request(event, common_expressions, default_use_memory,
+                                    fetch_message, fetch_forward_message=None):
+    from ..zfunc import is_agent_chat_ignored
+
+    if await asyncio.to_thread(is_agent_chat_ignored, event.get_user_id(), getattr(event, "group_id", None)):
+        return None
+    request = prepare_chat_request(event, common_expressions, default_use_memory)
+    request["quoted_message"] = await read_quoted_message(event, fetch_message, fetch_forward_message)
+    return request
+
+
 def prepare_chat_request(event, common_expressions, default_use_memory):
     from ..zfunc import qid2nick
 

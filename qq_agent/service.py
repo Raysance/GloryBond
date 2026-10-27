@@ -33,6 +33,7 @@ from .context import group_context
 from .mentions import QQCapabilities, ReplyMentions, register_reply_mention_tool
 from .private_messages import register_private_message_tool
 from .automation import register_automation_tools
+from .ignored_users import register_chat_ignore_tool
 
 
 def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memory=True,
@@ -45,7 +46,7 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
     if user == str(admin_id):
         scopes.update({"qq.avatar.write", "roleplay.manage_others"})
     if group:
-        scopes.update({"chat.read", "qq.profile.read", "qq.private.send"})
+        scopes.update({"chat.read", "qq.profile.read", "qq.private.send", "qq.chat.ignore.manage"})
     elif user == str(admin_id):
         scopes.update({"chat.read", "chat.cross_group", "qq.profile.read", "qq.private.send"})
     if not use_memory:
@@ -99,7 +100,7 @@ class QQAgentService:
                  bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
                  bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None,
                  business_functions=None, business_image_loader=None, webpage_proxy_url="", automation_operation=None,
-                 automation_media_storer=None):
+                 automation_media_storer=None, chat_ignore_operation=None):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
@@ -112,6 +113,7 @@ class QQAgentService:
         self.business_image_loader = business_image_loader
         self.automation_operation = automation_operation
         self.automation_media_storer = automation_media_storer
+        self.chat_ignore_operation = chat_ignore_operation
         self.automation_policy = AutomationPolicy.model_validate(config.get("automation", {}))
         self.automation_runs = set()
         self.clock = Clock()
@@ -140,6 +142,8 @@ class QQAgentService:
                 service = QQCapabilities(self.bridge, self.state_bridge, self.mentions)
                 registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(self.state_bridge.redact(self.bridge.redact(value))))
                 register_application_tools(registry, service=service, catalogs=self.catalogs)
+                if self.chat_ignore_operation is not None:
+                    register_chat_ignore_tool(registry, operation=self.chat_ignore_operation)
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):
                     register_automation_tools(registry, operation=self.automation_operation,
                         image_store=self.image_store, media_storer=self.automation_media_storer)
@@ -226,7 +230,11 @@ class QQAgentService:
             "这只改变目标角色，创建者身份、当前回复对象、提及、记忆和任务目的地不变；不修改目标回复偏好。"
             "群内目标须通过当前群实时成员校验，超级管理员私聊可明确指定目标QQ。"
             if "roleplay.manage_others" in principal.scopes else "")
-        return (application_prompt() + business_prompt + role_admin_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
+        ignore_prompt = ("同群成员均可管理本群AI聊天忽略名单。用户明确要求忽略、恢复某人的AI消息或查看名单时，"
+            "发现chat_control并调用manage_chat_ignored_users，不能仅口头承诺。目标QQ须确认，不从昵称猜测；"
+            "忽略仅作用于本群后续AI请求，普通业务命令继续可用。"
+            if self.chat_ignore_operation is not None and "qq.chat.ignore.manage" in principal.scopes else "")
+        return (application_prompt() + business_prompt + role_admin_prompt + ignore_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
                 "用户明确要求给群成员私发消息时，发现chat_delivery并调用send_group_member_private_message；"
                 "这是独立发送动作，不改变正常回复会话或任务目的地；QQ返回消息ID后才能确认成功，不能声称对方已读。"
                 "要求私发的正文只经私发工具发送，正常群回复只确认状态，不重复私发正文。"
@@ -426,7 +434,7 @@ class QQAgentService:
         channel, recipient = rule["scope"].split(":", 1)
         principal = qq_principal(rule["owner_id"], recipient if channel == "group" else None, "",
             admin_id=self.admin_id, references=self.public["references"], bot_id=self.bot_id)
-        blocked_scopes = {"automation.use", "task.use", "memory.use", "roleplay.use", "roleplay.manage_others", "qq.avatar.write", "qq.private.send"}
+        blocked_scopes = {"automation.use", "task.use", "memory.use", "roleplay.use", "roleplay.manage_others", "qq.avatar.write", "qq.private.send", "qq.chat.ignore.manage"}
         principal = Principal(principal.user_id, (principal.scopes & frozenset(rule["scopes"])) - blocked_scopes,
                               principal.attributes)
         registry = ToolRegistry()

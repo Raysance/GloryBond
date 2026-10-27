@@ -39,6 +39,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
             await FUNCS.agent_runtime_start()
             self.assertIs(received["member_profile_reader"], FUNCS.agent_read_group_member_profile)
             self.assertIs(received["private_message_sender"], FUNCS.agent_send_group_member_private_message)
+            self.assertIs(received["chat_ignore_operation"], FUNCS.agent_chat_ignore_operation)
             self.assertEqual(len(received["business_functions"].functions), 17)
             self.assertEqual(received["bot_id"], FUNCS.confs["QQBot"]["bot_qid"])
             packet = {"text": "回复", "artifacts": []}

@@ -31,7 +31,7 @@
       "id": "conversation",
       "title": "聊天、身份与偏好",
       "parent": "manual",
-      "summary": "AI 聊天、图片、引用和动态表情、群聊背景查询、记住偏好与清除记忆、角色与回复风格、QQ资料与头像、向群成员私发消息",
+      "summary": "AI 聊天、群聊AI忽略名单、图片、引用和动态表情、群聊背景查询、记住偏好与清除记忆、角色与回复风格、QQ资料与头像、向群成员私发消息",
       "keywords": [],
       "tools": [],
       "code": []
@@ -149,6 +149,9 @@
         "私发",
         "私信",
         "私聊群成员",
+        "忽略",
+        "恢复AI聊天",
+        "忽略名单",
         "转达",
         "详细版",
         "聊天记录转发",
@@ -157,7 +160,8 @@
       ],
       "tools": [
         "set_reply_mention",
-        "send_group_member_private_message"
+        "send_group_member_private_message",
+        "manage_chat_ignored_users"
       ],
       "code": [
         {
@@ -198,7 +202,7 @@
         }
       ],
       "parent": "conversation",
-      "summary": "私聊和群聊每次先发详细版聊天记录，首条保留用户原话、末条附本轮chat-trace链接，再直接发送已有简略版；支持原生提及与连续追问。"
+      "summary": "私聊和群聊每次先发详细版聊天记录，再直接发送已有简略版；支持原生提及、连续追问与当前群的持久AI聊天忽略名单。"
     },
     {
       "id": "chat_1",
@@ -238,6 +242,24 @@
         "path": "shared/agent/manual/chapters/chat.md",
         "heading": "返回内容与注意事项"
       }
+    },
+    {
+      "id": "chat_ignored_users",
+      "title": "忽略与恢复AI聊天",
+      "parent": "chat",
+      "summary": "所有当前群成员可通过工具持久忽略或恢复用户的本群AI请求并查看名单；普通业务命令继续可用。",
+      "keywords": ["忽略", "恢复AI聊天", "屏蔽", "忽略名单", "解除忽略"],
+      "tools": ["manage_chat_ignored_users"],
+      "document": {
+        "path": "shared/agent/manual/chapters/chat.md",
+        "heading": "忽略与恢复AI聊天"
+      },
+      "code": [
+        {"path": "qq_agent/ignored_users.py", "symbol": "register_chat_ignore_tool"},
+        {"path": "hok/zfunc.py", "symbol": "agent_chat_ignore_operation"},
+        {"path": "hok/event_handlers/chat.py", "symbol": "prepare_live_chat_request"},
+        {"path": "hok/zfunc.py", "symbol": "is_agent_chat_ignored"}
+      ]
     },
     {
       "id": "vision",

@@ -836,24 +836,25 @@ async def f_history_query(event: Event):
 @_direct_chat.handle()
 @_chat.handle()
 async def f_chat(bot,event):
-    from .event_handlers.chat import prepare_chat_request, read_quoted_message
+    from .event_handlers.chat import prepare_live_chat_request
     from .zfunc import agent_chat
 
-    request = prepare_chat_request(event, common_expr, dmc.use_mem)
-    request["quoted_message"] = await read_quoted_message(event, bot.get_msg, bot.get_forward_msg)
-    if request["group_id"]:
-        add_group_poke_task(
-            request["user_id"],
-            group_qid=request["group_id"],
-            source="chat",
-        )
     try:
+        request = await prepare_live_chat_request(event, common_expr, dmc.use_mem, bot.get_msg, bot.get_forward_msg)
+        if request is None:
+            return
+        if request["group_id"]:
+            add_group_poke_task(
+                request["user_id"],
+                group_qid=request["group_id"],
+                source="chat",
+            )
         await agent_chat(**request)
     except Exception as e:
         add_msg(
             "AI对话失败：location=zevent.f_chat "
-            f"params={{'user_id': {request['user_id']!r}, "
-            f"'group_id': {request['group_id']!r}}} error={e!r}",
+            f"params={{'user_id': {event.get_user_id()!r}, "
+            f"'group_id': {getattr(event, 'group_id', None)!r}}} error={e!r}",
             event=event,
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
