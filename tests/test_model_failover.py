@@ -92,6 +92,9 @@ class FailoverTests(unittest.IsolatedAsyncioTestCase):
                                          choice={'type': 'function', 'function': {'name': 'allowed'}})
         self.assertEqual(bodies[0]['tool_choice'], 'required')
         self.assertEqual([t['function']['name'] for t in bodies[0]['tools']], ['allowed'])
+        metadata = json.loads(bodies[0]['messages'][0]['content'].splitlines()[-1])['runtime_metadata']
+        self.assertEqual(metadata['available_tool_count'], 1)
+        self.assertEqual(metadata['message_count'], len(bodies[0]['messages']))
         assistant = next(message for message in bodies[0]['messages'] if message['role'] == 'assistant')
         self.assertEqual(assistant['reasoning_content'], 'earlier reasoning')
         self.assertEqual(result['message']['tool_calls'][0]['function']['name'], 'allowed')

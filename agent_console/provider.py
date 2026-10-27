@@ -117,9 +117,6 @@ class DeepSeekModel:
             for message in messages
         )
         selected_model = self.vision_model if has_images else self.model
-        metadata = model_metadata(model=selected_model, protocol=self.protocol, max_tokens=self.max_tokens,
-                                  messages=messages, tools=tools)
-        messages = metadata_messages(messages, metadata)
         payload = {
             "model": selected_model,
             "messages": messages,
@@ -134,6 +131,9 @@ class DeepSeekModel:
         if self.response_format:
             payload["response_format"] = self.response_format
         configure_chat_payload(payload, self.protocol)
+        metadata = model_metadata(model=selected_model, protocol=self.protocol, max_tokens=self.max_tokens,
+                                  messages=payload["messages"], tools=payload.get("tools", []))
+        payload["messages"] = metadata_messages(payload["messages"], metadata)
         text, reasoning, calls, usage, finish = [], [], {}, {}, None
         response_model = None
         frames = []

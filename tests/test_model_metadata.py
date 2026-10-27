@@ -131,6 +131,7 @@ class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(messages, before)
         self.assertEqual(metadata(bodies[0])["model"], "primary-vision")
         self.assertEqual(metadata(bodies[1])["model"], "fallback-vision")
+        self.assertEqual(metadata(bodies[1])["message_count"], len(bodies[1]["messages"]))
         self.assertEqual(result["model"], "reported-vision-backend")
         self.assertEqual(bodies[1]["messages"][1:], messages)
         self.assertNotIn("PRIVATE_", json.dumps(result))

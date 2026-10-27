@@ -86,9 +86,11 @@ def observe_model_event(event):
 
 def model_metadata(*, model, protocol, max_tokens, messages, tools):
     state = _current.get()
+    merges_system = bool(messages and messages[0].get("role") == "system"
+                         and isinstance(messages[0].get("content"), str))
     return {
         "model": model, "protocol": protocol, "max_output_tokens": max_tokens,
-        "message_count": len(messages), "available_tool_count": len(tools),
+        "message_count": len(messages) + int(not merges_system), "available_tool_count": len(tools),
         "run": None if state is None else {
             "run_id": state.run_id, "started_at": state.started_at,
             "channel": state.channel, "origin": state.origin, "phase": state.phase,
