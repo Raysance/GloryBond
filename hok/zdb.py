@@ -5,6 +5,8 @@ from .zstatic import postgres_dsn
 
 
 def _connect():
+    if not postgres_dsn:
+        raise ValueError("HOK_DATABASE_DSN is not configured")
     try:
         import psycopg
         from psycopg.rows import dict_row

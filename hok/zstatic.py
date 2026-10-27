@@ -195,7 +195,7 @@ skin_votes_config = confs.get("SkinVotes", {})
 postgres_dsn = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")
-    or "REDACTED_CREDENTIAL"
+    or ""
 )
 postgres_archive_json = bool(confs.get("PostgreSQL", {}).get("archive_json", False))
 

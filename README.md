@@ -4,6 +4,8 @@
 
 Bot和网页现在由同一个项目维护，网页页面和管理功能保持原有入口。
 
+本私有仓库保留完整源码和实际配置；面向公开展示的脱敏版本及完整使用说明位于 [GloryBond](https://github.com/Raysance/GloryBond)。
+
 - [机器人功能手册](shared/agent/manual/handbook.md)
 - [AI聊天与运行记录](web/docs/chat.md)
 - [网页战绩展示](web/docs/battles.md)

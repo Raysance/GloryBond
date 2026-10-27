@@ -15,7 +15,7 @@ confs = load_shared_config()
 POSTGRES_DSN = str(
     os.environ.get("HOK_DATABASE_DSN")
     or confs.get("PostgreSQL", {}).get("dsn")
-    or "REDACTED_CREDENTIAL"
+    or ""
 )
 
 

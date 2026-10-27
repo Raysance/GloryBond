@@ -2,6 +2,8 @@
 
 
 def _connect(dsn):
+    if not dsn:
+        raise ValueError("HOK_DATABASE_DSN is not configured")
     try:
         import psycopg
         from psycopg.rows import dict_row

@@ -7,6 +7,7 @@
 - 唯一开发及发布仓库为 `Raysance-Studio/HOK_QQBot`，本地目录为 `HOK_QQBot/`；`web/` 直接包含源码，不是submodule或嵌套Git仓库。旧 `HOK_QQBot_Web` 只保留迁移说明和历史存档，不再部署。
 - 根 `pyproject.toml` 是Bot、Web及共享适配层的唯一依赖清单，生产统一使用根 `.venv`。从根目录启动Bot用 `./deploy_runner.sh`，Web用 `.venv/bin/python -m web`；本地调试继续复用 `local_debugger/.venv`。Web导入不得启动NoneBot。
 - 根 `.env` 与 `config.yaml` 是唯一应用配置来源；所有忽略规则集中根 `.gitignore`。用户功能说明维护根 `README.md` 及 `shared/agent/manual/`、`web/docs/`，实现和部署细节放本规范及 `deployment/` 文档。独立公开展示仓库GloryBond不参与私有生产部署。
+- 仓库发布边界明确分开：`Raysance-Studio/HOK_QQBot` 保存完整、未脱敏的源码、真实 `.env`、真实 `config.yaml`、部署配置及文档，不运行公开镜像的身份替换或样例清空。`Raysance/GloryBond` 从本仓库生成脱敏公开快照，保留完整README、功能手册及网页说明；不得复制真实配置、密钥、账号/用户映射、运行记录、私有部署材料或私有子模块实现。快照发布工具及实际Git暂存区检查维护在公开仓库 `tools/`，规则见 `deployment/PUBLICATION.md`。日志、聊天回复和公开分享页继续执行既有凭据脱敏。
 - Aliyun唯一代码检出为 `/srv/modules/hok/apps/HOK_QQBot`，Web在其 `web/`；两项systemd服务保留进程隔离，共享同一代码版本、虚拟环境及配置。根Actions统一更新并重启Bot/Web，不再有Web独立工作流。迁移、备份和回滚见 `deployment/server_modules/UNIFIED_PROJECT.md`。
 
 ## 1. 目录与文件职责（`hok/`）
