@@ -42,7 +42,7 @@ QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭�
 - 查询或推理使用 `agent` 任务；固定文字定时发送使用 `message` 任务，直接走同一输出端口，无额外模型调用。支持最短 1 秒周期、限定执行次数和序号模板 `{run}` / `{max_runs}`。省略具体首次时间与延迟时在一个周期后发送；后续按原计划计时，错过的时间点跳过。调度可与前台聊天同时执行。
 - 支持注册额外同步/异步 Python 函数；无需改核心循环。
 - 绘图默认使用极光主题，支持霓虹夜色和落日主题：渐变条形、趋势面积、多系列配色、气泡散点、带轴标签的热力图、环形组成图，以及数值标注和口径脚注。可直接要求“用霓虹夜色主题画图”。所有图在同一隔离 Python 环境生成，样式不进入 ReAct 内核。
-- 角色库与用户偏好完全在外部适配层：网页右上角可以选角色、设置回复长度/称呼/表达偏好。默认用户是 example_user_10（配置昵称示例玩家65），默认角色为牧濑红莉栖；选择“通用助手”可关闭虚构角色风格。角色选择与偏好按用户跨会话保存。
+- 角色库与用户偏好完全在外部适配层：网页右上角可以选角色、设置回复长度/称呼/表达偏好。本地用户由配置绑定，角色来自该用户的角色设置；选择“通用助手”可关闭虚构角色风格。角色选择与偏好按用户跨会话保存。
 - `roleplay` 类别提供 `list_roles`、`select_role`、`add_role_from_web`、`set_reply_preferences`。可直接说“联网添加《原神》的安柏并选用”或“以后回复简短、少用表情”。添加会实际联网检索并生成背景、性格和语言档案，保留网页来源及独立模型请求/响应轨迹；失败不保存。自建角色按所属用户隔离。本人切换对接下来的最终回复生效，后台 agent 任务读取执行时的最新角色。
 - QQ超级管理员可在前三个角色工具传入`target_user_id`，为目标查看角色目录、切换角色或联网添加并选用。共享角色服务检查`roleplay.manage_others`，QQ适配层验证真实超级管理员及当前群成员；目标回复偏好不披露或改写，调用者身份和回复角色保持原样。本地Web不自动获得此授权，普通用户仍仅管理本人。
 
@@ -64,7 +64,7 @@ QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭�
 
 SSH 断开后，新请求在发送前会串行重建连接和 worker，重新加载启动资料；无需重启页面服务。若请求已经发送却未收到有效响应，适配器关闭该连接并报告结果未确认，不自动重放写入、任务或收费操作。下一次请求可恢复连接；是否重新执行应先查看运行记录。调用取消不会遗留响应污染后续请求。`/api/status` 实际检查两条连接及 Redis PING，连接故障返回中文 HTTP 503，不再把缓存配置当作服务健康。
 
-本地 UI 通过 `LocalAgent.player_key: example_user_10` 从服务器权威映射唯一解析 QQ，作为稳定的 `Principal.user_id`；“我”默认指示例玩家65，游戏查询使用 `player_key`。本人长期事实与 QQ 共用 `hok:memory:facts:<QQ>`，每次对话自动读取用于个性化；回复偏好和角色选择单独存储于 `hok:agent_runtime:console:roleplay:<用户摘要>:*`。旧匿名会话的 `local-ui:<session>` 事实保留，未自动归入 example_user_10。会话对话记录仍按会话隔离，状态、任务和产物使用 `hok:agent_runtime:console:*`。独立模块无 QQ 类型、角色、配置、数据库和界面依赖。
+本地 UI 通过 `LocalAgent.player_key` 从服务器权威映射唯一解析 QQ，作为稳定的 `Principal.user_id`；“我”绑定到该用户，游戏查询使用其已配置的账号。本人长期事实与 QQ 共用 `hok:memory:facts:<QQ>`，每次对话自动读取用于个性化；回复偏好和角色选择单独存储于 `hok:agent_runtime:console:roleplay:<用户摘要>:*`。旧匿名会话的事实按原身份保留。会话对话记录仍按会话隔离，状态、任务和产物使用 `hok:agent_runtime:console:*`。独立模块无 QQ 类型、角色、配置、数据库和界面依赖。
 
 内置角色可独立修改 `shared/agent/roles/*.json`（修改后重启本地适配器）；默认角色设置在 `LocalAgent.default_role`。角色包的可选 `voice` 包含 tone、habits、avoid 和原创表达样例 examples，旧角色记录仍兼容；联网新增角色也生成这些信息。`agent_console/roleplay.py` 负责角色上下文与用户事实快照，`identity.py` 单独负责本地 HOK 身份与权限策略，`roleplay_models.py` 负责数据校验，`roleplay_store.py` 负责隔离持久化，`tools/roleplay.py` 负责工具注册。最终送入内核的仍是通用 `RunRequest.system_prompt` 和 `ToolRegistry`，QQ 适配器接入时可复用角色服务并传入可信用户身份。
 

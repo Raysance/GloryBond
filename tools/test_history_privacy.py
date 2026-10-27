@@ -8,6 +8,18 @@ from sanitize_repository_history import Inventory, private_path, sample_path, em
 
 
 class HistoryPrivacyTests(unittest.TestCase):
+    def test_private_runtime_symlinks_and_custom_inputs_are_ignored(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)/'repo';root.mkdir()
+            outside=Path(temporary)/'runtime';outside.mkdir()
+            subprocess.run(['git','init','-b','main'],cwd=root,check=True,capture_output=True)
+            (root/'.gitignore').write_bytes((Path(__file__).resolve().parents[1]/'.gitignore').read_bytes())
+            for name in ('log','file_transfer'):
+                (root/name).symlink_to(outside,target_is_directory=True)
+            paths=['log','file_transfer','resources/wzry_images/custom_wzry_E1/private-input.jpg','.ruff_cache/state']
+            for name in paths:
+                self.assertEqual(subprocess.run(['git','check-ignore','--quiet',name],cwd=root).returncode,0,name)
+
     def test_legacy_sample_directories_preserve_schema_without_user_values(self):
         self.assertTrue(sample_path('src/plugins/qbot/wzry_data_format_original/profile.json'))
         self.assertTrue(sample_path('src/plugins/qbot/tools/example.json'))

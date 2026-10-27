@@ -28,7 +28,7 @@
 - 部署服务器上的 FastAPI 进程由 `hok-web.service` 统一管理，禁止在发布流程中再使用 `nohup` 或按端口手工结束进程。
 - 根GitHub Actions在 `/srv/modules/hok/apps/HOK_QQBot` 同步一次代码，并重启Bot和Web。两项服务共享根 `.venv`、`.env` 与 `config.yaml`，Web启动为 `.venv/bin/python -m web`，不再直接运行独立目录的 `app.py`。
 - Aliyun代码位于 `/srv/modules/hok/apps/HOK_QQBot/web`；`hok-web.service` 的WorkingDirectory为统一项目根，归属 `hok.target`。共享公开产物仍在 `/srv/modules/hok/data/file_transfer`，Nginx路由与端口保持原值。
-- 个人网站、Clash、Nginx、Redis、PostgreSQL及CI runner保持现有独立职责，不移入本Web模块。迁移与恢复见根 `deployment/server_modules/UNIFIED_PROJECT.md`。
+- 个人网站、Clash、Nginx、Redis、PostgreSQL及CI runner保持现有独立职责，不移入本Web模块。服务维护与恢复见[服务器维护说明](../deployment/server_modules/README.md)。
 
 ## 数据路径约定
 

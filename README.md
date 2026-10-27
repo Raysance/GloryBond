@@ -11,7 +11,7 @@ GloryBond是Bot与Web的唯一开发及部署仓库。实现、文档和部署�
 - [定时任务](shared/agent/manual/chapters/tasks.md)和[消息事件规则](shared/agent/manual/chapters/event_rules.md)
 - [网页战绩展示](web/docs/battles.md)、[聊天运行记录](web/docs/chat.md)和[管理员账号登录态](web/docs/accounts.md)
 
-开发与维护约定见 [AGENTS.md](AGENTS.md)。项目更新时同步维护两份文档：README 记录功能与用法，AGENTS 记录项目结构、模块职责和部署约定；相关功能手册一并更新。
+开发与维护约定见 [AGENTS.md](AGENTS.md)。项目更新时同步维护两份文档：README 记录功能与用法，AGENTS 记录项目结构、模块职责和部署约定；相关功能手册一并更新。日常维护使用当前文档与部署入口，已完成的迁移材料独立归档。
 
 ## 目录
 

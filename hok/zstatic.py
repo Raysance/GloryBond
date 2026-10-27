@@ -38,7 +38,7 @@ def _runtime_path(env_name, default_path):
 
 
 def _load_runtime_environment():
-    """Load an optional dotenv file without coupling startup to /QQBot."""
+    """Load the optional application dotenv file."""
     explicit_path = os.environ.get("HOK_ENV_FILE")
     if explicit_path:
         candidates = [explicit_path]

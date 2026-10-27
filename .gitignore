@@ -12,7 +12,7 @@
 *.pyc
 **/.mypy_cache/
 *.log
-/log/
+/log
 /nbot_thisrun.log
 .DS_Store
 __MACOSX/
@@ -34,7 +34,7 @@ __MACOSX/
 /resources/wzry_images/tmp/
 /resources/wzry_images/player_client/
 /resources/wzry_images/battle_assets/
-/file_transfer/
+/file_transfer
 /data/agent_inputs/
 /data/automation_media/
 /redis-migration-backups/
@@ -66,3 +66,7 @@ redis.json
 /data/honor/*
 !/data/honor/districts.json
 /resources/wzry_images/hero_avatars/
+
+# Tool caches and private custom runtime images
+/.ruff_cache/
+/resources/wzry_images/custom_wzry_E1/*.jpg

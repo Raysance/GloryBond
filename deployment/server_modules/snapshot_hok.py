@@ -35,12 +35,13 @@ def private_file(path: Path):
 
 
 def dump_postgres(module: Path, output: Path, executable: str | None) -> dict:
-    import yaml
     from psycopg.conninfo import conninfo_to_dict
+    from dotenv import dotenv_values
 
-    config_path = Path(os.environ.get("HOK_CONFIG_FILE", str(module / "apps/HOK_QQBot/config.yaml")))
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    dsn = os.environ.get("HOK_DATABASE_DSN") or config["PostgreSQL"]["dsn"]
+    application = module / "apps/HOK_QQBot"
+    dsn = dotenv_values(application / ".env", interpolate=False).get("HOK_DATABASE_DSN")
+    if not dsn:
+        raise ValueError("Configure PostgreSQL credentials in the module application .env")
     connection = conninfo_to_dict(dsn)
     if set(connection) - PG_ENV.keys():
         raise ValueError("Unsupported PostgreSQL connection option for environment-based pg_dump")

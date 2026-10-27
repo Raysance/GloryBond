@@ -13,7 +13,7 @@ import tarfile
 import tempfile
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import modulectl
 import snapshot_hok
@@ -214,25 +214,45 @@ class ModuleControlTests(unittest.TestCase):
 
 
 class SnapshotTests(unittest.TestCase):
+    def test_module_owned_snapshot_helper_is_used_by_shared_controller(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            module = Path(temporary)
+            helper = module/'ops/snapshot_hok.py';helper.parent.mkdir();helper.write_text('module-owned helper')
+            args = argparse.Namespace(snapshot_python=None,pg_dump=None)
+            with patch.object(modulectl,'snapshot_python',return_value='/configured/python'), patch.object(modulectl.subprocess,'run',return_value=types.SimpleNamespace(returncode=0,stdout='{}',stderr='')) as run:
+                modulectl.create_snapshot(module,module/'output',args)
+            self.assertEqual(run.call_args.args[0][1],str(helper))
+
     def test_postgres_credentials_are_not_command_arguments(self):
         with tempfile.TemporaryDirectory() as temporary:
             module = Path(temporary)
             (module / "apps/HOK_QQBot").mkdir(parents=True)
-            (module / "apps/HOK_QQBot/config.yaml").write_text("fixture")
+            (module / "apps/HOK_QQBot/.env").write_text("HOK_DATABASE_DSN=synthetic-module-connection\n")
             output = module / "output"
             output.mkdir()
+            parser = Mock(return_value={"host": "127.0.0.1", "dbname": "hok", "user": "hok", "password": "REDACTED_CREDENTIAL"})
             imported = {
-                "yaml": types.SimpleNamespace(safe_load=lambda text: {"PostgreSQL": {"dsn": "REDACTED_CREDENTIAL"}}),
-                "psycopg.conninfo": types.SimpleNamespace(conninfo_to_dict=lambda dsn: {"host": "127.0.0.1", "dbname": "hok", "user": "hok", "password": "REDACTED_CREDENTIAL"}),
+                "psycopg.conninfo": types.SimpleNamespace(conninfo_to_dict=parser),
             }
-            with patch.dict(sys.modules, imported), patch.dict(os.environ, {}, clear=True), patch.object(snapshot_hok.subprocess, "run", return_value=types.SimpleNamespace(returncode=0)) as run:
+            with patch.dict(sys.modules, imported), patch.dict(os.environ, {"HOK_CONFIG_FILE": "/unrelated/config.yaml", "HOK_DATABASE_DSN": "stale-process-connection"}, clear=True), patch.object(snapshot_hok.subprocess, "run", return_value=types.SimpleNamespace(returncode=0)) as run:
                 snapshot_hok.dump_postgres(module, output, "/usr/bin/pg_dump")
+            parser.assert_called_once_with("synthetic-module-connection")
             arguments = run.call_args.args[0]
-            self.assertNotIn("REDACTED_CREDENTIAL", " ".join(arguments))
             self.assertNotIn("REDACTED_CREDENTIAL", " ".join(arguments))
             self.assertEqual(run.call_args.kwargs["env"]["PGPASSWORD"], "REDACTED_CREDENTIAL")
             self.assertEqual(run.call_args.kwargs["env"]["PGDATABASE"], "hok")
             self.assertEqual((output / "postgresql.dump").stat().st_mode & 0o777, 0o600)
+
+    def test_postgres_snapshot_requires_module_credentials_before_spawning(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            module = Path(temporary)
+            (module / 'apps/HOK_QQBot').mkdir(parents=True)
+            (module / 'apps/HOK_QQBot/.env').write_text('OTHER=preserve\n')
+            imported = {'psycopg.conninfo': types.SimpleNamespace(conninfo_to_dict=Mock())}
+            with patch.dict(sys.modules, imported), patch.dict(os.environ, {'HOK_DATABASE_DSN':'stale-process-connection'}), patch.object(snapshot_hok.subprocess,'run') as run:
+                with self.assertRaisesRegex(ValueError, 'module application'):
+                    snapshot_hok.dump_postgres(module, module, '/usr/bin/pg_dump')
+            run.assert_not_called()
 
     def test_rejects_nonzero_redis_database_without_connecting(self):
         with tempfile.TemporaryDirectory() as temporary:

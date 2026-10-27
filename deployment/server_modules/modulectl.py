@@ -94,25 +94,27 @@ def private_directory(path: Path) -> Path:
 def snapshot_python(directory: Path, override: str | None) -> str:
     candidates = [override] if override else [
         str(directory / "apps/HOK_QQBot/.venv/bin/python"),
-        "/root/miniconda3/bin/python",
         sys.executable,
     ]
     for candidate in candidates:
         if not candidate or not Path(candidate).is_file():
             continue
         check = subprocess.run(
-            [candidate, "-c", "import sys; assert sys.version_info >= (3, 10); import yaml, redis, psycopg"],
+            [candidate, "-c", "import sys; assert sys.version_info >= (3, 10); import yaml, redis, psycopg, dotenv"],
             capture_output=True, check=False,
         )
         if check.returncode == 0:
             return candidate
-    raise RuntimeError("No Python 3.10+ runtime with PyYAML, redis and psycopg; use --snapshot-python")
+    raise RuntimeError("No Python 3.10+ runtime with PyYAML, redis, psycopg and python-dotenv; use --snapshot-python")
 
 
 def create_snapshot(directory: Path, destination: Path, args: argparse.Namespace) -> dict:
+    helper = directory / "ops/snapshot_hok.py"
+    if not helper.is_file():
+        helper = Path(__file__).with_name("snapshot_hok.py")
     command = [
         snapshot_python(directory, args.snapshot_python),
-        str(Path(__file__).with_name("snapshot_hok.py")),
+        str(helper),
         "--module-dir", str(directory), "--output-dir", str(destination),
     ]
     if args.pg_dump:
