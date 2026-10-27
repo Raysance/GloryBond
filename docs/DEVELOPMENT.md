@@ -27,6 +27,6 @@ The tool sends contents on SSH stdin, locks against login-session writers, check
 
 ## Checks and manuals
 
-Run publication checks against the actual index with `python tools/verify_repository.py`. `--history` additionally inspects reachable history. For the one-time migration, `--inventory-source <private-backup.git>` checks against the historical credential and user inventory without storing it in Git.
+Run publication checks against the actual index with `python tools/verify_repository.py`. `--history` additionally inspects reachable history.
 
 Functional manuals are complete in `shared/agent/manual/`; Web guides are in `web/docs/`. Validate the manual using `python scripts/validate_agent_manual.py`. Source history/provenance is described in [RELEASE.md](RELEASE.md), and configuration ownership in [publication rules](../deployment/PUBLICATION.md).
