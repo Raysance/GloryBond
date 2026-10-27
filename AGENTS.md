@@ -238,6 +238,8 @@ Codex Cloud 无须遵守本节的任何 Git 规范；本文件不规定 Codex Cl
 
 ## 6. NBot 变更自检清单
 
+历史战绩查询的已知模式与娱乐分组共用 `StaticVariables.mapname_replace_rule`；`business/history_query.py` 将被解析到Others的已知模式归回MapName，成就条件仍独立匹配，读取历史时保留客户端共鸣等娱乐战绩，不修改数据库记录或schema。
+
 皮肤返场排行已经废弃，保留完整匹配命令 `#皮肤返场` / `#返场排行` / `#返场排名` / `#皮肤返场排行` / `#皮肤返场排名` / `#皮肤返场查询`（支持全角井号），沿用现有授权、休眠与维修规则。`event_handlers/skin_votes.py` 统一返回“功能已经废弃”，不再调用业务查询、外部 API 或图片生成。用法与检索树同步维护在 `shared/agent/manual/`。
 
 1. 新增代码是否放在了职责正确的 `hok/` 模块中？

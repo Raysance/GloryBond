@@ -113,6 +113,8 @@ def history_query_handler(rcv_msg):
         if k in user_msg:
             user_msg = user_msg.replace(k, alias_map[k])
 
+    # 具体模式与展示分类共用配置，避免新模式被误解析为成就关键词。
+    map_options = [*mapname_replace_rule, "排位赛 单排", "匹配", "娱乐模式"]
     # 引导AI返回结构化数据
     prompt = f"""
     你是一个针对《王者荣耀》战绩历史查询的助手。请从用户的描述中提取查询条件，并返回一个JSON对象。
@@ -120,7 +122,7 @@ def history_query_handler(rcv_msg):
     - PlayerName: 字符串，查询的主体玩家名称。
     - HeroName: 字符串，指用户自己使用的英雄名称。
     - Result: "胜利" 或 "失败"
-    - MapName: 字符串，地图/模式名称，仅限以下选项："排位赛", "排位赛 单排", "排位赛 双排", "排位赛 三排", "排位赛 五排", "巅峰赛", "匹配", "梦境大乱斗", "火焰山大战", "娱乐模式", "快速赛"
+    - MapName: 字符串，地图/模式名称。已知选项：{json.dumps(map_options, ensure_ascii=False)}。其他明确模式保留原名。共鸣之战等具体模式填入此项，不放入Others。
     - GameTime: 字符串，指游戏开始的具体时间，要求格式"yyyy-mm-dd HH:MM"。
     - FuzzyTime: 字符串，模糊时间描述，如"昨天下午","前天凌晨","上周中午"。
     - DateRange: [start_date, end_date] 字符串数组，格式为 "yyyy-mm-dd"，表示查询的具体日期范围。如果用户提到如 "2024-01-01到2024-02-01" 或类似的明确日期，请填入此项。
@@ -129,7 +131,7 @@ def history_query_handler(rcv_msg):
     - KDA: 数组 [击杀, 死亡, 助攻]。
     - GameGrade: 浮点数，指定具体评分(近似)。
     - Duration: 整数，游戏时长(秒)。
-    - Others: 字符串列表，包含 "MVP", "超神", "一血" 等关键词。
+    - Others: 字符串列表，包含 "MVP", "超神", "一血" 等成就关键词，不包含地图/模式名称。
 
     // 数值区间查询 (支持 "大于8分", "经济20%以上", "承伤30%到40%","伤害25%左右"(左右表示正负3%))
     - GradeRange: [min, max] 浮点数，评分区间。
@@ -209,7 +211,17 @@ def history_query_handler(rcv_msg):
                 pn = extract_name(sc["PlayerB"])
                 if pn: sc["PlayerB"] = pn
 
-    # 5. MapName 映射逻辑
+    # 5. 兼容模型将已知模式误放进 Others；其余成就条件继续独立匹配。
+    if query_target.get("Others"):
+        remaining_others = []
+        for keyword in query_target["Others"]:
+            if keyword in map_options and query_target.get("MapName") in (None, "", keyword):
+                query_target["MapName"] = keyword
+            else:
+                remaining_others.append(keyword)
+        query_target["Others"] = remaining_others
+
+    # MapName 映射逻辑
     map_targets = []
     if query_target.get("MapName"):
         mn = query_target["MapName"]
@@ -220,7 +232,7 @@ def history_query_handler(rcv_msg):
         elif mn == "匹配": # 匹配对应到王者峡谷
             map_targets = ["王者峡谷"]
         elif mn in ["娱乐", "娱乐模式"]: # 娱乐模式映射
-            map_targets = ["梦境大乱斗", "火焰山大战","无限乱斗"]
+            map_targets = [mode for mode, category in mapname_replace_rule.items() if category == "娱乐"]
         else:
             map_targets = [mn]
 
@@ -687,7 +699,7 @@ def history_query_handler(rcv_msg):
 
             # Others (MVP/超神/一血)
             if is_match and query_target.get("Others"):
-                d_others = detail.get("Others", "")
+                d_others = detail.get("Others") or ""
                 for keyword in query_target["Others"]:
                     if keyword not in d_others:
                         is_match = False
