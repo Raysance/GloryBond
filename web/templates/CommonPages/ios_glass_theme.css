@@ -1,0 +1,1132 @@
+/* Common iOS glass theme for user-facing battle pages. */
+:root {
+    --ios-glass-text: #1c1c1e;
+    --ios-glass-muted: rgba(44, 62, 80, 0.62);
+    --ios-glass-border: rgba(255, 255, 255, 0.66);
+    --ios-glass-border-soft: rgba(255, 255, 255, 0.52);
+    --ios-glass-bg:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+        radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.16) 44%, transparent 66%),
+        radial-gradient(circle at 86% 0%, rgba(108, 155, 209, 0.18), transparent 42%);
+    --ios-glass-control-bg:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18)),
+        radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.86), transparent 50%);
+    --ios-glass-shadow:
+        0 16px 36px rgba(44, 62, 80, 0.16),
+        inset 0 1px 1px rgba(255, 255, 255, 0.88),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+    --ios-glass-shadow-strong:
+        0 18px 42px rgba(44, 62, 80, 0.20),
+        0 1px 0 rgba(255, 255, 255, 0.42),
+        inset 0 1px 1px rgba(255, 255, 255, 0.92),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.24);
+}
+
+body.ios-glass-page {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background:
+        radial-gradient(circle at 18% 0%, rgba(108, 155, 209, 0.20), transparent 34%),
+        linear-gradient(180deg, rgba(108, 155, 209, 0.08) 0%, rgba(79, 195, 247, 0.05) 42%, #eef1f4 100%);
+    color: var(--ios-glass-text);
+}
+
+body.ios-glass-page header,
+body.ios-glass-page .filter-control-area,
+body.ios-glass-page .player-profile,
+body.ios-glass-page .hero-stats-panel,
+body.ios-glass-page .date-range-controls,
+body.ios-glass-page .card,
+body.ios-glass-page .chart-container {
+    background: var(--ios-glass-bg);
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+}
+
+body.ios-glass-page header,
+body.ios-glass-page .filter-control-area,
+body.ios-glass-page .player-profile,
+body.ios-glass-page .hero-stats-panel,
+body.ios-glass-page .date-range-controls {
+    border-radius: 22px;
+}
+
+body.ios-glass-page .today-filter-checkbox,
+body.ios-glass-page .map-filter-toggle,
+body.ios-glass-page .date-filter-toggle,
+body.ios-glass-page .hero-stats-toggle,
+body.ios-glass-page .map-filter-btn,
+body.ios-glass-page .modal-btn {
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow:
+        0 9px 24px rgba(44, 62, 80, 0.12),
+        inset 0 1px 1px rgba(255, 255, 255, 0.85),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+    -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+}
+
+body.ios-glass-page .today-filter-checkbox:hover,
+body.ios-glass-page .map-filter-toggle:hover,
+body.ios-glass-page .date-filter-toggle:hover,
+body.ios-glass-page .hero-stats-toggle:hover,
+body.ios-glass-page .map-filter-btn:hover,
+body.ios-glass-page .map-filter-btn.active {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.26)),
+        radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.92), transparent 48%);
+    border-color: rgba(255, 255, 255, 0.70);
+    transform: translateY(-1px);
+    box-shadow:
+        0 12px 28px rgba(44, 62, 80, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+body.ios-glass-page .map-filter-bar,
+body.ios-glass-page .date-filter-bar {
+    border-top-color: rgba(255, 255, 255, 0.46);
+}
+
+body.ios-glass-page .battle-item {
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow:
+        0 10px 24px rgba(44, 62, 80, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.70);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    content-visibility: auto;
+    contain-intrinsic-size: 96px;
+}
+
+body.ios-glass-page .battle-item.win-bg {
+    background:
+        linear-gradient(to left, rgba(40, 167, 69, 0.24) 0%, rgba(40, 167, 69, 0.10) 38%, rgba(40, 167, 69, 0) 78%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.24));
+    border-color: rgba(255, 255, 255, 0.58);
+}
+
+body.ios-glass-page .battle-item.lose-bg {
+    background:
+        linear-gradient(to left, rgba(220, 53, 69, 0.22) 0%, rgba(220, 53, 69, 0.09) 38%, rgba(220, 53, 69, 0) 78%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.24));
+    border-color: rgba(255, 255, 255, 0.58);
+}
+
+body.ios-glass-page .battle-item:hover {
+    box-shadow:
+        0 14px 30px rgba(44, 62, 80, 0.14),
+        inset 0 1px 1px rgba(255, 255, 255, 0.78);
+}
+
+body.ios-glass-page.glass-top-fixed .container {
+    padding-top: var(--glass-top-space, 196px);
+    transition: padding-top 0.24s ease;
+}
+
+body.ios-glass-page .glass-top-bar {
+    position: fixed;
+    top: 16px;
+    left: 80px;
+    right: 16px;
+    z-index: 1090;
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(0, auto) auto;
+    grid-template-areas:
+        "meta status filter"
+        "body body body"
+        "hero hero hero"
+        "date date date"
+        "map map map";
+    gap: 10px;
+    max-width: 1120px;
+    margin: 0 auto;
+    align-items: start;
+}
+
+body.ios-glass-page #periodTopBar {
+    --period-panel-offset: 56px;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    grid-template-areas:
+        "meta filter"
+        "body body"
+        "hero hero"
+        "date date"
+        "map map";
+}
+
+body.ios-glass-page #periodTopBar .glass-meta-title {
+    gap: 6px;
+}
+
+body.ios-glass-page #periodTopBar .glass-meta-header {
+    padding: 0 8px 0 14px;
+}
+
+body.ios-glass-page #periodTopBar .glass-meta-title {
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+body.ios-glass-page #periodTopBar .glass-meta-toggle {
+    width: 28px;
+    height: 28px;
+}
+
+body.ios-glass-page #queryTopBar {
+    grid-template-columns: minmax(180px, 1fr) auto;
+    grid-template-areas:
+        "meta filter"
+        "status status"
+        "body body"
+        "map map";
+    align-items: start;
+}
+
+body.ios-glass-page #queryTopBar .glass-meta-header,
+body.ios-glass-page #periodTopBar .glass-meta-header,
+body.ios-glass-page #queryTopBar .filter-header,
+body.ios-glass-page #periodTopBar .filter-header,
+body.ios-glass-page #queryTopBar .today-filter-checkbox,
+body.ios-glass-page #queryTopBar .map-filter-toggle,
+body.ios-glass-page #periodTopBar .map-filter-toggle,
+body.ios-glass-page #periodTopBar .date-filter-toggle,
+body.ios-glass-page #queryTopBar .status-card {
+    height: 44px;
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+body.ios-glass-page #queryTopBar .glass-meta-header {
+    padding: 0 8px 0 14px;
+}
+
+body.ios-glass-page #queryTopBar .glass-meta-title {
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+body.ios-glass-page #queryTopBar .glass-meta-title svg {
+    width: 16px !important;
+    height: 16px !important;
+}
+
+body.ios-glass-page #queryTopBar .glass-meta-toggle {
+    width: 28px;
+    height: 28px;
+}
+
+body.ios-glass-page #queryTopBar .status-section {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    max-height: 44px;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+body.ios-glass-page #queryTopBar .status-section::-webkit-scrollbar {
+    display: none;
+}
+
+body.ios-glass-page #queryTopBar .status-card {
+    flex: 0 0 auto;
+    padding: 0 12px;
+    border-radius: 22px;
+    gap: 6px;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+body.ios-glass-page #queryTopBar .status-card .label {
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+body.ios-glass-page #queryTopBar .status-card .value {
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+body.ios-glass-page #queryTopBar .gaming-status-card {
+    width: auto;
+    max-width: 280px;
+    padding: 0 12px;
+}
+
+body.ios-glass-page #queryTopBar .gaming-body {
+    min-width: 0;
+    gap: 8px;
+}
+
+body.ios-glass-page #queryTopBar .gaming-details {
+    min-width: 0;
+    overflow: hidden;
+}
+
+body.ios-glass-page #queryTopBar .gaming-detail-item {
+    flex: 0 0 auto;
+}
+
+body.ios-glass-page #queryTopBar .filter-control-area {
+    min-width: 0;
+}
+
+body.ios-glass-page #queryTopBar .filter-header {
+    gap: 8px;
+}
+
+body.ios-glass-page #queryTopBar .today-filter-checkbox,
+body.ios-glass-page #queryTopBar .map-filter-toggle {
+    width: 46px;
+    border-radius: 22px;
+    padding: 0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    gap: 2px;
+    color: var(--dark-color, var(--ios-glass-text));
+}
+
+body.ios-glass-page #queryTopBar .query-control-icon,
+body.ios-glass-page #periodTopBar .period-control-icon {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    flex: 0 0 auto;
+    opacity: 0.72;
+}
+
+body.ios-glass-page #queryTopBar .today-filter-checkbox input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+body.ios-glass-page #queryTopBar .today-filter-checkbox label {
+    display: none;
+}
+
+body.ios-glass-page #queryTopBar .map-filter-toggle > span:not(.arrow) {
+    display: none;
+}
+
+body.ios-glass-page #periodTopBar .period-control-icon {
+    opacity: 0.72;
+}
+
+body.ios-glass-page #periodTopBar > .filter-control-area .map-filter-toggle,
+body.ios-glass-page #periodTopBar > .filter-control-area .date-filter-toggle {
+    width: 46px;
+    padding-left: 0;
+    padding-right: 0;
+    gap: 2px;
+}
+
+body.ios-glass-page #periodTopBar > .filter-control-area .map-filter-toggle > span:not(.arrow),
+body.ios-glass-page #periodTopBar > .filter-control-area .date-filter-toggle > span:not(.arrow) {
+    display: none;
+}
+
+body.ios-glass-page .glass-meta-card {
+    background: var(--ios-glass-bg);
+    border: 1px solid var(--ios-glass-border);
+    border-radius: 22px;
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    overflow: hidden;
+}
+
+body.ios-glass-page .glass-meta-header {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px 10px 16px;
+    border: 0;
+    background: transparent;
+    color: var(--dark-color, var(--ios-glass-text));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+
+body.ios-glass-page .glass-meta-title {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--dark-color, var(--ios-glass-text));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.ios-glass-page .glass-meta-toggle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    box-shadow:
+        0 8px 18px rgba(44, 62, 80, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.82);
+}
+
+body.ios-glass-page .glass-meta-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: rgba(44, 62, 80, 0.68);
+    transition: transform 0.2s ease;
+}
+
+body.ios-glass-page .glass-meta-body {
+    padding: 0 16px 16px;
+}
+
+body.ios-glass-page .glass-meta-card.collapsed .glass-meta-body {
+    display: none;
+}
+
+body.ios-glass-page .glass-meta-card.collapsed .glass-meta-toggle svg {
+    transform: rotate(180deg);
+}
+
+body.ios-glass-page .glass-top-bar .filter-control-area,
+body.ios-glass-page .glass-top-bar .player-profile,
+body.ios-glass-page .glass-top-bar .query-target-section,
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    margin: 0;
+}
+
+body.ios-glass-page .glass-top-bar .status-section {
+    grid-area: status;
+    margin: 0;
+    min-height: 44px;
+    align-items: center;
+    align-self: start;
+    max-width: 460px;
+    overflow: hidden;
+}
+
+body.ios-glass-page .glass-top-bar .player-profile.glass-meta-card,
+body.ios-glass-page .glass-top-bar .query-target-section.glass-meta-card {
+    display: contents;
+    padding: 0;
+}
+
+body.ios-glass-page .glass-top-bar .glass-meta-header {
+    grid-area: meta;
+    height: 44px;
+    box-sizing: border-box;
+    border-radius: 22px;
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.60);
+    box-shadow:
+        0 10px 26px rgba(44, 62, 80, 0.14),
+        inset 0 1px 1px rgba(255, 255, 255, 0.86),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(26px) saturate(215%) contrast(1.04);
+    -webkit-backdrop-filter: blur(26px) saturate(215%) contrast(1.04);
+}
+
+body.ios-glass-page .glass-top-bar .filter-control-area {
+    grid-area: filter;
+    justify-self: end;
+    align-self: start;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+body.ios-glass-page .glass-top-bar .filter-header {
+    min-height: 44px;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+}
+
+body.ios-glass-page .glass-top-bar .today-filter-checkbox,
+body.ios-glass-page .glass-top-bar .map-filter-toggle,
+body.ios-glass-page .glass-top-bar .date-filter-toggle,
+body.ios-glass-page .glass-top-bar .hero-stats-toggle {
+    height: 44px;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding-top: 0;
+    padding-bottom: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+body.ios-glass-page .glass-top-bar .status-card {
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+body.ios-glass-page .glass-top-bar .status-card .label,
+body.ios-glass-page .glass-top-bar .status-card .value,
+body.ios-glass-page .glass-top-bar .gaming-title,
+body.ios-glass-page .glass-top-bar .gaming-detail-label,
+body.ios-glass-page .glass-top-bar .gaming-detail-value {
+    line-height: 1;
+}
+
+body.ios-glass-page .glass-top-bar .date-filter-toggle #dateFilterLabel {
+    display: inline-block;
+    max-width: 38px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.ios-glass-page .glass-top-bar .map-filter-bar,
+body.ios-glass-page .glass-top-bar .date-filter-bar,
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    grid-area: hero;
+}
+
+body.ios-glass-page .glass-top-bar .date-filter-bar {
+    grid-area: date;
+}
+
+body.ios-glass-page .glass-top-bar .map-filter-bar {
+    grid-area: map;
+}
+
+body.ios-glass-page #periodTopBar .date-filter-bar,
+body.ios-glass-page #periodTopBar .map-filter-bar,
+body.ios-glass-page #periodTopBar .hero-stats-section {
+    position: absolute;
+    top: 54px;
+    left: calc(-1 * var(--period-panel-offset));
+    right: 0;
+    z-index: 3;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    border-radius: 20px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.28)),
+        radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.78), transparent 56%);
+    box-shadow:
+        0 16px 36px rgba(44, 62, 80, 0.18),
+        inset 0 1px 1px rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(30px) saturate(210%);
+    -webkit-backdrop-filter: blur(30px) saturate(210%);
+}
+
+body.ios-glass-page #periodTopBar .hero-stats-section {
+    display: none;
+    max-height: min(360px, calc(100vh - 120px));
+    overflow: hidden;
+}
+
+body.ios-glass-page #periodTopBar .map-filter-bar.expanded {
+    display: flex;
+    max-height: min(320px, calc(100vh - 120px));
+    overflow-y: auto;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.58);
+}
+
+body.ios-glass-page #periodTopBar .date-filter-bar.expanded {
+    display: flex;
+    max-height: min(260px, calc(100vh - 120px));
+    overflow: visible;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.58);
+}
+
+body.ios-glass-page #periodTopBar .date-range-controls {
+    padding: 4px 2px 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+body.ios-glass-page #periodTopBar .hero-stats-panel {
+    display: block;
+    margin: 0;
+    max-height: min(330px, calc(100vh - 150px));
+    overflow-y: auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body.ios-glass-page .glass-top-bar .date-range-label {
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.ios-glass-page .glass-top-bar .glass-meta-body {
+    grid-area: body;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 14px 18px 16px;
+    border-radius: 22px;
+    background: var(--ios-glass-bg);
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+    -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(1.04);
+}
+
+body.ios-glass-page #periodTopBar .glass-meta-body {
+    width: calc(100% + var(--period-panel-offset));
+    margin-left: calc(-1 * var(--period-panel-offset));
+}
+
+body.ios-glass-page .glass-meta-header .query-target-title {
+    margin-bottom: 0;
+}
+
+body.ios-glass-page .glass-top-bar .hero-stats-section {
+    display: none;
+}
+
+body.ios-glass-page .period-meta-body {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+body.ios-glass-page .period-profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+body.ios-glass-page .period-date-range-pill {
+    min-height: 36px;
+    padding: 0;
+    border-radius: 0;
+    display: inline-flex;
+    align-items: center;
+    color: rgba(44, 62, 80, 0.68);
+    font-size: 0.82rem;
+    font-weight: 700;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-avatar {
+    width: 62px;
+    height: 62px;
+    border-radius: 18px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 0 10px 22px rgba(31, 35, 41, 0.16);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-avatar-column {
+    margin-right: 0;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-info {
+    text-align: left;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-name {
+    text-align: left;
+    font-size: 1.35rem;
+    line-height: 1.2;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-title {
+    margin-top: 6px;
+    border-radius: 999px;
+    background: rgba(108, 155, 209, 0.12);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px 14px;
+    align-items: end;
+    padding-top: 10px;
+    border-top: 1px solid rgba(44, 62, 80, 0.08);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat {
+    min-width: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+    text-align: left;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat .stat-value {
+    font-size: 1.05rem;
+    line-height: 1.1;
+    color: rgba(31, 35, 41, 0.86);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat .stat-label {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.7rem;
+    line-height: 1;
+    color: rgba(44, 62, 80, 0.48);
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat:first-child {
+    grid-column: span 2;
+}
+
+body.ios-glass-page .glass-top-bar .period-meta-body .player-stat:first-child .stat-value {
+    font-size: 1.42rem;
+    font-weight: 800;
+}
+
+body.ios-glass-page #periodTopBar .hero-stats-table {
+    font-size: 0.82rem;
+}
+
+body.ios-glass-page #periodTopBar .hero-stats-table thead {
+    background: rgba(255, 255, 255, 0.72);
+}
+
+body.ios-glass-page #periodTopBar .hero-stats-table th,
+body.ios-glass-page #periodTopBar .hero-stats-table td {
+    border-bottom-color: rgba(44, 62, 80, 0.08);
+    padding: 7px 6px;
+}
+
+body.ios-glass-page .glass-top-bar .gaming-status-card {
+    width: auto;
+    min-width: 0;
+}
+
+body.ios-glass-page .floating-back-btn {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--ios-glass-control-bg);
+    border: 1px solid rgba(255, 255, 255, 0.64);
+    box-shadow: var(--ios-glass-shadow);
+    backdrop-filter: blur(28px) saturate(220%) contrast(1.06);
+    -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.06);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+body.ios-glass-page .floating-back-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: rgba(44, 62, 80, 0.78);
+}
+
+body.ios-glass-page .floating-back-btn:hover {
+    transform: translateY(-1px) scale(1.04);
+    box-shadow: var(--ios-glass-shadow-strong);
+}
+
+body.ios-glass-page .floating-back-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+body.ios-glass-page .floating-back-btn.loading {
+    cursor: wait;
+    opacity: 0.75;
+}
+
+body.ios-glass-page .floating-back-btn.loading svg {
+    transform: translateX(-2px);
+}
+
+body.ios-glass-page .loading-message,
+body.ios-glass-page #loading {
+    width: min(320px, calc(100vw - 48px));
+    margin: 72px auto 0;
+    padding: 22px 28px;
+    border-radius: 24px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22)),
+        radial-gradient(circle at 22% 14%, rgba(255, 255, 255, 0.88), transparent 52%);
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow-strong);
+    backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    color: rgba(44, 62, 80, 0.76);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+body.ios-glass-page .loading-message h3 {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: inherit;
+}
+
+body.ios-glass-page .loading-message h3::before,
+body.ios-glass-page #loading::before {
+    content: "";
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid rgba(108, 155, 209, 0.22);
+    border-top-color: rgba(108, 155, 209, 0.88);
+    animation: modal-link-spin 0.8s linear infinite;
+}
+
+body.ios-glass-page .modal-link-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(246, 248, 251, 0.36);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 15000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+body.ios-glass-page .modal-link-loading-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+}
+
+body.ios-glass-page .modal-link-loading-content {
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.24)),
+        radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.88), transparent 54%);
+    min-width: 220px;
+    padding: 24px 36px;
+    border-radius: 24px;
+    border: 1px solid var(--ios-glass-border);
+    box-shadow: var(--ios-glass-shadow-strong);
+    backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    -webkit-backdrop-filter: blur(28px) saturate(220%) contrast(1.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--dark-color, var(--ios-glass-text));
+    font-weight: 600;
+}
+
+body.ios-glass-page .modal-link-loading-overlay.data-fetch-loading .modal-link-loading-content {
+    min-width: 190px;
+    padding: 20px 28px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.18)),
+        radial-gradient(circle at 24% 12%, rgba(255, 255, 255, 0.92), transparent 54%),
+        radial-gradient(circle at 82% 10%, rgba(108, 155, 209, 0.18), transparent 48%);
+}
+
+body.ios-glass-page .modal-link-loading-overlay.data-fetch-loading .modal-link-loading-text {
+    color: rgba(44, 62, 80, 0.78);
+    font-size: 0.95rem;
+    font-weight: 800;
+}
+
+body.ios-glass-page .modal-link-loading-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 4px solid rgba(108, 155, 209, 0.25);
+    border-top-color: var(--primary-color, #6c9bd1);
+    animation: modal-link-spin 0.8s linear infinite;
+}
+
+@keyframes modal-link-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 768px) {
+    body.ios-glass-page header,
+    body.ios-glass-page .filter-control-area,
+    body.ios-glass-page .player-profile,
+    body.ios-glass-page .hero-stats-panel,
+    body.ios-glass-page .date-range-controls,
+    body.ios-glass-page .card,
+    body.ios-glass-page .chart-container,
+    body.ios-glass-page .glass-meta-card,
+    body.ios-glass-page .glass-top-bar .glass-meta-body,
+    body.ios-glass-page .modal-link-loading-content {
+        backdrop-filter: blur(14px) saturate(170%) contrast(1.02);
+        -webkit-backdrop-filter: blur(14px) saturate(170%) contrast(1.02);
+        box-shadow:
+            0 10px 24px rgba(44, 62, 80, 0.12),
+            inset 0 1px 1px rgba(255, 255, 255, 0.76);
+    }
+
+    body.ios-glass-page .today-filter-checkbox,
+    body.ios-glass-page .map-filter-toggle,
+    body.ios-glass-page .date-filter-toggle,
+    body.ios-glass-page .hero-stats-toggle,
+    body.ios-glass-page .map-filter-btn,
+    body.ios-glass-page .modal-btn,
+    body.ios-glass-page .floating-back-btn,
+    body.ios-glass-page .glass-top-bar .glass-meta-header {
+        backdrop-filter: blur(12px) saturate(165%) contrast(1.02);
+        -webkit-backdrop-filter: blur(12px) saturate(165%) contrast(1.02);
+        box-shadow:
+            0 7px 18px rgba(44, 62, 80, 0.11),
+            inset 0 1px 1px rgba(255, 255, 255, 0.78);
+    }
+
+    body.ios-glass-page .battle-item {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow:
+            0 7px 16px rgba(44, 62, 80, 0.08),
+            inset 0 1px 1px rgba(255, 255, 255, 0.62);
+        contain-intrinsic-size: 88px;
+    }
+
+    body.ios-glass-page #periodTopBar .date-filter-bar,
+    body.ios-glass-page #periodTopBar .map-filter-bar,
+    body.ios-glass-page #periodTopBar .hero-stats-section {
+        backdrop-filter: blur(16px) saturate(175%);
+        -webkit-backdrop-filter: blur(16px) saturate(175%);
+        box-shadow:
+            0 12px 28px rgba(44, 62, 80, 0.14),
+            inset 0 1px 1px rgba(255, 255, 255, 0.78);
+    }
+
+    body.ios-glass-page.glass-top-fixed .container {
+        padding-top: var(--glass-top-space, 176px);
+    }
+
+    body.ios-glass-page .glass-top-bar {
+        top: 10px;
+        left: 56px;
+        right: 10px;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "meta filter"
+            "status status"
+            "body body"
+            "hero hero"
+            "date date"
+            "map map";
+    }
+
+    body.ios-glass-page #periodTopBar {
+        --period-panel-offset: 46px;
+    }
+
+    body.ios-glass-page #queryTopBar .glass-meta-header,
+    body.ios-glass-page #periodTopBar .glass-meta-header,
+    body.ios-glass-page #queryTopBar .filter-header,
+    body.ios-glass-page #periodTopBar .filter-header,
+    body.ios-glass-page #queryTopBar .today-filter-checkbox,
+    body.ios-glass-page #queryTopBar .map-filter-toggle,
+    body.ios-glass-page #periodTopBar .map-filter-toggle,
+    body.ios-glass-page #periodTopBar .date-filter-toggle,
+    body.ios-glass-page #queryTopBar .status-card {
+        height: 36px;
+        min-height: 36px;
+    }
+
+    body.ios-glass-page #queryTopBar .glass-meta-header,
+    body.ios-glass-page #periodTopBar .glass-meta-header {
+        padding: 0 6px 0 10px;
+        gap: 6px;
+    }
+
+    body.ios-glass-page #queryTopBar .glass-meta-toggle,
+    body.ios-glass-page #periodTopBar .glass-meta-toggle {
+        width: 24px;
+        height: 24px;
+    }
+
+    body.ios-glass-page #queryTopBar .glass-meta-title,
+    body.ios-glass-page #periodTopBar .glass-meta-title {
+        font-size: 0.78rem;
+    }
+
+    body.ios-glass-page #queryTopBar .filter-header,
+    body.ios-glass-page #periodTopBar .filter-header {
+        gap: 6px;
+    }
+
+    body.ios-glass-page #queryTopBar .today-filter-checkbox,
+    body.ios-glass-page #queryTopBar .map-filter-toggle,
+    body.ios-glass-page #periodTopBar > .filter-control-area .map-filter-toggle,
+    body.ios-glass-page #periodTopBar > .filter-control-area .date-filter-toggle {
+        width: 38px;
+        border-radius: 18px;
+        font-size: 0.78rem;
+    }
+
+    body.ios-glass-page #queryTopBar .query-control-icon,
+    body.ios-glass-page #periodTopBar .period-control-icon {
+        width: 15px;
+        height: 15px;
+    }
+
+    body.ios-glass-page #queryTopBar .status-section {
+        min-height: 36px;
+        max-height: 36px;
+        gap: 6px;
+    }
+
+    body.ios-glass-page #queryTopBar .status-card {
+        padding: 0 10px;
+        border-radius: 18px;
+    }
+
+    body.ios-glass-page .glass-meta-header {
+        min-height: 38px;
+        padding: 8px 10px 8px 12px;
+    }
+
+    body.ios-glass-page .glass-meta-title {
+        font-size: 0.88rem;
+    }
+
+    body.ios-glass-page .glass-meta-body {
+        padding: 0 12px 12px;
+    }
+
+    body.ios-glass-page .period-meta-body {
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-name {
+        font-size: 1.12rem;
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    body.ios-glass-page .glass-top-bar .period-meta-body .player-stat:first-child {
+        grid-column: span 1;
+    }
+
+    body.ios-glass-page .period-profile-actions {
+        justify-content: flex-start;
+    }
+
+    body.ios-glass-page .floating-back-btn {
+        top: 10px;
+        left: 10px;
+        width: 36px;
+        height: 36px;
+    }
+
+    body.ios-glass-page .floating-back-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    body.ios-glass-page header,
+    body.ios-glass-page .filter-control-area,
+    body.ios-glass-page .player-profile,
+    body.ios-glass-page .hero-stats-panel,
+    body.ios-glass-page .date-range-controls,
+    body.ios-glass-page .card,
+    body.ios-glass-page .chart-container,
+    body.ios-glass-page .glass-meta-card,
+    body.ios-glass-page .glass-top-bar .glass-meta-body,
+    body.ios-glass-page .glass-top-bar .glass-meta-header,
+    body.ios-glass-page .modal-link-loading-content,
+    body.ios-glass-page .floating-back-btn,
+    body.ios-glass-page #periodTopBar .date-filter-bar,
+    body.ios-glass-page #periodTopBar .map-filter-bar,
+    body.ios-glass-page #periodTopBar .hero-stats-section {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background: rgba(255, 255, 255, 0.88);
+    }
+}
+
+html.ios-lite-effects body.ios-glass-page header,
+html.ios-lite-effects body.ios-glass-page .filter-control-area,
+html.ios-lite-effects body.ios-glass-page .player-profile,
+html.ios-lite-effects body.ios-glass-page .hero-stats-panel,
+html.ios-lite-effects body.ios-glass-page .date-range-controls,
+html.ios-lite-effects body.ios-glass-page .card,
+html.ios-lite-effects body.ios-glass-page .chart-container,
+html.ios-lite-effects body.ios-glass-page .glass-meta-card,
+html.ios-lite-effects body.ios-glass-page .glass-top-bar .glass-meta-body,
+html.ios-lite-effects body.ios-glass-page .glass-top-bar .glass-meta-header,
+html.ios-lite-effects body.ios-glass-page .modal-link-loading-content,
+html.ios-lite-effects body.ios-glass-page .floating-back-btn,
+html.ios-lite-effects body.ios-glass-page #periodTopBar .date-filter-bar,
+html.ios-lite-effects body.ios-glass-page #periodTopBar .map-filter-bar,
+html.ios-lite-effects body.ios-glass-page #periodTopBar .hero-stats-section {
+    backdrop-filter: blur(8px) saturate(135%);
+    -webkit-backdrop-filter: blur(8px) saturate(135%);
+    box-shadow:
+        0 6px 16px rgba(44, 62, 80, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.62);
+}
+
+html.ios-lite-effects body.ios-glass-page .battle-item {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: 0 5px 12px rgba(44, 62, 80, 0.07);
+}

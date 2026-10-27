@@ -119,8 +119,8 @@ def create_app(*, config_path=None):
     async def lifespan(app):
         bridge = RemoteBridge(
             config.get("ssh_host", "Aliyun"),
-            config.get("remote_root", "/srv/modules/hok/apps/NBot"),
-            config.get("remote_python", "/srv/modules/hok/apps/NBot/.venv/bin/python"),
+            config.get("remote_root", "/srv/modules/hok/apps/HOK_QQBot"),
+            config.get("remote_python", "/srv/modules/hok/apps/HOK_QQBot/.venv/bin/python"),
             shared,
         )
         state_bridge = RemoteBridge(bridge.host, bridge.root, bridge.python, shared)

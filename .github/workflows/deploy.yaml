@@ -1,44 +1,21 @@
-name: Deploy HOK QQBot QQ Service
+name: Deploy HOK QQBot
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: hok-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: self-hosted
-    if: |
-      !contains(github.event.head_commit.message, '[skip ci]')
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     steps:
-      - name: Pull Without Touching History
+      - name: Update and deploy the unified project
+        working-directory: /srv/modules/hok/apps/HOK_QQBot
         run: |
-          cd /srv/modules/hok/apps/NBot/
           git fetch origin main
-
-          git show origin/main:deployment/scripts/restore_application.sh | bash -s -- . origin/main
-          .venv/bin/python -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService; from hok_research import HokClient, ClientResources; from hok_camp_client import CampClient; import login_console.worker; import qrcode'
-
-      - name: Restart Nonebot
-        working-directory: /srv/modules/hok/apps/NBot
-        run: |
-          systemctl restart hok-nbot.service
-          .venv/bin/python - <<'PYTHON'
-          import subprocess
-          import time
-
-          unit = "hok-nbot.service"
-          def invocation():
-              return subprocess.check_output(["systemctl", "show", unit, "-p", "InvocationID", "--value"], text=True).strip()
-          started = invocation()
-          for _ in range(60):
-              if not started or invocation() != started:
-                  raise SystemExit("Bot restarted before startup completed")
-              logs = subprocess.check_output(["journalctl", "_SYSTEMD_INVOCATION_ID=" + started, "--no-pager", "-o", "cat"], text=True)
-              if "Application startup complete." in logs:
-                  subprocess.run(["systemctl", "is-active", "--quiet", unit], check=True)
-                  print("Bot application startup confirmed")
-                  break
-              time.sleep(3)
-          else:
-              raise SystemExit("Bot application startup was not confirmed within 180 seconds")
-          PYTHON
+          git show origin/main:deployment/scripts/deploy_project.sh | bash -s -- origin/main

@@ -6,8 +6,8 @@ state, service definitions, and Nginx route configuration. The host continues to
 provide systemd, Nginx, Redis, PostgreSQL, certificate renewal, and the GitHub Actions
 runner.
 
-The module layout preserves the deployed applications and their existing CI
-workflows. The separate [portable HOK installer](../README.md) remains available
+The module layout preserves the deployed applications and a single Bot/Web CI
+workflow. The separate [portable HOK installer](../README.md) remains available
 for a fresh `/opt/hok-qqbot` installation; it does not automatically restore an
 export made by this server-module layer.
 
@@ -18,8 +18,8 @@ export made by this server-module layer.
 ├── hok/
 │   ├── module.json
 │   ├── apps/
-│   │   ├── NBot/                  NoneBot source and required assets
-│   │   ├── Web/                   HOK FastAPI source
+│   │   ├── HOK_QQBot/             One Git checkout, shared .venv and configuration
+│   │   │   └── web/               FastAPI package and templates
 │   │   └── napcat/                QQ/NapCat installation
 │   ├── config/
 │   │   ├── .env                   link to the tracked credential file
@@ -52,15 +52,14 @@ export made by this server-module layer.
     └── nginx/                    only when the module has public routes
 ```
 
-`NBot` and `Web` retain their physical capitalization. Do not substitute lowercase
-paths from the separate `/opt` installer when editing this deployment.
+Bot and Web are one project at `apps/HOK_QQBot`; do not recreate separate `apps/NBot` or `apps/Web` checkouts. The portable installer uses the same internal layout under `/opt/hok-qqbot`. Cutover and rollback are documented in [UNIFIED_PROJECT.md](UNIFIED_PROJECT.md).
 
 The HOK configuration directory only indexes the two Git-managed files from the
-NBot project root. `.env` contains credentials and `config.yaml` contains every
+unified project root. `.env` contains credentials and `config.yaml` contains every
 non-secret setting. Do not add host env files, examples, Redis JSON, or separate
 static/dynamic variable files. Host paths stay in systemd units. Runtime state
 remains in Redis, PostgreSQL, or `data/`, independently of those defaults.
-The existing NBot `apps/NBot/data/` directory also contains tracked seed files;
+The existing NBot `apps/HOK_QQBot/data/` directory also contains tracked seed files;
 `data/nbot` indexes that real directory. Do not reverse this link while the current
 CI uses `git restore`, which would replace a tracked directory's outward link.
 
@@ -201,11 +200,7 @@ remain active. The manifest records `capture_mode` and the initial unit states.
    Python with venv support, its declared Python dependencies, fonts and image
    dependencies, and a compatible QQ/NapCat installation with its display/runtime
    libraries. Recreate excluded virtual environments on the destination.
-   HOK's `runtime/nbot-requirements.txt` and `runtime/web-requirements.txt`
-   record the installed distributions; review platform/version compatibility
-   before rebuilding. The original `nb` CLI comes from the host's Python
-   environment, not the NBot virtualenv; install the CLI and update `PATH` or
-   adapt the startup wrapper on the destination.
+   Historical export requirement snapshots are evidence of the old host. Rebuild the shared `apps/HOK_QQBot/.venv` from the root `pyproject.toml`; it supplies both `nb` and `python -m web`. Do not rebuild separate Bot/Web environments.
 3. Review all environment files, manifests, units, Nginx snippets, absolute paths,
    service users, file ownership, listening ports, domain names, and proxy settings.
    Install host integration links for systemd and Nginx, but do not recreate the

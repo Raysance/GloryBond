@@ -2,9 +2,12 @@
 name = "GloryBond"
 version = "0.1.0"
 description = "QQ Agent for Honor of Kings: Track Stats & Interactive Engagement."
-readme = "deployment/README.md"
+readme = "README.md"
 requires-python = ">=3.11, <4.0"
 dependencies = [
+    "fastapi>=0.115,<1",
+    "jinja2>=3.1,<4",
+    "uvicorn>=0.30,<1",
     "markdown-it-py>=3,<5",
     "apscheduler>=3.11,<4",
     "cryptography>=45,<46",
@@ -49,11 +52,12 @@ local-agent = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 include-package-data = false
 
 [tool.setuptools.packages.find]
-include = ["hok*", "agent_runtime*", "agent_console*", "qq_agent*", "hok_research*", "hok_camp_client*", "login_console*"]
-exclude = ["agent_runtime.build*", "hok.debug_tools*"]
+include = ["hok*", "agent_runtime*", "agent_console*", "qq_agent*", "hok_research*", "hok_camp_client*", "login_console*", "web*"]
+exclude = ["agent_runtime.build*", "hok.debug_tools*", "web.tests*"]
 
 [tool.setuptools.package-data]
 agent_console = ["static/*.html", "static/*.css", "static/*.js"]
+web = ["templates/**/*", "default_json_templates/*.json"]
 hok_research = ["tdr_schema.json", "directory_schema.json", "resource_catalog.json", "gameplay_catalog.json"]
 
 [tool.nonebot]

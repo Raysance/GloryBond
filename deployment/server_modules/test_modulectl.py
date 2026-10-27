@@ -217,8 +217,8 @@ class SnapshotTests(unittest.TestCase):
     def test_postgres_credentials_are_not_command_arguments(self):
         with tempfile.TemporaryDirectory() as temporary:
             module = Path(temporary)
-            (module / "apps/NBot").mkdir(parents=True)
-            (module / "apps/NBot/config.yaml").write_text("fixture")
+            (module / "apps/HOK_QQBot").mkdir(parents=True)
+            (module / "apps/HOK_QQBot/config.yaml").write_text("fixture")
             output = module / "output"
             output.mkdir()
             imported = {
@@ -237,8 +237,8 @@ class SnapshotTests(unittest.TestCase):
     def test_rejects_nonzero_redis_database_without_connecting(self):
         with tempfile.TemporaryDirectory() as temporary:
             module = Path(temporary)
-            (module / "apps/NBot").mkdir(parents=True)
-            (module / "apps/NBot/config.yaml").write_text("Redis:\n  REDIS_DB: 9\n")
+            (module / "apps/HOK_QQBot").mkdir(parents=True)
+            (module / "apps/HOK_QQBot/config.yaml").write_text("Redis:\n  REDIS_DB: 9\n")
             with patch.dict(sys.modules, {"redis": types.SimpleNamespace()}), self.assertRaises(ValueError):
                 snapshot_hok.dump_redis(module, module)
 
@@ -283,8 +283,8 @@ class SnapshotTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             module = Path(temporary)
-            (module / "apps/NBot").mkdir(parents=True)
-            (module / "apps/NBot/config.yaml").write_text(
+            (module / "apps/HOK_QQBot").mkdir(parents=True)
+            (module / "apps/HOK_QQBot/config.yaml").write_text(
                 "Redis:\n  REDIS_HOST: localhost\n  REDIS_PORT: 6379\n  REDIS_DB: 0\n"
             )
             output = module / "output"

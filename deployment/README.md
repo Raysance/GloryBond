@@ -7,7 +7,7 @@ fresh-install template.
 
 ## Configuration contract
 
-NBot has exactly two application configuration files, both in its project root:
+The unified Bot/Web project has exactly two application configuration files, both in its project root:
 
 - `.env` contains credentials only: API keys, tokens, passwords, database DSNs,
   plus the `ENVIRONMENT` and `DRIVER` values required by NoneBot. This private
@@ -30,8 +30,11 @@ The portable filesystem layout is:
 
 ```text
 /opt/hok-qqbot/
-├── nbot/                    NBot source, .env, and config.yaml
-└── web/                     FastAPI web service
+├── pyproject.toml           One dependency manifest
+├── .env / config.yaml       Shared configuration
+├── .venv/                   Shared runtime
+├── hok/                     NoneBot business core
+└── web/                     FastAPI package
 /var/lib/hok-qqbot/
 ├── data/                    emergency JSON and static district data
 ├── file_transfer/           NBot/Web shared public artifacts
@@ -40,10 +43,10 @@ The portable filesystem layout is:
 ```
 
 The legacy renderers keep regenerable image caches below
-`nbot/resources/wzry_images`. Bundle builds omit generated, KPL, temporary, and
+`resources/wzry_images`. Bundle builds omit generated, KPL, temporary, and
 hero-avatar cache contents.
 
-The application modules are:
+Bot and Web share one checkout, one dependency manifest and one virtualenv. Start Web from the project root with `.venv/bin/python -m web`. The application processes are:
 
 - `hok-nbot.service`: NoneBot runtime using the project-local virtualenv.
 - `hok-web.service`: FastAPI runtime bound to `127.0.0.1:8000` by default.
@@ -58,7 +61,7 @@ backups or migrations.
 
 ## Build a transport bundle
 
-From the NBot repository, initialize the pinned private agent dependency first.
+From the unified repository, initialize the pinned private agent dependency first.
 The cloning/deployment account needs SSH read access to
 `git@github.com:Raysance/react-agent-runtime.git`:
 
@@ -69,7 +72,6 @@ git submodule update --init --recursive
 
 ```bash
 deployment/scripts/build_bundle.sh \
-  --web-source ../HOK_QQBot_Web \
   --output dist/hok-qqbot.tar.gz
 ```
 
@@ -100,15 +102,15 @@ and enables selected units. It does not start them unless `--start` is supplied.
 
 After installation:
 
-1. Review `/opt/hok-qqbot/nbot/.env` and `config.yaml`.
+1. Review `/opt/hok-qqbot/.env` and `config.yaml`.
 2. Initialize PostgreSQL once with `database/schema.sql`.
 3. Install NapCat separately when needed and set `NapCat.command` in
    `config.yaml`.
 4. Run checks, then restart the selected services.
 
 ```bash
-sudo /opt/hok-qqbot/nbot/deployment/scripts/doctor.sh \
-  --bot-path /opt/hok-qqbot/nbot
+sudo /opt/hok-qqbot/deployment/scripts/doctor.sh \
+  --bot-path /opt/hok-qqbot
 sudo systemctl restart hok-nbot.service hok-web.service
 ```
 
@@ -118,10 +120,7 @@ Ordinary chat uses the configured DeepSeek-compatible endpoint directly with
 environment-proxy inheritance disabled. Credentials come from `.env`; provider,
 model, and behavior settings come from `config.yaml`.
 
-Chat web search calls Alibaba Cloud OpenSearch `ops-web-search-001` directly.
-`HOK_ALIYUN_SEARCH_API_KEY` lives in `.env`; endpoint, workspace, service ID,
-content type, strategy, and query rewrite live under `AliyunSearch` in
-`config.yaml`. The search request never uses Clash or OpenRouter.
+Chat web search uses the configured DeepSeek search adapter. Its endpoint and limits are under `DeepSeekSearch` in `config.yaml`; credentials come from `.env`.
 
 Steam, APIMart, and X website subscriptions share the explicit `Proxy.clash_url` route from
 `config.yaml`; `HOK_CLASH_PROXY_URL` can override it per process.
@@ -137,7 +136,7 @@ X website requests, static bootstrap assets, and post media all use this route.
 
 Build and copy a new private bundle, back up PostgreSQL, Redis, and persistent
 state, rerun `install.sh` without `--start`, then run `doctor.sh` before
-restarting. Restore the previous application tree and virtualenvs together when
+restarting. Restore the previous application tree and shared virtualenv together when
 rolling back.
 
 ## Shared QQ agent

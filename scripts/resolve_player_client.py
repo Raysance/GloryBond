@@ -29,7 +29,7 @@ def select_candidate(result, nickname, existing=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ssh', help='Read the existing server DB through this SSH host')
-    parser.add_argument('--remote-root', default='/srv/modules/hok/apps/NBot')
+    parser.add_argument('--remote-root', default='/srv/modules/hok/apps/HOK_QQBot')
     parser.add_argument('--remote-python', default='.venv/bin/python')
     parser.add_argument('--redis-port', type=int, help='Local SSH tunnel port to the same server DB0 (required with --ssh)')
     parser.add_argument('--refresh', action='store_true', help='Requery all selected players, preserving verified identities')

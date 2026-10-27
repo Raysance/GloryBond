@@ -38,7 +38,7 @@ def dump_postgres(module: Path, output: Path, executable: str | None) -> dict:
     import yaml
     from psycopg.conninfo import conninfo_to_dict
 
-    config_path = Path(os.environ.get("HOK_CONFIG_FILE", str(module / "apps/NBot/config.yaml")))
+    config_path = Path(os.environ.get("HOK_CONFIG_FILE", str(module / "apps/HOK_QQBot/config.yaml")))
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     dsn = os.environ.get("HOK_DATABASE_DSN") or config["PostgreSQL"]["dsn"]
     connection = conninfo_to_dict(dsn)
@@ -69,7 +69,7 @@ def dump_redis(module: Path, output: Path) -> dict:
     import redis
     import yaml
 
-    config = yaml.safe_load((module / "apps/NBot/config.yaml").read_text(encoding="utf-8"))["Redis"]
+    config = yaml.safe_load((module / "apps/HOK_QQBot/config.yaml").read_text(encoding="utf-8"))["Redis"]
     if int(config.get("REDIS_DB", 0)) != 0:
         raise ValueError("Only HOK Redis DB0 is allowed")
     kwargs = {

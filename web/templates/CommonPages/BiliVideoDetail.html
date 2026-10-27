@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ video.title }}</title>
+  <style>
+{% include "CommonPages/ios_glass_theme.css" %}
+    :root {
+      --primary-color: #6c9bd1;
+      --secondary-color: #4fc3f7;
+      --bili-pink: #fb7299;
+      --dark-color: #2c3e50;
+      --text-color: #1c1c1e;
+      --muted-color: rgba(44, 62, 80, 0.62);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body.ios-glass-page {
+      min-height: 100vh;
+      color: var(--text-color);
+      background:
+        radial-gradient(circle at 18% 0%, rgba(251, 114, 153, 0.22), transparent 34%),
+        linear-gradient(180deg, rgba(79, 195, 247, 0.12) 0%, rgba(251, 114, 153, 0.08) 42%, #eef1f4 100%) !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 216px;
+      height: 60px;
+      border-radius: 30px;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.08)),
+        radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.16) 36%, transparent 58%);
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      box-shadow:
+        0 14px 34px rgba(44, 62, 80, 0.26),
+        0 1px 0 rgba(255, 255, 255, 0.45),
+        inset 0 1px 1px rgba(255, 255, 255, 0.85),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.20),
+        inset 12px 0 24px rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      pointer-events: none;
+      z-index: 1099;
+    }
+
+    .fixed-layer {
+      height: 0;
+    }
+
+    .video-metadata {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      z-index: 1100;
+      width: clamp(320px, calc(100vw - 480px), 720px);
+      padding: 12px 14px;
+      border-radius: 24px;
+      transform: translateX(-50%);
+      color: var(--dark-color);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.10)),
+        radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.18) 44%, transparent 66%),
+        radial-gradient(circle at 86% 0%, rgba(251, 114, 153, 0.18), transparent 42%);
+      border: 1px solid rgba(255, 255, 255, 0.68);
+      box-shadow:
+        0 18px 44px rgba(44, 62, 80, 0.24),
+        0 1px 0 rgba(255, 255, 255, 0.44),
+        inset 0 1px 1px rgba(255, 255, 255, 0.90),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      -webkit-backdrop-filter: blur(30px) saturate(220%) contrast(1.06);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .video-metadata::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.42), transparent 46%),
+        radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.62), transparent 42%);
+      opacity: 0.82;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .video-metadata > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .video-metadata-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: rgba(44, 62, 80, 0.88);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .video-metadata-up {
+      min-width: 0;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: rgba(44, 62, 80, 0.62);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .action-buttons {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 1100;
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.58);
+      border-radius: 50%;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.16)),
+        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.82), transparent 48%);
+      color: #666;
+      box-shadow:
+        0 9px 24px rgba(44, 62, 80, 0.22),
+        inset 0 1px 1px rgba(255, 255, 255, 0.85),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.18);
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+      backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+      -webkit-backdrop-filter: blur(24px) saturate(220%) contrast(1.05);
+    }
+
+    .action-btn::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 7px;
+      right: 7px;
+      height: 38%;
+      border-radius: 999px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.70), rgba(255, 255, 255, 0.08));
+      pointer-events: none;
+    }
+
+    .action-btn:hover,
+    .action-btn:focus-visible {
+      color: var(--secondary-color);
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.24)),
+        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.9), transparent 48%);
+      box-shadow:
+        0 12px 28px rgba(44, 62, 80, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      transform: translateY(-1px) scale(1.04);
+      outline: none;
+    }
+
+    .action-btn.app {
+      color: var(--bili-pink);
+    }
+
+    .action-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.3s ease;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 95%;
+      margin: 0 auto;
+      padding: 168px 20px 24px;
+      background: transparent;
+    }
+
+    .video-panel {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.68);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow:
+        0 16px 34px rgba(31, 35, 41, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+    }
+
+    .cover-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 14px;
+      background:
+        linear-gradient(135deg, rgba(224, 224, 224, 0.92), rgba(245, 245, 245, 0.86)),
+        linear-gradient(135deg, rgba(251, 114, 153, 0.12), rgba(79, 195, 247, 0.12));
+      box-shadow:
+        0 10px 22px rgba(31, 35, 41, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    }
+
+    .cover-frame img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cover-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      color: rgba(44, 62, 80, 0.58);
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .video-info {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .info-pill {
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid rgba(60, 60, 67, 0.07);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.56);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.70);
+      color: rgba(44, 62, 80, 0.78);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .info-pill span {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .info-pill.vid {
+      color: #007aff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-weight: 800;
+    }
+
+    @media (min-width: 1920px) {
+      .container {
+        max-width: 90%;
+      }
+
+      .video-panel {
+        width: min(1280px, 100%);
+      }
+    }
+
+    @media (max-width: 768px) {
+      body::after {
+        top: 6px;
+        right: 6px;
+        width: 172px;
+        height: 44px;
+        border-radius: 22px;
+      }
+
+      .video-metadata {
+        top: 58px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+        padding: 10px 12px;
+        transform: none;
+      }
+
+      .action-buttons {
+        top: 10px;
+        right: 10px;
+        gap: 6px;
+      }
+
+      .action-btn {
+        width: 36px;
+        height: 36px;
+      }
+
+      .action-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .container {
+        max-width: 100%;
+        padding: 146px 10px 12px;
+      }
+
+      .video-panel {
+        padding: 10px;
+        border-radius: 18px;
+      }
+
+      .cover-frame {
+        border-radius: 14px;
+      }
+
+      .video-info {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="ios-glass-page">
+  <div class="fixed-layer">
+    <div class="action-buttons">
+      {% if video.up_url %}
+      <a class="action-btn" href="{{ video.up_url }}" target="_blank" rel="noopener noreferrer" title="up主页" aria-label="up主页">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.4" r="3.2"></circle>
+          <path d="M5.7 19.2c.8-3.8 3-5.7 6.3-5.7 2.1 0 3.8.8 5 2.3"></path>
+          <path d="M16.3 18.1h4.2"></path>
+          <path d="M18.4 16v4.2"></path>
+        </svg>
+      </a>
+      {% endif %}
+      <a class="action-btn" href="{{ video.mobile_url }}" target="_blank" rel="noopener noreferrer" title="视频链接" aria-label="视频链接">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="4" y="6.2" width="16" height="11.6" rx="2.2"></rect>
+          <path d="M10.1 9.6v4.8l4.4-2.4-4.4-2.4z"></path>
+          <path d="M8.3 4.2 10 6.2"></path>
+          <path d="M15.7 4.2 14 6.2"></path>
+        </svg>
+      </a>
+      <a class="action-btn app" href="{{ video.yyb_url }}" target="_blank" rel="noopener noreferrer" title="app跳转" aria-label="app跳转">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="8" y="3.4" width="8" height="17.2" rx="2.1"></rect>
+          <path d="M10.6 6.2h2.8"></path>
+          <path d="M11.2 17.6h1.6"></path>
+          <path d="M16.7 9.1 20 12l-3.3 2.9"></path>
+          <path d="M19.6 12h-6.5"></path>
+        </svg>
+      </a>
+    </div>
+
+    <section class="video-metadata" aria-label="视频摘要">
+      <div class="video-metadata-title">{{ video.title }}</div>
+      <div class="video-metadata-up">{{ video.up_name }}</div>
+    </section>
+  </div>
+
+  <main class="container">
+    <section class="video-panel" aria-label="视频信息">
+      <div class="cover-frame">
+        {% if video.pic %}
+        <img src="{{ video.pic }}" alt="{{ video.title }}">
+        {% else %}
+        <div class="cover-empty">暂无缩略图</div>
+        {% endif %}
+      </div>
+      <div class="video-info">
+        <div class="info-pill vid">
+          <span>{{ video.bvid }}</span>
+        </div>
+        <div class="info-pill">
+          <span>{{ video.pubdate_text or video.pubdate or "未知发布时间" }}</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -4,6 +4,7 @@
 /build/
 /agent_runtime/build/
 /dist/
+/web/html/
 *.egg-info/
 
 # TEMP LOG

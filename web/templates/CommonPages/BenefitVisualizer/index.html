@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>受益受害分析报告</title>
+  <style>
+{% include "CommonPages/BenefitVisualizer/styles.css" %}
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="report-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Benefit Analysis</p>
+        <h1>受益受害分析报告</h1>
+        <p id="subtitle" class="subtitle">正在加载计算数据</p>
+      </div>
+      <aside class="formula-panel" aria-label="排序指标">
+        <span>排序指标</span>
+        <strong id="formula">posterior_avg_grade² / exp(posterior_win_rate)</strong>
+        <p>数值越低越偏受益，数值越高越偏受害。</p>
+      </aside>
+    </header>
+
+    <section class="metric-strip" aria-label="统计范围">
+      <article>
+        <span>近期窗口</span>
+        <strong id="recent-window">-</strong>
+      </article>
+      <article>
+        <span>历史先验</span>
+        <strong id="prior-window">-</strong>
+      </article>
+      <article>
+        <span>先验强度</span>
+        <strong id="prior-strength">-</strong>
+      </article>
+      <article>
+        <span>样本玩家</span>
+        <strong id="row-count">-</strong>
+      </article>
+    </section>
+
+    <section class="summary-board" aria-label="核心结论">
+      <article class="summary-card summary-benefit">
+        <span>最受益玩家</span>
+        <strong id="best-benefit">-</strong>
+        <p id="best-benefit-detail">等待数据加载</p>
+      </article>
+      <article class="summary-card summary-harmed">
+        <span>最受害玩家</span>
+        <strong id="most-harmed">-</strong>
+        <p id="most-harmed-detail">等待数据加载</p>
+      </article>
+      <article class="summary-card summary-average">
+        <span>平均后验指标</span>
+        <strong id="avg-metric">-</strong>
+        <p id="avg-metric-detail">越低越偏受益，越高越偏受害</p>
+      </article>
+    </section>
+
+    <section class="control-bar" aria-label="筛选与排序">
+      <label>
+        <span>搜索玩家</span>
+        <input id="search" type="search" placeholder="输入玩家或昵称">
+      </label>
+      <label>
+        <span>排序方式</span>
+        <select id="sort">
+          <option value="posterior_metric">按受益受害值升序</option>
+          <option value="metric_delta">按收缩变化升序</option>
+          <option value="recent_count">按近期场次降序</option>
+          <option value="prior_weight">按先验权重降序</option>
+        </select>
+      </label>
+      <button id="replay" type="button">重播收缩动画</button>
+    </section>
+
+    <section class="main-grid">
+      <article class="chart-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Shrinkage Map</p>
+            <h2>近期表现到贝叶斯后验</h2>
+          </div>
+          <div class="legend">
+            <span><i class="dot recent"></i>近期</span>
+            <span><i class="dot posterior"></i>后验</span>
+            <span><i class="line"></i>收缩方向</span>
+          </div>
+        </div>
+        <svg id="chart" viewBox="0 0 1000 560" role="img" aria-label="受益受害收缩动态图"></svg>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </article>
+
+      <aside class="rank-card">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Ranking</p>
+            <h2>玩家排行</h2>
+          </div>
+        </div>
+        <div id="cards" class="cards"></div>
+      </aside>
+    </section>
+
+    <section class="table-card">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Details</p>
+          <h2>后验明细</h2>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>玩家</th>
+              <th>近期场次</th>
+              <th>近期胜率</th>
+              <th>后验胜率</th>
+              <th>后验评分</th>
+              <th>受益受害值</th>
+              <th>收缩变化</th>
+            </tr>
+          </thead>
+          <tbody id="detail-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="empty" class="empty-state" hidden>没有可展示的数据</section>
+  </main>
+  <script>
+    window.BENEFIT_DATA_URL = "{{filename}}";
+  </script>
+  <script>
+{% include "CommonPages/BenefitVisualizer/app.js" %}
+  </script>
+</body>
+</html>

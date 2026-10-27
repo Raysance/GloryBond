@@ -13,11 +13,10 @@ Options:
   --group NAME           Runtime group (default: same as user)
   --modules LIST         Comma-separated nbot,web,napcat,cleanup,nginx
                          (default: nbot,web,cleanup)
-  --web-source PATH      HOK_QQBot_Web source directory
   --domain NAME          Nginx server_name (required with nginx module)
   --nginx-user NAME      Nginx worker user (auto-detected if omitted)
   --python PATH          Python interpreter (default: python3)
-  --skip-python          Do not create virtualenvs or install Python packages
+  --skip-python          Do not create the shared virtualenv or install Python packages
   --start                Enable and start installed modules after validation
   -h, --help             Show this help
 EOF
@@ -29,8 +28,6 @@ source_parent="$(CDPATH= cd -- "$deployment_root/.." && pwd)"
 
 if [[ -f "$source_parent/pyproject.toml" ]]; then
     nbot_source="$source_parent"
-elif [[ -f "$source_parent/nbot/pyproject.toml" ]]; then
-    nbot_source="$source_parent/nbot"
 else
     printf 'HOK_INSTALL_ERROR: cannot locate the NBot source tree\n' >&2
     exit 66
@@ -42,7 +39,6 @@ log_dir="/var/log/hok-qqbot"
 run_user="hok"
 run_group=""
 modules="nbot,web,cleanup"
-web_source=""
 server_name=""
 nginx_user=""
 python_bin="python3"
@@ -57,7 +53,6 @@ while (($#)); do
         --user) run_user="$2"; shift 2 ;;
         --group) run_group="$2"; shift 2 ;;
         --modules) modules="$2"; shift 2 ;;
-        --web-source) web_source="$2"; shift 2 ;;
         --domain) server_name="$2"; shift 2 ;;
         --nginx-user) nginx_user="$2"; shift 2 ;;
         --python) python_bin="$2"; shift 2 ;;
@@ -94,16 +89,8 @@ for requested in ${modules//,/ }; do
     esac
 done
 
-if [[ -z "$web_source" ]]; then
-    for candidate in "$source_parent/web" "$source_parent/../HOK_QQBot_Web"; do
-        if [[ -f "$candidate/app.py" && -f "$candidate/requirements.txt" ]]; then
-            web_source="$(CDPATH= cd -- "$candidate" && pwd)"
-            break
-        fi
-    done
-fi
-if has_module web && [[ -z "$web_source" ]]; then
-    printf 'HOK_INSTALL_ERROR: web module selected but --web-source was not found\n' >&2
+if has_module web && [[ ! -f "$nbot_source/web/app.py" ]]; then
+    printf 'HOK_INSTALL_ERROR: unified web source is missing\n' >&2
     exit 66
 fi
 if has_module nginx && [[ -z "$server_name" ]]; then
@@ -122,7 +109,7 @@ if ! id "$run_user" >/dev/null 2>&1; then
     useradd --system --gid "$run_group" --home-dir "$state_dir" --shell "$nologin_bin" "$run_user"
 fi
 
-nbot_root="$prefix/nbot"
+nbot_root="$prefix"
 web_root="$prefix/web"
 file_transfer_dir="$state_dir/file_transfer"
 find_bin="$(command -v find)"
@@ -144,12 +131,13 @@ copy_tree() {
     fi
     install -d -m 0755 "$target_dir"
     tar -C "$source_dir" \
-        --exclude='.git' --exclude='.venv' \
+        --exclude='.git' --exclude='.venv' --exclude='.local' \
         --exclude='__pycache__' --exclude='*.pyc' \
         --exclude='.DS_Store' --exclude='._*' --exclude='log' --exclude='file_transfer' \
         --exclude='data/history/*' --exclude='data/herotier/*' \
         --exclude='data/herorank/*' --exclude='data/news/*' \
-        --exclude='data/agent_inputs' --exclude='data/player_client' --exclude='data/account_sessions' \
+        --exclude='build' --exclude='dist' --exclude='*.egg-info' --exclude='local_debugger/.venv' \
+        --exclude='data/automation_media' --exclude='data/agent_inputs' --exclude='data/player_client' --exclude='data/account_sessions' \
         --exclude='resources/wzry_images/hero_avatars/*' \
         --exclude='resources/wzry_images/generated/*' \
         --exclude='resources/wzry_images/kpl/*' \
@@ -157,7 +145,7 @@ copy_tree() {
         -cf - . | tar -C "$target_dir" --no-same-owner -xf -
 }
 
-if has_module nbot || has_module cleanup || has_module napcat; then
+if has_module nbot || has_module web || has_module cleanup || has_module napcat; then
     if [[ ! -f "$nbot_source/vendor/hok-camp-client/src/hok_camp_client/__init__.py" || ! -f "$nbot_source/vendor/react-agent-runtime/src/agent_runtime/__init__.py" || ! -f "$nbot_source/vendor/hok-player-client/src/hok_research/__init__.py" ]]; then
         printf 'HOK_INSTALL_ERROR: agent submodule source is missing\n' >&2
         exit 66
@@ -175,9 +163,6 @@ if has_module nbot || has_module cleanup || has_module napcat; then
         "$nbot_root/resources/wzry_images/kpl" \
         "$nbot_root/resources/wzry_images/tmp"
     chown -R "$run_user:$run_group" "$nbot_root/resources/wzry_images"
-fi
-if has_module web; then
-    copy_tree "$web_source" "$web_root"
 fi
 
 render_template() {
@@ -221,7 +206,7 @@ if [[ "$skip_python" == false ]]; then
         printf 'HOK_INSTALL_ERROR: Python executable not found: %s\n' "$python_bin" >&2
         exit 69
     }
-    if has_module nbot; then
+    if has_module nbot || has_module web; then
         "$python_bin" -m venv "$nbot_root/.venv"
         "$nbot_root/.venv/bin/python" -m pip install --upgrade pip
         "$nbot_root/.venv/bin/python" -m pip install "$nbot_root"
@@ -232,11 +217,7 @@ if [[ "$skip_python" == false ]]; then
         fi
         "$nbot_root/.venv/bin/nb" --help >/dev/null
     fi
-    if has_module web; then
-        "$python_bin" -m venv "$web_root/.venv"
-        "$web_root/.venv/bin/python" -m pip install --upgrade pip
-        "$web_root/.venv/bin/python" -m pip install -r "$web_root/requirements.txt"
-    fi
+
 fi
 
 install_unit() {
