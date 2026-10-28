@@ -10,8 +10,10 @@ Current mappings are [application history](history-map-application.txt) and [ear
 
 Fixed private dependencies:
 
-- `vendor/hok-player-client`: `5b960ccace718f9e1466442ac5d741f70111732f`
+- `vendor/hok-player-client`: `c9b70e7ffb9b1445eeb14f5db16254cd3b755425` (version `0.7.3`, nine commits after the `v0.7.3` tag)
 - `vendor/hok-camp-client`: `8abb729ef2a5de2b288e987539040cb838aa18b2`
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
+
+The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).

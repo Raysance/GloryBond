@@ -27,6 +27,8 @@ The tool sends contents on SSH stdin, locks against login-session writers, check
 
 ## Checks and manuals
 
+After updating the player SDK gitlink, run the host's offline compatibility tests with `local_debugger/.venv/bin/python -m unittest discover -s tests -p 'test_player_client*.py'`. Page tests construct synthetic public response models and image backgrounds; they do not depend on the SDK's research fixtures or private screenshot templates. Other report-rendering tests still require the configured local reference screenshots. Native protocol equivalence remains the SDK's responsibility.
+
 Run publication checks against the actual index with `python tools/verify_repository.py`. `--history` additionally inspects reachable history.
 
 Functional manuals are complete in `shared/agent/manual/`; Web guides are in `web/docs/`. Validate the manual using `python scripts/validate_agent_manual.py`. Source history/provenance is described in [RELEASE.md](RELEASE.md), and configuration ownership in [publication rules](../deployment/PUBLICATION.md).

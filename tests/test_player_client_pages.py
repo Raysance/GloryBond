@@ -1,12 +1,9 @@
-"""Consume the SDK's native page views through the bot's paced adapter and renderer."""
-import copy
-import json
+"""Consume SDK page views with synthetic data and no private research fixtures."""
 import unittest
-from pathlib import Path
 from unittest.mock import Mock, patch
 
-from PIL import ImageDraw
-from hok_research import GameMessageCodec, Profile, PlayerRef, HeroExtraStatistics, HeroTitles
+from PIL import Image, ImageDraw
+from hok_research import Profile, PlayerRef, HeroExtraStatistics, HeroTitles
 from hok_research.player_pages import battle_display
 from local_debugger import import_hok_module
 
@@ -18,7 +15,6 @@ ZFILE=import_hok_module('zfile')
 STATIC=import_hok_module('zstatic')
 ZFUNC=import_hok_module('zfunc')
 SUMMARY_RENDER=import_hok_module('tools.gen_player_summary')
-FIXTURES=Path(__file__).parents[1]/'vendor/hok-player-client/tests/fixtures'
 
 
 def battle_row(count=104,score=7370):
@@ -29,34 +25,25 @@ def battle_row(count=104,score=7370):
 
 
 class PlayerPageTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        codec=GameMessageCodec()
-        cls.samples={}
-        for name in ('tdr-reply-native-vectors.json','player-page-wire-native-vectors.json'):
-            for row in json.loads((FIXTURES/name).read_text())['fixtures']:
-                if row['version']==0 and row['array_count']==1 and row['selector'] is None:
-                    cls.samples[row['type'].split('.')[-1]]=codec.codec.decode(row['type'],bytes.fromhex(row['hex']))
-
     def sources(self):
-        raw=copy.deepcopy(self.samples['SCPKG_GET_ACNT_DETAIL_INFO_RSP']['stAcntDetail']['value'])
-        player=PlayerRef(raw['ullUid'],raw['iLogicWorldId'],raw['dwFakeDescID'])
-        hero=raw['stMostUsedHero']['astHeroInfoList'][0]
-        hero.update(dwHeroID=106,dwSkinID=0,dwTopFightValueOfHistory=4300,dwGameWinNum=139,dwGameLoseNum=135)
-        stats=hero['stStatisticDetail']['astTypeDetail'][0]
-        stats.update(bGameType=4,bMapAcntNum=10,dwWinNum=139,dwLoseNum=135,
+        player=PlayerRef(7,8,9)
+        stats=dict(bGameType=4,bMapAcntNum=10,dwWinNum=139,dwLoseNum=135,
                      dwMvpGameNum=274,dwAbilityGameCnt=274,dwMvpScore=1033*274,
                      dwHurtHero=8500*274,dwKDA=6000*274,dwGrow=7000*274,
                      dwBattle=8000*274,dwSurvive=5500*274,
-                     dwColorMedalCnt=0,dwGoldMedalCnt=24,dwSilverMedalCnt=28,dwCopperMedalCnt=12,dwMvp=46)
-        raw['stPosFightValue']['astBranchScore']=[dict(dwPosFightValueScore=v)for v in (0,14000,0,0,3000)]
+                     dwColorMedalCnt=0,dwGoldMedalCnt=24,dwSilverMedalCnt=28,dwCopperMedalCnt=12,
+                     dwMvp=46,dwLoseSoul=8)
+        hero=dict(dwHeroID=106,dwSkinID=0,dwFightValue=3900,dwTopFightValueOfHistory=4300,
+                  dwGameWinNum=139,dwGameLoseNum=135,
+                  stStatisticDetail=dict(dwNum=1,astTypeDetail=[stats]))
+        raw=dict(szAcntName=b'test-player',stMostUsedHero=dict(dwHeroNum=1,astHeroInfoList=[hero]),
+                 stStatistic=dict(stRadarDetail=dict(stCurSeason=dict(stTotal=battle_row(),astBranchTotal=[battle_row()]))),
+                 stPosFightValue=dict(astBranchScore=[dict(dwPosFightValueScore=v)for v in (0,14000,0,0,3000)]))
         profile=Profile(player,raw)
-        label_raw=copy.deepcopy(self.samples['SCPKG_ACNTHEROEXTRASTATINFO_NTF'])
-        label_raw.update(ullUid=player.uid,dwLogicWorldID=player.logic_world_id,stResultInfo=dict(iResultId=0))
-        label_hero=label_raw['stHeroStatisticExtraInfo']['astHeroInfoList'][0]
-        label_hero['dwHeroID']=106
-        label_hero['stHeroLabel'].update(bNum=3,bUseHeroLabelNum=3,astHeroLabelInfo=[
-            dict(bHeroLableID=i,bHeroLableLevel=2,bUseFlag=1)for i in (102,103,110)])
+        label_raw=dict(ullUid=player.uid,dwLogicWorldID=player.logic_world_id,stResultInfo=dict(iResultId=0),
+            stHeroStatisticExtraInfo=dict(astHeroInfoList=[dict(dwHeroID=106,
+                stHeroLabel=dict(bNum=3,bUseHeroLabelNum=3,astHeroLabelInfo=[
+                    dict(bHeroLableID=i,bHeroLableLevel=2,bUseFlag=1)for i in (102,103,110)]))]))
         titles=HeroTitles(player,dict(ullUid=player.uid,dwLogicWorldID=player.logic_world_id,
             stResultInfo=dict(iResultId=0),stHistoryHeroLbsTitleInfo=dict(dwHeroCnt=1,
             astHeroLbsTitleData=[dict(dwHeroID=106,dwTitleTypeCnt=2,astOneTitleTypeData=[
@@ -209,7 +196,9 @@ class PlayerPageTests(unittest.TestCase):
         original=ImageDraw.ImageDraw.text
         def track(draw,xy,text,*args,**kwargs):
             drawn.append(str(text));return original(draw,xy,text,*args,**kwargs)
-        with patch.object(ImageDraw.ImageDraw,'text',track):
+        with patch.object(RENDER,'player_client_reference_image',
+                          side_effect=lambda kind: Image.new('RGB',(2048,952),(36,63,102))), \
+             patch.object(ImageDraw.ImageDraw,'text',track):
             hero_image=RENDER.render_screen(honors,ZFILE.player_client_report_font,
                 win_rate_bands=STATIC.player_client_config['win_rate_bands'])
             cards_image=RENDER.render_hero_report(cards,ZFILE.player_client_report_font,
