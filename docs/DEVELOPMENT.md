@@ -6,6 +6,8 @@
 
 Initialize dependencies with `git submodule update --init --recursive` using an SSH account authorized for `hok-player-client`, `hok-camp-client` and `react-agent-runtime`. Their implementations must never be copied into this repository or a public Actions artifact.
 
+Before every commit, including documentation-only changes, run `git fetch origin main` in each of the three submodules. Both the checked-out commits and staged gitlinks must match their freshly fetched `origin/main`. Update outdated references, adapt the host if necessary, synchronize documentation and complete relevant validation before committing. Version strings and release tags alone do not establish freshness. Deployment continues to use the exact gitlinks recorded by the application commit.
+
 Python 3.12+ is required by the application syntax. The root `pyproject.toml` is the only application dependency manifest. Production shares one root `.venv`; existing local debugging uses `local_debugger/.venv`. Bot starts through `./deploy_runner.sh`, Web through `python -m web`. Importing Web does not start NoneBot.
 
 Prepare the real root `.env` and `config.yaml` separately. Both are ignored by Git. `.env` contains keys, tokens, passwords, database DSNs and verified login sessions; `config.yaml` contains settings plus private user/account mappings. They are never public templates or part of source bundles. `HOK_ENV_FILE` and `HOK_CONFIG_FILE` can explicitly override their paths.

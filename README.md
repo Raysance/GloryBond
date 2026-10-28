@@ -11,7 +11,7 @@ GloryBond是Bot与Web的唯一开发及部署仓库。实现、文档和部署�
 - [定时任务](shared/agent/manual/chapters/tasks.md)和[消息事件规则](shared/agent/manual/chapters/event_rules.md)
 - [网页战绩展示](web/docs/battles.md)、[聊天运行记录](web/docs/chat.md)和[管理员账号登录态](web/docs/accounts.md)
 
-开发与维护约定见 [AGENTS.md](AGENTS.md)。项目更新时同步维护两份文档：README 记录功能与用法，AGENTS 记录项目结构、模块职责和部署约定；相关功能手册一并更新。日常维护使用当前文档与部署入口，验证通过后清理旧副本、过期备份和一次性迁移材料。
+开发与维护约定见 [AGENTS.md](AGENTS.md)。项目更新时同步维护两份文档：README 记录功能与用法，AGENTS 记录项目结构、模块职责和部署约定；相关功能手册一并更新。每次提交（包括纯文档变更）前，检查三个私有 SDK 的远端 `main`，更新落后引用并完成相关验证，始终提交最新模块版本。日常维护使用当前文档与部署入口，验证通过后清理旧副本、过期备份和一次性迁移材料。
 
 玩家客户端已同步心跳与查询并发发送时的序号修复，接口和配置用法保持兼容；固定提交及升级说明见[玩家客户端部署说明](deployment/README.md#王者玩家客户端)，离线验证方式见[开发说明](docs/DEVELOPMENT.md#checks-and-manuals)。
 
