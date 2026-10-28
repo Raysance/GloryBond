@@ -152,9 +152,9 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         ZFUNC.dmc.automation_action_catalog = None
         self.assertEqual(len(ZFUNC.automation_claim_jobs()), 1)
 
-    def test_group_members_list_edit_pause_and_delete_each_others_rules(self):
+    def test_group_members_can_list_but_only_creator_can_change_or_delete_rules(self):
         first = self.save()
-        second = self.save(definition(title="第二个人的规则"), user="101")
+        second = self.save(definition(title="第二个人的规则", enabled=False), user="101")
         key = "hok:automation:rules:group:200"
         original = json.loads(self.store.hget(key, first["id"]))
         listed = ZFUNC.automation_rule_operation("list", {}, principal=principal("101"), run_id="list")["rules"]
@@ -165,7 +165,25 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("creation_run_id", item)
             self.assertNotIn("revision", item)
         job = ZFUNC.automation_publish_event(event())[0]
-        updated = self.save(definition(title="群友已暂停", enabled=False), user="101", rule_id=first["id"])
+        stored = self.store.hgetall(key)
+        state_key = "hok:automation:rule_state:" + first["id"]
+        state = self.store.hgetall(state_key)
+        with patch.object(ZFUNC, "qid", {"owner": "100", "second": "101", "admin": "999"}):
+            for user, rule in (("101", first), ("100", second), ("999", first), ("999", second)):
+                for action, args in [
+                    ("save", {"definition": rule["definition"]}),
+                    ("save", {"definition": {**rule["definition"], "title": "他人修改"}}),
+                    ("save", {"definition": {**rule["definition"], "enabled": not rule["definition"]["enabled"]}}),
+                    ("delete", {}),
+                ]:
+                    with self.subTest(user=user, rule=rule["id"], action=action, args=args), \
+                            self.assertRaisesRegex(PermissionError, "仅规则设置者本人"):
+                        ZFUNC.automation_rule_operation(action, {"rule_id": rule["id"], **args},
+                            principal=principal(user), run_id="denied")
+        self.assertEqual(self.store.hgetall(key), stored)
+        self.assertEqual(self.store.hgetall(state_key), state)
+        self.assertIsNotNone(ZFUNC.automation_current_rule(job))
+        updated = self.save(definition(title="本人已暂停", enabled=False), rule_id=first["id"])
         self.assertEqual(updated["id"], first["id"])
         self.assertEqual(updated["creator"]["user_id"], "100")
         self.assertFalse(updated["definition"]["enabled"])
@@ -174,20 +192,25 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         for field in ("owner_id", "scope", "scopes", "created_at"):
             self.assertEqual(saved[field], original[field])
         deleted = ZFUNC.automation_rule_operation("delete", {"rule_id": first["id"]},
-            principal=principal("101"), run_id="delete")
+            principal=principal(), run_id="delete")
         self.assertTrue(deleted["deleted"])
         self.assertIsNone(self.store.hget(key, first["id"]))
         self.assertFalse(self.store.exists("hok:automation:rule_state:" + first["id"]))
         self.assertIsNotNone(self.store.hget(key, second["id"]))
+        resumed = self.save(definition(title="第二个人的规则"), user="101", rule_id=second["id"])
+        self.assertTrue(resumed["definition"]["enabled"])
+        self.assertEqual(resumed["creator"]["user_id"], "101")
+        self.assertTrue(ZFUNC.automation_rule_operation("delete", {"rule_id": second["id"]},
+            principal=principal("101"), run_id="delete")["deleted"])
 
-    def test_group_edit_preserves_creator_authorization_and_media_binding(self):
+    def test_creator_edit_preserves_authorization_and_media_binding(self):
         rule = self.save(definition(action={"type": "send_media", "arguments": {"kind": "face", "id": "14"}}))
-        listed = ZFUNC.automation_rule_operation("list", {}, principal=principal("101"), run_id="list")["rules"][0]
+        listed = ZFUNC.automation_rule_operation("list", {}, principal=principal(), run_id="list")["rules"][0]
         self.assertEqual(listed["definition"]["action"]["arguments"], {})
-        editor = principal("101")
+        editor = principal()
         editor = Principal(editor.user_id, editor.scopes | {"qq.avatar.write", "roleplay.manage_others"}, editor.attributes)
         changed = copy.deepcopy(listed["definition"])
-        changed.update(title="群友修改", cooldown_seconds=60)
+        changed.update(title="本人修改", cooldown_seconds=60)
         ZFUNC.automation_rule_operation("save", {"rule_id": rule["id"], "definition": changed},
             principal=editor, run_id="edit")
         saved = json.loads(self.store.hget("hok:automation:rules:group:200", rule["id"]))
@@ -195,19 +218,21 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved["scopes"], sorted(principal().scopes))
         self.assertEqual(saved["definition"]["action"]["arguments"]["id"], "14")
 
-    def test_edit_cannot_add_action_permissions_missing_from_creator_or_editor(self):
+    def test_creator_edit_cannot_add_action_permissions_missing_from_saved_or_current_scopes(self):
         rule = self.save()
         ZFUNC.automation_actions().register("restricted", description="受限扩展动作", args_model=Args,
             handler=lambda args, job: None, events=("message.received",), scopes=("extension.restricted",))
         changed = definition(action={"type": "restricted"})
-        editor = principal("101")
+        editor = principal()
         elevated = Principal(editor.user_id, editor.scopes | {"extension.restricted"}, editor.attributes)
-        for caller in (editor, elevated):
-            with self.subTest(scopes=caller.scopes), self.assertRaises(PermissionError):
-                ZFUNC.automation_rule_operation("save", {"rule_id": rule["id"], "definition": changed},
+        elevated_rule = ZFUNC.automation_rule_operation("save", {"definition": definition(title="额外授权规则")},
+            principal=elevated, run_id="create")["rule"]
+        for target, caller in ((rule, elevated), (elevated_rule, editor)):
+            with self.subTest(rule=target["id"], scopes=caller.scopes), self.assertRaises(PermissionError):
+                ZFUNC.automation_rule_operation("save", {"rule_id": target["id"], "definition": changed},
                     principal=caller, run_id="denied")
-        saved = json.loads(self.store.hget("hok:automation:rules:group:200", rule["id"]))
-        self.assertEqual(saved["definition"]["action"]["type"], "notify_owner")
+            saved = json.loads(self.store.hget("hok:automation:rules:group:200", target["id"]))
+            self.assertEqual(saved["definition"]["action"]["type"], "notify_owner")
 
     def test_cross_group_and_private_rules_remain_isolated_even_for_admin_private(self):
         group_rule = self.save()
@@ -256,7 +281,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
             for action, args in [("delete", {}), ("save", {"definition": definition(title="旧版本修改")})]:
                 with self.subTest(action=action), self.assertRaisesRegex(ValueError, "并发改变"):
                     ZFUNC.automation_rule_operation(action, {"rule_id": rule["id"], **args},
-                        principal=principal("101"), run_id="stale")
+                        principal=principal(), run_id="stale")
         self.assertEqual(json.loads(self.store.hget(key, rule["id"])), newer)
         self.assertEqual(self.store.hget("hok:automation:rule_state:" + rule["id"], "run_count"), b"3")
 

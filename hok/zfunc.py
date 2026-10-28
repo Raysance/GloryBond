@@ -187,6 +187,8 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     old = next((rule for rule in rules if rule["id"] == identifier), None) if identifier else None
     if identifier and old is None:
         raise PermissionError("规则不存在或不属于当前群/本人私聊")
+    if old and old["owner_id"] != principal.user_id:
+        raise PermissionError("仅规则设置者本人可以修改、暂停或删除该规则")
     key = REDIS_KEY_AUTOMATION_PREFIX + "rules:" + scope
     if action == "delete":
         script = """
@@ -198,7 +200,7 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
         """
         result = dmc.redis_deamon.eval(script, 2, key,
             REDIS_KEY_AUTOMATION_PREFIX + "rule_state:" + identifier,
-            identifier, scope, old["owner_id"], old["revision"])
+            identifier, scope, principal.user_id, old["revision"])
         if result == -2:
             raise ValueError("规则已并发改变，请重新查询")
         return {"deleted": bool(result), "id": identifier}
@@ -270,7 +272,7 @@ def automation_rule_operation(action, arguments, *, principal, run_id, message_i
     redis.call('HSET', KEYS[1], ARGV[1], ARGV[2]); return 1
     """
     result = dmc.redis_deamon.eval(script, 1, key, identifier, json.dumps(rule, ensure_ascii=False),
-        owner_id, old["revision"] if old else "", policy.max_rules_per_scope, policy.max_rules_per_owner, scope)
+        principal.user_id, old["revision"] if old else "", policy.max_rules_per_scope, policy.max_rules_per_owner, scope)
     if result != 1:
         raise ValueError("规则已并发改变，请重新查询" if result == -2 else "规则数量超限或未获授权")
     return {"changed": True, "rule": _automation_public(rule)}
