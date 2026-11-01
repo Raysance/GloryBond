@@ -171,6 +171,8 @@ retired modules from surviving as untracked Python files. It excludes runtime
 
 ## 王者玩家客户端
 
+当前本地和生产均设置 `PlayerClient.enabled=false`，统一停用官方客户端请求。在线查询自动走原营地流程；战绩只请求营地并保留已保存的当日客户端记录，不从客户端新增采集或跨日补入；普通英雄查询沿用原有处理器，显式客户端命令提示停用。后台官方账号列表及检查显示停用，扫码与轮询也不创建或继续客户端请求；营地和 NapCat 不受影响。既有凭据、玩家绑定、快照和数据库记录保留。通过正常发布重启 Bot/Web 会关闭此前连接。以下 SDK 功能说明供后续明确恢复启用时使用。
+
 源码固定在 `vendor/hok-player-client`，根目录 `hok_research` 链接至其公开包。
 现有递归子模块同步会检出固定提交；服务器必须对该私有仓库拥有 SSH 读取权限。
 现有 PyCryptodome 依赖已经满足客户端要求，无需手机、ADB 或运行时 APK。

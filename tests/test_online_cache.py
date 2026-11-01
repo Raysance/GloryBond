@@ -183,7 +183,7 @@ class OnlineCacheTests(unittest.TestCase):
 
     def test_steam_refreshes_and_main_player_filter_is_applied_again_on_every_cache_hit(self):
         with patch.object(ONLINE, 'userlist', {'a': 1}), \
-             patch.object(ONLINE, 'player_client_config', {'players': {'a': {'uid': 1, 'logic_world_id': 100}}}), \
+             patch.object(ONLINE, 'player_client_config', {'enabled': True, 'players': {'a': {'uid': 1, 'logic_world_id': 100}}}), \
              patch.object(ONLINE, 'steam_userlist', {'steam': 's'}), \
              patch.dict(ONLINE.confs, {'Steam': {'api_key': 'test'}}), \
              patch.object(ZAPI, 'steam_api_user_status', side_effect=[

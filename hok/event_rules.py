@@ -191,6 +191,12 @@ async def check_sleep(event):
     return is_within_daily_time_window(bound_hour, bound_minute, window_seconds=600)
 
 async def judge_player_client(event):
-    from .event_handlers.player_client import parse_client_request
+    from .event_handlers.player_client import parse_client_command, parse_client_request
+    from .zstatic import player_client_config
 
-    return is_bot_request_message(event) and parse_client_request(event.get_plaintext()) is not None
+    if not is_bot_request_message(event):
+        return False
+    text = event.get_plaintext()
+    if parse_client_command(text) is not None:
+        return True
+    return bool(player_client_config.get("enabled", False)) and parse_client_request(text) is not None

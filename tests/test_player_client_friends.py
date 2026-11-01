@@ -26,7 +26,7 @@ def presence(name="游戏昵称", uid=7, world=8, online=1, **fields):
 
 class FriendCommandTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.settings = {**STATIC.player_client_config, "players": {
+        self.settings = {**STATIC.player_client_config, "enabled": True, "players": {
             "alice": {"uid": 7, "logic_world_id": 8, "fake_description_id": 9}}}
         for field, value in {"player_client_config": self.settings, "qid": {"alice": "1"},
                              "namenick": {"alice": "甲"}, "extra_namenick": {},

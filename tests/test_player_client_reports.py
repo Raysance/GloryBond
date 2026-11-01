@@ -254,7 +254,7 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_command_uses_the_configured_names_and_hero_image_facade_once(self):
         event = SimpleNamespace(get_plaintext=lambda: "#客户端 英雄 alice season", get_user_id=lambda: "1")
-        with patch.object(STATIC, "player_client_config", {"players": {"alice": {"uid": 7}}}), \
+        with patch.object(STATIC, "player_client_config", {"enabled": True, "players": {"alice": {"uid": 7}}}), \
              patch.object(STATIC, "qid", {"alice": "1"}), patch.object(STATIC, "namenick", {"alice": "甲"}), \
              patch.object(ZFUNC, "player_client_query", return_value=hero_result()) as query, \
              patch.object(ZFUNC, "player_client_hero_report", return_value={"text": "结果", "image_path": "/tmp/card.png"}) as report:

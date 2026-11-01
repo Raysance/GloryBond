@@ -13,7 +13,7 @@ ZFUNC = import_hok_module("zfunc")
 
 class ShortcutTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.settings = {**STATIC.player_client_config, "players": {"alice": {"uid": 7}}}
+        self.settings = {**STATIC.player_client_config, "enabled": True, "players": {"alice": {"uid": 7}}}
         values = {"player_client_config": self.settings, "namenick": {"alice": "甲"},
                   "extra_namenick": {}, "nameref": {"alice": ["甲", "ali", "alice"]},
                   "qid": {"alice": "1"}, "HeroList": {"106": "小乔", "112": "鲁班七号"},
@@ -77,7 +77,7 @@ class PrimaryAccountTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.main = {"uid": 7, "logic_world_id": 8, "fake_description_id": 9}
         self.alt = {"uid": 70, "logic_world_id": 80, "fake_description_id": 90}
-        self.settings = {**STATIC.player_client_config, "players": {"example_user_5": self.main, "example_user_6": self.alt}}
+        self.settings = {**STATIC.player_client_config, "enabled": True, "players": {"example_user_5": self.main, "example_user_6": self.alt}}
         values = {"player_client_config": self.settings, "userlist": {"example_user_5": 11},
                   "namenick": {"example_user_5": "示例玩家41"}, "extra_namenick": {"example_user_6": "示例玩家41"},
                   # Put the alternate first and give the main an alias matching the explicit alternate key.

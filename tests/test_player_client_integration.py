@@ -38,7 +38,7 @@ def client_result(*rows):
 
 class MergeTests(unittest.TestCase):
     def setUp(self):
-        self.settings = {**STATIC.player_client_config, 'players': {'alice': PLAYER}}
+        self.settings = {**STATIC.player_client_config, 'enabled': True, 'players': {'alice': PLAYER}}
 
     def converted(self, *rows):
         return HISTORY.client_battles(client_result(*rows), PLAYER, self.settings)

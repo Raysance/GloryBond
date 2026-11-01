@@ -36,6 +36,9 @@ class Manager:
     def config(self):
         return store.read_config(self.config_file)
 
+    def official_disabled(self, name):
+        return name == "official" and not self.config().get("PlayerClient", {}).get("enabled", False)
+
     def reserve(self, name, operation, seconds):
         if not self.redis.set(PREFIX + name + ":" + operation, "1", nx=True, ex=seconds):
             raise Limited(self.redis.ttl(PREFIX + name + ":" + operation))
@@ -63,6 +66,9 @@ class Manager:
         return kind(*args, self.official_gate) if name == "official" else kind(*args)
 
     def cached(self, name):
+        if self.official_disabled(name):
+            self.discard(name)
+            return {**providers.status(None, providers.OFFICIAL_DISABLED_MESSAGE), "checked_at": None}
         value = self.redis.get(PREFIX + name + ":status")
         if not value:
             return {"authenticated": None, "message": "尚未检查，请手动检查", "checked_at": None}
@@ -99,6 +105,9 @@ class Manager:
                 self.discard(name)
 
     def check(self, name):
+        if self.official_disabled(name):
+            self.discard(name)
+            return self.record(name, providers.status(None, providers.OFFICIAL_DISABLED_MESSAGE))
         if name in self.active:
             raise Limited(5)
         self.reserve(name, "check", 30)
@@ -109,6 +118,8 @@ class Manager:
         try:
             client = self.provider(name, store.secrets(self.env_file), directory)
             result = client.check()
+        except providers.Disabled:
+            result = providers.status(None, providers.OFFICIAL_DISABLED_MESSAGE)
         except providers.NotConfigured:
             result = providers.status(None, "缺少登录配置，请检查服务配置")
         except Limited:
@@ -125,6 +136,9 @@ class Manager:
         return self.record(name, result)
 
     def start(self, name):
+        if self.official_disabled(name):
+            self.discard(name)
+            return {"state": "error", "message": providers.OFFICIAL_DISABLED_MESSAGE}
         if name in self.active:
             return self.public(self.active[name])
         self.reserve(name, "start", 30)
@@ -175,6 +189,9 @@ class Manager:
                 "qr": challenge["qr"], "message": "请使用要切换到的 QQ 账号扫码并确认"}
 
     def poll(self, name, token, *, role_choice=None):
+        if self.official_disabled(name):
+            self.discard(name)
+            return {"state": "error", "message": providers.OFFICIAL_DISABLED_MESSAGE}
         challenge = self.active.get(name)
         if not challenge or not secrets.compare_digest(challenge["id"], token):
             return {"state": "expired", "message": "二维码已过期或服务已重启，请重新生成"}

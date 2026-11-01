@@ -103,8 +103,11 @@ def _client_online_report():
     return {"online_cnt": len(seen), "text": message.rstrip("\n")}
 
 
-def online_process(*, use_client=True):
+def online_process(*, use_client=None):
     from ..zapi import steam_api_user_status
+
+    enabled = bool(player_client_config.get("enabled", False))
+    use_client = enabled if use_client is None else bool(use_client and enabled)
 
     def process_user(realname):
         userid = userlist[realname]

@@ -78,7 +78,8 @@ def _battle_list_for_date(userid, roleid, target_date):
 def _combined_battle_list(realname, userid, roleid, target_date):
     runtime = _runtime()
     settings = runtime.player_client_config
-    player = settings.get("players", {}).get(realname) if settings.get("enabled") else None
+    enabled = bool(settings.get("enabled", False))
+    player = settings.get("players", {}).get(realname)
     # Never use a binding for a different explicit camp account/role.
     if (not player or str(runtime.userlist.get(realname)) != str(userid)
             or str(runtime.roleidlist.get(realname)) != str(roleid)):
@@ -86,10 +87,12 @@ def _combined_battle_list(realname, userid, roleid, target_date):
     from .player_client_history import client_battles, merge_battles
 
     warnings, failures, camp, client = [], [], None, None
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=2 if enabled else 1) as pool:
         camp_future = pool.submit(_battle_list_for_date, userid, roleid, target_date)
-        client_future = pool.submit(runtime.player_client_query, "matches", player=player)
-        for source, future in (("营地", camp_future), ("客户端", client_future)):
+        sources = [("营地", camp_future)]
+        if enabled:
+            sources.append(("客户端", pool.submit(runtime.player_client_query, "matches", player=player)))
+        for source, future in sources:
             try:
                 value = future.result()
                 if source == "营地":
@@ -100,6 +103,8 @@ def _combined_battle_list(realname, userid, roleid, target_date):
                 runtime.log_message(f"BATTLE_SOURCE_FAILED: source={source} error={type(error).__name__}")
                 failures.append({"source": source, "error_type": type(error).__name__})
     if camp is None and client is None:
+        if not enabled:
+            raise RuntimeError("营地战绩未取得，未覆盖已保存记录")
         raise RuntimeError("营地和客户端战绩均未取得，未覆盖已保存记录")
     result = dict(camp or {"list": [], "invisible": True, "isGaming": False, "gaming": {}})
     converted = client_battles(client, player, settings) if client is not None else []
@@ -110,7 +115,7 @@ def _combined_battle_list(realname, userid, roleid, target_date):
     # Retain previously saved records when either provider is unavailable or has a bounded window.
     previous = zfile.read_personal_history(str(target_date), userid) or {}
     saved = previous.get("btlist", {}).get("list", [])
-    client_unavailable = client is None or not client.get("collection", {}).get("entertainment_received")
+    client_unavailable = enabled and (client is None or not client.get("collection", {}).get("entertainment_received"))
     if client_unavailable:
         latest = zfile.read_latest_client_history(str(target_date), userid, roleid) or {}
         saved = saved + latest.get("btlist", {}).get("list", [])

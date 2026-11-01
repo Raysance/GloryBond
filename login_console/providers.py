@@ -31,6 +31,13 @@ class NotConfigured(RuntimeError):
     pass
 
 
+class Disabled(RuntimeError):
+    pass
+
+
+OFFICIAL_DISABLED_MESSAGE = "王者官方客户端已停用"
+
+
 def status(authenticated=None, message="暂时无法确认，请稍后检查"):
     return {"authenticated": authenticated, "message": message}
 
@@ -136,8 +143,11 @@ class Camp:
 
 class Official:
     def __init__(self, config, env, directory, gate):
+        settings = config.get("PlayerClient", {})
+        if not settings.get("enabled", False):
+            raise Disabled(OFFICIAL_DISABLED_MESSAGE)
         from hok_research import HokClient, MsdkSession
-        settings = config["PlayerClient"]
+
         self.settings, self.gate = settings, gate
         paths = {}
         for name in ("resources", "session", "installation"):

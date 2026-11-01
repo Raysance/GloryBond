@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from local_debugger import import_hok_module
 
@@ -86,7 +87,8 @@ class OnlineStatusTests(unittest.TestCase):
         ONLINE_STATUS.roleidlist = {}
         ONLINE_STATUS.steam_userlist = {}
         try:
-            message, error_report = ZFUNC.online_process()
+            with patch.object(ONLINE_STATUS, 'player_client_config', {'enabled': True}):
+                message, error_report = ZFUNC.online_process()
         finally:
             ONLINE_STATUS.userlist = originals["userlist"]
             ONLINE_STATUS.roleidlist = originals["roleidlist"]

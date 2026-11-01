@@ -40,7 +40,7 @@ class LoginTests(unittest.TestCase):
         self.env = self.root / '.env'
         self.env.write_text("OTHER='preserve'\nHOK_WZRY_TOKEN='old'\n")
         self.config = self.root / 'config.yaml'
-        self.config.write_text(yaml.safe_dump({'Redis': {'REDIS_HOST': 'localhost', 'REDIS_PORT': 6379, 'REDIS_DB': 0}, 'QQBot': {'bot_qid': '12345', 'super_qid': '99999'}}))
+        self.config.write_text(yaml.safe_dump({'Redis': {'REDIS_HOST': 'localhost', 'REDIS_PORT': 6379, 'REDIS_DB': 0}, 'QQBot': {'bot_qid': '12345', 'super_qid': '99999'}, 'PlayerClient': {'enabled': True}}))
         self.redis = MemoryRedis()
         with patch('login_console.manager.redis.Redis', return_value=self.redis):
             self.manager = Manager(self.root, self.env, self.config, self.root / 'data')
@@ -87,6 +87,45 @@ class LoginTests(unittest.TestCase):
         self.assertNotIn('camp', self.manager.active)
         self.assertIsNone(self.redis.get(PREFIX+'camp:lease'))
         self.assertFalse((self.manager.directory / first['challenge_id']).exists())
+
+    def test_disabled_official_status_login_and_poll_never_create_provider(self):
+        config = store.read_config(self.config)
+        config['PlayerClient']['enabled'] = False
+        self.config.write_text(yaml.safe_dump(config))
+        before = self.env.read_bytes()
+        self.manager.record('official', providers.status(True, 'old valid result'))
+        accounts = self.manager.dispatch({'action': 'list'})['accounts']
+        official = next(row for row in accounts if row['provider'] == 'official')
+        self.assertIn('已停用', official['message'])
+        self.assertIsNone(official['authenticated'])
+        self.assertIn('已停用', self.manager.check('official')['message'])
+        self.assertEqual(self.manager.start('official')['state'], 'error')
+        self.assertEqual(self.manager.poll('official', 'old-token')['state'], 'error')
+        self.manager.provider.assert_not_called()
+        self.assertEqual(self.env.read_bytes(), before)
+        self.client.check.return_value = providers.status(True, '营地可用')
+        self.assertTrue(self.manager.check('camp')['authenticated'])
+
+    def test_disabling_official_closes_active_challenge_without_polling(self):
+        challenge = self.manager.start('official')
+        self.client.poll.reset_mock()
+        config = store.read_config(self.config)
+        config['PlayerClient']['enabled'] = False
+        self.config.write_text(yaml.safe_dump(config))
+        result = self.manager.poll('official', challenge['challenge_id'])
+        self.assertEqual(result['state'], 'error')
+        self.client.poll.assert_not_called()
+        self.client.close.assert_called_once()
+        self.assertNotIn('official', self.manager.active)
+        self.assertFalse((self.manager.directory / challenge['challenge_id']).exists())
+
+    def test_disabled_official_constructor_does_not_load_or_write_credentials(self):
+        with patch('hok_research.HokClient.from_resources') as factory, \
+             patch('login_console.providers.store.write_json') as write:
+            with self.assertRaises(providers.Disabled):
+                providers.Official({'PlayerClient': {'enabled': False}}, {}, self.root, Mock())
+            factory.assert_not_called()
+            write.assert_not_called()
 
     def test_unverified_login_does_not_replace_credentials(self):
         qr = self.manager.start('camp')

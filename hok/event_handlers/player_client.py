@@ -274,6 +274,9 @@ async def command_reply(event):
     from ..zfunc import player_client_query, player_client_hero_report, player_client_text_report, player_client_screen_report
     from ..zapi import PlayerClientRateLimited
 
+    if not player_client_config.get("enabled", False):
+        return ["王者客户端查询已停用。"]
+
     try:
         parsed = query_parameters(parse_client_request(event.get_plaintext()) or [],
                                   user_id=event.get_user_id(), settings=player_client_config,

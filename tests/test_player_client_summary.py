@@ -35,7 +35,7 @@ def profile_result():
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.player = {"uid": 7, "logic_world_id": 8, "fake_description_id": 9}
-        values = {"player_client_config": {**STATIC.player_client_config, "players": {"alice": self.player}},
+        values = {"player_client_config": {**STATIC.player_client_config, "enabled": True, "players": {"alice": self.player}},
                   "namenick": {"alice": "甲"}, "extra_namenick": {}, "nameref": {"alice": ["甲", "ali"]},
                   "qid": {"alice": "1"}, "HeroList": {"106": "小乔"}, "HeroName_replacements": {}}
         for name, value in values.items():
@@ -105,7 +105,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(ZFUNC, "player_client_query") as query:
             self.assertIn("尚未绑定", (await HANDLER.command_reply(self.event("#我的资料", user="2")))[0])
             with patch.object(STATIC, "qid", {"alice": "1", "alt": "1"}), \
-                 patch.object(STATIC, "player_client_config", {"players": {"alice": self.player, "alt": self.player}}):
+                 patch.object(STATIC, "player_client_config", {"enabled": True, "players": {"alice": self.player, "alt": self.player}}):
                 self.assertIn("不唯一", (await HANDLER.command_reply(self.event("#我的资料")))[0])
             query.assert_not_called()
         for text in ("我的资料", "##我的资料", "#我的资料怎么样", "#我的中路厉害吗", "#群u的资料", "#群u的中路数据"):

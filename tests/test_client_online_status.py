@@ -30,7 +30,7 @@ class ClientOnlineTests(unittest.TestCase):
         self.bindings = {key: {"uid": i, "logic_world_id": 100, "nickname": key}
                          for i, key in enumerate(("a", "b", "c", "d", "e"), 1)}
         for obj, field, value in ((ONLINE, "userlist", {key: i for i, key in enumerate(self.bindings)}),
-                                  (ONLINE, "player_client_config", {"players": self.bindings}),
+                                  (ONLINE, "player_client_config", {"enabled": True, "players": self.bindings}),
                                   (ONLINE, "steam_userlist", {})):
             p = patch.object(obj, field, value)
             p.start(); self.addCleanup(p.stop)
