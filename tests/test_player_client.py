@@ -160,6 +160,27 @@ class AdapterTests(unittest.TestCase):
         fake.search_players.assert_called_once()
         failed.assert_called_once()
 
+    def test_login_restriction_logs_metadata_and_keeps_server_text_private(self):
+        from hok_research import GameMessageCodec, LobbyLoginLimited
+        codec = GameMessageCodec()
+        body = dict(stResultInfo=dict(iResultId=40001, stArgList=dict(iNum=0, astArgs=[])),
+                    bErrDetailType=1, dwLimitTime=1800000000,
+                    stErrDetail=dict(selector=1, type='CSProtocol.SCDT_LOGINLIMIT_ACNT_BAN',
+                        value=dict(szReason=b'PRIVATE_SENTINEL', szTipsUrl=b'PRIVATE_SENTINEL',
+                                   szBtnContent=b'PRIVATE_SENTINEL')))
+        error = LobbyLoginLimited(codec.decode(codec.encode(1042, body)))
+        adapter, fake = self.make()
+        fake.refresh_friend_states.side_effect = error
+        util = import_hok_module('zutil')
+        with patch.object(util, 'log_message') as log:
+            with self.assertRaises(LobbyLoginLimited):
+                adapter.query('friend_states')
+        self.assertEqual(ADAPTER.player_client_error_info(error), dict(type='LobbyLoginLimited',
+            code=40001, message_id=1042, limit_time=1800000000, detail_type=1))
+        self.assertNotIn('PRIVATE_SENTINEL', str(log.call_args_list))
+        fake.refresh_friend_states.assert_called_once_with(timeout=1)
+        adapter.on_error.assert_called_once_with(error, login=False)
+
     def test_incomplete_response_logs_only_counts_and_stage_timing_without_caching_or_retry(self):
         from hok_research import QueryTimeout
         clock = import_hok_module('ztime')

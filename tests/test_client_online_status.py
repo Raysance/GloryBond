@@ -262,6 +262,24 @@ class ClientOnlineTests(unittest.TestCase):
         self.query.assert_called_once_with('friend_states')
         self.camp.assert_not_called()
 
+    def test_login_limit_report_keeps_metadata_without_server_text_or_offline_result(self):
+        from hok_research import GameMessageCodec, LobbyLoginLimited
+        codec = GameMessageCodec()
+        body = dict(stResultInfo=dict(iResultId=2147483647, stArgList=dict(iNum=0, astArgs=[])),
+                    bErrDetailType=1, dwLimitTime=1800000000,
+                    stErrDetail=dict(selector=1, type='CSProtocol.SCDT_LOGINLIMIT_ACNT_BAN',
+                        value=dict(szReason=b'PRIVATE_SENTINEL', szTipsUrl=b'PRIVATE_SENTINEL',
+                                   szBtnContent=b'PRIVATE_SENTINEL')))
+        self.query.side_effect = LobbyLoginLimited(codec.decode(codec.encode(1042, body)))
+        message, errors = ZFUNC.online_process()
+        self.assertEqual(message, '在线查询暂时失败\n\n只跟踪王者好友')
+        for field in ('LobbyLoginLimited', "'code': 2147483647", "'limit_time': 1800000000",
+                      "'detail_type': 1", 'friend_states'):
+            self.assertIn(field, errors)
+        self.assertNotIn('PRIVATE_SENTINEL', message + errors)
+        self.query.assert_called_once_with('friend_states')
+        self.camp.assert_not_called()
+
     def test_no_bound_main_players_avoids_game_request_and_steam_failures_keep_wzry(self):
         with patch.object(ONLINE, "userlist", {}):
             self.assertEqual(ZFUNC.online_process(), ("🐟🐟无人在线\n\n只跟踪王者好友", ""))

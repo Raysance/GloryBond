@@ -15,7 +15,7 @@ class PlayerClientRateLimited(RuntimeError):
 
 
 def player_client_error_info(error):
-    """Log only types, protocol IDs and counts, never account material or payloads."""
+    """Log typed protocol metadata and counts, never server text or payloads."""
     from hok_research import QueryTimeout
 
     info = {"type": type(error).__name__}
@@ -24,7 +24,7 @@ def player_client_error_info(error):
             info["reason"] = error.reason
         if type(error.retry_after) is int and error.retry_after >= 0:
             info["retry_after_seconds"] = error.retry_after
-    for field in ("code", "command", "message_id"):
+    for field in ("code", "command", "message_id", "limit_time", "detail_type"):
         value = getattr(error, field, None)
         if type(value) is int:
             info[field] = value
