@@ -48,6 +48,13 @@ class PrivateToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(again.data['duplicate'])
         self.assertEqual(self.sender.await_count, 1)
 
+    async def test_private_to_self_is_bound_by_entry_without_requiring_a_guessed_id(self):
+        self.reader.return_value['profile']['user_id'] = '101'
+        result = await execute(self.registry, tool_call(text='你好'), self.ctx)
+        self.assertTrue(result.ok)
+        self.sender.assert_awaited_once_with(group_id='200', user_id='101', text='你好')
+        self.assertEqual(result.data['user_id'], self.principal.user_id)
+
     async def test_nonmembers_cross_group_and_mismatched_profiles_never_send(self):
         result = await execute(self.registry, tool_call(user_id='102', group_id='201', text='你好'), self.ctx)
         self.assertFalse(result.ok)

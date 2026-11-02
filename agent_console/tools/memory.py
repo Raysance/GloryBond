@@ -23,6 +23,10 @@ def memory_policy_prompt():
         "只说‘不对’而未提供新信息时先澄清，不把否定词本身写进记忆；疑问、假设、玩笑和引用也不当作本人新事实。"
         "当前用户自己的稳定偏好与背景以最新明确说明为准，旧记忆不是不可纠正的真相。"
         "外部客观事实的纠正需核验依据；未核实时只能保留为该用户的说法/约定，不能作为通用真相或覆盖权威身份映射和查询结果。"
+        "第三方的经历、身份、动机或群内评价，不能从‘别听某人’、一句否认或玩笑扩写为长期事实。"
+        "remember_memory的evidence_quotes逐字摘录本轮用户本人原话，新增内容逐项受其支持；没有稳定新信息就不写。"
+        "记忆content是模型整理的摘要，evidence_history才是原话来源；旧记录无来源时按未核实摘要使用。"
+        "旧摘要与本人原话、当前权威映射或实际查询冲突时，按后者判断，不用旧模型结论自证。"
         "更新已查到的旧记录必须传memory_id并写完整的新事实，保留不受本次纠正影响的内容；"
         "同一事实还有多条冲突/重复旧记录时，把其余已查询的ID放入supersedes，原子替换，不能先删后存。"
         "确需保存的稳定信息若新旧说法因时期/条件不同可同时成立，就保留时间或条件，不删除无关记忆。已有等价记忆不要重复新增。"
@@ -44,6 +48,28 @@ def replacement_memory_ids(memory_id, supersedes):
         if identifier not in targets:
             targets.append(identifier)
     return targets
+
+
+def validate_memory_evidence(quotes, user_message):
+    """Bind new memory evidence to literal current input, without semantic guessing."""
+    if not isinstance(quotes, list) or not 1 <= len(quotes) <= 8:
+        raise ValueError("chat_memory: 需要本轮本人原话依据")
+    result = []
+    for quote in quotes:
+        clean = _validate_fact_content(quote, 500)
+        if clean not in user_message:
+            raise ValueError("chat_memory: 依据必须逐字来自本轮用户输入，不能引用历史或模型解释")
+        if clean not in result:
+            result.append(clean)
+    return result
+
+
+def dialogue_with_sources(messages):
+    """Personal dialogue preserves delivery, not the evidence behind old claims."""
+    return [{**message, "content":
+        "[历史助手回复：可用于承接话题、改写和复用已交付文本；身份、数字、能力与执行状态未附原始结果，不能作为本轮核实证据。]\n"
+        + message["content"]} if message.get("role") == "assistant" and isinstance(message.get("content"), str)
+        else dict(message) for message in messages]
 
 
 def recent_history_limits(config=None):
@@ -74,7 +100,7 @@ def _validate_fact_content(content, max_chars):
     return content
 
 
-def prepare_fact_memory(content, *, memory_id, timestamp, existing=None, max_chars=2000):
+def prepare_fact_memory(content, *, memory_id, timestamp, existing=None, max_chars=2000, evidence=None):
     """Build a fact record; callers own user authorization, IDs, time and storage."""
     content = _validate_fact_content(content, max_chars)
     if not isinstance(memory_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", memory_id):
@@ -83,6 +109,21 @@ def prepare_fact_memory(content, *, memory_id, timestamp, existing=None, max_cha
         raise ValueError("chat_memory: legacy memories are read-only")
     if existing and existing.get("memory_id") != memory_id:
         raise ValueError("chat_memory: memory_id does not match the existing record")
+    history = []
+    for item in (existing or {}).get("evidence_history", [])[-8:]:
+        if not isinstance(item, dict) or not isinstance(item.get("quotes"), list):
+            continue
+        history.append({"quotes": [_validate_fact_content(quote, 500) for quote in item["quotes"][:8]],
+                        "run_id": str(item.get("run_id", ""))[:80], "recorded_at": str(item.get("recorded_at", ""))[:80]})
+    if evidence is not None:
+        if not isinstance(evidence, dict) or not isinstance(evidence.get("quotes"), list):
+            raise ValueError("chat_memory: 无效的原话依据")
+        quotes = [_validate_fact_content(quote, 500) for quote in evidence["quotes"]]
+        if not 1 <= len(quotes) <= 8:
+            raise ValueError("chat_memory: 无效的原话依据")
+        history.append({"quotes": quotes, "run_id": str(evidence.get("run_id", ""))[:80], "recorded_at": timestamp})
+    while len(history) > 1 and sum(len(quote) for item in history for quote in item["quotes"]) > 2000:
+        history.pop(0)
     return {
         "memory_id": memory_id,
         "content": content,
@@ -90,6 +131,8 @@ def prepare_fact_memory(content, *, memory_id, timestamp, existing=None, max_cha
         "updated_at": timestamp,
         "source": "direct_user",
         "read_only": False,
+        "content_source": "model_summary",
+        "evidence_history": history[-8:],
     }
 
 

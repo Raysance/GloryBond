@@ -81,7 +81,7 @@ class DetailsTests(unittest.TestCase):
                    'env': {'TEST_KEY': 'test-secret-value'}, 'error_reporting': tool_errors.__dict__}
         with patch.dict(remote_worker.CONTEXT, context, clear=True), \
              patch.object(remote_worker, 'db_connection', return_value=database), \
-             patch.object(remote_worker, 'expand_semantic_views', side_effect=lambda sql: sql):
+             patch.object(remote_worker, 'expand_semantic_views', side_effect=lambda sql, *args: sql):
             result = remote_worker.analyze({'domain': 'game', 'principal': {}, 'queries': [
                 {'sql': 'SELECT rating', 'intent': 'first'}, {'sql': 'SELECT score', 'intent': 'second'}]})
         failure, success = result['observations']

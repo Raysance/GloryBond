@@ -63,7 +63,7 @@ class MediaToolTests(unittest.IsolatedAsyncioTestCase):
         return result.data
 
     async def save(self, ctx, arguments, **args):
-        return await self.call(ctx, "save_automation_rule", {"definition": media_definition(arguments), **args})
+        return await self.call(ctx, "save_automation_rule", {"definition": media_definition(arguments), "trigger_scope": "all_matching_messages", **args})
 
     async def test_catalog_exposes_current_indices_and_no_persisted_ids_or_paths(self):
         result = await self.disclose(self.context())

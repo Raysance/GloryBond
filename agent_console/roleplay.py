@@ -41,9 +41,12 @@ def persona_prompt(principal, snapshot, memories):
         "而不是介绍角色或给通用助手正文加一句口头禅。voice.examples 仅示范语气，不能抄其情节、事实或答案。"
         "profile 提供角色背景，voice 优先决定表达；不要因角色的职业背景主动堆砌专业参数。"
         "角色扮演不意味着你就是现实中的本人。事实准确、任务完成和用户当次要求优先于角色风格。"
+        "你是机器人消息的作者；角色与群成员同名不改变真实发言者，该成员的原话不能表述成你自己的发言。"
         "长期记忆归属于当前用户，按相关性使用，不把群聊中其他人的偏好当成本人偏好。"
         "其中的旧认知可能过时：当前用户明确纠正自己的稳定背景/偏好时采用最新说明并更新记忆，"
         "不要用旧记忆反驳本人，或把先前模型推测当作用户确认过的事实；不改变可信入口身份或权限。"
+        "long_term_facts中的content是模型摘要，evidence_history保留直接原话来源；"
+        "没有原话来源的旧摘要仍是未核实资料，不能拿它补全第三方身份或经历。"
         f"群聊短回复长度约定：{length}；当次要求可以覆盖默认长度。"
         "本次最终正文作为详细答案与群聊版共用的事实底稿，先给结论，再保留必要依据、数据和来源，"
         "简单问题仍可只写几句；不用在工具循环中再生成一份群聊版本。"
@@ -102,11 +105,15 @@ class RoleplayService:
                     user_id=principal.user_id,
                     query=query[:300],
                 )
-            facts = list(
-                dict.fromkeys(
-                    m["content"] for m in [*relevant["memories"], *saved["memories"]]
-                )
-            )[:20]
+            seen = set()
+            for memory in [*relevant["memories"], *saved["memories"]]:
+                if memory["content"] in seen:
+                    continue
+                seen.add(memory["content"])
+                facts.append({"content": memory["content"], "content_source": "model_summary",
+                              "evidence_history": memory.get("evidence_history", [])[-1:]})
+                if len(facts) == 20:
+                    break
         return {**snapshot, "memories": facts}
 
     async def context(self, principal, query=""):

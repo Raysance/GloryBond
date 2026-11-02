@@ -53,6 +53,13 @@ QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭�
 
 服务器实际数据源是 PostgreSQL 和 Redis，并非 MySQL。SQL 使用运行服务的 `hok_chat_reader` 账号、只读事务和 AST 白名单；整批 SQL 校验通过后才连接数据库。群聊通过受作用域约束的安全视图读取。
 
+游戏统计通过 `scope` 在对局、装备、阵容关系聚合前统一模式与时间，默认正式5v5及自然时间。
+自然日/周/月使用实际开局秒值，只有明确业务日才使用 `snapshot_date`；查询还受可信入口时间上界约束。
+成功结果提供返回行的十进制数值列合计与截断标记，不能把ID、均分或比率之和作为业务总量。
+参考匹配显式区分精确、候选、歧义和未匹配；业务函数检索无结果不代表SQL数据不可查。
+本人直接历史保留完整交付文本，同时标注旧助手结论未附原始依据，避免把旧错误当成本轮证据。
+新记忆需附本轮本人原话并通过逐字来源校验；摘要与原话分别保存，角色上下文保留来源，后台任务不能自动写个人事实。
+
 共享目录在 `shared/agent/`，内容来自仓库的已验证语义目录。服务器尚未部署语义视图时，适配器将可信视图定义编译为 CTE。模型仍只看到语义视图名，不直接访问采集层。此兼容方式对大范围查询可能受服务器 5 秒查询上限限制。
 
 `shared/agent/reference_data/manifest.json` 声明参考目录的源字段、ID 命名空间、用途和上下文投影。当前源为服务器 `config.yaml#StaticVariables`；也支持通过清单改为独立 `static_variable.json`。每次新请求、后台执行和参考工具调用均读取最新源，返回版本摘要。常用玩家昵称、别名与 QQ 映射进入上下文，完整营地/角色/Steam ID 通过工具查询。此目录与 SQL、记忆分别提供各自的数据，参考查询的 `dataset_id` 可在 Python 中与 SQL 数据集关联并绘图。
@@ -104,6 +111,8 @@ log/agent_console/<session_id>/
 安装独立包：`pip install ./vendor/react-agent-runtime`。独立包仅依赖 Pydantic。外部提供 `ModelPort`、`StatePort`、`OutputPort` 和 `ClockPort`，然后构造 `AgentRuntime`。任意业务函数通过 `ToolRegistry.register(...)` 注入，默认按权限向模型披露；需要渐进披露时声明 `initially_visible=False`，再由应用自己的发现工具选择披露。
 
 任务首次时间可选 `run_at`（带时区的 ISO 8601 日期时间）或 `delay_seconds`（延迟秒数），互斥；具体几点优先提交 `run_at`。程序拒绝过去或超过一年后的具体时间，不自动改到次日。创建和列表返回北京时间 `next_run_at_text`，确认回复使用该实际时间。周期后续仍按原计划递推并跳过错过的时间点。
+
+任务领取、实际开始与结束分别记录；`runs` 是已结束尝试数。任务列表的 `execution` 返回最近执行结果与群消息真实QQ回执，无回执为未核实，不能据到点或completed声称送达。回执表示对应历史消息已发送，不证明所有轮次或所有分批均已交付。
 
 本应用的工具定义在 `agent_console/tools/application.py`，由 `register_application_tools(..., service=..., catalogs=...)` 接入。SQL 方言/校验器、参考查询、数据集投影和持久任务转换也都在 `agent_console/`；数据库 schema 从共享目录的 `schema` 字段显式传入。应用提示词、工具名称和群聊规则不进入内核。`description_provider` 和 `result_projector` 是工具可选的动态描述/结果投影回调；内核只执行回调和通用预算约束，不识别返回值的业务结构。
 

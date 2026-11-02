@@ -14,8 +14,8 @@ class PrivateMessagePolicy(BaseModel):
 
 class PrivateMessageArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    user_id: str = Field(pattern=r"^[1-9][0-9]{0,19}$",
-        description="私发对象的真实QQ；名字或别名先通过权威映射/群成员资料确认，不能猜QQ")
+    user_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$",
+        description="省略表示私发给当前调用者本人，由入口绑定；私发给其他人须填已确认的真实QQ，名字或别名先通过资料工具确认")
     group_id: str | None = Field(default=None, pattern=r"^[1-9][0-9]{0,19}$",
         description="群请求省略且仅限当前群；管理员私聊省略使用默认群，也可明确指定一个群")
     text: str = Field(min_length=1, description="用户要求私发的纯文本正文，不包含未授权的群聊记录或个人记忆")
@@ -36,6 +36,7 @@ def register_private_message_tool(registry, *, reader, sender, formatter=lambda 
         text=(str, Field(min_length=1, max_length=policy.max_chars, description=PrivateMessageArgs.model_fields["text"].description)))
 
     async def send(args, ctx):
+        user_id = args.user_id or ctx.principal.user_id
         chat = ctx.principal.attributes.get("chat", {})
         group = str(chat.get("group_id") or "")
         if group:
@@ -47,20 +48,20 @@ def register_private_message_tool(registry, *, reader, sender, formatter=lambda 
                 raise ValueError("管理员私聊需要指定一个群才能校验成员")
         else:
             raise PermissionError("私发群成员需要可信群范围，普通私聊不能指定任意QQ")
-        if args.user_id == str(ctx.principal.attributes.get("bot", {}).get("user_id") or ""):
+        if user_id == str(ctx.principal.attributes.get("bot", {}).get("user_id") or ""):
             raise ValueError("不能把机器人自身作为群成员私发对象")
         text = formatter(args.text)
         if not isinstance(text, str) or not text.strip() or len(text) > policy.max_chars:
             raise ValueError("私发正文整理后为空或超过配置上限")
         sent = ctx.resources.setdefault("qq_private_sent", {})
-        key = (group, args.user_id, text)
+        key = (group, user_id, text)
         if key in sent:
             return {**sent[key], "duplicate": True}
-        snapshot = await reader(group_id=group, user_id=args.user_id, include_avatar=False)
+        snapshot = await reader(group_id=group, user_id=user_id, include_avatar=False)
         profile = snapshot["profile"]
-        if str(profile.get("group_id")) != group or str(profile.get("user_id")) != args.user_id:
+        if str(profile.get("group_id")) != group or str(profile.get("user_id")) != user_id:
             raise ValueError("资料读取器未确认对应的群成员身份")
-        result = await sender(group_id=group, user_id=args.user_id, text=text)
+        result = await sender(group_id=group, user_id=user_id, text=text)
         message_id = result.get("message_id") if isinstance(result, dict) else None
         try:
             receipt = int(message_id) if type(message_id) in (int, str) else 0
@@ -68,7 +69,7 @@ def register_private_message_tool(registry, *, reader, sender, formatter=lambda 
             receipt = 0
         if not receipt:
             return ToolResult(False, code="OUTCOME_UNKNOWN", error="QQ未返回有效消息ID，无法确认私发结果，禁止自动重发")
-        sent[key] = {"sent": True, "message_id": str(receipt), "user_id": args.user_id, "group_id": group,
+        sent[key] = {"sent": True, "message_id": str(receipt), "user_id": user_id, "group_id": group,
                      "notice": "QQ接口已确认私发，不代表对方已读；本次群/私聊回复与后台任务的绑定目的地不变。"}
         return sent[key]
 

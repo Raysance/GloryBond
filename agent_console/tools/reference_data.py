@@ -241,6 +241,17 @@ class ReferenceData:
                         **record,
                     }
                 )
+        resolutions = []
+        for term in terms:
+            candidates = [item for item in matches if term in item["matched_terms"]]
+            status = "exact" if match == "exact" else "candidate"
+            if not candidates:
+                status = "unmatched"
+            elif len(candidates) > 1:
+                status = "ambiguous"
+            resolutions.append({"term": term, "status": status, "candidate_count": len(candidates),
+                                "candidates": [{"catalog": item["catalog"], "id": item["id"]}
+                                               for item in candidates[:limit]]})
         return {
             "source": self.source,
             "version": self.version,
@@ -249,6 +260,9 @@ class ReferenceData:
             "offset": offset,
             "next_offset": offset + limit if offset + limit < len(matches) else None,
             "unmatched_terms": [term for term in terms if term not in matched_terms],
+            "term_resolution": resolutions,
+            "notice": "unmatched表示配置未确认该称呼，不能按首字母、谐音或旧助手说法补全身份；"
+                      "candidate是包含匹配线索，ambiguous保留歧义。必要时用当前原生提及或用户澄清确认，不反复改写相同查询。",
             "field_usage": {
                 name: self.catalogs[name]["spec"].get("field_usage", {})
                 for name in selected

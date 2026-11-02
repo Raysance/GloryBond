@@ -29,6 +29,7 @@ REDIS_KEY_X_PUSH_LOCK = "hok:lock:x:push"
 REDIS_KEY_FORWARD_DELIVERY_PREFIX = "hok:message:forward:delivery:"
 REDIS_KEY_AGENT_TASK_PREFIX = "hok:agent_runtime:console:task:"
 REDIS_KEY_AGENT_TASK_MESSAGE_PREFIX = "hok:agent_runtime:console:task_message:"
+REDIS_KEY_AGENT_TASK_DELIVERY_PREFIX = "hok:agent_runtime:console:task_delivery:"
 REDIS_KEY_AUTOMATION_PREFIX = "hok:automation:"
 
 

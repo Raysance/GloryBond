@@ -172,7 +172,22 @@
   },
   "query_contract": {
     "one_relation_per_query": true,
-    "rule": "每条查询只选择一个语义关系；需要多类数据时在同一次analyze调用中提交多条查询。"
+    "rule": "每条查询只选择一个语义关系；需要多类数据时在同一次analyze调用中提交多条查询。",
+    "scope": {
+      "applies_to": [
+        "chat_player_battles",
+        "chat_player_equipment",
+        "chat_player_battle_roster"
+      ],
+      "defaults": {
+        "mode": "official",
+        "time_basis": "calendar"
+      },
+      "time_range": "scope.start_at含起点、scope.end_at不含终点，ISO日期时间必须含时区。统一应用在每个语义关系聚合前，不要各条SQL重复编写不同条件。",
+      "calendar": "今天/本周/本月均按Asia/Shanghai实际开局时间；本周为周一零点起。本轮空结果不改变用户要求的时期。",
+      "business": "仅用户明确业务日战报时使用time_basis=business；时间边界为北京时间零点，按snapshot_date筛选。",
+      "other_relations": "资料快照与底蕴评估表有各自时钟，本scope不筛选它们；在SQL使用其目录声明的日期/评估时间。"
+    }
   },
   "semantics": [
     "SQL 方言PostgreSQL。仅单条SELECT或非递归WITH ... SELECT，可JOIN、聚合、窗口和JSON。必须显式列名，COUNT(*)可用。模型无权访问采集层战绩表、身份ID、文件路径、系统目录或导入清单。",
@@ -184,7 +199,7 @@
     "用户给出配置昵称或别名时，从本次身份表取player_key过滤，不能用游戏内nickname或role_name等于用户叫法来定位。输出已关联玩家时保留player_key供最终回答映射配置昵称。",
     "result、player_result与participant_result使用中文'胜利'或'失败'。map_type=1排位、-1巅峰、0其他。star_after_game是折算总星数；rank_star是当前段位内星数，star是折算星数。",
     "语义视图已提供is_official，默认正式5v5直接过滤is_official IS TRUE。用户明确要求匹配、娱乐或全部时另选过滤并说明。英雄统计未给时期时默认当前赛季；组排、互动、共玩、总场次等一般历史统计未给时期时覆盖全部可用数据并返回最早/最晚时间。",
-    "日期以Asia/Shanghai为准。业务日用snapshot_date，精确时间用game_time_epoch秒值及to_timestamp(game_time_epoch)。game_time_label仅供展示，不得作为跨年过滤、分组或排序依据。",
+    "日期以Asia/Shanghai为准。自然日/周/月按实际game_time_epoch，使用scope.start_at/end_at统一过滤；默认calendar时禁止用snapshot_date过滤、分组或排序对局。只有明确业务日统计才设scope.time_basis=business。game_time_label仅供展示。",
     "game_grade是个人评分。胜率=胜局/有效场次（0到1）；KDA=(kill_count+assist_count)/GREATEST(death_count,1)，需说明按单局平均或汇总KDA。缺失评分用NULL排除，不强行填0；比较需返回样本数和时间范围。",
     "chat_player_battles.participant_payload中的battleRecords.position是本人分路，battleStats含本人伤害、承伤和参团等字段；阵容成员使用chat_player_battle_roster.position、skill和battle_stats。阵营关系只使用relation，不从camp、participant_index或red/blue顺序重新推断。",
     "已关联玩家胜负使用chat_player_battles.result，阵容分析使用chat_player_battle_roster.player_result；模型语义层不暴露带采集视角的完整战局payload。",
@@ -193,7 +208,10 @@
     "chat_battle_power_players.hero_power是评估时英雄战力，hero_win_rate为0到1，hero_average_score为历史均分；participant_payload含starNum、peakScore、mvpRate、recentWinRate、heroShowCnt等。当前英雄战力和地区荣耀门槛使用独立工具。",
     "团队贡献系数口径：(5*个人评分/阵营总评分)*POWER((5*个人gold/阵营总gold)/辅助经济系数,-0.5)；最终装备名含学识宝石/近卫/极影时辅助经济系数为0.9（对应全队18%的经济基准），否则为1；辅助装备可直接从chat_player_equipment判断。分母非正或金钱缺失返回NULL。受益度及代表局指数不是现成字段；自定义比较须解释公式。",
     "chat_hero_rank_entries的ban_rate、show_rate、win_rate按原API数值存储，未统一百分比单位；先检查样本和分布。不同rank_id对应不同筛选范围，不可混合；榜单元数据已在同一行，无需连接其他关系。",
-    "JSON路径区分大小写。分类依赖payload中的名称或枚举时，先查询实际值及频数再决定匹配条件；采样后仍须执行正式汇总并核对未匹配比例。"
+    "JSON路径区分大小写。分类依赖payload中的名称或枚举时，先查询实际值及频数再决定匹配条件；采样后仍须执行正式汇总并核对未匹配比例。",
+    "同一分析的个人、队友和装备必须使用同一scope；默认服务端在三个对局关系统一过滤is_official IS TRUE。确需其他模式用scope.mode=all并明确SQL筛选。",
+    "结果column_totals是返回行数值列的精确和，不是自动识别的业务总量；仅可加字段可作汇总，ID、均值及比率不可相加当总体。空值不补0，截断结果的合计不能作总体。",
+    "队友同现与胜负相关不足以判定责任；须保持同一场次集合并比较对应表现、样本量及其他解释。"
   ],
   "guidance": {
     "authoritative_schema": "tables.columns 是可查询列的完整白名单。不得查询 information_schema/pg_catalog，不得猜测目录中不存在的列；需要JSON子字段时先查询少量业务样本。",
@@ -326,5 +344,5 @@
       ]
     ]
   },
-  "version": "2981678ac8ad11e0"
+  "version": "e9e34353f7b863db"
 }

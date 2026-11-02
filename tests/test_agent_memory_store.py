@@ -135,6 +135,26 @@ class MemoryStoreTests(unittest.TestCase):
 
 
 class MemoryToolIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_source_quotes_must_be_current_input_and_background_cannot_write(self):
+        from agent_runtime import Principal, RunRequest, ToolRegistry
+        from agent_runtime.models import ToolContext
+        from agent_runtime.tools.executor import execute
+        from agent_console.tools.application import register_application_tools
+        from unittest.mock import AsyncMock
+        service = AsyncMock()
+        registry = ToolRegistry()
+        register_application_tools(registry, service=service, catalogs={})
+        ctx = ToolContext(RunRequest('别听那个人胡说', 'session', Principal('101', frozenset({'memory.use'}))), AsyncMock())
+        ctx.disclosed = set(registry.tools)
+        call = {'function': {'name': 'remember_memory', 'arguments': json.dumps({
+            'content': '某人每天学习十小时', 'evidence_quotes': ['某人每天学习十小时']})}}
+        self.assertFalse((await execute(registry, call, ctx)).ok)
+        service.memory.assert_not_awaited()
+        ctx.request = RunRequest('我一直主玩中路', 'session', ctx.principal, metadata={'origin': 'background'})
+        call['function']['arguments'] = json.dumps({'content': '主玩中路', 'evidence_quotes': ['我一直主玩中路']})
+        self.assertFalse((await execute(registry, call, ctx)).ok)
+        service.memory.assert_not_awaited()
+
     async def test_implicit_correction_tools_update_owned_facts_and_log_replacements(self):
         from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
         from agent_console.capabilities import Capabilities, application_prompt
@@ -155,7 +175,7 @@ class MemoryToolIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['memory']}, 'd')]},
                 {'role': 'assistant', 'content': '', 'tool_calls': [call('recall_memory', {'query': '辅助位置'}, 'r')]},
                 {'role': 'assistant', 'content': '', 'tool_calls': [call('remember_memory',
-                    {'content': '一直主玩中路，不是辅助', 'memory_id': first['memory_id'], 'supersedes': [second['memory_id']]}, 'm')]},
+                    {'content': '一直主玩中路，不是辅助', 'evidence_quotes': ['我一直主玩中路，不是辅助'], 'memory_id': first['memory_id'], 'supersedes': [second['memory_id']]}, 'm')]},
                 {'role': 'assistant', 'content': '明白了，你一直主玩中路，已更新。'},
             ])
             state = State()
@@ -168,3 +188,6 @@ class MemoryToolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(second['memory_id'], json.dumps(state.events))
         self.assertIn('superseded', json.dumps(state.events))
         self.assertEqual(state.dialogue[0]['content'], question)
+        self.assertEqual(facts[0]['content_source'], 'model_summary')
+        self.assertEqual(facts[0]['evidence_history'][-1]['quotes'], ['我一直主玩中路，不是辅助'])
+        self.assertTrue(facts[0]['evidence_history'][-1]['run_id'])

@@ -92,6 +92,24 @@ class MatchingTests(unittest.TestCase):
 
 
 class ToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_content_limited_intent_cannot_be_saved_as_unfiltered_author_rule(self):
+        backend = AsyncMock(return_value={"actions": [{"type": "notify_owner"}]})
+        registry = ToolRegistry()
+        register_automation_tools(registry, operation=backend)
+        ctx = ToolContext(RunRequest("这种公告发出时提醒我", "qq_g_200_100", principal()), AsyncMock())
+        ctx.disclosed = set(registry.tools)
+        ctx._automation_actions_described = {"notify_owner"}
+        value = definition(condition={"event": "message.sent", "source": "x_subscription", "author_id": "123"})
+        args = {"definition": value, "trigger_scope": "matching_content"}
+        def call():
+            return {"function": {"name": "save_automation_rule", "arguments": json.dumps(args)}}
+        result = await execute(registry, call(), ctx)
+        self.assertFalse(result.ok)
+        backend.assert_not_awaited()
+        args["definition"]["condition"]["contains_any"] = ["限额", "重置"]
+        self.assertTrue((await execute(registry, call(), ctx)).ok)
+        self.assertNotIn("trigger_scope", backend.call_args.args[1])
+
     async def test_disclosure_then_save_preserves_bound_principal_and_rejects_background(self):
         backend = AsyncMock(return_value={"actions": [{"type": "notify_owner"}]})
         registry = ToolRegistry()
@@ -102,14 +120,14 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         def call(name, arguments):
             return {"id": name, "function": {"name": name, "arguments": json.dumps(arguments)}}
 
-        result = await execute(registry, call("save_automation_rule", {"definition": definition()}), ctx)
+        result = await execute(registry, call("save_automation_rule", {"definition": definition(), "trigger_scope": "matching_content"}), ctx)
         self.assertFalse(result.ok)
         backend.assert_not_awaited()
         self.assertTrue((await execute(registry, call("list_automation_actions", {}), ctx)).ok)
-        self.assertTrue((await execute(registry, call("save_automation_rule", {"definition": definition()}), ctx)).ok)
+        self.assertTrue((await execute(registry, call("save_automation_rule", {"definition": definition(), "trigger_scope": "matching_content"}), ctx)).ok)
         self.assertIs(backend.call_args.args[2].principal, ctx.principal)
         for extra in ({"owner_id": "999"}, {"group_id": "999"}, {"destination": {}}):
-            self.assertFalse((await execute(registry, call("save_automation_rule", {"definition": definition(), **extra}), ctx)).ok)
+            self.assertFalse((await execute(registry, call("save_automation_rule", {"definition": definition(), "trigger_scope": "matching_content", **extra}), ctx)).ok)
         background = ToolContext(RunRequest("x", "s", principal(), metadata={"origin": "background"}), AsyncMock())
         background.disclosed = set(registry.tools)
         self.assertFalse((await execute(registry, call("list_automation_actions", {}), background)).ok)
@@ -476,7 +494,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         model = ScriptedModel([
             {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["automation"]})]},
             {"role": "assistant", "content": "", "tool_calls": [call("list_automation_actions", {})]},
-            {"role": "assistant", "content": "", "tool_calls": [call("save_automation_rule", {"definition": definition()})]},
+            {"role": "assistant", "content": "", "tool_calls": [call("save_automation_rule", {"definition": definition(), "trigger_scope": "matching_content"})]},
             {"role": "assistant", "content": "已保存开黑提醒"}])
         runtime = AgentRuntime(model=model, registry=registry, state=State(), output=Sink(), clock=Clock())
         result = await runtime.run(RunRequest("以后群里说到开黑时提醒我", "qq_g_200_100", principal()))

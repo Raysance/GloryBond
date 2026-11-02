@@ -1,6 +1,7 @@
 """Natural-language rule management with creator-only writes in a trusted QQ scope."""
 
 import asyncio
+from typing import Literal
 from pydantic import Field
 
 from agent_console.automation import Args, MediaSelectionArgs, RuleDefinition, StoredMediaArgs
@@ -11,6 +12,8 @@ class SaveRuleArgs(Args):
     rule_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$",
         description="修改本人在当前群或私聊设置的已有规则时先list取得ID；仅设置者本人可修改。省略创建。definition为完整的新定义")
     definition: RuleDefinition
+    trigger_scope: Literal["all_matching_messages", "matching_content"] = Field(
+        description="用户明确要求指定来源/作者的每条消息才选all_matching_messages；限定某类内容或‘这种消息’选matching_content并填写内容关键词，无法确定关键词时先澄清，不能扩大为全量")
 
 
 class RuleIdArgs(Args):
@@ -44,7 +47,10 @@ def register_automation_tools(registry, *, operation, image_store=None, media_st
             raise PermissionError("后台动作不能创建、修改或管理事件规则")
         if args.definition.action.type not in getattr(ctx, "_automation_actions_described", set()):
             raise ValueError("先调用list_automation_actions读取动作参数和适用事件")
-        arguments = args.model_dump(mode="json")
+        condition = args.definition.condition
+        if args.trigger_scope == "matching_content" and not (condition.contains_any or condition.contains_all):
+            raise ValueError("按内容触发的规则缺少关键词；先澄清所指内容，不能退化为作者所有消息")
+        arguments = args.model_dump(mode="json", exclude={"trigger_scope"})
         if args.definition.action.type == "send_media":
             selection = MediaSelectionArgs.model_validate(args.definition.action.arguments)
             sources = ctx.request.metadata.get("automation_media", ())
@@ -88,6 +94,8 @@ def register_automation_tools(registry, *, operation, image_store=None, media_st
          "指定某人发言时用condition.sender_name传配置昵称或别名，服务器自动沿sameuser补齐大号QQ；"
          "明确QQ可用sender_id，不从历史发言猜QQ。保存结果以绑定后的sender_id为准。"
          "关键词按字面匹配，不能声称理解视频或图片全部内容。B站用source=bili_video，X用source=x_subscription，作者用目录中的ID；"
+         "trigger_scope明确区分全量与内容筛选；‘这种消息’不能自动扩大为该作者全部消息。"
+         "无法把内容类别可靠表达为关键词时先询问范围，不创建更宽规则。未指定的冷却、次数和期限沿用默认值，不自行设冷却0。"
          "原推送带@用message.before_send+append_owner_mention，事后提醒用message.sent+notify_owner。"
          "用户指定固定回复时用send_text并原样保存，包括群内玩笑、轻度粗口（如sb）及重复字符；"
          "不因这些措辞自行拒绝或改成正常提醒，不按角色喜好更改文案。每次触发发送一条固定消息，遵守冷却、次数及防循环约束。"

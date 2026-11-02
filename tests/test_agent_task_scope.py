@@ -94,6 +94,28 @@ class TaskScopeTests(unittest.TestCase):
         self.assertFalse(self.store.values)
         self.assertFalse(self.store.indexes)
 
+    def test_completed_attempt_and_real_delivery_are_separate_observations(self):
+        task = self.create(max_runs=1)
+        with patch.object(worker.time, "time", return_value=120):
+            claimed = worker.dispatch({"op": "task_due", "channel": "qq"})[0]
+            self.assertEqual(claimed["last_claimed_at"], 120)
+            self.assertNotIn("last_started_at", claimed)
+            self.assertTrue(worker.dispatch({"op": "task_start", "task_id": task["task_id"],
+                                             "lease_token": claimed["lease_token"]}))
+            worker.dispatch({"op": "task_finish", "task_id": task["task_id"],
+                             "lease_token": claimed["lease_token"], "failed": False})
+        result = self.request("task_list")["tasks"][0]
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["execution"]["last_outcome"], "completed")
+        self.assertEqual(result["execution"]["delivery"]["status"], "unverified")
+        with patch.object(FUNC.dmc, "redis_deamon", self.store):
+            FUNC.agent_record_task_message(group_id="200", message_id=42, task_id=task["task_id"])
+        evidence = self.request("task_list")["tasks"][0]["execution"]["delivery"]
+        self.assertEqual(evidence["status"], "sent")
+        self.assertEqual(evidence["message_id"], "42")
+        self.assertIsNotNone(evidence["sent_at"])
+        self.assertEqual(self.request("task_list", "101", None)["tasks"], [])
+
     def test_another_member_cancels_same_group_task_without_changing_creator_or_delivery(self):
         task = self.create()
         before = task["principal"]

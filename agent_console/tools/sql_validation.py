@@ -4,6 +4,8 @@ Database permissions and READ ONLY transactions are independent enforcement
 layers. This module never opens a connection or touches the filesystem.
 """
 
+import datetime
+
 from sqlglot import exp, parse
 from sqlglot.errors import ErrorLevel, SqlglotError
 from sqlglot.optimizer.scope import traverse_scope
@@ -15,7 +17,7 @@ SAFE_FUNCTIONS = frozenset(
     ABS ACOS ASIN ATAN ATAN2 AVG AND ARRAY ARRAY_AGG ARRAY_SIZE BOOL_AND BOOL_OR
     CASE CAST CEIL COALESCE CONCAT CONCAT_WS CORR COS COUNT COVAR_POP COVAR_SAMP
     CUME_DIST CURRENT_DATE CURRENT_TIMESTAMP DATE DATE_ADD DATE_DIFF DATE_TRUNC EXISTS
-    DENSE_RANK EXP EXPLODE EXTRACT FIRST_VALUE FLOOR GREATEST IF JSON_EXTRACT
+    DENSE_RANK EXP EXPLODE EXTRACT FIRST_VALUE FLOOR GREATEST GROUP_CONCAT IF JSON_EXTRACT
     JSON_EXTRACT_SCALAR JSONB_EXTRACT JSONB_EXTRACT_SCALAR LAG LAST_VALUE LEAD
     LEAST LEFT LENGTH LN LOG LOWER MAX MIN MOD NTH_VALUE NTILE NULLIF
     OR PERCENT_RANK PERCENTILE_CONT PERCENTILE_DISC POW POWER RANK REGEXP_LIKE REGEXP_I_LIKE
@@ -70,6 +72,73 @@ FORBIDDEN_COLUMNS = frozenset(
 
 class ChatSQLValidationError(ValueError):
     """A SQL query cannot be executed by the chat reader."""
+
+
+def normalize_game_scope(scope):
+    """One explicit cohort for every battle relation in an analytical batch."""
+    if not isinstance(scope, dict) or set(scope) - {"mode", "time_basis", "start_at", "end_at"}:
+        raise ChatSQLValidationError("无效的游戏统计范围")
+    result = {"mode": "official", "time_basis": "calendar", "start_at": None, "end_at": None, **scope}
+    if result["mode"] not in {"official", "all"} or result["time_basis"] not in {"calendar", "business"}:
+        raise ChatSQLValidationError("无效的比赛模式或时间口径")
+    bounds = []
+    for key in ("start_at", "end_at"):
+        value = result[key]
+        if value is None:
+            bounds.append(None)
+            continue
+        try:
+            parsed = datetime.datetime.fromisoformat(value)
+            if parsed.utcoffset() is None:
+                raise ValueError()
+        except (TypeError, ValueError):
+            raise ChatSQLValidationError("统计时间必须包含日期与时区") from None
+        local = parsed.astimezone(datetime.timezone(datetime.timedelta(hours=8)))
+        if result["time_basis"] == "business" and local.time() != datetime.time():
+            raise ChatSQLValidationError("业务日范围须使用北京时间零点边界")
+        result[key] = parsed.isoformat()
+        bounds.append(parsed)
+    if all(bounds) and bounds[0] >= bounds[1]:
+        raise ChatSQLValidationError("统计起始时间必须早于结束时间，范围为左闭右开")
+    return result
+
+
+def game_scope_column_usage(scope, tables):
+    """Calendar activity must not silently filter or group by archival dates."""
+    if scope["time_basis"] != "calendar":
+        return {}
+    return {f"{name}.snapshot_date": {
+        "allow_predicate": False, "allow_grouping": False, "allow_ordering": False,
+        "rule": "自然日/月/周使用scope.start_at/end_at或game_time_epoch；只有用户指定业务日时使用scope.time_basis=business。",
+    } for name, table in tables.items()
+        if {"snapshot_date", "game_time_epoch"} <= set(table["columns"])}
+
+
+def game_scope_predicates(scope, columns):
+    """Build trusted filters inside semantic relations, before model aggregation."""
+    # Daily profiles and evaluated-power data have different clocks and no
+    # battle cohort. Their own documented fields remain queryable as before.
+    if "game_time_epoch" not in columns:
+        return []
+    predicates = []
+    if scope.get("as_of") is not None:
+        bound = datetime.datetime.fromisoformat(scope["as_of"])
+        predicates.append(exp.LTE(this=exp.column("game_time_epoch"), expression=exp.convert(bound.timestamp())))
+    if scope["mode"] == "official" and "is_official" in columns:
+        predicates.append(exp.column("is_official").is_(exp.true()))
+    for key, operator in (("start_at", exp.GTE), ("end_at", exp.LT)):
+        if scope[key] is None:
+            continue
+        bound = datetime.datetime.fromisoformat(scope[key])
+        if scope["time_basis"] == "calendar":
+            column = "game_time_epoch"
+            value = exp.convert(bound.timestamp())
+        else:
+            column = "snapshot_date"
+            local = bound.astimezone(datetime.timezone(datetime.timedelta(hours=8)))
+            value = exp.cast(exp.Literal.string(local.date().isoformat()), "DATE")
+        predicates.append(operator(this=exp.column(column), expression=value))
+    return predicates
 
 
 def _function_name(node):

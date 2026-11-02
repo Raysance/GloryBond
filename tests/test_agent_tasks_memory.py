@@ -95,7 +95,7 @@ class PersonalCapabilityTests(unittest.IsolatedAsyncioTestCase):
                     "role": "assistant",
                     "content": "",
                     "tool_calls": [
-                        call("remember_memory", {"content": "喜欢玩安琪拉"}, "m")
+                        call("remember_memory", {"content": "喜欢玩安琪拉", "evidence_quotes": ["我喜欢玩安琪拉"]}, "m")
                     ],
                 },
                 {"role": "assistant", "content": "已记住"},
@@ -136,7 +136,7 @@ class PersonalCapabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.finished = []
 
             async def call(self, op, **args):
-                if op == "task_active":
+                if op == "task_start":
                     return True
                 if op == "task_finish":
                     self.finished.append(args)
@@ -181,7 +181,7 @@ class PersonalCapabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_task_publishes_no_message(self):
         class Bridge:
             async def call(self, op, **args):
-                self_case.assertEqual(op, "task_active")
+                self_case.assertEqual(op, "task_start")
                 return False
 
         self_case = self

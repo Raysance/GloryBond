@@ -76,7 +76,7 @@ class TaskScheduler:
         submitted = None
         try:
             if not await self.bridge.call(
-                "task_active", task_id=task["task_id"], lease_token=task["lease_token"]
+                "task_start", task_id=task["task_id"], lease_token=task["lease_token"]
             ):
                 return
             if task.get("kind", "agent") == "message":

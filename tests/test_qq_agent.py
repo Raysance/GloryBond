@@ -152,7 +152,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     return {"task_id": "t", "created": True, "max_runs": args["max_runs"]}
                 if op == "task_due":
                     return []
-                if op in {"task_active", "task_finish"}:
+                if op in {"task_start", "task_finish"}:
                     return True
                 raise AssertionError(op)
 
@@ -230,7 +230,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.group_replies['200'][-1]['text'], self.reply_text)
         self.script = [{'role': 'assistant', 'content': '继续完成作品。'}]
         await self.gateway.chat(user_text='继续写', user_id='101', nickname='用户', group_id='200')
-        self.assertTrue(any(message.get('role') == 'assistant' and message.get('content') == draft
+        self.assertTrue(any(message.get('role') == 'assistant' and message.get('content', '').endswith(draft)
                             for message in self.gateway.model.requests[-1].messages))
 
     async def test_independent_search_and_discovery_succeed_in_the_first_round(self):
@@ -657,7 +657,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             {"role": "assistant", "content": "", "tool_calls": [call("search_chat_history", {"queries": ["偏好", "提醒"]}, "h")]},
             {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["memory", "tasks"]}, "d")]},
             {"role": "assistant", "content": "", "tool_calls": [
-                call("remember_memory", {"content": "喜欢玩安琪拉"}, "m"),
+                call("remember_memory", {"content": "喜欢玩安琪拉", "evidence_quotes": ["我喜欢安琪拉"]}, "m"),
                 call("emit_message", {"text": "记忆已保存，正在设置提醒。"}, "e"),
                 call("create_task", {"kind": "message", "message": "提醒 {run}", "interval_seconds": 10, "max_runs": 3}, "t"),
             ]},
@@ -702,7 +702,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         ]
         await self.gateway.chat(user_text='你刚才说的第一步是什么？', user_id='101', nickname='B')
         messages = self.gateway.model.requests[-2].messages
-        self.assertTrue(any(message.get('role') == 'assistant' and message.get('content') == saved
+        self.assertTrue(any(message.get('role') == 'assistant' and message.get('content', '').endswith(saved)
                             for message in messages))
 
     async def test_private_has_no_group_tool_and_qq_runner_is_separate(self):

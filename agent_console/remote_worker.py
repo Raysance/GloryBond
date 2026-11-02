@@ -298,7 +298,7 @@ def trusted_scope(principal, requested_group=None):
     return selected
 
 
-def expand_semantic_views(sql):
+def expand_semantic_views(sql, query_scope=None):
     """Compile the application's versioned semantic definitions as read-only CTEs.
 
     Model input has already been validated against the semantic catalogue.
@@ -323,6 +323,11 @@ def expand_semantic_views(sql):
                     aliases[name] = alias
                     view = parse_one(definitions[name], read="postgres")
                     expand(view)
+                    if query_scope is not None:
+                        columns = CONTEXT["catalogs"]["hok_sql"]["tables"].get(name, {}).get("columns", {})
+                        filters = CONTEXT["validation"]["game_scope_predicates"](query_scope, columns)
+                        if filters:
+                            view = exp.select("*").from_(view.subquery("scoped_battles")).where(*filters)
                     required[name] = view
                 # Keep the original relation qualifier for existing columns.
                 if not table.alias:
@@ -354,6 +359,15 @@ def analyze(args):
         for k, values in catalog.get("json_root_owners", {}).items()
     }
     normalized = []
+    query_scope = (CONTEXT["validation"]["normalize_game_scope"](args["scope"])
+                   if domain == "game" and "scope" in args else None)
+    column_usage = dict(catalog.get("column_usage", {}))
+    if query_scope is not None:
+        column_usage.update(CONTEXT["validation"]["game_scope_column_usage"](query_scope, catalog["tables"]))
+        # The model's end date may be later than this request. Recorded activity
+        # is bounded by the trusted ingress clock, never an input-selected clock.
+        query_scope["as_of"] = datetime.datetime.fromtimestamp(
+            args.get("as_of", time.time()), datetime.timezone(datetime.timedelta(hours=8))).isoformat()
     # All statements are validated before the first connection is opened.
     for query in args["queries"]:
         normalized.append(
@@ -361,7 +375,7 @@ def analyze(args):
                 query["sql"],
                 query.get("params"),
                 allowed_tables=catalog["tables"],
-                column_usage=catalog.get("column_usage", {}),
+                column_usage=column_usage,
                 schema_name=catalog["schema"],
                 json_root_owners=owners,
             )
@@ -376,7 +390,7 @@ def analyze(args):
                 with conn.transaction():
                     with conn.cursor(name="agent_" + uuid4().hex) as cur:
                         executed = (
-                            expand_semantic_views(sql) if domain == "game" else sql
+                            expand_semantic_views(sql, query_scope) if domain == "game" else sql
                         )
                         cur.execute(
                             f"SELECT * FROM ({executed}) AS agent_result LIMIT {row_limit + 1}"
@@ -422,6 +436,7 @@ def analyze(args):
                     }
                 )
     return {"observations": results, "catalog_version": catalog["version"],
+            **({"scope": query_scope} if query_scope is not None else {}),
             "coverage": {"source": "postgresql_archive", "missing_records_mean_no_activity": False},
             "notice": "结果只覆盖查询范围内已归档记录。缺失、空结果或最后一条记录的时间，"
                       "不代表之后没有对局、没有上线或现实中没有发生；不能把归档边界写成活动停止时间。"}
@@ -555,6 +570,8 @@ def memory(args):
                 records, args.get("query", ""), limit=20
             ),
             "total": len(records),
+            "notice": "content为模型整理的个人摘要，evidence_history为本人原话来源；无来源的旧摘要未核实。"
+                      "不把第三方评价或模型旧推断当作权威事实。",
         }
     if action == "forget":
         return {"deleted": bool(store.hdel(key, args["memory_id"]))}
@@ -578,7 +595,7 @@ def memory(args):
                 record = helpers["prepare_fact_memory"](
                     args["content"],
                     memory_id=memory_id,
-                    timestamp=timestamp, existing=existing,
+                    timestamp=timestamp, existing=existing, evidence=args.get("evidence"),
                 )
                 if not targets:
                     duplicate = next((row for row in records.values() if row["content"] == record["content"]), None)
@@ -768,14 +785,30 @@ def task_access(task, session, principal):
     return (task_group(task) == group if group else task.get("session_id") == session)
 
 
-def task_summary(task):
+def task_summary(task, *, receipt=None):
     """Expose scheduling details and creator, never execution credentials or permissions."""
     principal = task.get("principal", {})
     identity = principal.get("attributes", {}).get("identity", {})
     return {**{key: task[key] for key in ("task_id", "kind", "instruction", "message", "status",
                 "runs", "max_runs", "interval_seconds", "next_run_at") if key in task},
             **task_schedule_details(task),
-            "creator": {"user_id": principal.get("user_id"), "name": identity.get("name")}}
+            "creator": {"user_id": principal.get("user_id"), "name": identity.get("name")},
+            "execution": {"finished_attempts": task.get("runs", 0),
+                          "last_claimed_at": task.get("last_claimed_at"),
+                          "last_started_at": task.get("last_started_at"),
+                          "last_finished_at": task.get("last_finished_at"),
+                          "last_outcome": task.get("last_outcome", "unknown"),
+                          "delivery": receipt or {"status": "unverified"}}}
+
+
+def task_delivery_evidence(store, task):
+    raw = store.get(STATE_PREFIX + "task_delivery:" + task["task_id"])
+    receipt = json.loads(raw or "{}")
+    if (receipt.get("task_id") == task["task_id"]
+            and str(receipt.get("group_id")) == task_group(task)
+            and receipt.get("message_id")):
+        return {"status": "sent", "message_id": receipt["message_id"], "sent_at": receipt.get("sent_at")}
+    return {"status": "unverified"}
 
 
 def task_schedule_details(task):
@@ -892,15 +925,17 @@ def dispatch(args):
             task_id = link.get("task_id", "")
             task = json.loads(store.get(STATE_PREFIX + "task:" + task_id) or "{}") if re.fullmatch(r"[a-f0-9]{32}", task_id) else {}
             matched = bool(task and task_group(task) == group)
-            return {"tasks": [task_summary(task)] if matched else [], "group_id": group,
+            return {"tasks": [task_summary(task, receipt={"status": "sent", "message_id": message_id})] if matched else [], "group_id": group,
                     "message_lookup": {"message_id": message_id, "matched": matched,
                         **({} if matched else {"reason": "没有可验证的发送回执关联，无法确认创建者或任务"})}}
         tasks = []
         for key in store.scan_iter(STATE_PREFIX + "task:*"):
             task = json.loads(store.get(key) or "{}")
             if task_access(task, session, principal):
-                tasks.append(task_summary(task))
+                tasks.append(task_summary(task, receipt=task_delivery_evidence(store, task)))
         return {"tasks": tasks, "scope": "group" if group else "session",
+                "notice": "仅返回当前授权范围。计划时间、已结束尝试次数和执行完成都不证明消息送达；"
+                          "execution.delivery.status=sent才有QQ发送回执，unverified表示未核实而非发送失败。",
                 **({"group_id": group} if group else {})}
     if op == "task_cancel":
         key = STATE_PREFIX + "task:" + args["task_id"]
@@ -921,6 +956,18 @@ def dispatch(args):
             task.get("status") == "running"
             and task.get("lease_token") == args["lease_token"]
         )
+    if op == "task_start":
+        key = STATE_PREFIX + "task:" + args["task_id"]
+        with store.pipeline() as pipe:
+            pipe.watch(key)
+            task = json.loads(pipe.get(key) or "{}")
+            if task.get("status") != "running" or task.get("lease_token") != args["lease_token"]:
+                return False
+            task["last_started_at"] = time.time()
+            pipe.multi()
+            pipe.set(key, json.dumps(task))
+            pipe.execute()
+        return True
     if op == "task_due":
         tasks = []
         for task_id in store.zrangebyscore(
@@ -940,6 +987,7 @@ def dispatch(args):
                         continue
                     task.update(
                         status="running",
+                        last_claimed_at=time.time(),
                         lease_until=time.time() + max(600, args.get("lease_seconds", 1500)),
                         lease_token=uuid4().hex,
                     )
@@ -962,6 +1010,8 @@ def dispatch(args):
                 return False
             task["runs"] += 1
             task["lease_until"] = 0
+            task["last_finished_at"] = time.time()
+            task["last_outcome"] = "failed" if args.get("failed") else "completed"
             interval = task.get("interval_seconds")
             repeat = (
                 interval and task["runs"] < task["max_runs"] and not args.get("failed")

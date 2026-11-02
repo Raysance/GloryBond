@@ -239,6 +239,8 @@ class QQAgentService:
             if self.chat_ignore_operation is not None and "qq.chat.ignore.manage" in principal.scopes else "")
         return (business_prompt + role_admin_prompt + ignore_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
                 "用户明确要求给群成员私发消息时，发现chat_delivery并调用send_group_member_private_message；"
+                "当前群请求中‘给我私发’的收件人就是入口绑定的principal.user_id，支持给调用者本人私发；"
+                "对象改变时以本轮明确目标为准，不能沿用上一位收件人。正文缺失时只澄清正文，不再索取已知身份。"
                 "这是独立发送动作，不改变正常回复会话或任务目的地；QQ返回消息ID后才能确认成功，不能声称对方已读。"
                 "要求私发的正文只经私发工具发送，正常群回复只确认状态，不重复私发正文。"
                 "定时私发应创建agent任务并在指令中写清目标和正文，由私发工具执行；message任务仍发往原绑定会话。"

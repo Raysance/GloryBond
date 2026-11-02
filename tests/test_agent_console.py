@@ -51,6 +51,11 @@ class SQLTests(unittest.TestCase):
         )
         self.assertIn("x''; DELETE", result)
 
+    def test_postgres_string_aggregation_uses_parser_canonical_function_name(self):
+        result = self.validate("SELECT game_seq, STRING_AGG(player_key, ',' ORDER BY player_key) AS players "
+                               "FROM hok.chat_player_battles GROUP BY game_seq")
+        self.assertIn('STRING_AGG', result)
+
     def test_batch_validation_failure_opens_no_connection(self):
         from agent_console import remote_worker
 

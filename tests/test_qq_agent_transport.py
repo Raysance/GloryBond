@@ -125,18 +125,18 @@ class Pipeline:
     def get(self, key):
         return self.store.get(key)
 
-    def set(self, *args):
-        self.pending.append(("set", args))
+    def set(self, *args, **kwargs):
+        self.pending.append(("set", args, kwargs))
 
     def zadd(self, *args):
-        self.pending.append(("zadd", args))
+        self.pending.append(("zadd", args, {}))
 
     def zrem(self, *args):
-        self.pending.append(("zrem", args))
+        self.pending.append(("zrem", args, {}))
 
     def execute(self):
-        for name, args in self.pending:
-            getattr(self.store, name)(*args)
+        for name, args, kwargs in self.pending:
+            getattr(self.store, name)(*args, **kwargs)
         self.pending.clear()
 
 

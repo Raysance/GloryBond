@@ -10,6 +10,7 @@ import yaml
 from .tool_errors import RemoteToolError, exception_details, redact_error
 from .bot_manual import load_manual_documents
 from .timeouts import IMAGE_RPC_TIMEOUT_SECONDS
+from .tools.memory import dialogue_with_sources
 
 
 class BridgeUnavailable(ConnectionError):
@@ -281,7 +282,7 @@ class RemoteState:
         return events
 
     async def load_dialogue(self, session_id):
-        return await self.bridge.call("dialogue_load", session_id=session_id)
+        return dialogue_with_sources(await self.bridge.call("dialogue_load", session_id=session_id))
 
     async def save_dialogue(self, session_id, question, answer):
         await self.bridge.call(

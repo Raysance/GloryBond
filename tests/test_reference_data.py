@@ -54,6 +54,7 @@ class ReferenceTests(unittest.TestCase):
         )
         self.assertEqual(result["matches"], [])
         self.assertEqual(result["unmatched_terms"], ["20001"])
+        self.assertEqual(result["term_resolution"][0]["status"], "unmatched")
         with self.assertRaises(ValueError):
             self.references.lookup(catalogs=["heroes"], namespace="qq")
 
@@ -65,6 +66,9 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(matches[0]["relations"]["same_person_accounts"], ["p3"])
         named = self.references.lookup(catalogs=["players"], terms=["KK"])
         self.assertEqual(named["total_matches"], 3)
+        self.assertEqual(named["term_resolution"][0]["status"], "ambiguous")
+        self.assertEqual(self.references.lookup(catalogs=["players"], terms=["dog"])["term_resolution"][0]["status"], "exact")
+        self.assertEqual(self.references.lookup(catalogs=["players"], terms=["dog"], match="contains")["term_resolution"][0]["status"], "candidate")
         ranks = self.references.lookup(
             catalogs=["ranks"], terms=["50"], namespace="rank_score_base"
         )

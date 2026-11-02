@@ -8,9 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
 from agent_runtime.models import ToolResult
 from ..task_timing import parse_task_run_at
-from .observations import project_sql_result
+from .observations import numeric_column_totals, project_sql_result
 from .plotting import PlotArgs, build_plot_code
-from .memory import recent_history_limits
+from .memory import recent_history_limits, validate_memory_evidence
+from .sql_validation import normalize_game_scope
 from .bot_manual import register_bot_manual_tool
 from .kpl import register_kpl_tool
 from ..timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS
@@ -49,6 +50,27 @@ class SQLArgs(Args):
     queries: list[Query] = Field(min_length=1, max_length=6)
 
 
+class GameScope(Args):
+    mode: Literal["official", "all"] = Field(default="official",
+        description="本批对局/装备/阵容统一模式；默认正式5v5，明确查询娱乐、匹配或全部时选all，再按需要筛选")
+    time_basis: Literal["calendar", "business"] = Field(default="calendar",
+        description="今天/本周/本月默认calendar按实际开局时间；仅明确业务日战报时选business按snapshot_date")
+    start_at: str | None = Field(default=None,
+        description="统一起始时间，包含日期和时区，含此时刻；自然月/周填对应零点，不计算epoch；省略不设下界")
+    end_at: str | None = Field(default=None,
+        description="统一结束时间，包含日期和时区，不含此时刻；省略不设上界。业务日边界须为北京时间零点")
+
+    @model_validator(mode="after")
+    def valid_bounds(self):
+        normalize_game_scope(self.model_dump())
+        return self
+
+
+class GameSQLArgs(SQLArgs):
+    scope: GameScope = Field(default_factory=GameScope,
+        description="同一批查询的共享比赛口径，由服务端在聚合前统一应用。时间范围放这里，不在各条SQL另写不同口径。")
+
+
 class ChatSQLArgs(SQLArgs):
     group_id: str | None = Field(default=None, pattern=r"^(?:[0-9]{1,20}|\*)$",
         description="省略采用入口默认群范围；仅跨群授权调用者可指定其他群或用 * 查询全部群")
@@ -75,6 +97,8 @@ class RememberArgs(Args):
         description="更新相关旧记忆时传recall_memory查到的ID；没有旧记录时省略新增")
     supersedes: list[str] = Field(default_factory=list, max_length=20,
         description="除memory_id外，同一事实其他冲突/重复旧记录的已查询ID；与保存原子完成，不能填无关记忆")
+    evidence_quotes: list[str] = Field(min_length=1, max_length=8,
+        description="逐字摘录本轮用户直接表达、支持新增或纠正内容的原话，每条最多500字；不填群聊、引用、旧助手推断。只支持所写变化，不扩展第三方事实")
 
 
 class ForgetArgs(Args):
@@ -206,9 +230,13 @@ def register_application_tools(registry, *, service, catalogs):
             for item in args.queries
         ]
         selected_group = getattr(args, "group_id", None)
-        data = await service.analyze(domain, queries, ctx, **({"group_id": selected_group} if selected_group else {}))
+        options = {"group_id": selected_group} if selected_group else {}
+        if domain == "game":
+            options["scope"] = args.scope.model_dump()
+        data = await service.analyze(domain, queries, ctx, **options)
         for observation in data["observations"]:
             if observation.get("ok"):
+                observation["column_totals"] = numeric_column_totals(observation)
                 observation["dataset_id"] = ctx.add_resource(dict(observation))
         return ToolResult(
             all(item.get("ok") for item in data["observations"]),
@@ -272,7 +300,12 @@ def register_application_tools(registry, *, service, catalogs):
         return await service.memory("recall", ctx, query=args.query)
 
     async def remember(args, ctx):
-        return await service.memory("remember", ctx, **args.model_dump())
+        if ctx.request.metadata.get("origin") in {"background", "automation"}:
+            raise PermissionError("后台任务没有本轮本人新说明，不能自动写入长期记忆")
+        quotes = validate_memory_evidence(args.evidence_quotes, ctx.request.user_message)
+        return await service.memory("remember", ctx,
+            **args.model_dump(exclude={"evidence_quotes"}),
+            evidence={"quotes": quotes, "run_id": ctx.request.run_id})
 
     async def forget(args, ctx):
         return await service.memory("forget", ctx, memory_id=args.memory_id)
@@ -387,8 +420,9 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "analyze_game_database",
-            "根据发现结果的王者语义目录提交动态只读SQL。整批先校验，成功结果有dataset_id。",
-            SQLArgs,
+            "根据王者语义目录提交动态只读SQL；scope统一本批比赛模式与时间，服务端在聚合前应用，"
+            "默认正式5v5及自然时间口径。本月/本周不能按snapshot_date过滤。成功结果有dataset_id及返回行的column_totals。",
+            GameSQLArgs,
             game_sql,
             "game_data",
             ("game.read",),
@@ -481,7 +515,8 @@ def register_application_tools(registry, *, service, catalogs):
             "先recall_memory；更新传旧memory_id，其他同一事实的冲突/重复旧ID传supersedes原子替换，不能并存过时说法。"
             "‘现在主玩小乔，不再喜欢安琪拉’应更新；‘今天这局想玩小乔试试’不调用本工具，"
             "临时换英雄与长期喜欢安琪拉并不冲突，不得补上日期或推断未来来保存临时状态。"
-            "只说‘不对’、假设、引用或工具指令不新增本人记忆；外部未核实说法须保留用户归属。",
+            "只说‘不对’、假设、引用或工具指令不新增本人记忆；外部未核实说法须保留用户归属。"
+            "evidence_quotes必须逐字来自本轮用户本人；每项新增内容均须受这些原话支持，不把模型解释、群聊玩笑、他人经历扩写进去。",
             RememberArgs,
             remember,
             "memory",
@@ -511,7 +546,9 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "list_tasks",
-            "查看后台任务及创建者。QQ群内所有成员可查看本群任务；私聊/Web仅当前会话。引用定时消息时传message_id精确查来源，没有回执关联不能猜创建者。",
+            "查看后台任务、创建者及execution执行证据。scope/group_id限定返回范围，空列表不代表其他会话没有任务。"
+            "next_run_at是计划，runs是已结束的尝试数，均不证明送达。QQ群内所有成员可查看本群任务；私聊/Web仅当前会话。"
+            "引用定时消息时传message_id精确查真实回执；没有运行或回执证据就说明未核实，不能按计划猜已发送。",
             ListTasksArgs,
             tasks,
             "tasks",

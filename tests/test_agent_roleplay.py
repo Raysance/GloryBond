@@ -132,6 +132,21 @@ class StoreTests(unittest.TestCase):
 
 
 class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_memory_sources_survive_persona_assembly_instead_of_becoming_plain_facts(self):
+        service, bridge = self.service()
+        original = bridge.call
+        async def call(op, **args):
+            if op == "memory":
+                return {"memories": [{"content": "主玩中路", "evidence_history": [
+                    {"quotes": ["我一直主玩中路"], "run_id": "source-run"}]}], "total": 1}
+            return await original(op, **args)
+        bridge.call = call
+        principal = Principal("owner", frozenset({"roleplay.use", "memory.use"}))
+        snapshot = await service.snapshot(principal, "中路")
+        self.assertEqual(len(snapshot["memories"]), 1)
+        self.assertEqual(snapshot["memories"][0]["content_source"], "model_summary")
+        self.assertIn("我一直主玩中路", await service.context(principal))
+
     async def test_firm_default_applies_to_assistant_and_keeps_personal_preferences(self):
         service, _ = self.service()
         principal = Principal("owner", frozenset({"roleplay.use"}))

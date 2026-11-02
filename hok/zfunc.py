@@ -1097,6 +1097,7 @@ async def agent_read_generated_image(identifier):
 
 def agent_record_task_message(*, group_id, message_id, task_id):
     """Link an actual QQ send receipt to a task without changing its creator."""
+    from .ztime import current_timestamp
     if (not re.fullmatch(r"[1-9][0-9]{0,19}", str(group_id))
             or not re.fullmatch(r"-?[0-9]{1,20}", str(message_id)) or int(message_id) == 0
             or not re.fullmatch(r"[a-f0-9]{32}", str(task_id))):
@@ -1107,7 +1108,14 @@ def agent_record_task_message(*, group_id, message_id, task_id):
             or str(delivery.get("recipient_id")) != str(group_id)):
         raise ValueError("Task message group does not match its bound destination")
     key = REDIS_KEY_AGENT_TASK_MESSAGE_PREFIX + str(group_id) + ":" + str(int(message_id))
-    return dmc.redis_deamon.set(key, json.dumps({"task_id": task_id}), ex=qq_task_message_link_ttl_seconds)
+    receipt = {"task_id": task_id, "group_id": str(group_id),
+               "message_id": str(int(message_id)), "sent_at": current_timestamp()}
+    with dmc.redis_deamon.pipeline(transaction=True) as pipe:
+        pipe.set(key, json.dumps({"task_id": task_id}), ex=qq_task_message_link_ttl_seconds)
+        pipe.set(REDIS_KEY_AGENT_TASK_DELIVERY_PREFIX + task_id,
+                 json.dumps(receipt), ex=qq_task_message_link_ttl_seconds)
+        pipe.execute()
+    return True
 
 
 async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=True):
