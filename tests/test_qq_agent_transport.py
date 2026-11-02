@@ -12,7 +12,43 @@ from agent_console.task_timing import normalized_task_action, next_task_time
 
 
 class ProviderTests(unittest.IsolatedAsyncioTestCase):
-    async def test_required_choice_and_tool_chain_never_switch_thinking_modes(self):
+    async def test_streamed_reasoning_survives_a_complete_automatic_tool_roundtrip(self):
+        from pydantic import BaseModel
+        from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
+        from tests.test_agent_runtime import Clock, Sink, State
+        requests = []
+        original = httpx.AsyncClient
+        def respond(request):
+            payload = json.loads(request.content)
+            requests.append(payload)
+            self.assertEqual(payload['thinking']['type'], 'enabled')
+            self.assertEqual(payload['tool_choice'], 'auto')
+            if len(requests) == 1:
+                chunks = [
+                    {'choices': [{'delta': {'reasoning_content': '本轮完整推理'}, 'finish_reason': None}]},
+                    {'choices': [{'delta': {'tool_calls': [{'index': 0, 'id': 'lookup_1', 'type': 'function',
+                        'function': {'name': 'lookup', 'arguments': '{}'}}]}, 'finish_reason': 'tool_calls'}]},
+                ]
+            else:
+                assistant = next(message for message in payload['messages'] if message.get('tool_calls'))
+                self.assertEqual(assistant['reasoning_content'], '本轮完整推理')
+                self.assertTrue(any(message['role'] == 'tool' for message in payload['messages']))
+                chunks = [{'choices': [{'delta': {'content': '7'}, 'finish_reason': 'stop'}]}]
+            return httpx.Response(200, text=''.join('data: '+json.dumps(chunk)+'\n\n' for chunk in chunks)+'data: [DONE]\n\n')
+        def client(**kwargs):
+            return original(transport=httpx.MockTransport(respond), **kwargs)
+        class EmptyArgs(BaseModel):
+            pass
+        registry = ToolRegistry()
+        registry.register(name='lookup', description='查询数据', args_model=EmptyArgs, handler=lambda args, ctx: {'value': 7})
+        model = DeepSeekModel(api_key='secret', base_url='https://example.invalid', model='test', thinking=True)
+        runtime = AgentRuntime(model=model, registry=registry, state=State(), output=Sink(), clock=Clock())
+        with patch('agent_console.provider.httpx.AsyncClient', side_effect=client):
+            result = await runtime.run(RunRequest('读数据', 'session', Principal('user')))
+        self.assertEqual(result['text'], '7')
+        self.assertEqual(len(requests), 2)
+
+    async def test_automatic_tools_keep_reasoning_and_forced_choices_use_supported_mode(self):
         requests, options = [], []
         original = httpx.AsyncClient
 
@@ -32,12 +68,16 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         forced = {"type": "function", "function": {"name": "lookup"}}
         with patch("agent_console.provider.httpx.AsyncClient", side_effect=client):
             await model.complete_request(ModelRequest([{"role": "user", "content": "hi"}], tools, forced), delta)
-            chain = [{"role": "assistant", "tool_calls": [{"id": "call"}]}]
+            chain = [{"role": "assistant", "content": "", "reasoning_content": "已有推理必须原样保留", "tool_calls": [{"id": "call"}]},
+                     {"role": "assistant", "content": "旧版无思考的回答"}]
             await model.complete_request(ModelRequest(chain, tools, "auto"), delta)
             result = await model.complete_request(ModelRequest(chain, [], "none"), delta)
             await model.complete_request(ModelRequest([{"role": "user", "content": "hi"}], [], "none"), delta)
         self.assertEqual(requests[0]["tool_choice"], forced)
-        self.assertEqual([r["thinking"]["type"] for r in requests], ["disabled", "disabled", "disabled", "enabled"])
+        self.assertEqual([r["thinking"]["type"] for r in requests], ["disabled", "enabled", "enabled", "enabled"])
+        self.assertEqual(requests[1]['messages'][1]['reasoning_content'], '已有推理必须原样保留')
+        self.assertEqual(requests[1]['messages'][2]['reasoning_content'], '')
+        self.assertNotIn('reasoning_content', chain[1])
         self.assertNotIn("tools", requests[2])
         self.assertTrue(all(o["trust_env"] is False for o in options))
         self.assertNotIn("secret", json.dumps(result))

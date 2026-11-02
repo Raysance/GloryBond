@@ -421,7 +421,10 @@ def analyze(args):
                         "error_details": details,
                     }
                 )
-    return {"observations": results, "catalog_version": catalog["version"]}
+    return {"observations": results, "catalog_version": catalog["version"],
+            "coverage": {"source": "postgresql_archive", "missing_records_mean_no_activity": False},
+            "notice": "结果只覆盖查询范围内已归档记录。缺失、空结果或最后一条记录的时间，"
+                      "不代表之后没有对局、没有上线或现实中没有发生；不能把归档边界写成活动停止时间。"}
 
 
 def search_history(args):

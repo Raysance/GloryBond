@@ -48,7 +48,8 @@
         "player_hero_id": "bigint",
         "player_gold": "integer",
         "participant_payload": "jsonb",
-        "game_type": "integer"
+        "game_type": "integer",
+        "is_mvp": "boolean"
       }
     },
     "chat_player_equipment": {
@@ -97,7 +98,8 @@
         "gold": "integer",
         "position": "text",
         "skill": "jsonb",
-        "battle_stats": "jsonb"
+        "battle_stats": "jsonb",
+        "is_mvp": "boolean"
       }
     },
     "chat_personal_snapshots": {
@@ -249,7 +251,7 @@
       "fightPower": "当局英雄战力",
       "addFightPower": "当局战力变化",
       "kda": "来源KDA；比较时可由规范K/D/A列自定义聚合口径",
-      "mvp": "来源MVP标记，先检查值域再判断",
+      "mvp": "来源布尔标记，true/false不能转integer；优先使用规范列is_mvp，true/1与false/0分别归一，缺失或未知值为NULL",
       "towerCnt": "推塔数",
       "killSoldier": "补兵数",
       "monsterCoin": "野怪经济",
@@ -310,7 +312,6 @@
       "godLikeCnt": "超神次数"
     }
   },
-  "version": "6f8bce03e64e660f",
   "json_root_owners": {
     "battleStats": [
       [
@@ -324,5 +325,6 @@
         "participant_payload"
       ]
     ]
-  }
+  },
+  "version": "2981678ac8ad11e0"
 }

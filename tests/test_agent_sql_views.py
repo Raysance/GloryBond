@@ -45,6 +45,22 @@ class SemanticCompilerTests(unittest.TestCase):
 
 
 class RosterSemanticsTests(unittest.TestCase):
+    def test_boolean_mvp_flags_are_typed_and_unknown_values_stay_unknown(self):
+        catalog = json.loads((Path(__file__).parents[1] / 'shared/agent/hok_sql/catalog.json').read_text())
+        columns = [name for name in catalog['tables']['chat_player_battles']['columns'] if name != 'is_mvp']
+        db = sqlite3.connect(':memory:')
+        self.addCleanup(db.close)
+        db.execute("ATTACH DATABASE ':memory:' AS hok")
+        db.execute('CREATE TABLE hok.chat_player_battle_source (' + ','.join(name+' TEXT' for name in columns) + ')')
+        for value in (True, False, 1, 0, 'true', 'false', None, 'unknown'):
+            row = {name: None for name in columns}
+            row['participant_payload'] = json.dumps({'battleStats': {'mvp': value}})
+            db.execute('INSERT INTO hok.chat_player_battle_source VALUES (' + ','.join('?' for _ in columns) + ')',
+                       [row[name] for name in columns])
+        sql = parse_one(DEFINITIONS['chat_player_battles'], read='postgres').sql(dialect='sqlite')
+        rows = db.execute('SELECT is_mvp FROM ('+sql+')').fetchall()
+        self.assertEqual([row[0] for row in rows], [1, 0, 1, 0, 1, 0, None, None])
+
     def test_multiple_perspectives_aliases_unknown_roles_and_null_camps_keep_their_meaning(self):
         db = sqlite3.connect(':memory:')
         self.addCleanup(db.close)

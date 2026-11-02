@@ -85,6 +85,7 @@ class DetailsTests(unittest.TestCase):
             result = remote_worker.analyze({'domain': 'game', 'principal': {}, 'queries': [
                 {'sql': 'SELECT rating', 'intent': 'first'}, {'sql': 'SELECT score', 'intent': 'second'}]})
         failure, success = result['observations']
+        self.assertEqual(result['coverage'], {'source': 'postgresql_archive', 'missing_records_mean_no_activity': False})
         self.assertEqual(failure['error_details']['query_index'], 0)
         self.assertEqual(failure['error_details']['diagnostics']['sqlstate'], '42703')
         self.assertEqual(failure['error_details']['diagnostics']['statement_position'], '18')

@@ -98,6 +98,23 @@ class SQLTests(unittest.TestCase):
 
 
 class AdapterTests(unittest.TestCase):
+    def test_discovery_advertises_authorized_deferred_tool_purposes_without_exposing_parameters(self):
+        class EmptyArgs(BaseModel):
+            pass
+        registry = ToolRegistry()
+        register_application_tools(registry, service=object(), catalogs={})
+        for name, scopes in [('read_inventory', ('inventory.read',)), ('change_inventory', ('inventory.write',))]:
+            registry.register(name=name, description='读取仓储商品记录。', args_model=EmptyArgs,
+                              handler=lambda *args: None, category='inventory', scopes=scopes, initially_visible=False)
+        ctx = ToolContext(RunRequest('查询库存', 'session', Principal('user', frozenset({'inventory.read'}))), None)
+        ctx.disclosed.update(registry.initial_names(ctx))
+        schemas = registry.schemas(ctx)
+        discovery = next(item['function'] for item in schemas if item['function']['name'] == 'discover_tools')
+        self.assertIn('read_inventory', discovery['description'])
+        self.assertIn('读取仓储商品记录', discovery['description'])
+        self.assertNotIn('change_inventory', discovery['description'])
+        self.assertNotIn('read_inventory', [item['function']['name'] for item in schemas])
+
     def test_legacy_tasks_preserve_trusted_chat_scope_after_translation(self):
         task = {
             "instruction": "test",

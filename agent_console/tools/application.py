@@ -1,6 +1,7 @@
 """Application tools for the local HOK console; never part of the agent kernel."""
 
 import asyncio
+import json
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
@@ -531,16 +532,20 @@ def register_application_tools(registry, *, service, catalogs):
     ]
 
     def describe_discovery(ctx):
-        categories = sorted(
-            {
-                spec.category
-                for spec in registry.available(ctx).values()
-                if spec.category != "core"
-            }
-        )
+        categories = {}
+        for name, spec in registry.available(ctx).items():
+            if spec.category == "core":
+                continue
+            categories.setdefault(spec.category, []).append({
+                "name": name, "purpose": spec.description.split("。", 1)[0][:120],
+                "effect": spec.effect,
+            })
         return (
-            "按任务需要披露工具。图片输入是模型的原生视觉能力，不需要额外读图工具；"
-            "images 类别提供图片生成。当前注册的工具类别：" + ", ".join(categories)
+            "以下是本轮实际注册且已授权的能力，不是建议或历史记录。按类别调用本工具取得参数定义，"
+            "再执行所需工具；尚未披露参数不等于工具不存在。查询失败和权限限制须以本轮实际工具结果为准，"
+            "不能沿用旧回答中的‘没有数据/没有入口/不能查询’。已有定义不必再次发现。"
+            "图片输入由模型直接理解，images类别用于生成。能力目录："
+            + json.dumps(categories, ensure_ascii=False, separators=(",", ":"))
         )
 
     for name, description, args, handler, category, scopes, timeout, effect in specs:

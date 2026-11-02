@@ -92,7 +92,8 @@ class QQFinalizer:
         answer = await self.composer.finalize(context, emit)
         variants = {key: self.formatter(text) for key, text in answer.variants.items()}
         text = variants.get("chat", self.formatter(answer.text))
-        result = FinalAnswer(text, variants, answer.metadata, text)
+        result = FinalAnswer(text, variants, answer.metadata,
+                             self.formatter(answer.history_text or answer.text))
         return self.delivery_history.preserve(result, context.request, self.formatter) if self.delivery_history else result
 
 
@@ -162,7 +163,7 @@ class QQAgentService:
                 options = {
                     **remote_model_options(remote),
                     "api_key": remote["private"]["api_key"], "base_url": self.public["base_url"],
-                    "model": self.public["model"], "thinking": self.config.get("thinking", False),
+                    "model": self.public["model"], "thinking": self.config.get("thinking", True),
                     "proxy_url": self.public.get("proxy_url", ""),
                     "max_tokens": self.config.get("max_tokens", 4096),
                     "vision_model": self.config.get("vision_model") or self.public["model"], "image_store": self.image_store,
@@ -180,9 +181,9 @@ class QQAgentService:
                 if self.business_functions is not None and self.config.get("business_functions", {}).get("enabled", True):
                     register_function_tools(registry, catalog=self.business_functions,
                         publish_image=self.publish_business_image, format_text=lambda text: self.formatter(self.bridge.redact(text)))
-                reply_model = self.model_factory(**{**options, "thinking": False, "response_format": {"type": "json_object"}})
+                reply_model = self.model_factory(**{**options, "response_format": {"type": "json_object"}})
                 composer = ReplyComposer(model=reply_model, roles=self.roles,
-                                         policy=ReplyPolicy(**{**self.config.get("reply", {}), "history_variant": "chat",
+                                         policy=ReplyPolicy(**{**self.config.get("reply", {}), "history_variant": "detailed",
                                                                "select_delivery_variant": False}))
                 self.runtime = AgentRuntime(model=self.model, registry=registry, state=self.state, output=self.output,
                                             clock=self.clock, finalizer=QQFinalizer(composer, self.formatter,
@@ -236,7 +237,7 @@ class QQAgentService:
             "发现chat_control并调用manage_chat_ignored_users，不能仅口头承诺。目标QQ须确认，不从昵称猜测；"
             "忽略仅作用于本群后续AI请求，普通业务命令继续可用。"
             if self.chat_ignore_operation is not None and "qq.chat.ignore.manage" in principal.scopes else "")
-        return (application_prompt() + business_prompt + role_admin_prompt + ignore_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
+        return (business_prompt + role_admin_prompt + ignore_prompt + "当前输出渠道是QQ。用户身份、群范围与正常回复会话均由入口绑定，模型不能修改。"
                 "用户明确要求给群成员私发消息时，发现chat_delivery并调用send_group_member_private_message；"
                 "这是独立发送动作，不改变正常回复会话或任务目的地；QQ返回消息ID后才能确认成功，不能声称对方已读。"
                 "要求私发的正文只经私发工具发送，正常群回复只确认状态，不重复私发正文。"
@@ -250,7 +251,8 @@ class QQAgentService:
                 "无匹配时不能凭文案或@对象推断创建者，也不能猜task_id执行取消。"
                 "实时群成员资料与头像通过references类别的资料工具读取，名称映射不能代替实时资料。"
                 + scope + bot_context + "\n本次时间：" + self.clock.now() + "\n本赛季起始：" + str(self.public.get("season_start"))
-                + "\n" + reference_prompt(snapshot) + await self.roles.context(principal, query))
+                + "\n" + reference_prompt(snapshot) + await self.roles.context(principal, query)
+                + "\n本轮执行约定：" + application_prompt())
 
     async def publish_business_image(self, path, ctx):
         if self.business_image_loader is None:

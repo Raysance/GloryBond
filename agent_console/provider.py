@@ -123,9 +123,20 @@ class DeepSeekModel:
             "stream": True,
             "stream_options": {"include_usage": True},
             "max_tokens": self.max_tokens,
-            "thinking": {"type": "enabled" if self.thinking and not tools
-                         and not any(m.get("tool_calls") for m in messages) else "disabled"},
+            # DeepSeek supports reasoning with automatic tool selection. Only
+            # forced/named choices require non-thinking mode in this protocol.
+            "thinking": {"type": "enabled" if self.thinking
+                         and not (tools and (tool_choice == "required" or isinstance(tool_choice, dict)))
+                         else "disabled"},
         }
+        if tools and payload["thinking"]["type"] == "enabled":
+            # Legacy non-thinking dialogue has no reasoning field. Preserve
+            # every existing value, and give older assistant turns an empty one.
+            payload["messages"] = [
+                {**message, "reasoning_content": message.get("reasoning_content") or ""}
+                if message.get("role") == "assistant" else message
+                for message in messages
+            ]
         if tools:
             payload.update(tools=tools, tool_choice=tool_choice)
         if self.response_format:

@@ -196,6 +196,16 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_uses_configured_remote_proxy_and_model_as_vision_fallback(self):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
+        self.assertTrue(self.gateway.model.options['thinking'])
+        self.assertEqual(self.gateway.runtime.finalizer.composer.model.options['thinking'],
+                         self.gateway.model.options['thinking'])
+
+    async def test_explicit_channel_thinking_setting_applies_to_both_generation_stages(self):
+        await self.gateway.close()
+        self.gateway.config['thinking'] = False
+        await self.gateway.start()
+        self.assertFalse(self.gateway.model.options['thinking'])
+        self.assertFalse(self.gateway.runtime.finalizer.composer.model.options['thinking'])
 
     async def test_all_conversation_scopes_can_answer_without_a_tool_preamble(self):
         for user, group in [('101', '200'), ('101', None), ('999', None)]:
@@ -209,6 +219,19 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn('search_history', operations)
                 self.assertEqual(operations.count('reference_snapshot'), 1)
                 self.assertEqual(self.gateway.model.requests[-1].tool_choice, 'auto')
+
+    async def test_followup_retains_full_factual_answer_while_public_delivery_stays_short(self):
+        draft = '示例玩家甲用了小乔，8局5胜。原任务是根据这些数据完成一首四行诗，不需要图表。'
+        self.reply_text = '资料已经齐了。'
+        self.script = [{'role': 'assistant', 'content': draft}]
+        await self.gateway.chat(user_text='根据数据完成作品', user_id='101', nickname='用户', group_id='200')
+        self.assertEqual(self.sent[-1][0]['text'], self.reply_text)
+        self.assertEqual(self.dialogue['qq_g_200_101'][-1]['content'], draft)
+        self.assertEqual(self.group_replies['200'][-1]['text'], self.reply_text)
+        self.script = [{'role': 'assistant', 'content': '继续完成作品。'}]
+        await self.gateway.chat(user_text='继续写', user_id='101', nickname='用户', group_id='200')
+        self.assertTrue(any(message.get('role') == 'assistant' and message.get('content') == draft
+                            for message in self.gateway.model.requests[-1].messages))
 
     async def test_independent_search_and_discovery_succeed_in_the_first_round(self):
         self.script = [
@@ -572,7 +595,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                                                      original_user_text=original)
                     self.assertEqual(result['text'], self.reply_text)
                     session = 'qq_g_200_101' if group else 'qq_p_101'
-                    self.assertEqual(self.dialogue[session][-1]['content'], self.reply_text)
+                    self.assertEqual(self.dialogue[session][-1]['content'], draft)
                     self.assertEqual(result['variants'], {'detailed': draft, 'chat': self.reply_text})
                     self.assertNotIn('delivery_variant', result)
                     packet, destination = self.sent[-1]
@@ -655,7 +678,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gateway.model.requests[0].tool_choice, "auto")
         self.assertEqual(self.gateway.model.requests[1].tool_choice, "auto")
         self.assertEqual(self.dialogue["qq_g_200_101"][-1]["content"],
-                         "记忆已保存，正在设置提醒。\n\n" + result["text"])
+                         "记忆已保存，正在设置提醒。\n\n" + result["variants"]["detailed"])
         self.assertGreater(result["trace"]["summary"]["token_usage"]["total_tokens"], 0)
 
     async def test_information_dense_answer_delivers_ordered_parts_and_preserves_followup_context(self):
@@ -714,7 +737,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         followup = self.gateway.model.requests[2].messages
         self.assertNotIn("QUOTE_ONLY", json.dumps(followup))
         self.assertTrue(any(m["role"] == "user" and m["content"] == "看引用" for m in followup))
-        self.assertTrue(any(m["role"] == "assistant" and m["content"] == self.sent[0][0]["text"] for m in followup))
+        self.assertTrue(any(m["role"] == "assistant" and m["content"] == self.sent[0][0]["variants"]["detailed"] for m in followup))
 
     async def test_webpages_from_message_and_authorized_quote_are_current_only(self):
         from tests.test_agent_webpages import fetcher, response

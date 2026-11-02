@@ -161,7 +161,7 @@ def create_app(*, config_path=None):
             register_roleplay_tools(registry, roles)
             reply_model = DeepSeekModel(
                 **model_settings,
-                thinking=False,
+                thinking=config.get("thinking", True),
                 max_tokens=config.get("max_tokens", 4096),
                 response_format={"type": "json_object"},
             )
@@ -203,8 +203,7 @@ def create_app(*, config_path=None):
             )
             app.state.state_bridge = state_bridge
             system_prompt = (
-                application_prompt()
-                + "当前是通过已认证SSH连接的本地管理员控制台，群聊查询允许全归档。"
+                "当前是通过已认证SSH连接的本地管理员控制台，群聊查询允许全归档。"
                 f"现在时间 {Clock().now()}。英雄历史统计未指定时期时从本赛季 {public.get('season_start')} 开始。"
             )
             app.state.system_prompt = system_prompt
@@ -227,6 +226,7 @@ def create_app(*, config_path=None):
                     + "\n"
                     + reference_prompt(snapshot)
                     + await roles.context(principal, query)
+                    + "\n本轮执行约定：" + application_prompt()
                 )
 
             app.state.current_prompt = current_prompt
