@@ -52,7 +52,8 @@ HOK Redis data stays in DB0 under `hok:`; PlanIt DB9 must not be merged into HOK
 backups or migrations.
 
 The Bot's existing private startup notification to the administrator includes the running
-checkout's full HEAD hash and commit message. It reads local Git metadata with a bounded
+checkout's eight-character HEAD prefix, ISO 8601 committer timestamp (including timezone),
+and full commit message. It reads local Git metadata with a bounded
 timeout, independently of the process working directory; it does not fetch the remote branch.
 An installation without Git metadata reports version information as unavailable and still starts.
 

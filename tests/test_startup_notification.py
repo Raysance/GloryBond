@@ -17,11 +17,12 @@ with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda 
 
 
 class DeployedCommitTests(unittest.TestCase):
-    def test_reads_full_head_and_multiline_message_from_source_checkout(self):
+    def test_reads_full_head_commit_time_and_multiline_message_from_source_checkout(self):
         commit_hash = "a" * 40
+        committed_at = "2026-11-03T08:45:12+08:00"
         message = "fix: report deployed version\n\nInclude the full commit message."
-        with patch.object(subprocess, "run", return_value=SimpleNamespace(stdout=commit_hash + "\0" + message + "\n")) as run:
-            self.assertEqual(FILES.read_deployed_commit(), {"hash": commit_hash, "message": message})
+        with patch.object(subprocess, "run", return_value=SimpleNamespace(stdout="\0".join([commit_hash, committed_at, message]) + "\n")) as run:
+            self.assertEqual(FILES.read_deployed_commit(), {"hash": commit_hash, "committed_at": committed_at, "message": message})
         self.assertEqual(run.call_args.kwargs["cwd"], Path(FILES.__file__).resolve().parents[1])
         self.assertEqual(run.call_args.args[0][-1], "HEAD")
         self.assertNotIn("fetch", run.call_args.args[0])
@@ -33,7 +34,10 @@ class DeployedCommitTests(unittest.TestCase):
                 self.assertIsNone(FILES.read_deployed_commit())
 
     def test_invalid_or_incomplete_metadata_is_not_reported_as_a_commit(self):
-        for output in ("", "not-a-hash\0message", "a" * 40 + "\0", "a" * 40 + " message"):
+        for output in ("", "not-a-hash\0message", "a" * 40 + "\0", "a" * 40 + " message",
+                       "a" * 40 + "\0invalid-date\0message",
+                       "\0".join(["a" * 40, "2026-11-03T08:45:12", "message"]),
+                       "\0".join(["a" * 40, "2026-11-03T08:45:12+08:00", ""])):
             with self.subTest(output=output), patch.object(subprocess, "run", return_value=SimpleNamespace(stdout=output)):
                 self.assertIsNone(FILES.read_deployed_commit())
 
@@ -52,9 +56,11 @@ class StartupNotificationTests(unittest.IsolatedAsyncioTestCase):
         return message.extract_plain_text()
 
     async def test_notification_contains_revision_and_literal_message(self):
-        commit = {"hash": "b" * 40, "message": "fix: metadata\n\nKeep [CQ:at,qq=all] literal."}
+        commit = {"hash": "12345678" + "b" * 32, "committed_at": "2026-11-03T08:45:12+08:00",
+                  "message": "fix: metadata\n\nKeep [CQ:at,qq=all] literal."}
         text = await self.notify(commit)
-        self.assertEqual(text, f"HOK_QQBot 已启动成功\nCommit: {commit['hash']}\nMessage: {commit['message']}")
+        self.assertEqual(text, f"HOK_QQBot 已启动成功\nCommit: 12345678\nCommit time: {commit['committed_at']}\nMessage: {commit['message']}")
+        self.assertNotIn(commit['hash'], text)
 
     async def test_unavailable_metadata_keeps_startup_notice(self):
         text = await self.notify(None)

@@ -23,7 +23,8 @@ async def _start_message_sender_loop() -> None:
     commit = await asyncio.to_thread(read_deployed_commit)
     notification = "HOK_QQBot 已启动成功"
     if commit:
-        notification += f"\nCommit: {commit['hash']}\nMessage: {commit['message']}"
+        notification += (f"\nCommit: {commit['hash'][:8]}\nCommit time: {commit['committed_at']}"
+                         f"\nMessage: {commit['message']}")
     else:
         notification += "\n版本信息：不可用（无法读取当前部署提交）"
     add_msg(MessageSegment.text(notification), msg_type="private", to_id=confs["QQBot"]["super_qid"])

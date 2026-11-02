@@ -5,19 +5,21 @@ from .zutil import *
 def read_deployed_commit():
     """Read the running checkout's HEAD, independently of the process directory."""
     import subprocess
+    from datetime import datetime
     from pathlib import Path
 
     try:
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%H%x00%B", "HEAD"],
+            ["git", "log", "-1", "--format=%H%x00%cI%x00%B", "HEAD"],
             cwd=Path(__file__).resolve().parents[1],
             stdin=subprocess.DEVNULL, capture_output=True,
             encoding="utf-8", errors="replace", timeout=2, check=True,
         )
-        commit_hash, separator, message = result.stdout.strip().partition("\x00")
-        if separator and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit_hash) and message.strip():
-            return {"hash": commit_hash, "message": message.strip()}
-    except (OSError, subprocess.SubprocessError):
+        commit_hash, committed_at, message = result.stdout.strip().split("\x00", 2)
+        if (re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit_hash) and message.strip()
+                and datetime.fromisoformat(committed_at).utcoffset() is not None):
+            return {"hash": commit_hash, "committed_at": committed_at, "message": message.strip()}
+    except (OSError, ValueError, subprocess.SubprocessError):
         pass
     return None
 
