@@ -84,6 +84,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 私有配置通过 SSH 单独同步，源码通过 Actions 发布。更新时保留线上配置、登录会话和业务数据。本地调试复用现有调试环境，生产服务由 systemd 管理。
 
+Bot 启动通知沿用统一消息队列私发管理员，附实际运行检出目录的完整 HEAD hash 与 commit message；Git 读取由 zfile 管理并限制时限，无版本元数据时明确标注不可用，不阻止启动。
+
 部署说明见[开发与部署](docs/DEVELOPMENT.md)、[部署说明](deployment/README.md)和[公开发布约定](deployment/PUBLICATION.md)。
 
 ## 提交与交付
