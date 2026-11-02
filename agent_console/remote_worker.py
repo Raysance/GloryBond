@@ -228,7 +228,7 @@ def bootstrap(args):
             "database": "PostgreSQL / hok_chat_reader",
             "memory": "Redis DB0",
             "sandbox": "bubblewrap / Linux",
-            "views_mode": "native" if "chat_player_battles" in views else "trusted_cte",
+            "views_mode": "trusted_cte",
             "season_start": static.get("this_season_start_date"),
             "sql_limits": cfg.get("AgentSQL", {}),
             "recent_history_limits": mem_namespace["recent_history_limits"](cfg.get("AgentHistory")),

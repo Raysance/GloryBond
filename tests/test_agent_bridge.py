@@ -1,17 +1,19 @@
 """Exercise real RPC streams through worker exits, cancellation and recovery."""
 
 import asyncio
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from fastapi.testclient import TestClient
 
 from agent_console.remote import BridgeUnavailable, RemoteBridge
 from agent_console.tool_errors import RemoteToolError
 from agent_console.server import create_app
+from agent_console import remote_worker
 
 
 WORKER = r'''
@@ -49,6 +51,38 @@ for line in sys.stdin:
         data = {'pid': os.getpid(), 'value': args.get('value')}
     print(json.dumps({'ok': True, 'data': data}), flush=True)
 '''
+
+
+class WorkerBootstrapTests(unittest.TestCase):
+    def test_full_bootstrap_returns_actual_compilation_mode_without_database_view_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'config.yaml').write_text(json.dumps({'Redis': {'REDIS_HOST': 'test', 'REDIS_PORT': 6379}}))
+            shared = Path(__file__).parents[1] / 'shared/agent'
+            bridge = RemoteBridge('test', str(root), sys.executable, shared)
+            bridge.kpl_config = {'enabled': True, 'api_base_url': 'https://example.invalid/api',
+                'site_url': 'https://example.invalid', 'timeout_seconds': 1, 'max_response_bytes': 1024,
+                'max_rows': 10, 'max_nested_items': 10, 'max_observation_chars': 1000}
+            args = {**bridge._bootstrap_arguments(), 'use_process_environment': True}
+            model = {'api_key': 'test-key', 'model': 'test', 'base_url': 'https://example.invalid', 'proxy_url': ''}
+            def functions(path, names, namespace):
+                namespace.update({name: Mock() for name in names})
+                namespace.update(_apply_secret_environment=lambda cfg, env: cfg,
+                                 _build_chat_api_config=lambda cfg, env: model,
+                                 _build_deepseek_search_config=lambda cfg, env: {'api_key': ''})
+            db, store = MagicMock(), Mock()
+            cursor = db.__enter__.return_value.cursor.return_value.__enter__.return_value
+            cursor.fetchone.return_value = ('hok_chat_reader', False, False, False, False, False)
+            with patch.dict(remote_worker.CONTEXT, {}, clear=True), patch.dict(remote_worker.os.environ, {}, clear=True), \
+                 patch.object(remote_worker, 'dotenv_values', return_value={'HOK_CHAT_READONLY_DSN': 'test-dsn'}), \
+                 patch.object(remote_worker, 'extracted_functions', side_effect=functions), \
+                 patch.object(remote_worker.psycopg, 'connect', return_value=db), \
+                 patch.object(remote_worker.redis, 'Redis', return_value=store):
+                result = remote_worker.bootstrap(args)
+            self.assertEqual(result['public']['views_mode'], 'trusted_cte')
+            self.assertEqual(result['public']['model'], 'test')
+            store.ping.assert_called_once()
+            self.assertNotIn('information_schema.views', str(cursor.execute.call_args_list))
 
 
 class ScriptBridge(RemoteBridge):
