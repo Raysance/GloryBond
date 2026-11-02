@@ -649,17 +649,28 @@ async def show_benefit_visualizer(request: Request, key: str):
     filename = os.path.basename(key)
     if filename != key or filename in ("", ".", ".."):
         return templates.TemplateResponse(
-            "ErrorPages/illegal.html",{"request": request,"message":"key非法"}
+            request=request, name="ErrorPages/illegal.html", context={"request": request,"message":"key非法"}
         )
     if not filename.endswith(".json"):
         filename = filename + ".json"
 
+    try:
+        modified_at = await asyncio.to_thread(
+            os.path.getmtime, os.path.join(file_path_root, "temp_files", filename))
+        if not 0 <= time.time() - modified_at < REDIS_TEXT_EXPIRE_SECONDS:
+            raise ValueError("expired temporary link")
+    except (OSError, ValueError):
+        return templates.TemplateResponse(
+            request=request, name="ErrorPages/expired.html", context={"request": request}, status_code=410,
+            headers={"Cache-Control": "no-store"})
+
     return templates.TemplateResponse(
-        "CommonPages/BenefitVisualizer/index.html",
-        {
+        request=request, name="CommonPages/BenefitVisualizer/index.html",
+        context={
             "request": request,
             "filename": os.path.join("file_transfer", "temp_files", filename),
-        }
+        },
+        headers={"Cache-Control": "no-store"},
     )
 
 @app.get("/chat-trace", response_class=HTMLResponse)

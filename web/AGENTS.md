@@ -50,13 +50,14 @@
 - 公开 `/health` 只执行不产生外部模型费用的快速服务检查；`/admin/funcs/health-check` 由管理员手动触发 DeepSeek 普通请求及工具续传深度诊断。深度诊断不得接入 Web/NBot 启动、systemd 重启、GitHub Actions 或公开匿名接口，并禁止并发重复执行。
 - HOK_QQBot 与 Web 的全部 Redis 数据统一使用 `REDIS_DB`（DB0）和 `hok:` 根命名空间；Web 只创建一个 Redis 客户端。访问分析使用 `hok:web:analytics:*`，查询参数中的 key、AdminKey、token 等凭据禁止写入统计，后台只返回脱敏 IP。地域查询必须异步执行并按 IP 缓存，不得阻塞普通页面响应。
 - NBot 与 Web 共享的网页临时载荷保存为 `hok:web:artifact:<token>`，URL 仍只暴露 token；收藏集合为 `hok:battle:liked_ids`；网页分享与底蕴分析队列分别为 `hok:queue:battle:share`、`hok:queue:battle:analyze`。Web 是两条业务队列的生产者，NBot 是消费者，修改名称或载荷结构时必须同步修改Bot/Web模块及根目录的DB0收敛迁移脚本。
+- 临时链接有效期统一由根config.yaml的Redis.REDIS_TEXT_EXPIRE_SECONDS提供，当前为86400秒（1天），读取不续期。普通载荷、聊天运行记录及其摘要索引使用同一有效期，不再读取DynamicVariables.ChatTraceExpireSeconds；/benefit的文件直连沿用现有URL，按对应temp_files JSON的mtime校验相同时限，缺失或到期返回410。该入口校验不改变底层文件清理周期、业务数据与私有JSONL保留策略。
 - 错误场景优先复用 `templates/ErrorPages/illegal.html` 或 `templates/ErrorPages/expired.html`。
 - 不要新增无必要的全局路由、兼容旧路由、调试接口或临时 fallback。
 
 ## Chat 运行记录页
 
 - `/chat-trace?key=<16位hex>` 从 `hok:web:artifact:<token>` 读取 NBot 发布的 `kind=chat_trace, version=1` 载荷；已有 48 位 hex 链接兼容读取至自然过期。非法 token 在读取 Redis 前拒绝，缺失/过期/错误类型返回 410，Redis 暂不可用返回 503。
-- 管理控制台“AI 运行记录”入口为 `/admin/funcs/chat-traces`，详情为 `/admin/funcs/chat-traces/{key}`，两者必须先验证 AdminKey Cookie，再读取 Redis，返回 no-store/no-referrer/noindex。列表由 Jinja 直接渲染，每页25条，筛选沿用 GET 参数，不新增 JSON 代理；详情复用原轨迹模板并提供返回列表入口。公开 `/chat-trace` 持有效key即可匿名查看，不读取AdminKey鉴权，也不因旧visibility=admin字段跳转登录；新NBot记录标记visibility=public，既有16/48位链接沿用原TTL，不迁移载荷。渲染器的admin_view仅控制已鉴权管理详情页的返回列表入口，不作为公开页面的权限开关。QQ详细回复转发末条附本轮轨迹链接；运行索引包含结束的正常/失败/取消/后台提醒，完整私有JSONL不迁移或删除。
+- 管理控制台“AI 运行记录”入口为 `/admin/funcs/chat-traces`，详情为 `/admin/funcs/chat-traces/{key}`，两者必须先验证 AdminKey Cookie，再读取 Redis，返回 no-store/no-referrer/noindex。列表由 Jinja 直接渲染，每页25条，筛选沿用 GET 参数，不新增 JSON 代理；详情复用原轨迹模板并提供返回列表入口。公开 `/chat-trace` 持有效key即可匿名查看，不读取AdminKey鉴权，也不因旧visibility=admin字段跳转登录；新NBot记录标记visibility=public，既有16/48位链接按统一1天政策收敛有效期。渲染器的admin_view仅控制已鉴权管理详情页的返回列表入口，不作为公开页面的权限开关。QQ详细回复转发末条附本轮轨迹链接；运行索引包含结束的正常/失败/取消/后台提醒，完整私有JSONL不迁移或删除。
 - `templates/CommonPages/ChatTrace/` 在宽屏并列显示左侧对话和右侧 DeepSeek Harness 轨迹查看器，1050px 及以下使用对话/轨迹切换。右侧保留输入/模型/工具三条时间带、轮次步骤和概述/参数/结果/Schema/计时详情，以及搜索、折叠、耗时/摘要开关、JSON 导出和原图预览。`conversation.css/js` 单独维护本地 agent studio 风格的浅色气泡、助手正文、折叠执行过程、真实思考、token 明细和双版本回复；样式限定在 `#chat-view`，不得改动轨迹内部样式。回复从持久化 `output.message` 事件读取，按事件 ID 去重并保留阶段性发送，旧记录回退到 question/answer；角色名和详细/群聊版本仅展示实际保存的字段。用量以各轮 API usage 为准，未采集不能显示成零，缓存不重复计入合计。左侧执行步骤只导航到原轨迹详情，不另造工具结果。CSS/JS 使用 Jinja include，禁止增加全局静态路由或重复 JSON 代理接口。
 - 页面展示每轮实际发送给业务模型和模型返回的完整 JSON payload，包含消息、系统提示、工具定义、工具结果及模型 API 返回字段；并按 DeepSeek Harness 的模型可见事件方式，在每一轮模型步骤前独立列出 `System Prompt`、`Context Injection` 和全部 `Tool Definitions`。优先从实际 provider request payload 提取，缺失时才读取 NBot 调用适配器前保存的 `context_injection` 快照；上下文步骤不得只显示空统计。所有工具参数和 observation 同样完整展示。每轮参数/结果面板不截断正文，左侧仅作摘要；支持结束原因、token 用量、空正文补试、失败阶段和异常链。凭据由 NBot 发布前脱敏，不采集 HTTP headers；删除旧 2 MiB 载荷限制。旧记录没有采集 payload 时明确标注，禁止伪造补全。
 - 分享页使用不可猜测的随机链接和 Redis TTL，响应 `no-store`、`no-referrer`、`noindex`；无第三方脚本。载荷嵌入必须使用 `tojson`，前端对不可信文本使用 `textContent`，禁止拼接 `innerHTML`。图片只允许 `/file_transfer/chat_plot_<uuid>.png`。

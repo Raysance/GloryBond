@@ -52,3 +52,10 @@ Game analysis accepts one shared scope for battle, equipment and roster relation
 Tasks persist claim, start and finish evidence separately from QQ send receipts. Completed attempts and scheduled times do not establish delivery; absent evidence remains unverified. Private sends to the caller bind the recipient at the entry point. Notification writes explicitly distinguish all matching messages from content-limited triggers; content-limited rules cannot be saved without content conditions, and unspecified cooldowns retain defaults. Existing notification rules retain their saved definitions and creator-only management.
 
 Validation: 433 host regressions, 40 deployment checks, four history-privacy checks, and manual routing/source validation. Nine historical foreground inputs were replayed against the real configured model with prior dialogue, followed by targeted replays after source-boundary changes. Actual read-only PostgreSQL and sandbox plotting confirmed calendar-month games across midnight and produced the requested two charts; task snapshots and message/memory/rule mutations were simulated, without sending QQ test messages or creating real tasks or rules. Pure role-tone preferences remain unchanged.
+
+
+### One-day temporary web links
+
+Temporary battle, query, video-redirect and chat-trace links now share `Redis.REDIS_TEXT_EXPIRE_SECONDS=86400`. Chat traces and their discovery index use the same setting rather than a separate seven-day override. The local and deployed private configuration were updated without changing other configuration values. Reads do not renew a link.
+
+The file-backed benefit page enforces the same lifetime against the generated JSON timestamp, returns 410 when missing or expired, and uses the supported keyword template interface. Its responses remain uncached by the browser. Existing trace deadlines and cached-link TTLs are normalized without extending shorter remaining lifetimes; source archives, private JSONL and the physical file-cleanup schedule are retained. Validation covers the one-day Redis lifetime, non-renewing reads, file-link boundary and 42 Web regressions.

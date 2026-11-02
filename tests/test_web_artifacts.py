@@ -1,6 +1,13 @@
 import hashlib
 import json
 import unittest
+from unittest.mock import patch
+import time
+
+try:
+    import fakeredis
+except ImportError:
+    fakeredis = None
 
 from local_debugger import import_hok_module
 
@@ -19,6 +26,23 @@ class FakeRedis:
 
 
 class WebArtifactTests(unittest.TestCase):
+    @unittest.skipUnless(fakeredis, 'Install the optional fakeredis test dependency')
+    def test_all_cached_route_types_share_one_day_expiry(self):
+        with patch.object(time, 'time', return_value=1000) as clock:
+            store = fakeredis.FakeRedis()
+            with patch.object(ZFUNC.dmc, 'redis_deamon', store):
+                links = [ZFUNC.WebArtifacts.create_route_link('{}', route) for route in WEB_ARTIFACTS.ROUTES
+                         if route not in {'benefit', 'chat_trace'}]
+                links.append(ZFUNC.chat_publish_trace({'kind': 'chat_trace', 'version': 1, 'rounds': []}))
+            keys = [ZFUNC.REDIS_KEY_WEB_ARTIFACT_PREFIX + link.rsplit('=', 1)[1] for link in links]
+            self.assertTrue(all(store.ttl(key) == 86400 for key in keys))
+            clock.return_value = 1000 + 86399
+            self.assertTrue(all(store.get(key) for key in keys))
+            self.assertTrue(all(store.ttl(key) == 1 for key in keys))
+            clock.return_value += 2
+            self.assertTrue(all(store.get(key) is None for key in keys))
+            self.assertFalse(store.exists(ZFUNC.REDIS_KEY_CHAT_TRACE_INDEX))
+
     def test_seeded_hash_is_stable_and_short(self):
         expected = hashlib.sha256(b"123").hexdigest()[:16]
         self.assertEqual(WEB_ARTIFACTS.make_hash(123), expected)

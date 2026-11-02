@@ -1258,7 +1258,7 @@ def chat_publish_trace(trace, artifacts=()):
         {"artifact_id": str(item.get("artifact_id", "")), "url": url}
         for item in artifacts if (url := chat_plot_public_path(item.get("path", "")))
     ]
-    payload["expires_in_seconds"] = max(60, int(getattr(dmc, "ChatTraceExpireSeconds", 604800)))
+    payload["expires_in_seconds"] = REDIS_TEXT_EXPIRE_SECONDS
     payload["visibility"] = "public"
     serialized = json.dumps(payload, ensure_ascii=False)
     entry = trace_index_entry(payload, token, current_epoch_seconds())
