@@ -64,7 +64,7 @@ class TimingTests(unittest.TestCase):
 
 
 class PersonalCapabilityTests(unittest.IsolatedAsyncioTestCase):
-    async def test_early_refusal_cannot_skip_discovery_and_bound_memory_write(self):
+    async def test_memory_write_discovers_its_capability_without_mandatory_history_search(self):
         class Bridge:
             def __init__(self):
                 self.memories = {}
@@ -84,14 +84,6 @@ class PersonalCapabilityTests(unittest.IsolatedAsyncioTestCase):
         )
         model = ScriptedModel(
             [
-                {"role": "assistant", "content": "没有记忆能力"},
-                {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        call("search_chat_history", {"queries": ["偏好", "英雄"]}, "h")
-                    ],
-                },
                 {
                     "role": "assistant",
                     "content": "",

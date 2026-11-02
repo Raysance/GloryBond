@@ -2,6 +2,7 @@
 
 import base64
 import asyncio
+import datetime
 import logging
 from .trace import build_trace
 from agent_console.replies import DeliveryHistory
@@ -41,11 +42,13 @@ class QQOutput:
         if task_id:
             packet["task_id"] = task_id
         await self.sender(packet, delivery)
+        accepted_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         if delivery.get("channel") == "group":
             try:
                 async with asyncio.timeout(self.context_timeout_seconds):
                     await self.context_bridge.call("qq_group_reply_save", session_id=event["session_id"],
-                        delivery=delivery, text=packet["text"], event_id=event["id"], timestamp=event["time"])
+                        delivery=delivery, text=packet["text"], event_id=event["id"], timestamp=accepted_at,
+                        reply_to_message_id=metadata.get("message_id"))
             except Exception:
                 logging.getLogger(__name__).warning("QQ accepted reply context could not be saved")
 

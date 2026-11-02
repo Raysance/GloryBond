@@ -108,12 +108,12 @@ class AdapterTests(unittest.TestCase):
                 "all_groups": True,
                 "group_id": None,
             },
-            "required_tools": ["search_chat_history"],
+            "required_tools": ["search_chat_history", "discover_tools", "explicit_check"],
         }
         request = task_request(task)
         self.assertTrue(remote_chat_identity(request.principal)["all_groups"])
         self.assertEqual(
-            request.required_tools, ("search_chat_history", "discover_tools")
+            request.required_tools, ("explicit_check",)
         )
         self.assertNotIn("attributes", task["principal"])
 

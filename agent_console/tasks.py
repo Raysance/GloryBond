@@ -25,9 +25,12 @@ def task_request(task, *, system_prompt="", budget=None):
         principal=Principal(**identity),
         system_prompt=system_prompt,
         budget=budget or application_budget(),
-        required_tools=tuple(
-            dict.fromkeys([*task.get("required_tools", ()), "discover_tools"])
-        ),
+        # Legacy tasks persisted the former chat preamble. It is not part of
+        # the user's scheduled action; keep only explicit other prerequisites.
+        required_tools=tuple(dict.fromkeys(
+            name for name in task.get("required_tools", ())
+            if name not in {"search_chat_history", "discover_tools"}
+        )),
         metadata={"origin": "background", "task_id": task["task_id"],
                   **({"delivery": attributes["delivery"]} if "delivery" in attributes else {})}
         if "task_id" in task

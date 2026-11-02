@@ -11,7 +11,7 @@ QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工�
 
 1. 入口绑定真实用户和可信群范围。群聊仅当前群，普通私聊无群聊权限，已验证管理员
    私聊允许跨群。模型不能改变授权。
-2. 群聊/管理员私聊先 `search_chat_history` 再 `discover_tools`；普通私聊只发现工具。
+2. 资料足够时直接回答；需要历史资料时才检索，需要其他能力时按类别发现。首轮已授权检索与发现可同轮调用，不设置固定聊天前置工具；重复发现不重传已有目录。
 3. 发现 `game_data` / `chat_data` 后，模型动态生成 SQL，调用
    `analyze_game_database` / `analyze_chat_database`。
 4. worker 先整批 AST 校验，再在独立只读账号/事务中执行。整批任一项无效时不访问
@@ -20,8 +20,13 @@ QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工�
 只读账号仍由 `database/chat_readonly.sql` 配置，不回退业务写账号。私有群聊表与
 payload 不向模型开放；群聊 SQL 只查询 `hok.chat_history_messages` 安全视图，事务
 注入可信 `hok.chat_group_scope`。统计只覆盖 PostgreSQL 归档，不用 BM25 命中数估算
-总体，也不包含尚未迁移的应急 Redis 记录。服务器缺少共享语义视图时，worker 使用
-受信视图定义编译只读 CTE，不执行 DDL。
+总体，也不包含尚未迁移的应急 Redis 记录。worker 始终从应用版本的受信视图定义
+编译只读 CTE，不受服务器同名旧视图影响，不执行 DDL；生成名称避免与模型 CTE 冲突。
+阵容视图以一次分组映射已配置参赛者，再按对局与角色关联，保留多玩家视角、别名选择、
+未知身份与空阵营语义，避免逐参赛者反复扫描整份玩家来源。单条 SQL 仍受5秒时限保护。
+
+QQ 近期背景及本轮后续历史读取使用同一入口时间上界。背景明确区分实际作者、原提问者、
+提及对象与引用；引用优先用于定位对象，不从他人旧发言推断当前调用者身份或个人偏好。
 
 SQL 行数、列数、结果字节及超时由根 `config.yaml#AgentSQL` 管理。模型预算分别为
 QQAgent/LocalAgent.budget，工具参数限制在共享工具模型中。不存在旧 schema/check

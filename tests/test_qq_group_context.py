@@ -22,6 +22,25 @@ def principal(user='101', group='200'):
 
 
 class ContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_actor_requester_mention_and_quote_remain_distinct_at_one_time_boundary(self):
+        business, state = AsyncMock(), AsyncMock()
+        business.call.return_value = {'messages': [{'message_id': '10', 'user_id': '100',
+            'text': '我的计划', 'timestamp': 1, 'reply_to_message_id': None}]}
+        state.call.return_value = {'messages': [{'message_id': 'bot-event', 'requester_id': '100',
+            'mention_user_id': '102', 'reply_to_message_id': '10', 'text': '先回答之前的人', 'timestamp': 2}]}
+        caller = qq_principal('101', '200', '第二个人', admin_id='999', references=REFERENCES, bot_id='300')
+        context = await group_context(business, caller, '12', state_bridge=state,
+                                      before_timestamp=3, reply_to_message_id='10')
+        payload = json.loads(context[0]['content'].split('\n', 1)[1])
+        self.assertEqual(payload['current_turn'], {'user_id': '101', 'name': '第二个人',
+            'message_id': '12', 'timestamp': 3, 'reply_to_message_id': '10'})
+        member, bot = payload['messages']
+        self.assertEqual(member['speaker'], {'kind': 'member', 'user_id': '100'})
+        self.assertEqual(bot['speaker'], {'kind': 'bot', 'user_id': '300'})
+        self.assertEqual((bot['requester_id'], bot['mention_user_id'], bot['reply_to_message_id']), ('100', '102', '10'))
+        for bridge in (business, state):
+            self.assertEqual(bridge.call.await_args.kwargs['before_timestamp'], 3)
+
     async def test_combines_bounded_chronological_public_sources_and_reports_missing_source(self):
         bridge = AsyncMock()
         bridge.call.side_effect = [
@@ -60,6 +79,18 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
+
+    async def test_slow_business_source_cannot_hide_available_state_context(self):
+        business, state = AsyncMock(), AsyncMock()
+        async def stalled(*args, **kwargs):
+            await asyncio.Event().wait()
+        business.call.side_effect = stalled
+        state.call.return_value = {'messages': [{'text': '可用的机器人回复', 'timestamp': 1}]}
+        with self.assertLogs('qq_agent.context', 'WARNING'):
+            context = await group_context(business, principal(), '42', state_bridge=state, timeout_seconds=.01)
+        payload = json.loads(context[0]['content'].split('\n', 1)[1])
+        self.assertEqual([row['text'] for row in payload['messages']], ['可用的机器人回复'])
+        self.assertFalse(payload['sources'][0]['available'])
 
 
 class MentionTests(unittest.IsolatedAsyncioTestCase):
@@ -188,6 +219,20 @@ class Store:
 
 
 class GroupReplyStoreTests(unittest.TestCase):
+    def test_turn_cutoff_keeps_the_original_requester_and_reply_relationship(self):
+        context = {'cfg': {}, 'store': Store(), 'memory': {'recent_history_limits': recent_history_limits}}
+        with patch.dict(worker.CONTEXT, context, clear=True):
+            for timestamp in (1, 5):
+                worker.qq_group_reply_save({'session_id': 'qq_g_200_101',
+                    'delivery': principal().attributes['delivery'], 'text': '已接受的回复',
+                    'event_id': str(timestamp), 'reply_to_message_id': '42',
+                    'timestamp': datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).isoformat()})
+            result = worker.qq_group_replies({'principal': {'group_id': '200', 'scopes': ['chat.read']},
+                                             'before_timestamp': 3})
+        self.assertEqual(len(result['messages']), 1)
+        row = result['messages'][0]
+        self.assertEqual((row['timestamp'], row['requester_id'], row['reply_to_message_id']), (1, '101', '42'))
+
     def test_persistence_binds_group_keeps_old_replies_and_bounds_count_and_text(self):
         store = Store()
         key = worker.STATE_PREFIX + 'qq_group_replies:200'

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import time
 from uuid import uuid4
 import httpx
 
@@ -13,7 +14,7 @@ from agent_console.timeouts import application_budget
 from agent_console.automation import AutomationPolicy
 from agent_console.tools.diagnostics import DiagnosticToolRegistry
 from agent_console.tool_errors import redact_error
-from agent_console.capabilities import Clock, application_prompt, load_catalogs, reference_prompt
+from agent_console.capabilities import Clock, application_prompt, chat_required_tools, load_catalogs, reference_prompt
 from agent_console.identity import LOCAL_SCOPES
 from agent_console.image_inputs import ImageLimits, ImageStore
 from agent_console.local_logs import LocalEventLog
@@ -195,8 +196,9 @@ class QQAgentService:
                 self.runtime = None
                 raise
 
-    async def current_prompt(self, principal, query=""):
-        snapshot = await self.bridge.call("reference_snapshot")
+    async def current_prompt(self, principal, query="", *, snapshot=None):
+        if snapshot is None:
+            snapshot = await self.bridge.call("reference_snapshot")
         self.catalogs["references"] = snapshot["directory"]
         if "chat.cross_group" in principal.scopes:
             scope = "已验证管理员私聊，允许查询已归档群聊；查询范围由入口授权。"
@@ -336,7 +338,9 @@ class QQAgentService:
             raise ValueError("目标QQ与当前群成员资料不一致，未更改角色")
 
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
-                   use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=()):
+                   use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=(),
+                   message_timestamp=None):
+        received_at = message_timestamp if message_timestamp is not None else time.time()
         await self.start()
         snapshot = await self.bridge.call("reference_snapshot")
         principal = qq_principal(user_id, group_id, nickname, admin_id=self.admin_id,
@@ -345,7 +349,7 @@ class QQAgentService:
                                  bot_id=self.bot_id)
         question = str(user_text) or ("请结合引用的消息回复。" if quoted_message else
                                      "请分析这些图片。" if image_urls else "请回应这次招呼。")
-        prompt = await self.current_prompt(principal, question)
+        prompt = await self.current_prompt(principal, question, snapshot=snapshot)
         current_sources = list(dict.fromkeys(image_urls))
         quoted_sources = list(dict.fromkeys(quoted_message.get("image_urls", ()))) if quoted_message and quoted_message.get("available") else []
         omitted_quote_images = 0
@@ -381,7 +385,10 @@ class QQAgentService:
                 rule_media.append({"kind": "image", "source": origin, "image_id": image_id,
                                    "animated": info.get("frames", 1) > 1})
         context_messages = await group_context(self.bridge, principal, message_id, self.public.get("recent_history_limits"),
-                                               self.config.get("group_context_timeout_seconds", 10))
+                                               self.config.get("group_context_timeout_seconds", 10),
+                                               state_bridge=self.state_bridge, before_timestamp=received_at,
+                                               reply_to_message_id=quoted_message.get("message_id")
+                                               if quoted_message and quoted_message.get("available") else None)
         if quoted_message:
             quote = {key:value for key, value in quoted_message.items() if key not in {"image_urls", "native_faces"}}
             if omitted_quote_images:
@@ -410,10 +417,11 @@ class QQAgentService:
         context_messages += page_context.messages
         request = RunRequest(
             question, "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id), principal,
-            system_prompt=prompt, required_tools=("search_chat_history", "discover_tools") if "chat.read" in principal.scopes else ("discover_tools",),
+            system_prompt=prompt, required_tools=chat_required_tools(),
             budget=application_budget(self.config.get("budget")), images=images,
             context_messages=context_messages,
             metadata={"delivery": principal.attributes["delivery"], "message_id": message_id,
+                      "message_timestamp": received_at,
                       "automation_media": rule_media,
                       "reply_question": {"text": str(user_text if original_user_text is None else original_user_text),
                                          "user_id": principal.user_id, "name": str(nickname)}},

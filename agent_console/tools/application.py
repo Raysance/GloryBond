@@ -25,9 +25,9 @@ class DiscoverArgs(Args):
 
 class SearchArgs(Args):
     queries: list[str] = Field(
-        min_length=2,
+        min_length=1,
         max_length=6,
-        description="从问题提取人物、对象、事件或同义词，生成互补简短查询，不重复原问题",
+        description="按需要提供1至6个互补查询；一个查询足够时不要凑同义词，程序会追加原问题",
     )
     group_id: str | None = Field(default=None, pattern=r"^(?:[0-9]{1,20}|\*)$",
         description="省略采用入口默认群范围；仅跨群授权调用者可指定其他群或用 * 查询全部群")
@@ -182,12 +182,15 @@ def register_application_tools(registry, *, service, catalogs):
         names = [
             name for name, spec in available.items() if spec.category in args.categories
         ]
+        newly_disclosed = set(names) - ctx.disclosed
+        new_categories = {available[name].category for name in newly_disclosed}
         ctx.disclosed.update(names)
-        resources = {key: catalogs[key] for key in args.categories if key in catalogs}
+        resources = {key: catalogs[key] for key in args.categories if key in catalogs and key in new_categories}
         return {
             "tools": names,
+            "new_tools": sorted(newly_disclosed),
             "catalogues": resources,
-            "notice": "工具已披露，下一轮可直接调用；能力用途以工具定义为准。SQL 根据查询目录动态生成。",
+            "notice": "工具已披露，下一轮可直接调用；已披露目录不重复返回，复用本轮此前结果。SQL 根据查询目录动态生成。",
         }
 
     async def search(args, ctx):
@@ -550,7 +553,7 @@ def register_application_tools(registry, *, service, catalogs):
             scopes=scopes,
             timeout=timeout,
             effect=effect,
-            initially_visible=category == "core",
+            initially_visible=category == "core" or name == "search_chat_history",
             description_provider=describe_discovery
             if name == "discover_tools"
             else None,

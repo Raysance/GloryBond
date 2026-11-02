@@ -259,6 +259,6 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
     def test_both_generation_stages_share_concrete_fact_style(self):
         for instruction in (application_prompt(), reply_instruction(ReplyPolicy())):
             self.assertIn("回复表达约定", instruction)
-            self.assertIn("没有详细的证据", instruction)
+            self.assertIn("有依据的批评、否定和反驳直接说清理由", instruction)
             self.assertIn("统计覆盖本群最近20条消息", instruction)
             self.assertIn("不增加确定性", instruction)

@@ -77,11 +77,11 @@ def response(chat=CHAT):
 
 
 class ValidationTests(unittest.TestCase):
-    def test_defensive_narration_is_repaired_and_quoted_source_keeps_its_words(self):
+    def test_reasoning_and_quotations_are_not_rejected_by_word_bans(self):
         for chat in ("只能参考这些数据。", "不是实力提升，而是队友配合。", "这不能表明实力。",
                      "没有详细的证据。", "先说清楚，统计覆盖这8场。"):
-            with self.subTest(chat=chat), self.assertRaises(ValueError):
-                validate_chat(response(chat=chat)["content"], DETAIL, ReplyPolicy())
+            with self.subTest(chat=chat):
+                self.assertEqual(validate_chat(response(chat=chat)["content"], DETAIL, ReplyPolicy()), chat)
         quoted = '原话是“只能参考这些数据”。统计覆盖这8场。'
         self.assertEqual(validate_chat(response(chat=quoted)["content"], DETAIL, ReplyPolicy()), quoted)
 
@@ -148,8 +148,8 @@ class ValidationTests(unittest.TestCase):
 
 
 class ComposerTests(unittest.IsolatedAsyncioTestCase):
-    async def test_expression_repairs_style_with_existing_budget_and_keeps_detail(self):
-        model = ScriptedModel([response(chat="只能参考这8场。"), response()])
+    async def test_expression_repairs_new_facts_with_existing_budget_and_keeps_detail(self):
+        model = ScriptedModel([response(chat="这100场全赢。"), response()])
         emitted = []
         async def emit(kind, data, **kwargs):
             emitted.append(kind)

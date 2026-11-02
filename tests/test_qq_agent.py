@@ -197,6 +197,48 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')
 
+    async def test_all_conversation_scopes_can_answer_without_a_tool_preamble(self):
+        for user, group in [('101', '200'), ('101', None), ('999', None)]:
+            with self.subTest(user=user, group=group):
+                before = len(self.calls)
+                self.script = [{'role': 'assistant', 'content': '直接回答当前问题。'}]
+                self.reply_text = '直接回答当前问题。'
+                result = await self.gateway.chat(user_text='你好', user_id=user, nickname='当前用户', group_id=group)
+                self.assertEqual(result['text'], self.reply_text)
+                operations = [op for op, _ in self.calls[before:]]
+                self.assertNotIn('search_history', operations)
+                self.assertEqual(operations.count('reference_snapshot'), 1)
+                self.assertEqual(self.gateway.model.requests[-1].tool_choice, 'auto')
+
+    async def test_independent_search_and_discovery_succeed_in_the_first_round(self):
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [
+                call('search_chat_history', {'queries': ['过去的约定']}, 'h'),
+                call('discover_tools', {'categories': ['memory']}, 'd')]},
+            {'role': 'assistant', 'content': '已取得资料。'},
+        ]
+        self.reply_text = '已取得资料。'
+        await self.gateway.chat(user_text='查查过去的约定', user_id='101', nickname='当前用户', group_id='200')
+        results = [e['data'] for events in self.events.values() for e in events if e['kind'] == 'tool.result']
+        self.assertEqual([item['name'] for item in results], ['search_chat_history', 'discover_tools'])
+        self.assertTrue(all(item['result']['ok'] for item in results))
+
+    async def test_repeated_discovery_reuses_catalogues_without_retransmitting_them(self):
+        self.script = [
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['game_data']}, 'd1')]},
+            {'role': 'assistant', 'content': '', 'tool_calls': [call('discover_tools', {'categories': ['game_data', 'memory']}, 'd2')]},
+            {'role': 'assistant', 'content': '目录已读取。'},
+        ]
+        self.reply_text = '目录已读取。'
+        await self.gateway.chat(user_text='读取需要的目录', user_id='101', nickname='当前用户', group_id='200')
+        results = [e['data']['result']['data'] for events in self.events.values() for e in events
+                   if e['kind'] == 'tool.result' and e['data']['name'] == 'discover_tools']
+        self.assertIn('game_data', results[0]['catalogues'])
+        self.assertNotIn('game_data', results[1]['catalogues'])
+        self.assertIn('analyze_game_database', results[1]['tools'])
+        self.assertNotIn('analyze_game_database', results[1]['new_tools'])
+        self.assertIn('remember_memory', results[1]['new_tools'])
+
     async def test_group_member_discovers_ignore_tool_and_calls_bound_operation(self):
         await self.gateway.close()
         operation = AsyncMock(return_value={"ignored": True, "user_id": "100", "group_id": "200"})
@@ -610,8 +652,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(task["principal"]["attributes"]["delivery"]["mention_user_id"], "101")
         self.assertEqual(task["session_id"], "qq_g_200_101")
         self.assertEqual(next(args for op, args in self.calls if op == "search_history")["exclude_message_id"], 300)
-        self.assertEqual(self.gateway.model.requests[0].tool_choice["function"]["name"], "search_chat_history")
-        self.assertEqual(self.gateway.model.requests[1].tool_choice["function"]["name"], "discover_tools")
+        self.assertEqual(self.gateway.model.requests[0].tool_choice, "auto")
+        self.assertEqual(self.gateway.model.requests[1].tool_choice, "auto")
         self.assertEqual(self.dialogue["qq_g_200_101"][-1]["content"],
                          "记忆已保存，正在设置提醒。\n\n" + result["text"])
         self.assertGreater(result["trace"]["summary"]["token_usage"]["total_tokens"], 0)
@@ -647,7 +689,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         ]
         await self.gateway.chat(user_text="查询本人偏好", user_id="101", nickname="B", use_memory=False)
         self.assertFalse(any(op == "search_history" for op, args in self.calls))
-        self.assertEqual(self.gateway.model.requests[0].tool_choice["function"]["name"], "discover_tools")
+        self.assertEqual(self.gateway.model.requests[0].tool_choice, "auto")
         self.assertEqual(self.sent[-1][1]["recipient_id"], "101")
         self.assertEqual(self.sent[-1][1]["channel"], "private")
         await self.gateway.tick()

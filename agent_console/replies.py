@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent_runtime import FinalAnswer
-from .reply_style import default_assistant_instruction, reply_style_instruction, validate_reply_style
+from .reply_style import default_assistant_instruction, reply_style_instruction
 
 
 class DeliveryHistory:
@@ -97,7 +97,6 @@ def validate_chat(content, evidence, policy):
         raise ValueError("出现资料未提供的新数值，保留资料中的数字与单位")
     if source_urls(reply.chat) - source_urls(evidence):
         raise ValueError("出现资料未提供的新链接，请保留原始来源链接")
-    validate_reply_style(reply.chat)
     return reply.chat
 
 

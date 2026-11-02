@@ -75,6 +75,14 @@ class RecentHistoryWorkerTests(unittest.TestCase):
         self.assertFalse(result["has_older_messages"])
         self.assertFalse(result["text_truncated"])
 
+    def test_optional_turn_boundary_is_applied_in_sql_before_the_row_limit(self):
+        db = Database()
+        self.read(db, before_timestamp=100, exclude_message_id='42')
+        sql, params = db.calls[0]
+        self.assertIn('source_timestamp<=%s', sql)
+        self.assertLess(sql.index('source_timestamp<=%s'), sql.index('ORDER BY'))
+        self.assertEqual(params[-3:], ['42', 100, 21])
+
     def test_malformed_configuration_is_rejected_instead_of_silently_using_defaults(self):
         for config in [False, [], "", {"limit":0}, {"limit":True}, {"limit":51}, {"unknown":1}]:
             with self.subTest(config=config), self.assertRaises(ValueError):

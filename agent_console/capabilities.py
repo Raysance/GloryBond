@@ -30,6 +30,8 @@ class Capabilities:
             original_query=ctx.request.user_message,
             principal=remote_chat_identity(ctx.principal),
             exclude_message_id=ctx.request.metadata.get("message_id"),
+            **({"before_timestamp": ctx.request.metadata["message_timestamp"]}
+               if "message_timestamp" in ctx.request.metadata else {}),
             **({"group_id": group_id} if group_id is not None else {}),
         )
 
@@ -38,6 +40,8 @@ class Capabilities:
             "recent_history", **args,
             principal=remote_chat_identity(ctx.principal),
             exclude_message_id=ctx.request.metadata.get("message_id"),
+            **({"before_timestamp": ctx.request.metadata["message_timestamp"]}
+               if "message_timestamp" in ctx.request.metadata else {}),
         )
 
     async def analyze(self, domain, queries, ctx, *, group_id=None):
@@ -139,7 +143,16 @@ def remote_chat_identity(principal):
 def application_prompt():
     return (
         reply_style_instruction()
-        + "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
+        + "需要解释原因或评价方案时，区分现象、已知事实、机制推断和验证条件，"
+        "沿约束、决策、激励与反馈分析因果链，考虑其他解释；不把复述现象、归咎性格或空泛建议当作根因。"
+        "结论应能说明同类现象为何发生，建议针对导致问题的条件；没有依据时指出具体未知项，不编造动机或把可能原因定成唯一根因。"
+        "简单问题直接回答，不为了展示分析强行展开。"
+        "根据需要使用discover_tools发现能力，不要把尚未披露描述成没有能力。"
+        "先判断回答需要什么新增信息或动作；当前问题和已提供资料足够时直接回答，不为完成流程调用工具。"
+        "近期对话用于理解当前话题，历史相关性检索只在确实需要更早资料时使用；不为普通闲聊、明确指令或游戏查询先查群聊。"
+        "一次发现本任务所需的类别，已披露的定义和目录继续使用，不重复发现；"
+        "独立读取可在同一轮提交，依赖结果的调用须等结果返回。复用本轮成功结果和dataset_id，不原样重复查询或换近义词凑检索。"
+        "每次追加工具都应解决一个尚未确定且影响答案的问题；资料足够就结束，不为解释或修辞继续查工具。"
         "工具失败时读取error、code和data.error_details，以及批量查询各observation的error_details；"
         "依据错误类型、失败阶段、底层原因和诊断字段有限修复，不能原样反复重试。"
         "retryable仅说明读取故障是否可重试；OUTCOME_UNKNOWN或写操作必须先核对状态，禁止自动重放。"
@@ -195,7 +208,9 @@ def application_prompt():
 
 
 def chat_required_tools():
-    return ("search_chat_history", "discover_tools")
+    # Authorization and disclosure constrain tools; conversation has no fixed
+    # prerequisite workflow. Keep this shared policy for both entry points.
+    return ()
 
 
 def load_catalogs(shared_path, *, recent_limits=None, kpl_config=None):

@@ -105,10 +105,6 @@ def bootstrap(args):
             identity = cur.fetchone()
             if identity[0] != "hok_chat_reader" or any(identity[1:]):
                 raise RuntimeError("数据库不是独立无特权只读账号")
-            cur.execute(
-                "SELECT table_name FROM information_schema.views WHERE table_schema='hok'"
-            )
-            views = {row[0] for row in cur.fetchall()}
     rcfg = cfg["Redis"]
     store = redis.Redis(
         host=rcfg["REDIS_HOST"],
@@ -163,7 +159,6 @@ def bootstrap(args):
         validation=validation,
         catalogs=args["catalogs"],
         definitions=args["definitions"],
-        views=views,
         api=api_namespace,
         memory=mem_namespace,
     )
@@ -304,34 +299,45 @@ def trusted_scope(principal, requested_group=None):
 
 
 def expand_semantic_views(sql):
-    """Compile trusted view definitions as CTEs when the server predates them.
+    """Compile the application's versioned semantic definitions as read-only CTEs.
 
     Model input has already been validated against the semantic catalogue.
-    No DDL is run, and storage names are never disclosed to the model.
+    Installed database views cannot silently select an older implementation.
+    Generated aliases cannot collide with model CTEs; no DDL is run.
     """
     tree = parse_one(sql, read="postgres")
     required = {}
+    aliases = {}
+    reserved = {node.alias.lower() for node in tree.find_all(exp.CTE)}
     definitions = CONTEXT["definitions"]
 
     def expand(expression):
         for table in list(expression.find_all(exp.Table)):
             name = table.name
-            if (
-                table.db == "hok"
-                and name in definitions
-                and name not in CONTEXT["views"]
-            ):
+            if table.db == "hok" and name in definitions:
                 if name not in required:
+                    alias = "__agent_view_" + name
+                    while alias.lower() in reserved:
+                        alias += "_"
+                    reserved.add(alias.lower())
+                    aliases[name] = alias
                     view = parse_one(definitions[name], read="postgres")
                     expand(view)
                     required[name] = view
+                # Keep the original relation qualifier for existing columns.
+                if not table.alias:
+                    table.set("alias", exp.TableAlias(this=table.this.copy()))
+                table.set("this", exp.to_identifier(aliases[name]))
                 table.set("db", None)
+        for column in expression.find_all(exp.Column):
+            if column.db == "hok" and column.table in definitions:
+                column.set("db", None)
 
     expand(tree)
     if required:
         current = tree.args.get("with_")
         ctes = [
-            exp.CTE(this=value, alias=exp.TableAlias(this=exp.to_identifier(name)))
+            exp.CTE(this=value, alias=exp.TableAlias(this=exp.to_identifier(aliases[name])))
             for name, value in required.items()
         ]
         if current:
@@ -422,9 +428,12 @@ def search_history(args):
     scope = trusted_scope(args["principal"], args.get("group_id"))
     with db_connection(scope) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT group_id,message_id,user_id,reply_to_message_id,source_timestamp AS timestamp,message_text AS text FROM hok.chat_history_messages ORDER BY source_timestamp"
-            )
+            sql = "SELECT group_id,message_id,user_id,reply_to_message_id,source_timestamp AS timestamp,message_text AS text FROM hok.chat_history_messages"
+            params = []
+            if args.get("before_timestamp") is not None:
+                sql += " WHERE source_timestamp<=%s"
+                params.append(args["before_timestamp"])
+            cur.execute(sql + " ORDER BY source_timestamp", params)
             rows = cur.fetchall()
     group = args["principal"].get("group_id")
     exclude = args.get("exclude_message_id")
@@ -468,6 +477,9 @@ def recent_history(args):
     if excluded is not None:
         sql += " AND message_id<>%s"
         params.append(str(excluded))
+    if args.get("before_timestamp") is not None:
+        sql += " AND source_timestamp<=%s"
+        params.append(args["before_timestamp"])
     sql += " ORDER BY source_timestamp DESC,message_id DESC LIMIT %s"
     params.append(limit + 1)
     with db_connection(group) as conn:
@@ -495,6 +507,7 @@ def qq_group_reply_save(args):
     limits = CONTEXT["memory"]["recent_history_limits"](CONTEXT["cfg"].get("AgentHistory"))
     text = str(args["text"])
     row = {"group_id": match[1], "requester_id": match[2], "message_id": str(args["event_id"]),
+           "reply_to_message_id": str(args["reply_to_message_id"]) if args.get("reply_to_message_id") is not None else None,
            "mention_user_id": delivery.get("mention_user_id"),
            "timestamp": datetime.datetime.fromisoformat(args["timestamp"]).timestamp(),
            "text": text[:limits["max_message_chars"]], "text_truncated": len(text) > limits["max_message_chars"]}
@@ -516,6 +529,8 @@ def qq_group_replies(args):
     rows = [json.loads(raw) for raw in CONTEXT["store"].lrange(
         STATE_PREFIX + "qq_group_replies:" + group, -limits["max_limit"], -1)]
     rows = [row for row in rows if str(row.get("group_id")) == group]
+    if args.get("before_timestamp") is not None:
+        rows = [row for row in rows if row["timestamp"] <= args["before_timestamp"]]
     rows.sort(key=lambda row: (row["timestamp"], row["message_id"]))
     return {"messages": rows[-limits["limit"]:], "group_id": group,
             "has_older_messages": len(rows) > limits["limit"], "notice": "仅含发送出口已接受的机器人回复摘录，不包含私聊或其他群。"}

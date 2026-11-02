@@ -84,4 +84,6 @@ class AnimationProviderTests(unittest.IsolatedAsyncioTestCase):
             with patch("agent_console.provider.httpx.AsyncClient", side_effect=lambda **kw: client_type(transport=httpx.MockTransport(respond), **kw)):
                 await model.complete([{"role":"user", "content":[store.inputs([saved["id"]])[0].content_part()]}], [], AsyncMock())
         self.assertEqual(requests[0]["model"], "deepseek-v4-flash")
-        self.assertTrue(requests[0]["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/png;"))
+        user = next(message for message in requests[0]["messages"] if message['role'] == 'user')
+        pixels = next(part for part in user['content'] if part['type'] == 'image_url')
+        self.assertTrue(pixels["image_url"]["url"].startswith("data:image/png;"))
