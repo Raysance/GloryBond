@@ -12,6 +12,7 @@ from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
 from agent_console.roleplay import RoleplayService
+from agent_console.reply_style import default_assistant_instruction
 from agent_console.identity import local_principal
 from agent_console.roleplay_models import RoleDefinition
 from agent_console.roleplay_store import roleplay_operation
@@ -150,14 +151,14 @@ class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_firm_default_applies_to_assistant_and_keeps_personal_preferences(self):
         service, _ = self.service()
         principal = Principal("owner", frozenset({"roleplay.use"}))
-        self.assertNotIn("默认立场鲜明", await service.context(principal))
+        self.assertNotIn(default_assistant_instruction(), await service.context(principal))
         await service.manage(principal, "select", role_id="assistant")
         await service.manage(principal, "preferences", preferences={"style": "这次温和一点"})
         prompt = await service.context(principal)
-        self.assertIn("默认立场鲜明", prompt)
+        self.assertIn(default_assistant_instruction(), prompt)
         self.assertIn("这次温和一点", prompt)
         await service.manage(principal, "select", role_id="makise_kurisu")
-        self.assertNotIn("默认立场鲜明", await service.context(principal))
+        self.assertNotIn(default_assistant_instruction(), await service.context(principal))
 
     async def test_web_role_voice_examples_are_validated_and_persisted(self):
         service, bridge = self.service(
@@ -343,7 +344,7 @@ class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             await service.manage(Principal("a"))
         before = len(bridge.calls)
-        self.assertIn("语气坚定", await service.context(Principal("legacy-task-user")))
+        self.assertEqual(default_assistant_instruction(), await service.context(Principal("legacy-task-user")))
         self.assertEqual(len(bridge.calls), before)
 
     async def test_admin_selection_changes_only_target_role_and_hides_target_preferences(self):

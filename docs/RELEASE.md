@@ -22,6 +22,14 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Conversational judgment — 2026-11-03
+
+The shared expression policy now directs the default assistant's bluntness toward core mechanisms and consequential errors. Casual recognition, jokes and aesthetic discussion stay conversational; once the user accepts an approximate interpretation, the assistant continues without repeatedly demanding provenance or appending verification disclaimers. Explicit source checks, important decisions and action parameters retain their necessary checks. The same policy reaches the main answer, partial messages and short presentation through the existing shared entry points, without an additional classifier or review request.
+
+The built-in assistant profile, voice and examples follow the same goal. Its analytical example no longer invents a history of repeated user mistakes. The memory policy explicitly scopes external-fact verification to persistence, keeping that constraint from becoming a demand to authenticate every casual remark. Documentation and existing role-selection tests were synchronized.
+
+Validation: 141 related host regressions, 40 deployment checks, four history-privacy checks, and manual validation covering 102 nodes, 33 documents and 111 source locations. Eight synthetic live-model scenarios exercised both the main answer and short presentation, including continuation after a stubborn historical reply, casual recognition, jokes, approximate comparisons, explicit provenance checks, causal analysis and truthful send/memory reporting. Two additional runs used the previous policy as controls. These are text conversation checks, not image-recognition accuracy measurements; no QQ messages or persistent personal memories were created.
+
 ## AI chat reliability — 2026-11-02
 
 Chat tool selection now follows the task rather than a compulsory history-search/discovery sequence. QQ, Web and legacy background tasks use the same policy; authorized search and discovery can both succeed in the first round. Discovery returns only newly needed catalogues, and one complementary history query is sufficient. Identity, authorization, disclosure and action-result checks remain independent of this planning policy.
