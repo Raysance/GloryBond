@@ -28,6 +28,20 @@ payload 不向模型开放；群聊 SQL 只查询 `hok.chat_history_messages` �
 缺失或未知值保留 NULL。统计优先使用该类型列，不将原始 JSON 的 "false" 文本转为整数。
 SQL 返回的 coverage 明示归档边界；空结果或末条记录时间不能推断真实活动停止、未上线或未发生。
 
+主成员及额外成员共用参考目录中的 `player_key`。每个游戏查询批次重新读取配置，
+将营地/角色 ID 通过 AST 常量编译为内部 `chat_configured_players` CTE，返回
+`reference_version`；内部关系和身份 ID 不加入模型 SQL 白名单。双方角色 ID 存在时
+必须相等，双方营地 ID 同时存在时也必须一致；角色缺失时仅允许无多角色歧义的营地 ID
+匹配。QQ、昵称及 `sameuser` 不补全游戏账号，冲突配置不用于生成匹配。
+
+本人战绩仍按最新快照去重。缺少本人战绩的配置成员从已有同局详情补出个人视角，
+只借用同局时间、模式和时长，英雄、KDA、评分、MVP、装备均取本人参赛数据。
+胜负按已知阵营转换，未知阵营、胜负以及缺失的段位变化保留 NULL。对局、装备和阵容
+返回 `record_source`（`battle_record` 或 `battle_participant`），每个账号同局只有一个视角。
+个人快照和底蕴按同一配置映射已有记录，不要求该账号进入每日主成员快照。
+额外成员的同局样本不代表完整个人战绩；只有详情、没有战绩时间与模式锚点的对局
+不会补出对局行。无需数据库迁移、新表、额外读取授权或重新采集。
+
 `analyze_game_database.scope` 在对局、装备和阵容关系聚合前统一筛选，默认
 `mode=official,time_basis=calendar`。`start_at/end_at` 是含时区的左闭右开边界，
 由程序转换为开局秒值；自然时间口径禁止按 `snapshot_date` 过滤、分组或排序对局。

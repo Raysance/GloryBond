@@ -64,6 +64,8 @@ QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭�
 
 `shared/agent/reference_data/manifest.json` 声明参考目录的源字段、ID 命名空间、用途和上下文投影。当前源为服务器 `config.yaml#StaticVariables`；也支持通过清单改为独立 `static_variable.json`。每次新请求、后台执行和参考工具调用均读取最新源，返回版本摘要。常用玩家昵称、别名与 QQ 映射进入上下文，完整营地/角色/Steam ID 通过工具查询。此目录与 SQL、记忆分别提供各自的数据，参考查询的 `dataset_id` 可在 Python 中与 SQL 数据集关联并绘图。
 
+游戏 SQL 每批从同一参考源读取主成员及额外成员的营地/角色 ID，编译为私有常量 CTE，并返回 `reference_version`。模型仍只用 `player_key` 查询公开语义关系。`chat_player_battles`、装备和阵容关系优先本人战绩；缺少本人战绩时从已收录同局详情投影配置成员自己的数据，`record_source` 区分 `battle_record` 与 `battle_participant`，同一账号同局只返回一次。额外成员的个人快照和底蕴也可按配置映射，无采集时不会生成数据；同局样本不能推断完整个人历史。验证入口为 `tests.test_agent_extra_players`、`tests.test_agent_sql_views`、`tests.test_agent_query_scope` 和 `tests.test_reference_data`。
+
 服务只监听本机 loopback；请求校验 Host、Origin、本地会话 cookie 和写请求头。SSH 密钥、模型 key、DSN 不进入浏览器或新文件。运行记录保留完整输入和工具资料，因此本界面作为受信任的本地管理员控制台使用。
 
 原始输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表或修改原图。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用图片，刷新、重启后仍可预览与继续追问。静态图片发送原始像素的 data URL；动画按帧序抽样为最多 4 帧的 PNG 拼图并注明帧号，原 GIF/动态 WebP/APNG 仍保留。拼图单独保存，元数据记录来源和抽样索引；实际模型请求快照引用真正发送的 PNG，默认限制源动画 240 帧及累计解码像素，配置在 `LocalAgent.images`。包含图片的实际请求快照会显式标注 `image_payload_storage`，`GET /api/images/{id}` 可还原对应原图或模型拼图的确切字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。

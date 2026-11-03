@@ -58,6 +58,24 @@ class ReferenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.references.lookup(catalogs=["heroes"], namespace="qq")
 
+    def test_game_bindings_include_extra_accounts_without_borrowing_related_ids(self):
+        data = values()
+        data['extra_roleidlist'] = {'extra': 30002}
+        data['sameuser']['p1'] = ['p1', 'extra', 'p2']
+        references = ReferenceData(MANIFEST, data, source='fixture')
+        self.assertEqual(references.game_identity_rows(), [
+            {'player_key': 'p1', 'user_id': 20001, 'role_id': 30001},
+            {'player_key': 'extra', 'user_id': 20002, 'role_id': 30002},
+        ])
+        for invalid in (True, 'abc', '3;SELECT 1', -1, 0, 2**63, [30002, 30003]):
+            with self.subTest(invalid=invalid):
+                data['extra_roleidlist']['extra'] = invalid
+                rows = ReferenceData(MANIFEST, data, source='fixture').game_identity_rows()
+                self.assertEqual([row['player_key'] for row in rows], ['p1'])
+        data['extra_roleidlist']['extra'] = 30002
+        data['roleidlist']['extra'] = 30003
+        self.assertEqual(len(ReferenceData(MANIFEST, data, source='fixture').game_identity_rows()), 1)
+
     def test_collisions_and_account_relations_are_preserved(self):
         matches = self.references.lookup(
             catalogs=["players"], terms=["10002"], namespace="qq"

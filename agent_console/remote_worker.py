@@ -298,7 +298,21 @@ def trusted_scope(principal, requested_group=None):
     return selected
 
 
-def expand_semantic_views(sql, query_scope=None):
+def configured_players_sql(rows):
+    """Embed trusted configuration as typed AST literals, never SQL fragments."""
+    columns = {"player_key": "text", "user_id": "bigint", "role_id": "bigint"}
+    selects = [exp.select(*[
+        exp.alias_(exp.cast(exp.convert(row[name]), kind), name)
+        for name, kind in columns.items()
+    ]) for row in rows]
+    if not selects:
+        return exp.select(*[
+            exp.alias_(exp.cast(exp.Null(), kind), name) for name, kind in columns.items()
+        ]).where(exp.false()).sql(dialect="postgres")
+    return exp.union(*selects, distinct=False).sql(dialect="postgres") if len(selects) > 1 else selects[0].sql(dialect="postgres")
+
+
+def expand_semantic_views(sql, query_scope=None, player_bindings=None):
     """Compile the application's versioned semantic definitions as read-only CTEs.
 
     Model input has already been validated against the semantic catalogue.
@@ -309,7 +323,14 @@ def expand_semantic_views(sql, query_scope=None):
     required = {}
     aliases = {}
     reserved = {node.alias.lower() for node in tree.find_all(exp.CTE)}
-    definitions = CONTEXT["definitions"]
+    scoped_battles = any(table.db == "hok" and table.name in {
+        "chat_player_battles", "chat_player_equipment", "chat_player_battle_roster"
+    } for table in tree.find_all(exp.Table))
+    definitions = dict(CONTEXT["definitions"])
+    if "chat_configured_players" in definitions:
+        if player_bindings is None:
+            player_bindings = reference_data().game_identity_rows()
+        definitions["chat_configured_players"] = configured_players_sql(player_bindings)
 
     def expand(expression):
         for table in list(expression.find_all(exp.Table)):
@@ -324,7 +345,11 @@ def expand_semantic_views(sql, query_scope=None):
                     view = parse_one(definitions[name], read="postgres")
                     expand(view)
                     if query_scope is not None:
-                        columns = CONTEXT["catalogs"]["hok_sql"]["tables"].get(name, {}).get("columns", {})
+                        # Bound the shared recorded perspectives before using
+                        # them to project configured participants into matches.
+                        scope_name = ("chat_player_battles" if scoped_battles and name == "chat_recorded_battle_source"
+                                      else name)
+                        columns = CONTEXT["catalogs"]["hok_sql"]["tables"].get(scope_name, {}).get("columns", {})
                         filters = CONTEXT["validation"]["game_scope_predicates"](query_scope, columns)
                         if filters:
                             view = exp.select("*").from_(view.subquery("scoped_battles")).where(*filters)
@@ -381,6 +406,9 @@ def analyze(args):
             )
         )
     scope = trusted_scope(args["principal"], args.get("group_id")) if domain == "chat" else None
+    references = (reference_data() if domain == "game"
+                  and "chat_configured_players" in CONTEXT.get("definitions", {}) else None)
+    player_bindings = references.game_identity_rows() if references is not None else None
     results = []
     limits = CONTEXT["cfg"].get("AgentSQL", {})
     row_limit = min(500, limits.get("max_rows", 200))
@@ -390,7 +418,7 @@ def analyze(args):
                 with conn.transaction():
                     with conn.cursor(name="agent_" + uuid4().hex) as cur:
                         executed = (
-                            expand_semantic_views(sql, query_scope) if domain == "game" else sql
+                            expand_semantic_views(sql, query_scope, player_bindings) if domain == "game" else sql
                         )
                         cur.execute(
                             f"SELECT * FROM ({executed}) AS agent_result LIMIT {row_limit + 1}"
@@ -436,6 +464,7 @@ def analyze(args):
                     }
                 )
     return {"observations": results, "catalog_version": catalog["version"],
+            **({"reference_version": references.version} if references is not None else {}),
             **({"scope": query_scope} if query_scope is not None else {}),
             "coverage": {"source": "postgresql_archive", "missing_records_mean_no_activity": False},
             "notice": "结果只覆盖查询范围内已归档记录。缺失、空结果或最后一条记录的时间，"

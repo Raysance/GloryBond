@@ -24,7 +24,7 @@
       }
     },
     "chat_player_battles": {
-      "description": "已记录玩家的去重对局语义视图；严格一行代表一个(player_key,game_seq)。已自动选取最新快照，并把参赛者字段精确绑定到该玩家本人；game_seq缺失的原始行不进入此视图。",
+      "description": "主成员及额外成员的已收录对局；每个(player_key,game_seq)一行，优先本人战绩，没有本人战绩时从已收录同局详情精确匹配配置账号并补出本人参赛数据。record_source标明来源，非完整个人战绩。",
       "columns": {
         "snapshot_date": "date",
         "player_key": "text",
@@ -49,11 +49,12 @@
         "player_gold": "integer",
         "participant_payload": "jsonb",
         "game_type": "integer",
-        "is_mvp": "boolean"
+        "is_mvp": "boolean",
+        "record_source": "text"
       }
     },
     "chat_player_equipment": {
-      "description": "已记录玩家本人的最终装备明细；严格一行代表一个玩家在一局中的一件装备。英雄、装备和player_key已经在视图内部按目标本人绑定，统计出装不需要也不得再连接参赛者表。",
+      "description": "主成员及额外成员本人的最终装备明细；每行是一名玩家某局的一件装备，hero_name与equipment_name均绑定该玩家本人。record_source标明对局来源，无需连接参赛者表。",
       "columns": {
         "snapshot_date": "date",
         "player_key": "text",
@@ -68,11 +69,12 @@
         "player_camp": "text",
         "equipment_index": "integer",
         "equipment_name": "text",
-        "equipment_payload": "jsonb"
+        "equipment_payload": "jsonb",
+        "record_source": "text"
       }
     },
     "chat_player_battle_roster": {
-      "description": "以每个已记录玩家为锚点的对局阵容；一行代表该玩家某局中的一名参赛者。relation已确定self、teammate或opponent，已配置参赛者同时给出participant_player_key，无需推断阵营、猜测昵称或使用身份ID连接。",
+      "description": "以主成员或额外成员为视角的已收录对局阵容；每行是该玩家某局的一名参赛者，relation为self、teammate或opponent，participant_player_key为已关联配置账号。record_source标明视角来源。",
       "columns": {
         "snapshot_date": "date",
         "player_key": "text",
@@ -99,11 +101,12 @@
         "position": "text",
         "skill": "jsonb",
         "battle_stats": "jsonb",
-        "is_mvp": "boolean"
+        "is_mvp": "boolean",
+        "record_source": "text"
       }
     },
     "chat_personal_snapshots": {
-      "description": "营地个人采集快照；按snapshot_date与player_key关联，是采集时状态而非实时在线状态。",
+      "description": "营地个人采集快照；按snapshot_date与player_key关联，额外成员有已保存快照时也可查询。是采集时状态而非实时在线状态；无采集不生成快照。",
       "columns": {
         "snapshot_date": "date",
         "player_key": "text",
@@ -115,7 +118,7 @@
       }
     },
     "chat_battle_power_players": {
-      "description": "已评估对局的参赛者语义视图；每个(game_seq,participant_index)一行。阵营底蕴、对手底蕴和胜负均已转换为该参赛者视角；已关联玩家才有player_key。",
+      "description": "已评估对局参赛者；每个(game_seq,participant_index)一行。主成员及额外成员按配置的游戏账号精确关联player_key，无须本人战绩；阵营底蕴、对手底蕴和胜负为该参赛者视角。",
       "columns": {
         "game_seq": "bigint",
         "player_key": "text",
@@ -193,6 +196,9 @@
     "SQL 方言PostgreSQL。仅单条SELECT或非递归WITH ... SELECT，可JOIN、聚合、窗口和JSON。必须显式列名，COUNT(*)可用。模型无权访问采集层战绩表、身份ID、文件路径、系统目录或导入清单。",
     "先按所需粒度选择语义视图：玩家每局用chat_player_battles，玩家本人装备用chat_player_equipment，以玩家为视角的阵容关系用chat_player_battle_roster，底蕴参赛者用chat_battle_power_players。每条查询只使用一个语义关系；多类数据在同一次analyze调用中拆成多条查询，不得跨视图重建已有关系。",
     "chat_player_battles已按(player_key,game_seq)选择最新快照并精确绑定该玩家本人的参赛者数据，一行就是一名已记录玩家的一局，无需DISTINCT去重。game_seq缺失的采集行不进入模型语义层。玩家场次用COUNT(*)，全局物理比赛数用COUNT(DISTINCT game_seq)。",
+    "额外成员来自extra_useridlist、extra_roleidlist、extra_namenick，与主成员一样使用参考目录的player_key。SQL在可信侧按游戏角色ID和营地ID映射，不按昵称、QQ或sameuser拼接游戏账号。ID冲突时不猜测。",
+    "record_source=battle_record表示本人归档战绩；battle_participant表示从其他已收录玩家同局详情补出的本人视角。补出的英雄、KDA、评分、MVP和装备均属于该成员本人；仅复用同局时间、模式和时长，胜负按已知阵营转换，段位/巅峰分变化保留NULL。每个账号每局仍只有一行，已有本人战绩优先。",
+    "额外成员的对局、装备、同局关系只覆盖已有归档中能精确对应的同局样本，不代表其全部游戏历史；只有详情、没有任何本人战绩提供同局时间和模式的比赛不补出对局行。每日资料、个人快照和底蕴评估仅返回实际采集的数据，不从同局样本伪造。",
     "chat_player_equipment一行就是chat_player_battles中目标玩家本人的一件最终装备；hero_name与equipment_name天然属于同一个人和同一局。查询出装直接过滤hero_name并聚合equipment_name，不连接阵容视图。",
     "chat_player_battle_roster一行是某个player_key在某局视角下的一名参赛者；relation固定为self、teammate或opponent。participant_player_key是视图内已解析的已配置玩家，未关联时为NULL；不得用role_name猜测玩家身份。分析队友或对手直接过滤relation；同一物理对局若有多个已记录玩家，会按每个player_key分别产生视角行。",
     "chat_player_snapshots是每日资料快照。最新资料使用DISTINCT ON (player_key)并按snapshot_date DESC；total_num是采集时累计值，不能跨天求和。visible表示采集时可见性，缺数据不代表零。",
@@ -344,5 +350,5 @@
       ]
     ]
   },
-  "version": "e9e34353f7b863db"
+  "version": "eb733e52d0ef707f"
 }

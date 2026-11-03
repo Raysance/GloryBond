@@ -129,6 +129,29 @@ class ReferenceData:
                 }
         return list(records.values())
 
+    def game_identity_rows(self):
+        """Project exact game-account bindings for the trusted SQL compiler.
+
+        QQ and same-person relationships never supply game IDs. Conflicting or
+        malformed IDs cannot become a looser user-only match.
+        """
+        rows = []
+        for record in self.catalogs.get("players", {}).get("records", []):
+            row = {"player_key": record["id"]}
+            for namespace, column in (("camp_user_id", "user_id"), ("game_role_id", "role_id")):
+                values = record.get("ids", {}).get(namespace, [])
+                if not values:
+                    row[column] = None
+                elif (len(values) == 1 and len(values[0]) <= 19 and values[0].isascii() and values[0].isdigit()
+                      and 0 < int(values[0]) < 2**63):
+                    row[column] = int(values[0])
+                else:
+                    break
+            else:
+                if row["user_id"] is not None or row["role_id"] is not None:
+                    rows.append(row)
+        return rows
+
     def directory(self):
         return {
             "source": self.source,

@@ -69,7 +69,8 @@ class RosterSemanticsTests(unittest.TestCase):
         db.execute('''CREATE TABLE hok.chat_player_battle_source (
             snapshot_date TEXT, player_key TEXT, game_seq INTEGER, game_time_epoch INTEGER,
             hero_name TEXT, map_name TEXT, map_type INTEGER, is_official BOOLEAN,
-            result TEXT, game_grade NUMERIC, player_camp TEXT, role_id INTEGER)''')
+            result TEXT, game_grade NUMERIC, player_camp TEXT, role_id INTEGER,
+            participant_index INTEGER, record_source TEXT)''')
         db.execute('''CREATE TABLE hok.battle_participants (
             game_seq INTEGER, role_id INTEGER, camp TEXT, participant_index INTEGER,
             role_name TEXT, hero_id INTEGER, hero_name TEXT, kill_count INTEGER,
@@ -80,8 +81,9 @@ class RosterSemanticsTests(unittest.TestCase):
         participants = [(10, 'blue'), (20, 'red'), (30, 'blue'), (None, None)]
         for game in range(1, 5):
             for name, role, camp in perspectives:
-                db.execute('INSERT INTO hok.chat_player_battle_source VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-                           ('2026-01-01', name, game, game, '本人英雄', '排位', 1, True, '胜利', 8, camp, role))
+                index = next((i for i, (r, _) in enumerate(participants) if r == role), None) if role is not None else None
+                db.execute('INSERT INTO hok.chat_player_battle_source VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                           ('2026-01-01', name, game, game, '本人英雄', '排位', 1, True, '胜利', 8, camp, role, index, 'battle_record'))
             for index, (role, camp) in enumerate(participants):
                 db.execute('INSERT INTO hok.battle_participants VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
                            (game, role, camp, index, '参赛者', index, '英雄', 1, 1, 1, 8, 100, '{}'))
