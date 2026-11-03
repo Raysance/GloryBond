@@ -1,6 +1,7 @@
 """Group-poke decision workflow without NoneBot adapter dependencies."""
 
 import asyncio
+import logging
 import random
 import traceback
 
@@ -61,19 +62,22 @@ async def group_poke_reply(event):
     user_qid = event.get_user_id()
     send_text = random.random() > -1
     if random.random() < (getattr(dmc, "EmojiImageProb", None) or 0):
-        from ..tools.gen_emoji_image import generate_user_emoji_image
+        from ..tools.gen_emoji_image import EmojiTemplatesUnavailable, generate_user_emoji_image
 
         try:
             meta = await asyncio.to_thread(
                 generate_user_emoji_image, user_qid=user_qid, group_id=getattr(event, "group_id", None)
             )
+        except EmojiTemplatesUnavailable:
+            logging.getLogger(__name__).warning("Poke emoji templates unavailable; using text reply", exc_info=True)
         except Exception as error:
             return {
                 "kind": "error",
                 "text": f"emoji_gen_error: {error}",
                 "traceback": traceback.format_exc(),
             }
-        return {"kind": "image", "image_path": meta["image_path"]}
+        else:
+            return {"kind": "image", "image_path": meta["image_path"]}
     if send_text:
         text = await asyncio.to_thread(
             ai_parser,

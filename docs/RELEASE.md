@@ -22,6 +22,14 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Poke emoji template recovery — 2026-11-03
+
+The default emoji template directory contained only its README and placeholder, so the image branch of group pokes raised `emoji_template_error: no templates found in template dirs`. The three documented reference images were recovered byte-for-byte from their existing public reference copies, visually inspected and restored as tracked application resources. Their provenance remains in the template README; generated images, custom uploads and unrelated cached references are not included.
+
+Publication verification now requires all three images in the actual staged tree, preventing a deployment with documentation but no default templates. A specific missing-template exception lets group pokes fall back to the existing text reply without starting image generation. Other generation failures keep their existing diagnostics. Default random selection still excludes extra resource directories, while explicit template selection and user-provided references remain supported.
+
+Validation covers 14 host checks for decoding the bundled originals, prefix/name selection, legacy resource paths outside the project working directory, selection scope, generation short-circuiting, poke fallback and existing command/context behavior; five publication/privacy checks; 40 deployment checks; and full manual validation. The recovered files match the source copies' SHA-256 hashes. No QQ test messages or paid image-generation requests were sent.
+
 ## Conversational judgment — 2026-11-03
 
 The shared expression policy now directs the default assistant's bluntness toward core mechanisms and consequential errors. Casual recognition, jokes and aesthetic discussion stay conversational; once the user accepts an approximate interpretation, the assistant continues without repeatedly demanding provenance or appending verification disclaimers. Explicit source checks, important decisions and action parameters retain their necessary checks. The same policy reaches the main answer, partial messages and short presentation through the existing shared entry points, without an additional classifier or review request.

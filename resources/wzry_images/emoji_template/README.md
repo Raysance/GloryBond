@@ -1,12 +1,13 @@
 # 表情角色参考模板
 
 默认 emoji / kmoji 随机生成只使用本目录的三张角色参考图。原五张参考图已移除。
+三张原图随 Git 源码一同发布，公开发布检查会拒绝遗漏图片的暂存树；不依赖服务器的临时公开缓存恢复默认模板。
 
-| 编号 | 角色 | 图片来源 |
-| --- | --- | --- |
-| 001 | 明日香（《新世纪福音战士》） | [《幻塔》联动角色资料](https://toweroffantasy.info/simulacra/imitation_55)中的联动角色插画 |
-| 002 | 牧濑红莉栖（《命运石之门》） | [STEINS;GATE RE:BOOT 官方角色介绍](https://steinsgate.jp/reboot/ja-jp/#character) |
-| 003 | 辉夜（《超时空辉夜姬》） | [《超かぐや姫！》官方角色介绍](https://www.cho-kaguyahime.com/#character)中的辉夜立绘 |
+| 编号 | 角色 | 文件 | 图片来源 |
+| --- | --- | --- | --- |
+| 001 | 明日香（《新世纪福音战士》） | `001_asuka_明日香.webp` | [《幻塔》联动角色资料](https://toweroffantasy.info/simulacra/imitation_55)中的联动角色插画 |
+| 002 | 牧濑红莉栖（《命运石之门》） | `002_kurisu_牧濑红莉栖.jpg` | [STEINS;GATE RE:BOOT 官方角色介绍](https://steinsgate.jp/reboot/ja-jp/#character) |
+| 003 | 辉夜（《超时空辉夜姬》） | `003_kaguya_辉夜.webp` | [《超かぐや姫！》官方角色介绍](https://www.cho-kaguyahime.com/#character)中的辉夜立绘 |
 
 参考图保留原始像素，未重绘。手动选择可使用 `模板=明日香`、`模板=牧濑红莉栖`、`模板=辉夜`，或编号前缀 `001`、`002`、`003`。
 

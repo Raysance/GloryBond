@@ -8,6 +8,17 @@ from sanitize_repository_history import Inventory, TOKEN, DSN, git, objects, pri
 
 ROOT=Path(__file__).resolve().parents[1]
 SDK_PATHS={'vendor/hok-player-client','vendor/hok-camp-client','vendor/react-agent-runtime'}
+EMOJI_TEMPLATES={
+    'resources/wzry_images/emoji_template/001_asuka_明日香.webp',
+    'resources/wzry_images/emoji_template/002_kurisu_牧濑红莉栖.jpg',
+    'resources/wzry_images/emoji_template/003_kaguya_辉夜.webp',
+}
+
+
+def check_required_resources(paths):
+    missing=EMOJI_TEMPLATES-set(paths)
+    if missing:
+        raise ValueError('Required emoji templates missing from staged tree: '+', '.join(sorted(missing)))
 
 
 def canonical(name):
@@ -57,6 +68,7 @@ def verify(root=ROOT,inventory=None,history=False):
     if dependencies!=SDK_PATHS:raise ValueError('The three fixed private SDK gitlinks are required')
     for name in ['README.md','AGENTS.md','shared/agent/manual/catalog.json','shared/agent/manual/handbook.md','web/docs/accounts.md','deployment/scripts/deploy_project.sh','deployment/scripts/sync_private_config.py']:
         if name not in paths:raise ValueError('Required source/documentation missing: '+name)
+    check_required_resources(paths)
     count=0
     if history:
         for _,name,raw in objects(root,('HEAD',)):

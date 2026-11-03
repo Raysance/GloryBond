@@ -5,9 +5,16 @@ from pathlib import Path
 import unittest
 
 from sanitize_repository_history import Inventory, private_path, sample_path, empty_sample
+from verify_repository import EMOJI_TEMPLATES, check_required_resources
 
 
 class HistoryPrivacyTests(unittest.TestCase):
+    def test_default_templates_must_be_in_the_published_tree(self):
+        check_required_resources(EMOJI_TEMPLATES)
+        for missing in EMOJI_TEMPLATES:
+            with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, 'Required emoji templates missing'):
+                check_required_resources(EMOJI_TEMPLATES-{missing})
+
     def test_private_runtime_symlinks_and_custom_inputs_are_ignored(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)/'repo';root.mkdir()

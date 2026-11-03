@@ -3,6 +3,12 @@ from ..zstatic import *
 from .. import zdynamic as dmc
 from PIL import Image
 
+
+class EmojiTemplatesUnavailable(RuntimeError):
+    def __init__(self):
+        super().__init__("emoji_template_error: no templates found in template dirs")
+
+
 EmojiStyleTemplates = [
     "风格A：清爽日系二次元线稿上色，色块干净，轻阴影，表情夸张但可爱",
     "风格B：美式卡通贴纸风，粗描边，高对比，简洁背景，文字像贴纸标题",
@@ -261,7 +267,7 @@ def _emoji_template_candidates(*, include_extra_dirs: bool = True):
 def _emoji_pick_template_path(*, include_extra_dirs: bool = True):
     candidates = _emoji_template_candidates(include_extra_dirs=include_extra_dirs)
     if not candidates:
-        raise Exception("emoji_template_error: no templates found in template dirs")
+        raise EmojiTemplatesUnavailable()
     return random.choice(candidates)
 
 def _emoji_pick_template_by_prefix(template_prefix):
@@ -274,7 +280,7 @@ def _emoji_pick_template_by_prefix(template_prefix):
         raise Exception(f"emoji_template_error: invalid template prefix prefix={template_prefix}")
     candidates = _emoji_template_candidates()
     if not candidates:
-        raise Exception("emoji_template_error: no templates found in template dirs")
+        raise EmojiTemplatesUnavailable()
     matches = []
     for p in sorted(candidates):
         base = os.path.basename(p)
@@ -298,7 +304,7 @@ def _emoji_pick_template_by_name(template_name):
         raise Exception("emoji_template_error: empty template name")
     candidates = _emoji_template_candidates()
     if not candidates:
-        raise Exception("emoji_template_error: no templates found in template dirs")
+        raise EmojiTemplatesUnavailable()
     exact_matches = []
     fuzzy_matches = []
     for p in candidates:
