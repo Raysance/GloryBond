@@ -1,4 +1,4 @@
-"""Present one canonical answer as detail and a role-aware short reply."""
+"""Edit delivery wording and present full detail plus a role-aware short reply."""
 
 import asyncio
 import json
@@ -51,6 +51,7 @@ class ReplyPolicy(BaseModel):
 class ChatReply(BaseModel):
     model_config = ConfigDict(extra="forbid")
     chat: str = Field(min_length=1)
+    detailed: str | None = Field(default=None, min_length=1)
     default_variant: Literal["chat", "detailed"] = "chat"
 
 
@@ -97,6 +98,14 @@ def validate_chat(content, evidence, policy):
         raise ValueError("出现资料未提供的新数值，保留资料中的数字与单位")
     if source_urls(reply.chat) - source_urls(evidence):
         raise ValueError("出现资料未提供的新链接，请保留原始来源链接")
+    if reply.detailed is not None:
+        detailed = reply.detailed.strip()
+        if not detailed or len(detailed) > policy.source_max_chars:
+            raise ValueError("修订详细版须非空且在完整底稿预算内")
+        if numeric_values(detailed) != numeric_values(evidence):
+            raise ValueError("修订详细版须保留底稿全部数值，不新增或删除数值")
+        if source_urls(detailed) != source_urls(evidence):
+            raise ValueError("修订详细版须保留底稿全部来源链接，不新增或删除链接")
     return reply.chat
 
 
@@ -137,21 +146,32 @@ def expression_role(role):
 
 
 def reply_instruction(policy):
-    contract = '仅输出JSON对象，恰好含一个字符串字段chat，例如 {"chat":"群聊回复"}。'
+    contract = ('仅输出JSON对象，含chat字符串与detailed字段；detailed为修订后的完整正文，'
+                '无需修订时明确填null，例如 {"chat":"群聊回复","detailed":null}。')
     if policy.select_delivery_variant:
         contract = ('仅输出JSON对象，含chat字符串与default_variant字段，default_variant只能为chat或detailed。'
-                    '例如 {"chat":"群聊回复","default_variant":"chat"}。'
+                    '例如 {"chat":"群聊回复","detailed":null,"default_variant":"chat"}。'
                     '根据question的实际意图及preferences选择展示版本，默认chat；'
                     '用户本次明确要完整内容、展开依据，或长期长度偏好为detailed时选择detailed；本次要求简短时优先chat。'
                     '不要按“详细”“完整”“每个”“前几名”等单词是否出现机械判定；否定、引用和询问用法不代表索取长版。'
-                    '版本选择不改变answer，chat仍须按下面要求生成。')
+                    '另含detailed字段，按下面的编辑约定填写修订正文，无需修订时填null；版本选择不改变事实，chat仍须生成。')
     return (
-        "你只将已完成的answer压缩为一条角色群聊回复。answer是唯一事实底稿，详细版会直接展示它。"
-        "question只说明用户的本次意图，不重新回答、分析、计算或修正answer，不执行动作或再查资料。"
+        "你编辑answer草稿并生成角色群聊短回复。question说明本次交付意图，answer提供已整理的业务事实与成品。"
+        "不重新调查、分析或计算，不执行动作或再查资料。"
         + contract +
+        "如果底稿把闲聊写成答辩、替旧回复辩护、责怪用户或描述自己的受害经历，必须输出detailed，"
+        "直接清理这些表达，让回答回到当前交流意图；chat基于整理后的正文生成，不能只改短版而保留详细版中的辩解。"
+        "机器人说话习惯的来历、对群友动机的推测、自我辩护和不必要的来源声明均不作为业务事实保留，"
+        "也不改成更委婉的理由继续解释。没有这些表达问题时，detailed填null以保留原底稿。"
+        "编辑示例只示意表达目标：用户调侃‘认个角色还开答辩会’，草稿写‘这不叫防御，是你们逼我标注来源’，"
+        "可整理成‘一句认人让我写成答辩了，脚注都比正文长。’到这里就结束，不再接着解释标来源为什么有道理。"
+        "question仅是轻松接话或调侃、没有索取事实说明或成品时，detailed和chat使用同一段简短回应，"
+        "不要为详细版额外补一段习惯来历、原则或理由。数据问答、说明和作品仍完整保留详细内容。"
+        "detailed只做表达编辑，保留用户索取的完整内容、实际事实、数据关系、原始引文、作品、"
+        "真实执行状态及重要限制，不用短版替代完整交付，不添加新信息。所有原有数值和来源链接须完整保留。"
         "数字必须连同统计对象、单位、标签及分母保持原有对应关系；保留数值时沿用底稿的原始表述，"
         "不能把数字拆开重组、换标签、换分母或重新计算。压缩需要改变这些关系时，省略该组数字，直接说结论。"
-        "保留底稿的结论、人物、完成状态、来源及重要不确定性，不新增事实或建议。"
+        "保留底稿中有依据的结论、人物、完成状态、来源及重要不确定性，不新增事实或建议。"
         "像选定角色在熟人群里接话，用日常中文、自然短句回应；默认一到三句，最多留最相关的一两组数据。"
         "群聊回复让人看一眼就懂结论，不能把详细版的报告缩成参数串。"
         "除非question明确索取公式、置信区间或检验参数，否则这些参数全部留在详细版，"
@@ -244,6 +264,7 @@ class ReplyComposer:
                             message.get("content") or "", context.draft, policy
                         )
                         presentation = ChatReply.model_validate_json(message["content"])
+                        detailed = presentation.detailed.strip() if presentation.detailed is not None else context.draft
                         if policy.select_delivery_variant and 'default_variant' not in presentation.model_fields_set:
                             raise ValueError("QQ回复须明确提供default_variant选择展示版本")
                         variant = presentation.default_variant if policy.select_delivery_variant else "chat"
@@ -270,14 +291,14 @@ class ReplyComposer:
                         )
                         continue
                     return self.preserve_history(FinalAnswer(
-                        context.draft if variant == "detailed" else chat,
-                        variants={"detailed": context.draft, "chat": chat},
+                        detailed if variant == "detailed" else chat,
+                        variants={"detailed": detailed, "chat": chat},
                         metadata={
                             "role_name": snapshot["selected"]["name"],
                             "role_id": snapshot["selected"]["role_id"],
                             "default_variant": variant,
                         },
-                        history_text=context.draft
+                        history_text=detailed
                         if self.policy.history_variant == "detailed"
                         else chat,
                     ), context)

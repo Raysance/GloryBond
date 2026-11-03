@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 from local_debugger import import_hok_module
 from agent_console.capabilities import application_prompt
 from agent_console.replies import ReplyPolicy, reply_instruction
+from agent_console.reply_style import reply_style_instruction
 from qq_agent.output import QQOutput
 
 ZFUNC = import_hok_module("zfunc")
@@ -258,7 +259,4 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
 
     def test_both_generation_stages_share_concrete_fact_style(self):
         for instruction in (application_prompt(), reply_instruction(ReplyPolicy())):
-            self.assertIn("回复表达约定", instruction)
-            self.assertIn("有依据的批评、否定和反驳直接说清理由", instruction)
-            self.assertIn("统计覆盖本群最近20条消息", instruction)
-            self.assertIn("不增加确定性", instruction)
+            self.assertIn(reply_style_instruction(), instruction)

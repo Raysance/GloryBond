@@ -77,6 +77,22 @@ def response(chat=CHAT):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_detail_edit_preserves_all_numeric_literals_and_source_links(self):
+        evidence = DETAIL + " https://example.com/source"
+        for detailed in ("只留下结论。", DETAIL, evidence + " 新增99场。",
+                         evidence + " https://new.example/source"):
+            with self.subTest(detailed=detailed), self.assertRaises(ValueError):
+                validate_chat(json.dumps({"chat": CHAT, "detailed": detailed}), evidence, ReplyPolicy())
+        edited = "统计范围为这8场，5胜，胜率62.5%。 https://example.com/source"
+        self.assertEqual(validate_chat(json.dumps({"chat": CHAT, "detailed": edited}),
+                                       evidence, ReplyPolicy()), CHAT)
+
+    def test_detail_edit_cannot_be_blank_or_exceed_the_source_budget(self):
+        for detailed in (" ", "长" * 1001):
+            with self.subTest(detailed=detailed[:10]), self.assertRaises(ValueError):
+                validate_chat(json.dumps({"chat": "接着聊。", "detailed": detailed}),
+                              "原始回答。", ReplyPolicy(source_max_chars=1000))
+
     def test_reasoning_and_quotations_are_not_rejected_by_word_bans(self):
         for chat in ("只能参考这些数据。", "不是实力提升，而是队友配合。", "这不能表明实力。",
                      "没有详细的证据。", "先说清楚，统计覆盖这8场。"):
@@ -148,6 +164,28 @@ class ValidationTests(unittest.TestCase):
 
 
 class ComposerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_expression_edit_updates_both_delivery_and_history_without_overwriting_draft(self):
+        draft = "这是我的原则，这点不松口。"
+        edited = "认个角色写成答辩了，脚注比正文还长。"
+        ctx = FinalizationContext(RunRequest("认个角色还要答辩呢。", "session",
+                                  Principal("owner", frozenset({"roleplay.use"}))), draft, [])
+        model = ScriptedModel([{"role": "assistant", "content": json.dumps(
+            {"chat": edited, "detailed": edited}, ensure_ascii=False)}])
+        answer = await ReplyComposer(model=model, roles=Roles()).finalize(ctx, AsyncMock())
+        self.assertEqual(answer.variants, {"detailed": edited, "chat": edited})
+        self.assertEqual(answer.history_text, edited)
+        self.assertEqual(ctx.draft, draft)
+        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(model.schemas, [[]])
+
+    async def test_invalid_detail_edit_uses_the_existing_repair_budget(self):
+        invalid = {"role": "assistant", "content": json.dumps({"chat": CHAT, "detailed": "结论不错。"})}
+        model = ScriptedModel([invalid, response()])
+        answer = await ReplyComposer(model=model, roles=Roles()).finalize(context(), AsyncMock())
+        self.assertEqual(answer.variants["detailed"], DETAIL)
+        self.assertEqual(answer.history_text, DETAIL)
+        self.assertEqual(len(model.requests), 2)
+
     async def test_expression_repairs_new_facts_with_existing_budget_and_keeps_detail(self):
         model = ScriptedModel([response(chat="这100场全赢。"), response()])
         emitted = []

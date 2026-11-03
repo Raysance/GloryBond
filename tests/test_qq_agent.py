@@ -167,6 +167,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
             async def complete(self, messages, tools, delta):
                 value = {"chat": test.reply_text}
+                if getattr(test, 'reply_detail', None) is not None:
+                    value['detailed'] = test.reply_detail
                 if test.reply_variant is not None:
                     value['default_variant'] = test.reply_variant
                 return {"message": {"role": "assistant", "content": json.dumps(value, ensure_ascii=False)}}
@@ -232,6 +234,18 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         await self.gateway.chat(user_text='继续写', user_id='101', nickname='用户', group_id='200')
         self.assertTrue(any(message.get('role') == 'assistant' and message.get('content', '').endswith(draft)
                             for message in self.gateway.model.requests[-1].messages))
+
+    async def test_edited_detail_is_delivered_and_remembered_while_raw_model_output_stays_in_trace(self):
+        draft = '这就是我的原则，不会改。'
+        self.reply_detail = '认个角色写成答辩了，脚注比正文长。'
+        self.reply_text = '脚注比正文长了。'
+        self.script = [{'role': 'assistant', 'content': draft}]
+        result = await self.gateway.chat(user_text='认个角色还要答辩呢。', user_id='101', nickname='用户', group_id='200')
+        self.assertEqual(result['variants']['detailed'], self.reply_detail)
+        self.assertEqual(self.dialogue['qq_g_200_101'][-1]['content'], self.reply_detail)
+        self.assertEqual(self.group_replies['200'][-1]['text'], self.reply_text)
+        self.assertEqual(self.sent[-1][0]['variants']['detailed'], self.reply_detail)
+        self.assertEqual(self.gateway.model.requests[-1].messages[-1]['content'], draft)
 
     async def test_independent_search_and_discovery_succeed_in_the_first_round(self):
         self.script = [
