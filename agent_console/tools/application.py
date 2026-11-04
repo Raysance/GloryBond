@@ -41,8 +41,10 @@ class WebArgs(Args):
 
 
 class Query(Args):
-    sql: str = Field(min_length=1, max_length=20000)
-    params: dict[str, Any] = Field(default_factory=dict)
+    sql: str = Field(min_length=1, max_length=20000,
+        description="PostgreSQL SELECT；命名参数使用 :name（不加引号），也支持 %(name)s；不用 $1 或 ?")
+    params: dict[str, Any] = Field(default_factory=dict,
+        description="与 SQL 占位符一一对应的名称到 JSON 标量映射；已写入 SQL 的常量不再传参")
     intent: str = ""
 
 

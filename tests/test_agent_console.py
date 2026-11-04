@@ -56,6 +56,27 @@ class SQLTests(unittest.TestCase):
                                "FROM hok.chat_player_battles GROUP BY game_seq")
         self.assertIn('STRING_AGG', result)
 
+    def test_postgres_boolean_aggregates_and_array_operators(self):
+        for sql in (
+            "SELECT BOOL_AND(is_mvp), BOOL_OR(is_mvp) FROM hok.chat_player_battles",
+            "SELECT ARRAY_AGG(player_key) @> ARRAY['a'], ARRAY['a'] <@ ARRAY_AGG(player_key), "
+            "ARRAY_AGG(player_key) && ARRAY['b'] FROM hok.chat_player_battles",
+        ):
+            self.assertTrue(self.validate(sql))
+        for sql in ("SELECT pg_sleep(1)", "SELECT public.bool_or(true)"):
+            with self.assertRaises(ChatSQLValidationError):
+                self.validate(sql)
+
+    def test_named_parameter_forms_and_mismatches(self):
+        for placeholder in (":player", "%(player)s"):
+            self.assertIn("'member'", self.validate(
+                "SELECT player_key FROM hok.chat_player_battles WHERE player_key=" + placeholder,
+                {"player": "member"}))
+        for placeholder, params in (("':player'", {"player": "member"}), (":player", {}),
+                                    ("'member'", {"unused": "member"})):
+            with self.assertRaises(ChatSQLValidationError):
+                self.validate("SELECT player_key FROM hok.chat_player_battles WHERE player_key=" + placeholder, params)
+
     def test_batch_validation_failure_opens_no_connection(self):
         from agent_console import remote_worker
 

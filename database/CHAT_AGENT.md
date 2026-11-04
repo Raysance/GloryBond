@@ -17,6 +17,10 @@ QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工�
 4. worker 先整批 AST 校验，再在独立只读账号/事务中执行。整批任一项无效时不访问
    数据库。每项保留状态、截断说明和 dataset_id；游戏查询只允许目录语义视图。
 
+SQL 白名单按 sqlglot 规范名称校验，包括 PostgreSQL `BOOL_AND/BOOL_OR` 和数组
+`@>`、`<@`、`&&`。命名参数写为未加引号的 `:name` 或 `%(name)s`，值放在
+`params` 中；缺失、多余、位置参数及非 JSON 标量均拒绝，不改写含义不明确的 SQL。
+
 只读账号仍由 `database/chat_readonly.sql` 配置，不回退业务写账号。私有群聊表与
 payload 不向模型开放；群聊 SQL 只查询 `hok.chat_history_messages` 安全视图，事务
 注入可信 `hok.chat_group_scope`。统计只覆盖 PostgreSQL 归档，不用 BM25 命中数估算
