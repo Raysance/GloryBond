@@ -145,7 +145,7 @@ const ChatTraceConversation = (() => {
     const root = el('details', 'execution-details'), body = el('div', 'execution-body');
     root.append(el('summary', '', `执行过程 · ${steps.filter(item => item.kind === 'model').length} 轮 · ${steps.filter(item => item.kind === 'tool').length} 个工具`));
     for (const item of steps) {
-      const button = el('button', `execution-step ${item.status === 'error' ? 'error' : ''}`);
+      const button = el('button', `execution-step ${item.kind} ${item.status === 'error' ? 'error' : ''}`);
       button.type = 'button';
       button.append(el('span', '', item.kind === 'tool' ? item.name : `第 ${item.round} 轮 · 模型请求`), el('small', '', duration(item.duration_ms)));
       button.addEventListener('click', () => onSelect(item)); body.append(button);
@@ -170,12 +170,13 @@ const ChatTraceConversation = (() => {
     const agent = el('article', 'agent-run'), name = el('div', 'agent-name');
     const states = {ok:'已完成', error:'失败', partial:'部分失败', running:'执行中', skipped:'未执行', cancelled:'已取消'};
     name.append(el('span', '', final?.roleName || text(savedRole) || 'Agent'),
-      el('span', `run-status ${trace.status === 'error' ? 'error' : ''}`, `${states[trace.status] || text(trace.status)} · ${duration(trace.duration_ms)}`), usageMeter(trace));
+      el('span', `run-status ${trace.status === 'error' ? 'error' : ''}`, `${states[trace.status] || text(trace.status)} · ${duration(trace.duration_ms)}`));
     agent.append(name);
     const process = execution(records, onSelect); if (process) agent.append(process);
     for (const reply of replies) agent.append(reply.kind === 'final' ? finalReply(reply) : el('div', 'progress-message', reply.text));
     const gallery = el('div', 'charts'); agent.append(gallery);
     if (trace.delivery?.merged) agent.append(el('p', 'conversation-note', `QQ 回复已将 ${trace.delivery.source_images} 张图表合为一张；此处保留原图。`));
+    const footer = el('div', 'run-footer'); footer.append(usageMeter(trace)); agent.append(footer);
     parent.append(agent); return gallery;
   }
   return {messages, usage, markdown, render};
