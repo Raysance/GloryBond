@@ -32,6 +32,7 @@ import requests
 from dotenv import dotenv_values
 import yaml
 from sqlglot import exp, parse_one
+from sqlglot.optimizer.scope import traverse_scope
 
 
 STATE_PREFIX = "hok:agent_runtime:console:"
@@ -267,15 +268,17 @@ def reference_snapshot():
 
 
 def db_connection(scope=None):
+    limits = CONTEXT.get("cfg", {}).get("AgentSQL", {})
+    statement_timeout = max(1000, min(60000, int(limits.get("statement_timeout_ms", 30000))))
     conn = psycopg.connect(
         CONTEXT["env"]["HOK_CHAT_READONLY_DSN"],
-        connect_timeout=5,
+        connect_timeout=max(1, min(10, int(limits.get("connect_timeout_seconds", 5)))),
         row_factory=dict_row,
         options="-c default_transaction_read_only=on -c search_path=pg_catalog,hok -c timezone=Asia/Shanghai",
     )
     with conn.cursor() as cur:
         cur.execute("SET TRANSACTION READ ONLY")
-        cur.execute("SELECT set_config('statement_timeout','5000',true)")
+        cur.execute("SELECT set_config('statement_timeout',%s,true)", (str(statement_timeout),))
         cur.execute("SELECT set_config('lock_timeout','5000',true)")
         if scope is not None:
             cur.execute("SELECT set_config('hok.chat_group_scope',%s,true)", (scope,))
@@ -320,6 +323,31 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
     Generated aliases cannot collide with model CTEs; no DDL is run.
     """
     tree = parse_one(sql, read="postgres")
+    # A shared CTE otherwise materializes every account even when all its
+    # consumers ask for specific players. Only narrow a relation if EVERY
+    # physical reference has an explicit top-level conjunct on player_key.
+    player_filters = {}
+    for model_scope in traverse_scope(tree):
+        for alias, (_, source) in model_scope.selected_sources.items():
+            if not isinstance(source, exp.Table) or source.db != "hok":
+                continue
+            name = source.name
+            if name not in {"chat_player_battles", "chat_player_equipment", "chat_player_battle_roster"}:
+                continue
+            values = None
+            where = model_scope.expression.args.get("where")
+            for predicate in where.this.flatten() if where and isinstance(where.this, exp.And) else [where.this] if where else []:
+                if not isinstance(predicate, exp.EQ):
+                    continue
+                column, value = predicate.this, predicate.expression
+                if isinstance(value, exp.Column):
+                    column, value = value, column
+                if (isinstance(column, exp.Column) and column.name == "player_key"
+                        and (column.table == alias or not column.table and len(model_scope.selected_sources) == 1)
+                        and isinstance(value, exp.Literal) and value.is_string):
+                    values = [value.copy()]
+                    break
+            player_filters.setdefault(name, []).append(values)
     required = {}
     aliases = {}
     reserved = {node.alias.lower() for node in tree.find_all(exp.CTE)}
@@ -344,6 +372,11 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
                     aliases[name] = alias
                     view = parse_one(definitions[name], read="postgres")
                     expand(view)
+                    selections = player_filters.get(name, [])
+                    if selections and all(selection is not None for selection in selections):
+                        values = {value.this: value for selection in selections for value in selection}
+                        view = exp.select("*").from_(view.subquery("selected_players")).where(
+                            exp.column("player_key").isin(*values.values()))
                     if query_scope is not None:
                         # Bound the shared recorded perspectives before using
                         # them to project configured participants into matches.
@@ -367,7 +400,13 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
     if required:
         current = tree.args.get("with_")
         ctes = [
-            exp.CTE(this=value, alias=exp.TableAlias(this=exp.to_identifier(aliases[name])))
+            # These relations carry large raw JSON payloads. Let PostgreSQL
+            # prune unused columns and push each consumer's predicates through
+            # them instead of materializing every payload for COUNT/roster reads.
+            exp.CTE(this=value, alias=exp.TableAlias(this=exp.to_identifier(aliases[name])),
+                    materialized=True if name in {"chat_battle_record_keys", "chat_player_battle_facts"} else False if name in {
+                        "chat_recorded_battle_source", "chat_player_battle_source",
+                    } else None)
             for name, value in required.items()
         ]
         if current:
@@ -416,7 +455,9 @@ def analyze(args):
         for query_index, (query, sql) in enumerate(zip(args["queries"], normalized)):
             try:
                 with conn.transaction():
-                    with conn.cursor(name="agent_" + uuid4().hex) as cur:
+                    # LIMIT already bounds the result. A server-side cursor
+                    # prevents PostgreSQL from using parallel query plans.
+                    with conn.cursor() as cur:
                         executed = (
                             expand_semantic_views(sql, query_scope, player_bindings) if domain == "game" else sql
                         )

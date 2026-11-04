@@ -54,6 +54,20 @@ for line in sys.stdin:
 
 
 class WorkerBootstrapTests(unittest.TestCase):
+    def test_sql_deadlines_are_configured_bounded_and_transaction_local(self):
+        for supplied, expected in ((None, 30000), (15000, 15000), (0, 1000), (120000, 60000)):
+            with self.subTest(supplied=supplied):
+                db = MagicMock()
+                config = {} if supplied is None else {'statement_timeout_ms': supplied}
+                with patch.dict(remote_worker.CONTEXT, {'cfg': {'AgentSQL': config},
+                    'env': {'HOK_CHAT_READONLY_DSN': 'readonly'}}, clear=True), \
+                     patch.object(remote_worker.psycopg, 'connect', return_value=db):
+                    self.assertIs(remote_worker.db_connection('123'), db)
+                cur = db.cursor.return_value.__enter__.return_value
+                cur.execute.assert_any_call("SET TRANSACTION READ ONLY")
+                cur.execute.assert_any_call("SELECT set_config('statement_timeout',%s,true)", (str(expected),))
+                cur.execute.assert_any_call("SELECT set_config('hok.chat_group_scope',%s,true)", ('123',))
+
     def test_full_bootstrap_returns_actual_compilation_mode_without_database_view_discovery(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -146,6 +160,12 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result['value'], 'picture')
             with self.assertRaises(BridgeUnavailable):
                 await self.bridge.call('read', delay=0.05)
+
+    async def test_sql_rpc_leaves_room_for_all_six_statement_deadlines(self):
+        self.bridge.response_timeout = 0.02
+        with patch('agent_console.remote.SQL_RPC_TIMEOUT_SECONDS', 0.3):
+            result = await self.bridge.call('analyze', delay=0.05, value='rows')
+        self.assertEqual(result['value'], 'rows')
 
     async def test_cancelled_caller_cannot_shift_next_response(self):
         request = asyncio.create_task(self.bridge.call('read', delay=0.1, value='cancelled'))

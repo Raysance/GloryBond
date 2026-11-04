@@ -9,7 +9,7 @@ import yaml
 
 from .tool_errors import RemoteToolError, exception_details, redact_error
 from .bot_manual import load_manual_documents
-from .timeouts import IMAGE_RPC_TIMEOUT_SECONDS
+from .timeouts import IMAGE_RPC_TIMEOUT_SECONDS, SQL_RPC_TIMEOUT_SECONDS
 from .tools.memory import dialogue_with_sources
 
 
@@ -197,6 +197,8 @@ class RemoteBridge:
             self.process.stdin.write(request)
             await self.process.stdin.drain()
             timeout = IMAGE_RPC_TIMEOUT_SECONDS if op == "image" else self.response_timeout
+            if op == "analyze":
+                timeout = max(timeout, SQL_RPC_TIMEOUT_SECONDS)
             line = await asyncio.wait_for(self.process.stdout.readline(), timeout)
             if not line:
                 raise EOFError("worker closed stdout")

@@ -14,7 +14,7 @@ from .memory import recent_history_limits, validate_memory_evidence
 from .sql_validation import normalize_game_scope
 from .bot_manual import register_bot_manual_tool
 from .kpl import register_kpl_tool
-from ..timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS
+from ..timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS, SQL_TOOL_TIMEOUT_SECONDS
 
 
 class Args(BaseModel):
@@ -402,7 +402,7 @@ def register_application_tools(registry, *, service, catalogs):
             chat_sql,
             "chat_data",
             ("chat.read",),
-            40,
+            SQL_TOOL_TIMEOUT_SECONDS,
             "read",
         ),
         (
@@ -428,7 +428,7 @@ def register_application_tools(registry, *, service, catalogs):
             game_sql,
             "game_data",
             ("game.read",),
-            40,
+            SQL_TOOL_TIMEOUT_SECONDS,
             "read",
         ),
         (

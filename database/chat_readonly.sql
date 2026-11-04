@@ -15,7 +15,7 @@ $reader$;
 ALTER ROLE hok_chat_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
     NOINHERIT NOREPLICATION NOBYPASSRLS;
 ALTER ROLE hok_chat_reader SET default_transaction_read_only = on;
-ALTER ROLE hok_chat_reader SET statement_timeout = '5s';
+ALTER ROLE hok_chat_reader SET statement_timeout = '30s';
 ALTER ROLE hok_chat_reader SET search_path = pg_catalog, hok;
 ALTER ROLE hok_chat_reader SET timezone = 'Asia/Shanghai';
 

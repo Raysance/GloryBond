@@ -54,6 +54,8 @@ class ExtraPlayerSQLTests(unittest.TestCase):
         self.db.execute("ATTACH DATABASE ':memory:' AS hok")
         self.db.execute('CREATE TABLE hok.recorded (' + ','.join(
             name + ' ' + kind for name, kind in RECORDED_COLUMNS.items()) + ')')
+        self.db.execute('CREATE VIEW hok.battle_records AS SELECT *, record_payload AS payload FROM recorded')
+        self.db.execute('CREATE TABLE hok.battle_details (game_seq bigint, game_type integer, payload jsonb)')
         self.db.execute('''CREATE TABLE hok.battle_participants (
             game_seq bigint, participant_index integer, camp text, role_id bigint, user_id bigint,
             role_name text, hero_id bigint, hero_name text, kill_count integer, death_count integer,
@@ -84,7 +86,7 @@ class ExtraPlayerSQLTests(unittest.TestCase):
     def add_record(self, key, game, role, index, **changes):
         row = dict.fromkeys(RECORDED_COLUMNS)
         row.update(snapshot_date='2025-12-31', player_key=key, game_seq=game, role_id=role,
-                   player_index=index, detail_index=0, participant_index=index,
+                   player_index=index, detail_index=game, participant_index=index,
                    game_time_epoch=self.epoch, hero_name='主成员英雄', map_name='排位赛',
                    map_type=1, result='胜利', game_grade=8, kill_count=10, death_count=1,
                    assist_count=10, star_after_game=99, duration_seconds=1200,
@@ -143,6 +145,7 @@ class ExtraPlayerSQLTests(unittest.TestCase):
         rows = self.query('SELECT player_key FROM hok.chat_player_battles WHERE game_seq=1')
         self.assertIn({'player_key': key}, rows)
         for table in ('chat_configured_players', 'chat_configured_users', 'chat_configured_battle_participants',
+                      'chat_battle_record_keys', 'chat_player_battle_facts',
                       'chat_player_battle_source', 'chat_recorded_battle_source', 'battle_participants'):
             with self.subTest(table=table), self.assertRaises(validation.ChatSQLValidationError):
                 self.query(f'SELECT player_key FROM hok.{table}')
