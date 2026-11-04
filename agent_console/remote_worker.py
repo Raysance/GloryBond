@@ -66,6 +66,10 @@ def bootstrap(args):
     reporting = {}
     exec(compile(args["error_reporting"], "portable_tool_errors", "exec"), reporting)
     CONTEXT["error_reporting"] = reporting
+    timing_tools = {}
+    if args.get("reply_timing_tools"):
+        exec(compile(args["reply_timing_tools"], "reply_timing_tools", "exec"), timing_tools)
+    CONTEXT["reply_timing_tools"] = timing_tools
     root = Path(args["root"])
     process_env = dict(os.environ) if args.get("use_process_environment") else {}
     if not args.get("use_process_environment"):
@@ -894,6 +898,8 @@ def dispatch(args):
     store = CONTEXT["store"]
     if op == "health":
         return {"connected": bool(store.ping())}
+    if op == "reply_timing":
+        return CONTEXT["reply_timing_tools"]["reply_timing_statistics"](store, args)
     session = str(args.get("session_id", ""))
     if op.startswith(("state_", "dialogue_")) and not re.fullmatch(
         r"[a-zA-Z0-9_-]{1,80}", session
