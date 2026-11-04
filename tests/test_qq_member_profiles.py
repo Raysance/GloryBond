@@ -249,10 +249,11 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
             result = await runtime.run(RunRequest('我的资料和头像', 's', self.principal, required_tools=('read_group_member_profile',)))
         self.assertEqual(result['text'], '资料已读取，头像是红色。')
         self.assertEqual([item['model'] for item in observed], ['text', 'vision'])
-        parts = observed[1]['messages'][-1]['content']
+        conversation = [message for message in observed[1]['messages'] if message['role'] != 'system']
+        parts = conversation[-1]['content']
         image_url = parts[-1]['image_url']['url']
         self.assertEqual(base64.b64decode(image_url.split(',', 1)[1]), png())
-        self.assertEqual(observed[1]['messages'][-2]['role'], 'tool')
+        self.assertEqual(conversation[-2]['role'], 'tool')
         self.assertEqual(len(state.dialogue), 2)
         self.assertIsInstance(state.dialogue[0]['content'], str)
         self.assertEqual([e['kind'] for e in sink.events].count('tool.result'), 1)

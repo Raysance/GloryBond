@@ -649,6 +649,15 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.dialogue['qq_g_200_100'][-1]['content'], self.reply_text)
         self.assertTrue(all(delivery['recipient_id'] == '200' for _, delivery in self.sent))
 
+    async def test_request_clock_follows_stable_reference_and_role_context(self):
+        principal = qq_principal('100', '200', '', admin_id='999', references=REFERENCES, bot_id='300')
+        with patch.object(self.gateway.clock, 'now', side_effect=['2026-01-01T00:00:00+08:00', '2026-01-01T00:01:00+08:00']):
+            first = await self.gateway.current_prompt(principal, snapshot=REFERENCES)
+            second = await self.gateway.current_prompt(principal, snapshot=REFERENCES)
+        self.assertEqual(first.split('本次时间：')[0], second.split('本次时间：')[0])
+        self.assertLess(first.index('权威参考数据目录'), first.index('本次时间：'))
+        self.assertLess(first.index('本次时间：'), first.index('本轮执行约定：'))
+
     async def test_admin_private_query_uses_configured_default_without_changing_private_history(self):
         self.gateway.config['admin_private_default_group_id'] = '2000000001'
         self.reply_text = '默认群已确认。'

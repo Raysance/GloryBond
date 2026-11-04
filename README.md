@@ -21,6 +21,8 @@ AI 聊天数据库查询支持额外成员（`extra_useridlist` / `extra_roleidl
 
 AI SQL 支持 PostgreSQL 的布尔聚合、数组包含及交集判断；参数使用不加引号的 `:name` 或 `%(name)s`，并与 `params` 一一对应。查询先复用轻量战绩与身份事实，再按需读取详情，减少阵容分析的重复扫描；单条 SQL 默认30秒，可配置为1至60秒。查询授权和只读校验保持独立，详见 [数据库查询说明](database/CHAT_AGENT.md)。
 
+DeepSeek 聊天将每轮变化的运行统计与稳定上下文分开，改善 prefix cache 复用；完整历史、推理与工具结果仍会保留。缓存收益体现在输入费用和延迟，实际命中量可在运行记录中查看。
+
 王者官方客户端请求目前统一停用（`PlayerClient.enabled=false`）。`#在线` 恢复营地方式，战绩查询只请求营地，普通英雄查询保留原有统计并跳过客户端图片和资料。显式 `#客户端` 命令及后台官方客户端登录操作提示已停用；营地和 NapCat 登录正常使用。已有客户端凭据、绑定和历史记录保留。配置及边界见[玩家客户端部署说明](deployment/README.md#王者玩家客户端)，验证方式见[开发说明](docs/DEVELOPMENT.md#checks-and-manuals)。
 
 ## 目录

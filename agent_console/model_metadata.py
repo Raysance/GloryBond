@@ -90,7 +90,8 @@ def model_metadata(*, model, protocol, max_tokens, messages, tools):
                          and isinstance(messages[0].get("content"), str))
     return {
         "model": model, "protocol": protocol, "max_output_tokens": max_tokens,
-        "message_count": len(messages) + int(not merges_system), "available_tool_count": len(tools),
+        "message_count": len(messages) + int(not merges_system) + int(protocol == "deepseek"),
+        "available_tool_count": len(tools),
         "run": None if state is None else {
             "run_id": state.run_id, "started_at": state.started_at,
             "channel": state.channel, "origin": state.origin, "phase": state.phase,
@@ -112,12 +113,20 @@ def metadata_messages(messages, metadata):
         "按各自时点理解，不从角色或历史猜测模型身份。"
         "用量覆盖本次运行已完成且返回统计的调用，缺失统计为null；当前请求用量在返回后更新。"
         "usage_counter_calls给出各项用量的已报告调用数，累计值按各项实际覆盖范围理解。"
-        "缓存与推理token属于明细，不重复计入total_tokens；不推测未报告的用量、费用或上下文窗口。\n"
-        + json.dumps({"runtime_metadata": metadata}, ensure_ascii=False)
+        "缓存与推理token属于明细，不重复计入total_tokens；不推测未报告的用量、费用或上下文窗口。"
     )
+    facts = json.dumps({"runtime_metadata": metadata}, ensure_ascii=False, separators=(",", ":"))
+    # DeepSeek accepts a trailing system message. Keep changing counters out of
+    # the stable prompt/history/tool prefix; never persist this request overlay.
+    # Other protocols retain their existing system-message placement contract.
+    trailing = metadata["protocol"] == "deepseek"
+    if not trailing:
+        instruction += "\n" + facts
     result = list(messages)
     if result and result[0].get("role") == "system" and isinstance(result[0].get("content"), str):
         result[0] = {**result[0], "content": result[0]["content"] + "\n\n" + instruction}
     else:
         result.insert(0, {"role": "system", "content": instruction})
+    if trailing:
+        result.append({"role": "system", "content": facts})
     return result

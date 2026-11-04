@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
-from agent_console.model_metadata import model_metadata, observe_model_event
+from agent_console.model_metadata import metadata_messages, model_metadata, observe_model_event
 from agent_console.provider import DeepSeekModel
 from agent_console.replies import ReplyComposer
 from agent_console.server import EventBroker
@@ -21,7 +21,9 @@ from tests.test_agent_runtime import Args, Clock, State
 
 
 def metadata(payload):
-    return json.loads(payload["messages"][0]["content"].splitlines()[-1])["runtime_metadata"]
+    return next(json.loads(message["content"].splitlines()[-1])["runtime_metadata"]
+                for message in payload["messages"] if message["role"] == "system"
+                and '"runtime_metadata"' in message["content"])
 
 
 def stream(*, text="完成", usage=None, tool=False, model="actual-backend"):
@@ -36,6 +38,23 @@ def stream(*, text="完成", usage=None, tool=False, model="actual-backend"):
 
 
 class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
+    async def test_dynamic_metadata_preserves_reasoning_tools_images_and_cached_prefix(self):
+        messages = [{'role': 'system', 'content': 'Stable instructions'},
+                    {'role': 'user', 'content': [{'type': 'text', 'text': 'Question'}]},
+                    {'role': 'assistant', 'content': '', 'reasoning_content': 'Preserve all reasoning',
+                     'tool_calls': [{'id': 'one', 'type': 'function', 'function': {'name': 'read', 'arguments': '{}'}}]},
+                    {'role': 'tool', 'tool_call_id': 'one', 'content': '{"rows": [1]}'}]
+        before = copy.deepcopy(messages)
+        info = model_metadata(model='model', protocol='deepseek', max_tokens=20, messages=messages, tools=[])
+        first = metadata_messages(messages, {**info, 'run': {'round': 1}})
+        second = metadata_messages(messages, {**info, 'run': {'round': 2}})
+        self.assertEqual(first[:-1], second[:-1])
+        self.assertEqual(first[1:-1], messages[1:])
+        self.assertEqual(messages, before)
+        self.assertNotEqual(first[-1], second[-1])
+        self.assertEqual(first[-1]['role'], 'system')
+        self.assertEqual(len(first), info['message_count'])
+
     def provider(self, **overrides):
         return DeepSeekModel(api_key="PRIVATE_MODEL_KEY", base_url="https://primary.invalid",
                              model="configured-model", **overrides)
@@ -88,7 +107,11 @@ class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["text"], "结果为8。")
         self.assertNotIn("runtime_metadata", json.dumps(state.dialogue))
         self.assertEqual(request.system_prompt, "保持事实准确")
-        self.assertTrue(all(body["messages"][0]["content"].count('"runtime_metadata"') == 1 for body in requests))
+        self.assertTrue(all(sum(message.get("content", "").count('"runtime_metadata"')
+                                for message in body["messages"]) == 1 for body in requests))
+        # Dynamic run facts must not invalidate the stable first-round prefix.
+        self.assertEqual(requests[0]["messages"][:-1], requests[1]["messages"][:len(requests[0]["messages"]) - 1])
+        self.assertTrue(all(metadata(body)["message_count"] == len(body["messages"]) for body in requests))
         self.assertIsNone(model_metadata(model="next", protocol="deepseek", max_tokens=10, messages=[], tools=[])["run"])
 
     async def test_concurrent_runs_keep_separate_usage_and_origins(self):

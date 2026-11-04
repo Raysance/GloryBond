@@ -252,8 +252,9 @@ class QQAgentService:
                 "用户引用定时消息问谁创建或要求取消时，先用list_tasks(message_id)查真实发送回执关联；"
                 "无匹配时不能凭文案或@对象推断创建者，也不能猜task_id执行取消。"
                 "实时群成员资料与头像通过references类别的资料工具读取，名称映射不能代替实时资料。"
-                + scope + bot_context + "\n本次时间：" + self.clock.now() + "\n本赛季起始：" + str(self.public.get("season_start"))
+                + "\n本赛季起始：" + str(self.public.get("season_start"))
                 + "\n" + reference_prompt(snapshot) + await self.roles.context(principal, query)
+                + "\n" + scope + bot_context + "\n本次时间：" + self.clock.now()
                 + "\n本轮执行约定：" + application_prompt())
 
     async def publish_business_image(self, path, ctx):

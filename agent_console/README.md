@@ -141,3 +141,5 @@ node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 共享 SQL 限制由根 `config.yaml#AgentSQL` 管理，字体与 QQ 合图布局为 `AgentPlots`。事实校验和 BM25/RRF 在 `agent_console/tools/memory.py`，由适配器传入 worker，与旧 Hok 聊天代码没有依赖。
 
 KPL网络、体积和返回预算为根 `AgentKPL`，默认15秒、2MiB、列表最多100条、嵌套列表最多50条、数据正文16000字符。协议目录在 `shared/agent/kpl/catalog.json`；HTTP客户端与工具schema在外部适配层，内核没有KPL依赖。启动时将当前目录与客户端代码提供给业务SSH worker，服务器配置优先覆盖本地公开默认值；首次部署前可在本地直接调试新工具。选手分均榜使用网站实际分页，其他已验证列表由适配器过滤后分页，不给不支持分页的接口强塞page/pageSize。时间带时区时按上海日期过滤，无时区时间仅使用源日期。重启适配器加载修改，自动测试可运行 `local_debugger/.venv/bin/python -m unittest tests.test_agent_kpl`。
+
+DeepSeek 请求的稳定运行说明放在首条 system，动态运行统计放在末尾独立 system；该覆盖层不进入对话存储，完整 reasoning_content 和工具消息保持不变。QQ 参考目录与角色背景先于本轮时间，改善跨请求公共前缀。其他协议保留原有首条 system 注入方式。缓存是否命中以供应商返回的 usage 为准，参见 [DeepSeek 缓存规则](https://api-docs.deepseek.com/guides/kv_cache/)。
