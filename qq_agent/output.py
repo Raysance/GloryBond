@@ -4,7 +4,6 @@ import base64
 import asyncio
 import datetime
 import logging
-from uuid import uuid4
 from .trace import build_trace
 from agent_console.replies import DeliveryHistory
 from agent_console.model_metadata import observe_model_event
@@ -12,7 +11,7 @@ from agent_console.model_metadata import observe_model_event
 
 class QQOutput:
     def __init__(self, *, bridge, local_log, sender, prepare_reply, store_artifact, event_projector=None, mentions=None,
-                 context_bridge=None, context_timeout_seconds=10, reply_timing=None):
+                 context_bridge=None, context_timeout_seconds=10):
         self.bridge, self.local_log = bridge, local_log
         self.sender, self.prepare_reply, self.store_artifact = sender, prepare_reply, store_artifact
         self.event_projector = event_projector or (lambda e: e)
@@ -22,48 +21,18 @@ class QQOutput:
         self.mentions = mentions
         self.context_bridge = context_bridge or bridge
         self.context_timeout_seconds = context_timeout_seconds
-        self.reply_timing = reply_timing
-
-    async def begin_timing(self, event, **kwargs):
-        if self.reply_timing:
-            self.reply_timing.begin(event['run_id'], **kwargs)
-            await self.announce_estimate(event)
-            self.reply_timing.watch(event, self.announce_estimate)
-
-    async def announce_estimate(self, event):
-        if self.reply_timing is None:
-            return
-        packet = self.reply_timing.notice(event)
-        if packet is None:
-            return
-        notice = {**event, 'id': uuid4().hex, 'kind': 'reply.estimate', 'transient': False,
-                  'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                  'data': dict(packet['reply_estimate'])}
-        try:
-            await self.send(packet, event['metadata']['delivery'], notice, remember_context=False)
-            notice['data']['delivery_status'] = 'accepted'
-        except Exception:
-            notice['data']['delivery_status'] = 'failed'
-            logging.getLogger(__name__).warning('QQ wait notice could not be delivered')
-        clean = self.bridge.redact(notice)
-        await self.local_log.record(clean)
-        self.events.setdefault(event['run_id'], []).append(clean)
 
     async def publish(self, event):
         observe_model_event(event)
         try:
-            if event['kind'] != 'run.end':
-                await self.announce_estimate(event)
             await self._publish(event)
         finally:
             if event["kind"] == "run.end":
-                if self.reply_timing:
-                    self.reply_timing.finish(event['run_id'], success=False)
                 self.delivery_history.parts.pop(event["run_id"], None)
                 if self.mentions:
                     self.mentions.finish(event["run_id"])
 
-    async def send(self, packet, delivery, event, *, remember_context=True, timing_success=False):
+    async def send(self, packet, delivery, event):
         if self.mentions:
             delivery = self.mentions.delivery(event["run_id"], delivery)
         metadata = event.get("metadata", {})
@@ -73,10 +42,8 @@ class QQOutput:
         if task_id:
             packet["task_id"] = task_id
         await self.sender(packet, delivery)
-        if timing_success and self.reply_timing:
-            self.reply_timing.finish(event['run_id'], success=True)
         accepted_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        if remember_context and delivery.get("channel") == "group":
+        if delivery.get("channel") == "group":
             try:
                 async with asyncio.timeout(self.context_timeout_seconds):
                     await self.context_bridge.call("qq_group_reply_save", session_id=event["session_id"],
@@ -128,8 +95,7 @@ class QQOutput:
                 packet["_reply_question"] = clean["metadata"]["reply_question"]
             prepared = await self.prepare_reply(packet)
             if final or failed:
-                await self.send(prepared, delivery, event,
-                                timing_success=bool(final) and data.get('status') == 'completed')
+                await self.send(prepared, delivery, event)
                 if event.get("metadata", {}).get("origin") != "background":
                     self.results[run] = prepared
         self.delivery_history.record(event)

@@ -28,7 +28,6 @@ from agent_console.tools.application import register_application_tools
 from agent_console.tools.roleplay import register_roleplay_tools
 from agent_console.function_calls import assert_outside_function, register_function_tools
 from .output import QQOutput
-from .reply_timing import QQReplyTiming
 from .member_profiles import register_member_profile_tool
 from .avatar import register_bot_avatar_tool
 from .context import group_context
@@ -174,15 +173,11 @@ class QQAgentService:
                                              default_role=self.config.get("default_role", "makise_kurisu"))
                 register_roleplay_tools(registry, self.roles, authorize_target=self.authorize_role_target)
                 self.state = RemoteState(self.state_bridge, self.image_store.project_event, self.local_log)
-                self.reply_timing = QQReplyTiming(self.state_bridge, policy=self.config.get('reply_estimate'),
-                                                 clock=self.clock.monotonic)
-                await self.reply_timing.load()
                 self.output = QQOutput(bridge=self.bridge, local_log=self.local_log, sender=self.sender,
                                        prepare_reply=self.prepare_reply, store_artifact=self.store_artifact,
                                        event_projector=self.image_store.project_event, mentions=self.mentions,
                                        context_bridge=self.state_bridge,
-                                       context_timeout_seconds=self.config.get("group_context_timeout_seconds", 10),
-                                       reply_timing=self.reply_timing)
+                                       context_timeout_seconds=self.config.get("group_context_timeout_seconds", 10))
                 if self.business_functions is not None and self.config.get("business_functions", {}).get("enabled", True):
                     register_function_tools(registry, catalog=self.business_functions,
                         publish_image=self.publish_business_image, format_text=lambda text: self.formatter(self.bridge.redact(text)))
@@ -350,36 +345,13 @@ class QQAgentService:
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
                    use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=(),
                    message_timestamp=None):
-        started = self.clock.monotonic()
         received_at = message_timestamp if message_timestamp is not None else time.time()
         await self.start()
-        run_id = uuid4().hex
-        try:
-            return await self._chat(run_id=run_id, started=started, user_text=user_text, user_id=user_id,
-                                    nickname=nickname, group_id=group_id, message_id=message_id,
-                                    use_memory=use_memory, quoted_message=quoted_message, image_urls=image_urls,
-                                    original_user_text=original_user_text, native_faces=native_faces,
-                                    message_timestamp=received_at)
-        finally:
-            self.reply_timing.finish(run_id, success=False)
-            self.output.events.pop(run_id, None)
-
-    async def _chat(self, *, run_id, started, user_text, user_id, nickname, group_id=None, message_id=None,
-                   use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=(),
-                   message_timestamp=None):
-        received_at = message_timestamp if message_timestamp is not None else time.time()
         snapshot = await self.bridge.call("reference_snapshot")
         principal = qq_principal(user_id, group_id, nickname, admin_id=self.admin_id,
                                  references=snapshot, use_memory=use_memory,
                                  admin_private_default_group_id=self.config.get("admin_private_default_group_id"),
                                  bot_id=self.bot_id)
-        session_id = "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id)
-        await self.output.begin_timing({
-            'id': uuid4().hex, 'run_id': run_id, 'session_id': session_id, 'sequence': 0,
-            'time': self.clock.now(), 'kind': 'reply.preparation', 'data': {},
-            'metadata': {'delivery': principal.attributes['delivery'], 'message_id': message_id},
-        }, model=self.public['model'], started=started,
-            images=bool(image_urls or quoted_message and quoted_message.get('image_urls')))
         question = str(user_text) or ("请结合引用的消息回复。" if quoted_message else
                                      "请分析这些图片。" if image_urls else "请回应这次招呼。")
         prompt = await self.current_prompt(principal, question, snapshot=snapshot)
@@ -449,7 +421,7 @@ class QQAgentService:
         page_context = await self.webpages.prepare(page_sources)
         context_messages += page_context.messages
         request = RunRequest(
-            question, session_id, principal, run_id=run_id,
+            question, "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id), principal,
             system_prompt=prompt, required_tools=chat_required_tools(),
             budget=application_budget(self.config.get("budget")), images=images,
             context_messages=context_messages,
@@ -516,7 +488,6 @@ class QQAgentService:
             await asyncio.gather(*running, return_exceptions=True)
             await self.scheduler.close()
             await self.runtime.close()
-            await self.reply_timing.close()
             await self.state_bridge.close()
             await self.bridge.close()
             self.runtime = None

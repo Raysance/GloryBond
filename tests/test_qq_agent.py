@@ -133,8 +133,6 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     return True
                 if op == "reference_snapshot":
                     return REFERENCES
-                if op == 'reply_timing':
-                    return {'samples': []} if args['action'] == 'read' else {'recorded': True}
                 if op == "roleplay":
                     return {"selected": ROLE, "preferences": {"length": "concise", "address": "", "style": ""}, "roles": [ROLE]}
                 if op == "memory":
@@ -191,8 +189,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         async def artifact(identifier, raw):
             return {"artifact_id": identifier, "path": "/tmp/test.png"}
 
-        self.gateway = QQAgentService(root=ROOT, config={"log_directory": self.tmp.name, "image_directory": self.tmp.name,
-            "reply_estimate": {"enabled": False}},
+        self.gateway = QQAgentService(root=ROOT, config={"log_directory": self.tmp.name, "image_directory": self.tmp.name},
                                       admin_id="999", bot_id="300", sender=send, prepare_reply=prepare, store_artifact=artifact,
                                       formatter=lambda text: text, bridge_factory=Bridge, model_factory=Model)
         await self.gateway.start()
@@ -204,33 +201,6 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.gateway.model.options['thinking'])
         self.assertEqual(self.gateway.runtime.finalizer.composer.model.options['thinking'],
                          self.gateway.model.options['thinking'])
-
-    async def test_wait_estimate_is_sent_before_reply_without_entering_dialogue(self):
-        self.gateway.reply_timing.enabled = True
-        self.reply_text = 'Complete answer'
-        self.script = [{'role': 'assistant', 'content': self.reply_text}]
-        await self.gateway.chat(user_text='Question', user_id='100', nickname='User', group_id='200')
-        notices = [packet for packet, _ in self.sent if packet.get('reply_estimate')]
-        self.assertEqual(len(notices), 1)
-        self.assertGreater(notices[0]['reply_estimate']['estimated_total_seconds'], 30)
-        self.assertEqual(self.sent[0][0], notices[0])
-        self.assertNotIn('预计还需要', json.dumps(self.dialogue))
-        self.assertFalse(self.gateway.reply_timing.estimator.runs)
-
-    async def test_preparation_failure_cleans_wait_state_without_learning_success(self):
-        self.gateway.reply_timing.enabled = True
-        with patch.object(self.gateway, 'input_images', side_effect=ValueError('image failed')):
-            with self.assertRaises(ValueError):
-                await self.gateway.chat(user_text='Look', user_id='100', nickname='User', image_urls=('https://example.invalid/image',))
-        self.assertFalse(self.gateway.reply_timing.estimator.runs)
-        self.assertFalse(self.gateway.reply_timing.estimator.samples)
-        self.assertFalse(self.gateway.output.events)
-
-    async def test_ingress_boundary_is_captured_before_startup_and_preparation(self):
-        with patch('qq_agent.service.time.time', return_value=123), \
-             patch.object(self.gateway, '_chat', return_value={}) as chat:
-            await self.gateway.chat(user_text='Question', user_id='100', nickname='User')
-        self.assertEqual(chat.call_args.kwargs['message_timestamp'], 123)
 
     async def test_explicit_channel_thinking_setting_applies_to_both_generation_stages(self):
         await self.gateway.close()

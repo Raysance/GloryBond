@@ -78,7 +78,6 @@ class RemoteBridge:
             validator=validator.read_text(),
             memory_tools=(Path(__file__).with_name("tools") / "memory.py").read_text(),
             error_reporting=Path(__file__).with_name("tool_errors.py").read_text(),
-            reply_timing_tools=(Path(__file__).with_name("tools") / "reply_timing.py").read_text(),
             kpl_catalog=json.loads((self.shared_path / "kpl/catalog.json").read_text()),
             kpl_client=Path(__file__).with_name("kpl_client.py").read_text(),
             kpl_config=self.kpl_config if self.kpl_config is not None else yaml.safe_load(

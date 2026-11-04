@@ -143,13 +143,3 @@ node --test tests/test_agent_usage.js tests/test_agent_image_ui.js
 KPL网络、体积和返回预算为根 `AgentKPL`，默认15秒、2MiB、列表最多100条、嵌套列表最多50条、数据正文16000字符。协议目录在 `shared/agent/kpl/catalog.json`；HTTP客户端与工具schema在外部适配层，内核没有KPL依赖。启动时将当前目录与客户端代码提供给业务SSH worker，服务器配置优先覆盖本地公开默认值；首次部署前可在本地直接调试新工具。选手分均榜使用网站实际分页，其他已验证列表由适配器过滤后分页，不给不支持分页的接口强塞page/pageSize。时间带时区时按上海日期过滤，无时区时间仅使用源日期。重启适配器加载修改，自动测试可运行 `local_debugger/.venv/bin/python -m unittest tests.test_agent_kpl`。
 
 DeepSeek 请求的稳定运行说明放在首条 system，动态运行统计放在末尾独立 system；该覆盖层不进入对话存储，完整 reasoning_content 和工具消息保持不变。QQ 参考目录与角色背景先于本轮时间，改善跨请求公共前缀。其他协议保留原有首条 system 注入方式。缓存是否命中以供应商返回的 usage 为准，参见 [DeepSeek 缓存规则](https://api-docs.deepseek.com/guides/kv_cache/)。
-
-### QQ 回复耗时预估
-
-`reply_timing.py` 是独立的统计预测器，按同模型、是否有图片及当前模型轮次/工具/表达阶段，使用已完成样本的剩余耗时中位数估计总时间，并提供样本四分位区间。`tools/reply_timing.py` 校验匿名样本并通过既有 worker 存取 Redis；`qq_agent/reply_timing.py` 处理前台生命周期、超时提醒及异步保存；QQ 出口负责发送。所有环节均不新增模型调用。
-
-配置为 `QQAgent.reply_estimate.enabled`（默认 `true`）和 `cold_start_seconds`（默认60）。缺少当前模型/阶段样本时使用基线，并将来源标为 `configured_baseline`；有样本时为 `completed_runs`。预计总时间超过30秒才提示；若起初预估较短，运行到30秒仍未完成时再检查。一轮最多一条，发送失败不阻止正式答案；取消、准备失败或退出后不会继续提示。
-
-QQ `sender(packet, delivery)` 的 `packet.reply_estimate` 包含 `estimated_total_seconds`、`estimated_remaining_seconds`、`remaining_range_seconds`、`elapsed_seconds`、`source`、`sample_count`、`stage`、`is_estimate`。目的地与提及由可信入口绑定；运行日志的 `reply.estimate` 另外记录提示是否被出口接受。预估覆盖请求准备、模型/工具、表达整理及正式答案交给发送队列的时间，不声称QQ已收到或已读。
-
-Redis 的 `hok:agent_runtime:reply_timing:v1` 只保留最近128份成功耗时及阶段，跨重启复用，不含用户、消息、提示词或运行ID。正式答案成功交给出口才记录成功样本，保存失败只影响后续预估。等待提示不进入本人直接历史和近期公共群背景；完整记录仍保存在私有运行日志。
