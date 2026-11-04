@@ -3,6 +3,13 @@
 .view-tabs{display:none}
 body>header{padding-bottom:10px}
 #trace-view{min-width:0}
+.record-footer{display:flex;align-items:center;gap:12px;flex:none;min-height:44px;padding:4px 14px;border-top:1px solid var(--line);background:#191919}
+.record-footer #footer{flex:1;min-width:0;color:#858585;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.record-footer .github-global-footer{margin:0;padding:0;border:0;overflow:visible;line-height:0}
+.record-footer .github-global-footer .github-link{width:32px;height:32px;border-radius:8px;background:#26272c;box-shadow:none}
+.record-footer .github-global-footer .github-icon{width:20px;height:20px;fill:#c3c7cf}
+.record-footer .github-global-footer .github-link:hover{transform:translateY(-2px);background:#303137;box-shadow:none}
+.record-footer .github-global-footer .github-link:hover .github-icon{fill:#80adfa}
 #chat-view{--chat-bg:#111113;--chat-surface:#272729;--chat-border:#303033;--chat-text:#efeff1;--chat-muted:#a0a2a9;--chat-blue:#80adfa;color-scheme:dark;background:var(--chat-bg);color:var(--chat-text);display:flex;flex-direction:column;min-width:0;overflow:hidden;border-right:1px solid var(--line)}
 #chat-view .conversation-heading{height:61px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 26px;border-bottom:1px solid #252527;color:#92949b;font-size:12px}
 #chat-view .conversation-heading strong{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#e2e3e6}
@@ -77,6 +84,7 @@ body>header{padding-bottom:10px}
   #chat-view{flex:1;border-right:0}
 }
 @media(max-width:650px){
+  #inspector{bottom:44px}
   #chat-view .conversation-heading{height:54px;padding:0 18px}
   #chat-view .chat-scroll{padding:0 18px}
   #chat-view .conversation{padding:24px 0 36px}

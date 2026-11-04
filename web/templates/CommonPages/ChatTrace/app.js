@@ -15,7 +15,7 @@
   const labels = {user:'用户', system:'系统', context:'上下文', definition:'定义', model:'助手', tool:'工具'};
   const roleLabels = {system:'System', developer:'Developer', user:'User', assistant:'Assistant', tool:'Tool'};
   const summary = trace.summary || {};
-  $('title').textContent = trace.question || 'HOK 运行记录';
+  $('title').textContent = trace.question || 'GloryBond 运行记录';
   $('title').title = trace.question || '';
   $('model').textContent = trace.model || '';
   $('run-status').textContent = `${states[trace.status] || trace.status} · ${ms(trace.duration_ms)}`;
