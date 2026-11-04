@@ -51,6 +51,7 @@
   </div>
   <dialog id="image-dialog"><button id="close-image" aria-label="关闭大图">关闭 ×</button><img id="full-image" alt="图表原图"></dialog>
   <script type="application/json" id="trace-data">{{ trace | tojson }}</script>
+  <script>{% include 'CommonPages/ChatTrace/conversation_icons.js' %}</script>
   <script>{% include 'CommonPages/ChatTrace/conversation.js' %}</script>
   <script>{% include 'CommonPages/ChatTrace/app.js' %}</script>
 </body>

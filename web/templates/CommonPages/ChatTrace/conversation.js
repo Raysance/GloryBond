@@ -1,6 +1,7 @@
 /* Read-only projection of saved replies. The trace inspector owns raw payloads. */
 const ChatTraceConversation = (() => {
   'use strict';
+  const icon = ChatTraceIcons.create;
   const text = value => typeof value === 'string' ? value : '';
   const el = (tag, className = '', value = '') => {
     const node = document.createElement(tag);
@@ -104,11 +105,12 @@ const ChatTraceConversation = (() => {
     if (!variants.detailed || !variants.chat) return markdown(reply.text);
     const pair = el('div', 'reply-pair'), detail = el('section', 'reply-detail'), chat = el('section', 'reply-chat');
     detail.append(el('div', 'reply-label', '详细内容'), markdown(variants.detailed));
-    const label = el('div', 'reply-label', '群聊回复'), copy = el('button', 'reply-copy', '复制');
+    const label = el('div', 'reply-label', '群聊回复'), copy = el('button', 'reply-copy'), copyLabel = el('span', '', '复制');
     copy.type = 'button'; copy.setAttribute('aria-label', '复制群聊回复');
+    copy.append(icon('copy'), copyLabel);
     copy.addEventListener('click', async () => {
-      try {await navigator.clipboard.writeText(variants.chat); copy.textContent = '已复制';}
-      catch {copy.textContent = '请手动复制';}
+      try {await navigator.clipboard.writeText(variants.chat); copyLabel.textContent = '已复制';}
+      catch {copyLabel.textContent = '请手动复制';}
     });
     label.append(copy); chat.append(label, el('div', 'chat-reply-text', variants.chat)); pair.append(detail, chat);
     return pair;
@@ -117,7 +119,9 @@ const ChatTraceConversation = (() => {
   function usageMeter(trace) {
     const report = usage(trace), totals = report.totals;
     const root = el('details', 'usage-meter'), panel = el('div', 'usage-popover');
-    root.append(el('summary', '', totals.total_tokens === null ? 'Token 未记录' : `${count(totals.total_tokens)} tokens`));
+    const summary = el('summary');
+    summary.append(icon('usage'), el('span', '', totals.total_tokens === null ? 'Token 未记录' : `${count(totals.total_tokens)} tokens`));
+    root.append(summary);
     panel.append(el('div', 'usage-heading', '本轮用量'));
     for (const [key, label] of [['prompt_tokens','输入'],['completion_tokens','输出'],['total_tokens','总计'],
       ['prompt_cache_hit_tokens','输入缓存命中'],['prompt_cache_miss_tokens','输入缓存未命中']]) {
@@ -143,16 +147,25 @@ const ChatTraceConversation = (() => {
     const steps = records.filter(item => ['model','tool'].includes(item.kind));
     if (!steps.length) return null;
     const root = el('details', 'execution-details'), body = el('div', 'execution-body');
-    root.append(el('summary', '', `执行过程 · ${steps.filter(item => item.kind === 'model').length} 轮 · ${steps.filter(item => item.kind === 'tool').length} 个工具`));
+    const summary = el('summary');
+    summary.append(icon('chevron', 'disclosure-chevron'), el('span', '', `执行过程 · ${steps.filter(item => item.kind === 'model').length} 轮 · ${steps.filter(item => item.kind === 'tool').length} 个工具`));
+    root.append(summary);
     for (const item of steps) {
       const button = el('button', `execution-step ${item.kind} ${item.status === 'error' ? 'error' : ''}`);
       button.type = 'button';
-      button.append(el('span', '', item.kind === 'tool' ? item.name : `第 ${item.round} 轮 · 模型请求`), el('small', '', duration(item.duration_ms)));
+      const label = el('span', 'step-label');
+      const presentation = item.kind === 'model' ? {icon:'model', label:'模型请求'} : ChatTraceIcons.forTool(item.name);
+      if (item.kind === 'tool') {
+        label.append(el('span', 'step-category', presentation.label), el('span', 'step-separator', '·'), el('span', 'step-name', item.name));
+      } else label.textContent = `第 ${item.round} 轮 · 模型请求`;
+      button.title = label.textContent;
+      button.append(icon(presentation.icon), label, el('small', '', duration(item.duration_ms)));
       button.addEventListener('click', () => onSelect(item)); body.append(button);
       const reasoning = text(item.output?.choices?.[0]?.message?.reasoning_content);
       if (item.kind === 'model' && reasoning) {
-        const thought = el('details', 'thought');
-        thought.append(el('summary', '', '思考过程'), el('div', 'thought-text', reasoning)); body.append(thought);
+        const thought = el('details', 'thought'), heading = el('summary');
+        heading.append(icon('thinking'), el('span', '', '思考过程'), icon('chevron', 'disclosure-chevron'));
+        thought.append(heading, el('div', 'thought-text', reasoning)); body.append(thought);
       }
     }
     root.append(body); return root;

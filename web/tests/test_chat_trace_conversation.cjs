@@ -11,11 +11,12 @@ class Node {
   get textContent() {return this.value + this.children.map(child => child.textContent).join('');}
   append(...nodes) {this.children.push(...nodes);}
   replaceChildren(...nodes) {this.value = ''; this.children = nodes;}
-  setAttribute(key, value) {this.attributes[key] = value;}
+  setAttribute(key, value) {this.attributes[key] = value; if (key === 'class') this.className = value;}
   addEventListener(kind, listener) {this.listeners[kind] = listener;}
 }
-const context = {document:{createElement:tag => new Node(tag), createTextNode:value => {const node = new Node(); node.textContent = value; return node;}}, navigator:{clipboard:{writeText:async value => {context.copied = value;}}}};
+const context = {document:{createElement:tag => new Node(tag), createElementNS:(_, tag) => new Node(tag), createTextNode:value => {const node = new Node(); node.textContent = value; return node;}}, navigator:{clipboard:{writeText:async value => {context.copied = value;}}}};
 vm.createContext(context);
+vm.runInContext(readFileSync(join(__dirname, '../templates/CommonPages/ChatTrace/conversation_icons.js'), 'utf8'), context);
 vm.runInContext(readFileSync(join(__dirname, '../templates/CommonPages/ChatTrace/conversation.js'), 'utf8') + '\nglobalThis.viewer = ChatTraceConversation;', context);
 const viewer = context.viewer;
 const nodes = root => [root, ...root.children.flatMap(nodes)];
@@ -99,6 +100,7 @@ test('conversation renders the saved role, dual replies, progress, and a copy ac
   assert.equal(byClass(root,'chat-reply-text')[0].textContent, 'short');
   await byClass(root,'reply-copy')[0].listeners.click();
   assert.equal(context.copied, 'short');
+  assert.equal(byClass(byClass(root,'reply-copy')[0], 'chat-icon')[0].attributes['data-icon'], 'copy');
 });
 
 test('execution steps open original inspector records and only expose real reasoning', () => {
@@ -111,4 +113,42 @@ test('execution steps open original inspector records and only expose real reaso
   assert.equal(byClass(root,'thought-text')[0].textContent, 'saved reasoning');
   byClass(root,'execution-step')[1].listeners.click();
   assert.equal(selected, records[1]);
+});
+
+test('SVG categories match exact tool names and preserve the original inspector records', () => {
+  const cases = [['web_search','search'], ['search_chat_history','search'], ['read_bot_manual','read'],
+    ['analyze_game_database','database'], ['execute_python','code'], ['render_plot','plot'],
+    ['generate_image','image'], ['recall_memory','memory'], ['create_task','task'],
+    ['save_automation_rule','automation'], ['emit_message','message'], ['read_group_member_profile','profile'],
+    ['select_role','role'], ['manage_chat_ignored_users','control'], ['discover_tools','discover'],
+    ['call_hok_function','tool'], ['new_search_tool','tool'], ['__proto__','tool'],
+    ['<svg onload=alert(1)>','tool']];
+  const records = cases.map(([name]) => ({kind:'tool', name, status:'error'}));
+  const root = new Node('div'); let selected;
+  viewer.render({answer:'saved'}, root, records, item => {selected = item;});
+  const buttons = byClass(root, 'execution-step');
+  cases.forEach(([name, expected], index) => {
+    const button = buttons[index], glyph = byClass(button, 'chat-icon')[0];
+    assert.equal(glyph.tagName, 'SVG');
+    assert.equal(glyph.attributes['data-icon'], expected);
+    assert.equal(glyph.attributes['aria-hidden'], 'true');
+    assert.equal(glyph.attributes.focusable, 'false');
+    assert.equal(byClass(button, 'step-name')[0].textContent, name);
+    assert.ok(button.className.includes('error'));
+    assert.ok(!JSON.stringify(glyph).includes('onload'));
+    button.listeners.click();
+    assert.equal(selected, records[index]);
+  });
+});
+
+test('model requests and recorded reasoning have distinct icons without inventing thoughts', () => {
+  const root = new Node('div');
+  viewer.render({answer:'saved'}, root, [
+    {kind:'model', round:1, output:{choices:[{message:{reasoning_content:'recorded'}}]}},
+    {kind:'model', round:2, output:{}},
+  ]);
+  assert.deepEqual(byClass(root, 'execution-step').map(node => byClass(node, 'chat-icon')[0].attributes['data-icon']), ['model','model']);
+  assert.equal(byClass(root, 'thought').length, 1);
+  assert.equal(byClass(byClass(root, 'thought')[0], 'chat-icon')[0].attributes['data-icon'], 'thinking');
+  assert.equal(byClass(root, 'thought-text')[0].textContent, 'recorded');
 });
