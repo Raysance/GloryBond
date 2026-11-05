@@ -29,6 +29,9 @@ health() {
     local unit i code
     nginx -t || return 1
     sshd -t || return 1
+    if [[ -n ${CLASH_BINARY:-} ]]; then
+        "$CLASH_BINARY" -d "$CLASH_CONFIG_DIR" -t >"$STATE_DIR/clash-config-check.log" 2>&1 || return 1
+    fi
     for unit in "${CRITICAL_UNITS[@]}"; do systemctl is-active --quiet "$unit" || return 1; done
     for i in "${!HEALTH_URLS[@]}"; do
         code=$(curl --noproxy '*' --silent --show-error --max-time 15 \

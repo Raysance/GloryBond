@@ -90,6 +90,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 主机安全维护使用 Alibaba Cloud Linux 官方 DNF 仓库，内核保持发行版系列并核对实际启动版本；Nginx 使用官方稳定版 RPM，独立 Node 运行时只更新当前主版本。维护入口位于 `deployment/server_modules/security_updates.sh`，主机清单和检查地址保存在 root 专用配置中。自动维护先检查服务和部署占用、保存私有恢复点，再更新并按依赖顺序重启受影响服务；失败保留未完成标记并阻止自动重启。更新和必要重启仅在维护窗口执行，不在错过窗口后白天补跑。应用 Actions 发布与主机补丁维护分别管理。
 
+长期运行的进程可能掩盖磁盘上的过期配置；维护前同时校验实际配置文件。共享 Clash 使用模块内已有面板资源，启用其离线配置检查，不能仅凭当前进程仍在运行认定下次启动可用。
+
 Bot 启动通知沿用统一消息队列私发管理员，附实际运行检出目录的前8位 HEAD hash、含时区的提交者提交时间（Git %cI）与完整 commit message；Git 读取由 zfile 管理并限制时限，无版本元数据时明确标注不可用，不阻止启动。
 
 部署说明见[开发与部署](docs/DEVELOPMENT.md)、[部署说明](deployment/README.md)和[公开发布约定](deployment/PUBLICATION.md)。

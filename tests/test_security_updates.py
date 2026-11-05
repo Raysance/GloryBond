@@ -30,6 +30,17 @@ CURL_RESOLVE=()
                 result = subprocess.run(["bash", "-c", code], capture_output=True)
                 self.assertEqual(result.returncode, 1, result.stderr.decode())
 
+    def test_invalid_proxy_config_blocks_an_otherwise_healthy_host(self):
+        import tempfile
+        health = SCRIPT.split("health() {", 1)[1].split("\npreflight() {", 1)[0]
+        with tempfile.TemporaryDirectory() as directory:
+            code = "set -Eeuo pipefail\nhealth() {" + health
+            code += "\nnginx() { return 0; }; sshd() { return 0; }\n"
+            code += "STATE_DIR=$1\nCLASH_BINARY=/usr/bin/false\nCLASH_CONFIG_DIR=$1\n"
+            code += "if health; then exit 0; else exit 1; fi"
+            result = subprocess.run(["bash", "-c", code, "test", directory], capture_output=True)
+            self.assertEqual(result.returncode, 1, result.stderr.decode())
+
     def test_repository_error_is_not_treated_as_no_updates(self):
         function = SCRIPT.split("candidate_check() {", 1)[1].split("\nrollback_node() {", 1)[0]
         import tempfile
