@@ -26,6 +26,8 @@ Both `.env` and `config.yaml` remain only on local/production machines and are i
 
 Host maintenance now has guarded vendor updates, private restore points, service health checks and separate overnight update/reboot windows. Alibaba Cloud Linux system packages stay on official distribution repositories; Nginx uses official stable RPMs, PostgreSQL stays on major 16, and the standalone website Node runtime stays on major 22. Failed or incomplete transactions block unattended reboot. Application deployment remains separate. See [operations](../deployment/server_modules/SECURITY_UPDATES.md).
 
+The current operator preference pauses the daily update and reboot timers, together with DNF metadata prefetch. Updates are checked and applied manually through the existing guarded entry point; boot-time service verification remains enabled. Operations documentation also distinguishes rebuildable caches and inactive editor binaries from persistent data, editing history, diagnostic logs and restore points.
+
 The mandatory pre-commit SDK refresh advances the Camp client to its current main commit. It adds optional targeted spectating APIs while retaining the login and saved-session interfaces used by the host; this maintenance change does not invoke the new APIs.
 
 ## Poke emoji template recovery — 2026-11-03

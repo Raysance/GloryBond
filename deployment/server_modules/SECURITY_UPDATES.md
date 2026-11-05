@@ -21,17 +21,27 @@
 
 使用共享 Clash 时配置 `CLASH_BINARY` 和 `CLASH_CONFIG_DIR`，维护前会执行其 `-t` 离线配置检查，诊断保存在私有状态目录。面板路径须指向模块内实际存在的资源；不能依赖旧进程已加载的配置掩盖过期的磁盘路径。
 
-启用前先完成只读检查，再启用定时器：
+当前采用手动维护，安装时保持日常更新与重启定时器关闭；DNF 元数据预取也暂停，手动检查时按需获取。开机健康检查仅验证服务，不安装更新或安排重启：
 
 ```sh
-/usr/local/libexec/glorybond-maintenance/security_updates.sh --check
 systemctl daemon-reload
-systemctl enable --now glorybond-security-updates.timer glorybond-security-reboot.timer glorybond-security-verify.timer
+systemctl disable --now glorybond-security-updates.timer glorybond-security-reboot.timer dnf-makecache.timer
+systemctl enable --now glorybond-security-verify.timer
 ```
 
 ## 执行与恢复
 
-默认时区为 Asia/Shanghai，每天 04:15–04:20 检查并安装更新；05:00 仅在 DNF 判定需要重启、没有未完成事务、关键服务健康且没有 Runner 作业时安排一分钟后重启。两个日历定时器均不补跑错过的窗口，避免白天突然维护。开机三分钟后检查服务状态。
+管理员以 root 手动执行以下命令。检查命令不安装更新；安装命令在发现更新后创建恢复点，并可能重启受影响的服务。需要内核重启时，单独选择维护时间执行第三条命令，它会先检查是否确实需要重启，再安排一分钟后重启：
+
+```sh
+/usr/local/libexec/glorybond-maintenance/security_updates.sh --check
+/usr/local/libexec/glorybond-maintenance/security_updates.sh --apply
+/usr/local/libexec/glorybond-maintenance/security_updates.sh --reboot-if-needed
+```
+
+暂停定时器不会删除维护工具、私有配置和恢复点，也不会影响应用 Actions 发布或证书续期。没有手动执行更新时，不会每天生成新的主机恢复点。
+
+定时器文件保留供将来明确要求恢复自动维护时使用，不由应用发布重新启用。其时区为 Asia/Shanghai，更新窗口为每天 04:15–04:20，必要重启窗口为 05:00；两个日历定时器均不补跑错过的窗口。当前只有开机三分钟后的服务检查保持启用。
 
 维护持有独占锁，更新前后检查配置语法、关键服务、HTTP 状态、Redis 与 PostgreSQL 连接。只重启 DNF 判定受影响且已纳入维护顺序的服务；独立 Node 替换时重启对应服务。数据库先于应用，服务健康最多等待两分钟恢复。新内核必须具有内核镜像与 initramfs，重启前设置为默认启动项；发行版正常保留旧内核供回退。
 
@@ -47,7 +57,15 @@ uname -r
 grubby --default-kernel
 ```
 
-自动维护覆盖配置清单中的运行环境；健康检查通过表示这些检查项可用，不替代所有业务功能的测试。新增服务或运行时后同步维护私有检查清单。
+主机维护覆盖配置清单中的运行环境；健康检查通过表示这些检查项可用，不替代所有业务功能的测试。新增服务或运行时后同步维护私有检查清单。
+
+## 空间检查与清理
+
+以文件系统可用空间为准，分别检查软件缓存、工具版本、日志和业务存储。更新备份替换期间，新旧两份会同时存在，还须为软件包下载和安装保留空间；`MIN_FREE_BYTES` 是最低门槛，不会预测备份增长或本次 RPM 事务的峰值。
+
+DNF 下载与元数据缓存可通过 `dnf clean all` 按需清理，下次手动检查会重新获取。远程编辑器的旧服务端程序仅在核对版本、最近使用记录及运行进程后清理，保留最近使用版本、用户设置、扩展和编辑历史；旧客户端再次连接时可能重新下载对应服务端。不要直接删除整个编辑器目录。
+
+业务数据库、Redis 持久化、QQ 登录状态、上传文件、当前运行环境、诊断日志以及已保留的内核和 Node 恢复点不作为通用缓存清理。不创建新的周期清理任务。
 
 ## 官方依据
 

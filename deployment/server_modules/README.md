@@ -23,10 +23,10 @@ GloryBond 的 Bot 与 Web 共用一个代码检出、运行环境和私有配置
 | [verify_export.py](verify_export.py) | 导出清单、文件和数据快照校验 |
 | [refresh_export.py](refresh_export.py) | 补齐导出包中的维护工具，保留原始快照 |
 | [sync_operations.py](sync_operations.py) | 预览或同步 HOK 维护工具，备份并移除过时入口 |
-| [security_updates.sh](security_updates.sh) | 官方系统补丁、服务检查、私有恢复点与维护窗口重启 |
+| [security_updates.sh](security_updates.sh) | 手动检查与安装官方系统补丁、服务检查、私有恢复点及必要重启 |
 | [update_node_runtime.py](update_node_runtime.py) | 独立 Node 运行时同主版本更新及下载校验 |
 
-主机安全维护覆盖共享服务，使用独立的 root 配置与 systemd 定时器，不属于 HOK 模块导出或应用部署流程。安装位置、更新范围及失败处理见[主机安全维护说明](SECURITY_UPDATES.md)。
+主机安全维护覆盖共享服务，使用独立的 root 配置，不属于 HOK 模块导出或应用部署流程。当前更新和重启由管理员手动执行，日常更新、重启与 DNF 元数据预取定时器保持关闭，仅保留开机健康检查。安装位置、手动命令、空间清理和失败处理见[主机安全维护说明](SECURITY_UPDATES.md)。
 
 维护工具同步以预览为默认行为，显式应用时先保存恢复副本。同步范围为 HOK 维护目录，应用配置、服务定义和其他模块保持原状。一次性迁移脚本与过期交接记录随清理移除。
 
