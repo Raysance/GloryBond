@@ -1,0 +1,10 @@
+[Unit]
+Description=Verify original services after boot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/glorybond-maintenance/security_updates.sh --verify
+TimeoutStartSec=180
+UMask=0077

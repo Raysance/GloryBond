@@ -1,0 +1,13 @@
+[Unit]
+Description=Guarded vendor security updates
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/glorybond-maintenance/security_updates.sh --apply
+TimeoutStartSec=3600
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0077

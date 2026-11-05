@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily security maintenance window
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Asia/Shanghai
+RandomizedDelaySec=300
+AccuracySec=60
+Persistent=false
+
+[Install]
+WantedBy=timers.target

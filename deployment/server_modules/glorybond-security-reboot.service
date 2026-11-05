@@ -1,0 +1,9 @@
+[Unit]
+Description=Reboot only after successful security maintenance when required
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/glorybond-maintenance/security_updates.sh --reboot-if-needed
+TimeoutStartSec=180
+UMask=0077

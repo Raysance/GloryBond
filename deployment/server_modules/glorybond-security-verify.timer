@@ -1,0 +1,9 @@
+[Unit]
+Description=Check service health after boot
+
+[Timer]
+OnBootSec=180
+AccuracySec=15
+
+[Install]
+WantedBy=timers.target

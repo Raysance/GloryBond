@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `8abb729ef2a5de2b288e987539040cb838aa18b2`
+- `vendor/hok-camp-client`: `372f859ae952dafa34b6f39be487daf6c0122344`
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,12 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Host security maintenance — 2026-11-05
+
+Host maintenance now has guarded vendor updates, private restore points, service health checks and separate overnight update/reboot windows. Alibaba Cloud Linux system packages stay on official distribution repositories; Nginx uses official stable RPMs, PostgreSQL stays on major 16, and the standalone website Node runtime stays on major 22. Failed or incomplete transactions block unattended reboot. Application deployment remains separate. See [operations](../deployment/server_modules/SECURITY_UPDATES.md).
+
+The mandatory pre-commit SDK refresh advances the Camp client to its current main commit. It adds optional targeted spectating APIs while retaining the login and saved-session interfaces used by the host; this maintenance change does not invoke the new APIs.
 
 ## Poke emoji template recovery — 2026-11-03
 
