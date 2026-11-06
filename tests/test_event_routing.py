@@ -62,13 +62,23 @@ class EventRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await EVENT_RULES.judge_to_me(event))
         self.assertFalse(await EVENT_RULES.judge_direct_ai_request(event))
 
-    async def test_direct_mentions_keep_existing_registration_and_disable_checks(self):
-        event = self.mentioned("hello", [{"type":"at", "data":{"qq":"10"}}])
-        for registered, enabled, blocked in [(False,True,True), (True,False,True), (True,True,False)]:
-            with self.subTest(registered=registered, enabled=enabled), \
-                 patch.object(EVENT_RULES, "is_registered_qid", return_value=registered), \
-                 patch.object(EVENT_RULES, "is_battle_visible_qid_enabled", return_value=enabled):
-                self.assertEqual(await EVENT_RULES.judge_qid_blocked(event), blocked)
+    async def test_commands_and_direct_mentions_only_deny_explicitly_disabled_qids(self):
+        events = [EventStub("#在线"), EventStub("＃在线"),
+                  self.mentioned("hello", [{"type":"at", "data":{"qq":"10"}}])]
+        for event in events:
+            for registered in (False, True):
+                for enabled in (False, True):
+                    with self.subTest(text=event.text, registered=registered, enabled=enabled), \
+                         patch.object(EVENT_RULES, "qid", {"player": "10001"} if registered else {}), \
+                         patch.object(ZFUNC, "get_battle_invisible_disabled_qids",
+                                      return_value=[] if enabled else ["10001"]):
+                        self.assertEqual(await EVENT_RULES.judge_qid_blocked(event), not enabled)
+
+    async def test_ordinary_messages_do_not_check_disabled_qids(self):
+        event = EventStub("普通聊天")
+        with patch.object(ZFUNC, "get_battle_invisible_disabled_qids") as disabled_qids:
+            self.assertFalse(await EVENT_RULES.judge_qid_blocked(event))
+        disabled_qids.assert_not_called()
 
     async def test_other_mentions_quoted_mentions_and_inferred_to_me_do_not_trigger_ai(self):
         for segments in ([{"type":"at", "data":{"qq":"all"}}],

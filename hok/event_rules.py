@@ -23,9 +23,7 @@ def is_bot_request_message(event):
 async def judge_qid_blocked(event):
     if not (is_bot_request_message(event) or is_direct_bot_mention(event)):
         return False
-    return (not is_registered_qid(event.get_user_id())) or (
-        not is_battle_visible_qid_enabled(event.get_user_id())
-    )
+    return not is_battle_visible_qid_enabled(event.get_user_id())
 
 
 async def judge_to_me(event):
