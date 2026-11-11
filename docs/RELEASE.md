@@ -39,12 +39,41 @@ The worker exposes the vision key only in private settings and registers it for
 redaction. Vision failures retain their actual status and cannot trigger text
 failover. Offline checks cover routing, history, tools, provider-specific payloads,
 proxy and credential separation, metadata, legacy behavior and worker bootstrap.
-Validation passed 131 related Python checks, eight image UI checks and full manual
-validation (102 nodes, 33 documents, 111 source locations). Both the local and
-production Ark keys return `ModelNotOpen` for the chosen Lite model;
-successful live image recognition and a quality comparison remain pending model
-activation. API Key creation and activation instructions are documented in the
+Initial validation passed 131 related Python checks, eight image UI checks and full
+manual validation (102 nodes, 33 documents, 111 source locations). Model activation
+subsequently enabled both existing Ark keys. A live synthetic image test counted
+three red squares, called a multiplication tool and returned six; the second
+request retained the encrypted thinking from the tool-call response. The server
+key also passed an image request. Only `VisionAPI` was added under the credentials
+lock, with a private configuration backup and existing credentials and other
+settings preserved. This confirms API wiring, not comparative recognition accuracy.
+API Key creation and activation instructions are documented in the
 [adapter guide](../agent_console/README.md#豆包识图接入).
+
+## Conversational judgment and social response — 2026-11-11
+
+A review of 35 recent production conversations, with ten complete private runs
+retained for diagnosis, found repeated self-deprecation, capability defenses and
+literal treatment of jokes. Shared interaction goals now emphasize independent
+judgment, contextual humor and conversational implication across the default
+assistant and selected roles. They distinguish correcting a specific mistake
+from repeatedly grading or defending the bot's own performance. Built-in voice
+cards no longer make self-deprecation the standard response to teasing.
+Persona assembly also distinguishes conversational role lines and playful
+hypotheticals from factual claims and actual actions, retaining trusted identity,
+authorization and execution checks for the latter.
+
+The existing delivery editor preserves useful observations and the force of an
+answer while editing both detailed and short variants. It can change the rhetorical
+angle without inventing facts, actions or personal motives. Full artifacts,
+numeric/source checks and detailed direct history retain their existing contracts.
+Validation passed 178 related host checks, 40 deployment/startup checks, five
+history-privacy checks and full manual validation. It also combines paired
+production-context replays and synthetic multi-turn probes using both the default
+assistant and a saved custom role. Replays send no QQ messages and do not write
+tasks, role selections or personal memories. Dense old self-narratives remain a
+harder case than fresh conversations; these checks do not establish a general
+intelligence or recognition-accuracy improvement.
 
 ## Host security maintenance — 2026-11-05
 
