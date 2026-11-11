@@ -68,8 +68,7 @@ def validate_memory_evidence(quotes, user_message):
 def dialogue_with_sources(messages):
     """Personal dialogue preserves delivery, not the evidence behind old claims."""
     return [{**message, "content":
-        "[历史助手回复：可用于承接话题、改写和复用已交付文本；身份、数字、能力与执行状态未附原始结果，不能作为本轮核实证据。"
-        "其中对自己习惯、情绪、经历或群友动机的归因也只是旧生成内容，不是真实经历或需要延续的人设，可以修正。]\n"
+        "[历史助手回复，未附原始结果；用于承接内容，不作为本轮事实证据，旧语气不约束本轮。]\n"
         + message["content"]} if message.get("role") == "assistant" and isinstance(message.get("content"), str)
         else dict(message) for message in messages]
 

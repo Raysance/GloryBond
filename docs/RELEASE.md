@@ -22,6 +22,37 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Conversational intent and ordered delivery — 2026-11-12
+
+Repeated production-context replays still turned teasing into self-deprecation,
+capability defenses and literal feasibility checks. Application instructions now
+scope causal analysis and capability guidance to serious information requests,
+leaving social replies to respond to the current conversational intent. Role
+examples emphasize familiar, light exchanges without replacing the character's
+background, saved custom roles or user preferences.
+
+The existing delivery call completes or retains the full response before deriving
+its short version; examples generate `detailed` before `chat`, while parsing stays
+compatible with earlier field orders. A social draft's unhelpful rhetorical route
+can be replaced as a whole, rather than preserving a defense in softer wording.
+Facts, complete requested works, numeric/source checks and real execution status
+retain their existing boundaries. Already suitable reports and works can keep
+`detailed=null`, avoiding an unnecessary second copy of the full text.
+
+Per-message historical-assistant annotations are shorter. Complete saved replies,
+authors and protocol fields remain intact, and unverified old claims still cannot
+serve as current evidence. The shared system policy defines the source boundary
+and makes clear that old self-narratives and speaking habits need not continue.
+No archive, role selection, personal preference or memory is deleted or rewritten.
+
+Validation includes repeated original-context replays, a separate serious-query
+control, verbatim-output and numeric/source-preservation controls, host and
+deployment regressions, privacy checks and manual validation. Every replay sample
+and repair remains in private diagnostics; no QQ test messages or user-state writes
+are performed. A separate Doubao text trial did not establish a stable advantage,
+so the text route remains DeepSeek Flash and the independent vision route is
+unchanged. These are bounded style checks, not a general intelligence benchmark.
+
 ## Independent Doubao vision routing — 2026-11-11
 
 QQ and local Web can route image-bearing requests through a shared `VisionAPI`

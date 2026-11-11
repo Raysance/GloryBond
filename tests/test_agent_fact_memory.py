@@ -7,12 +7,15 @@ from agent_console.tools import memory as MEMORY
 
 class ChatFactMemoryTests(unittest.TestCase):
     def test_history_keeps_text_and_author_roles_but_marks_old_assistant_claims_as_unverified(self):
-        messages = [{'role': 'user', 'content': '算一下场次'}, {'role': 'assistant', 'content': '共18局'}]
+        messages = [{'role': 'user', 'content': '算一下场次'}, {'role': 'assistant', 'content': '共18局',
+                     'reasoning_content': '旧推理', 'encrypted_content': 'opaque-provider-content'}]
         projected = MEMORY.dialogue_with_sources(messages)
         self.assertEqual(projected[0], messages[0])
         self.assertEqual(projected[1]['role'], 'assistant')
         self.assertTrue(projected[1]['content'].endswith('共18局'))
         self.assertIn('未附原始结果', projected[1]['content'])
+        self.assertEqual({key: value for key, value in projected[1].items() if key != 'content'},
+                         {key: value for key, value in messages[1].items() if key != 'content'})
         self.assertEqual(messages[1]['content'], '共18局')
     def test_create_and_update_keep_identity_and_created_time(self):
         original = MEMORY.prepare_fact_memory(
