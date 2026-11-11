@@ -10,6 +10,7 @@ from local_debugger import import_hok_module
 from agent_console.capabilities import application_prompt
 from agent_console.replies import ReplyPolicy, reply_instruction
 from agent_console.reply_style import reply_style_instruction
+from agent_console.remote import RemoteBridge
 from qq_agent.output import QQOutput
 
 ZFUNC = import_hok_module("zfunc")
@@ -141,6 +142,98 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(payload["messages"][-1]["data"]["content"][0]["data"]["text"],
                              "思考轨迹：https://hok.example.com/chat-trace?key=" + run)
             self.assertEqual(payload["reply_direct"]["content"], "简版" + run)
+
+    async def test_failed_runs_forward_error_between_original_question_and_trace_in_both_channels(self):
+        for channel in ("group", "private"):
+            for error in ({"type": "TimeoutError", "error": ""},
+                          {"type": "ModelUnavailable", "error":
+                           "HTTP 429 fixture-secret https://example.invalid/error?signature=private-signature"}):
+                with self.subTest(channel=channel, error=error):
+                    bridge = SimpleNamespace(secrets=["fixture-secret"], call=AsyncMock(return_value=True))
+                    bridge.redact = lambda value: RemoteBridge.redact(bridge, value)
+                    prepared = []
+
+                    async def prepare(packet):
+                        prepared.append(packet)
+                        return {**packet, "trace_url": "https://hok.example.com/chat-trace?key=failed-run"}
+
+                    async def send(packet, delivery):
+                        SENDER.add_chat_result_msg(packet, destination=delivery)
+
+                    output = QQOutput(bridge=bridge, local_log=AsyncMock(), sender=send,
+                                      prepare_reply=prepare, store_artifact=AsyncMock())
+
+                    def event(kind, data, second):
+                        return {"id": kind, "run_id": "failed-run", "session_id": "session",
+                                "kind": kind, "data": data, "time": f"2026-11-12T01:{second}:20+08:00",
+                                "metadata": {"delivery": {**self.destination, "channel": channel},
+                                             "reply_question": {"text": "用户原话[CQ:at,qq=all]", "user_id": "101",
+                                                                "name": "提问者"}}}
+
+                    with patch.object(SENDER, "_enqueue_payload", return_value=1) as enqueue:
+                        await output.publish(event("run.start", {"message": "处理后的模型输入"}, "13"))
+                        await output.publish(event("model.request", {"round": 1, "messages": [], "tools": []}, "13"))
+                        await output.publish(event("run.error", error, "15"))
+                        enqueue.assert_not_called()
+                        await output.publish(event("run.end", {"status": "failed", "tool_calls": 0}, "15"))
+                    enqueue.assert_called_once()
+                    payload = enqueue.call_args.args[0]
+                    self.assertEqual(payload["kind"], channel + "_forward")
+                    nodes = payload["messages"]
+                    self.assertEqual(nodes[0]["data"]["uin"], "101")
+                    self.assertEqual(nodes[0]["data"]["content"],
+                                     [{"type": "text", "data": {"text": "用户原话[CQ:at,qq=all]"}}])
+                    detailed = forward_text({"messages": nodes[1:-1]})
+                    self.assertIn(error["type"], detailed)
+                    self.assertIn("等待模型完整响应", detailed)
+                    self.assertIn("120.0秒", detailed)
+                    self.assertIn("failed-run", detailed)
+                    if error["type"] == "TimeoutError":
+                        self.assertIn("处理超时，未取得完整结果", detailed)
+                    else:
+                        self.assertIn("HTTP 429", detailed)
+                        self.assertNotIn("fixture-secret", detailed)
+                        self.assertNotIn("private-signature", detailed)
+                    self.assertEqual(nodes[-1]["data"]["content"][0]["data"]["text"],
+                                     "思考轨迹：https://hok.example.com/chat-trace?key=failed-run")
+                    self.assertEqual(SENDER.Message(payload["reply_direct"]["content"]).extract_plain_text().strip(),
+                                     "本次AI任务未完成，请稍后重试。")
+                    self.assertNotIn("reply_notice", payload)
+                    self.assertEqual(len(prepared), 1)
+                    self.assertEqual(prepared[0]["trace"]["answer"], detailed)
+                    self.assertEqual(prepared[0]["trace"]["status"], "error")
+                    self.assertEqual(prepared[0]["trace"]["rounds"][-1]["error"],
+                                     bridge.redact(error["error"]) or error["type"])
+
+    async def test_failure_after_partial_keeps_prior_delivery_and_reports_recorded_tool_stage(self):
+        sent = []
+
+        async def send(packet, delivery):
+            sent.append(packet)
+
+        async def prepare(packet):
+            return packet
+
+        output = QQOutput(bridge=SimpleNamespace(redact=lambda value: value, call=AsyncMock(return_value=True)), local_log=AsyncMock(),
+                          sender=send, prepare_reply=prepare, store_artifact=AsyncMock())
+        for index, (kind, data) in enumerate([
+            ("run.start", {"message": "原问题"}),
+            ("model.request", {"messages": [], "tools": []}),
+            ("tool.call", {"id": "call", "function": {"name": "lookup", "arguments": "{}"}}),
+            ("output.message", {"kind": "progress", "text": "正在查询资料"}),
+            ("run.error", {"type": "TimeoutError", "error": ""}),
+            ("run.end", {"status": "failed"}),
+        ]):
+            await output.publish({"id": str(index), "run_id": "failure", "session_id": "session",
+                                  "time": f"2026-11-12T01:13:2{index}+08:00", "kind": kind, "data": data,
+                                  "metadata": {"delivery": self.destination}})
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(sent[0]["text"], "正在查询资料")
+        packet = sent[-1]
+        self.assertIn("执行工具（lookup）", packet["variants"]["detailed"])
+        self.assertIn("处理超时", packet["variants"]["detailed"])
+        self.assertNotIn("正在查询资料", packet["variants"]["detailed"])
+        self.assertTrue(any(e["data"].get("text") == "正在查询资料" for e in packet["trace"]["events"]))
 
     def test_fixed_and_partial_messages_without_two_versions_stay_direct(self):
         payload = self.enqueue({"text": "详细内容完整如下。" * 100, "artifacts": []})

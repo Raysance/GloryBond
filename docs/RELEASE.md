@@ -22,6 +22,23 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Failed task details in QQ forwards — 2026-11-12
+
+Failed AI runs now use the existing detailed-forward and brief-message delivery
+path. The forward keeps the original question, existing artifacts and trace link,
+and replaces the detailed answer with a deterministic summary of recorded error
+type, message, stage, elapsed time and run ID. Empty timeout messages have a
+readable fallback, and error summaries reuse credential redaction. No additional
+model call, retry or task replay is introduced. Original events and previously
+sent partial output remain in the trace; failures do not become successful
+direct-history answers. Trace durations also use recorded timestamps when failed
+runs have no completed-duration field.
+
+Validation passed 141 related host checks, 40 deployment checks, five history
+privacy checks and full manual validation. A captured replay of the actual failed
+run now produces the original question and a timeout summary with its recorded
+120.3-second elapsed time; it sends no QQ message and makes no model request.
+
 ## Conversational intent and ordered delivery — 2026-11-12
 
 Repeated production-context replays still turned teasing into self-deprecation,

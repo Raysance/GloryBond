@@ -4,7 +4,7 @@ import base64
 import asyncio
 import datetime
 import logging
-from .trace import build_trace
+from .trace import build_trace, failure_summary
 from agent_console.replies import DeliveryHistory
 from agent_console.model_metadata import observe_model_event
 
@@ -84,14 +84,18 @@ class QQOutput:
             events = self.events.pop(run, [])
             artifacts = self.artifacts.pop(run, [])
             failed = data.get("status") == "failed"
-            text = final["text"] if final else "本次AI任务未完成，请稍后重试。" if failed else "\n\n".join(
+            text = "本次AI任务未完成，请稍后重试。" if failed else final["text"] if final else "\n\n".join(
                 e["data"].get("text", "") for e in events if e["kind"] == "output.message")
             packet = {"text": text, "artifacts": artifacts,
                       "trace": build_trace(events, answer=text,
                           status="error" if failed else "cancelled" if data.get("status") == "cancelled" else "ok")}
-            if final and final.get("variants"):
+            if failed:
+                detailed = failure_summary(packet["trace"])
+                packet["variants"] = {"detailed": detailed, "chat": text}
+                packet["trace"]["answer"] = detailed
+            elif final and final.get("variants"):
                 packet["variants"] = final["variants"]
-            if final and clean.get("metadata", {}).get("reply_question"):
+            if (final or failed) and clean.get("metadata", {}).get("reply_question"):
                 packet["_reply_question"] = clean["metadata"]["reply_question"]
             prepared = await self.prepare_reply(packet)
             if final or failed:
