@@ -1,4 +1,4 @@
-"""Streaming DeepSeek adapter; credentials are injected, never discovered here."""
+"""Streaming chat adapters; credentials are injected, never discovered here."""
 
 import asyncio
 import json
@@ -28,11 +28,29 @@ def remote_model_options(remote):
     options = dict(remote['public'].get('model_options') or {})
     if options.get('fallback'):
         options['fallback'] = {**options['fallback'], 'api_key': remote['private']['fallback_api_key']}
+    if options.get('vision'):
+        options['vision'] = {**options['vision'], 'api_key': remote['private']['vision_api_key']}
     return options
+
+
+def has_image_inputs(messages):
+    return any(
+        isinstance(message.get('content'), list)
+        and any(part.get('type') == 'image_url' for part in message['content'])
+        for message in messages
+    )
 
 
 def configure_chat_payload(payload, protocol):
     """Adapt provider-specific thinking and forced tool selection outside the kernel."""
+    if protocol != 'ark':
+        # Ark ciphertext is provider-specific. Keep it in the stored message,
+        # but never forward it after switching back to a text provider.
+        payload['messages'] = [
+            {key: value for key, value in message.items() if key != 'encrypted_content'}
+            if 'encrypted_content' in message else message
+            for message in payload['messages']
+        ]
     if protocol == 'bailian_kimi':
         payload.pop('thinking', None)
         # Kimi K3 fixes its sampling temperature; business callers may pass a
@@ -49,6 +67,18 @@ def configure_chat_payload(payload, protocol):
             if not payload['tools']:
                 raise ValueError('指定工具不在当前授权工具列表中')
             payload['tool_choice'] = 'required'
+    elif protocol == 'ark':
+        # Ark accepts low/high/xhigh, whereas our shared image contract also
+        # carries DeepSeek's auto/original. Adapt only the outgoing snapshot.
+        payload['messages'] = [
+            {**message, 'content': [
+                {**part, 'image_url': {**part['image_url'], 'detail': 'high'}}
+                if part.get('type') == 'image_url'
+                and part['image_url'].get('detail') in ('auto', 'original') else part
+                for part in message['content']
+            ]} if isinstance(message.get('content'), list) else message
+            for message in payload['messages']
+        ]
     return payload
 
 
@@ -69,6 +99,7 @@ class DeepSeekModel:
         timeout_seconds=120,
         first_token_timeout_seconds=120,
         fallback=None,
+        vision=None,
     ):
         self.api_key, self.base_url, self.model = api_key, base_url.rstrip("/"), model
         self.thinking, self.max_tokens = thinking, max_tokens
@@ -79,6 +110,7 @@ class DeepSeekModel:
         self.timeout_seconds = timeout_seconds
         self.first_token_timeout_seconds = first_token_timeout_seconds
         self.fallback = fallback
+        self.vision = vision
 
     async def complete_request(self, request, on_delta):
         return await self.complete(
@@ -86,6 +118,22 @@ class DeepSeekModel:
         )
 
     async def complete(self, messages, tools, on_delta, *, tool_choice="auto"):
+        vision_context = {}
+        if self.image_store:
+            messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
+        if self.vision and has_image_inputs(messages):
+            # Route after resolving attachment references and the image budget.
+            # Text-provider failover must not intercept a dedicated vision error.
+            model = DeepSeekModel(**{
+                'thinking': self.thinking, 'max_tokens': self.max_tokens,
+                'response_format': self.response_format,
+                'timeout_seconds': self.timeout_seconds,
+                'first_token_timeout_seconds': self.first_token_timeout_seconds,
+                **self.vision,
+            })
+            result = await model.complete(messages, tools, on_delta, tool_choice=tool_choice)
+            result['vision_context'] = vision_context
+            return result
         emitted = False
 
         async def track_delta(kind, text):
@@ -96,27 +144,20 @@ class DeepSeekModel:
 
         try:
             async with asyncio.timeout(self.timeout_seconds):
-                return await self._complete_once(messages, tools, track_delta, tool_choice=tool_choice)
+                result = await self._complete_once(messages, tools, track_delta, tool_choice=tool_choice)
         except Exception as error:
             if not self.fallback or emitted or not provider_unavailable(error):
                 raise
             fallback = DeepSeekModel(**self.fallback, thinking=self.thinking, max_tokens=self.max_tokens,
-                                     image_store=self.image_store, response_format=self.response_format)
+                                     response_format=self.response_format)
             result = await fallback.complete(messages, tools, on_delta, tool_choice=tool_choice)
             result['failover'] = {'from_model': self.model, 'to_model': fallback.model,
                                   'reason': type(error).__name__, 'status_code': getattr(error, 'status_code', None)}
-            return result
+        result['vision_context'] = vision_context
+        return result
 
     async def _complete_once(self, messages, tools, on_delta, *, tool_choice):
-        vision_context = {}
-        if self.image_store:
-            messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
-        has_images = any(
-            isinstance(message.get("content"), list)
-            and any(part.get("type") == "image_url" for part in message["content"])
-            for message in messages
-        )
-        selected_model = self.vision_model if has_images else self.model
+        selected_model = self.vision_model if has_image_inputs(messages) else self.model
         payload = {
             "model": selected_model,
             "messages": messages,
@@ -145,7 +186,7 @@ class DeepSeekModel:
         metadata = model_metadata(model=selected_model, protocol=self.protocol, max_tokens=self.max_tokens,
                                   messages=payload["messages"], tools=payload.get("tools", []))
         payload["messages"] = metadata_messages(payload["messages"], metadata)
-        text, reasoning, calls, usage, finish = [], [], {}, {}, None
+        text, reasoning, encrypted, calls, usage, finish = [], [], [], {}, {}, None
         response_model = None
         frames = []
         pending = {"content": "", "reasoning": ""}
@@ -189,8 +230,10 @@ class DeepSeekModel:
                     for choice in item.get("choices", []):
                         finish = choice.get("finish_reason") or finish
                         delta = choice.get("delta") or {}
-                        if any(delta.get(key) for key in ('content', 'reasoning_content', 'tool_calls')):
+                        if any(delta.get(key) for key in ('content', 'reasoning_content', 'encrypted_content', 'tool_calls')):
                             first_token_deadline.reschedule(None)
+                        if self.protocol == 'ark' and delta.get('encrypted_content'):
+                            encrypted.append(delta['encrypted_content'])
                         for key, sink in (
                             ("content", text),
                             ("reasoning_content", reasoning),
@@ -227,6 +270,8 @@ class DeepSeekModel:
         message = {"role": "assistant", "content": "".join(text)}
         if reasoning:
             message["reasoning_content"] = "".join(reasoning)
+        if encrypted:
+            message['encrypted_content'] = ''.join(encrypted)
         if calls:
             message["tool_calls"] = [calls[i] for i in sorted(calls)]
         return {
@@ -235,7 +280,6 @@ class DeepSeekModel:
             "finish_reason": finish,
             "model": response_model or selected_model,
             "runtime_metadata": metadata,
-            "vision_context": vision_context,
             "request_payload": payload,
             "response_payload": {"stream": True, "frames": frames},
         }

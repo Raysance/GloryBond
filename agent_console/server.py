@@ -78,15 +78,17 @@ class ChatInput(BaseModel):
 
 
 def local_model_settings(config, remote, *, environment):
-    """Resolve only Web credentials; an endpoint override never reuses a remote key."""
+    """Resolve Web text credentials and retain the independent shared vision route."""
     overrides = config.get("llm")
+    options = remote_model_options(remote)
+    vision = options.get('vision')
     if not overrides:
         return {
-            **remote_model_options(remote),
+            **options,
             "api_key": remote["private"]["api_key"],
             "base_url": remote["public"]["base_url"],
             "model": remote["public"]["model"],
-            "vision_model": config.get("vision_model", remote["public"]["model"]),
+            "vision_model": vision['model'] if vision else config.get("vision_model", remote["public"]["model"]),
             "proxy_url": remote["public"].get("proxy_url", ""),
         }
     base_url, key_name = overrides.get("base_url"), overrides.get("api_key_env")
@@ -97,8 +99,9 @@ def local_model_settings(config, remote, *, environment):
         raise ValueError(f"本地模型密钥未配置：{key_name}")
     model = overrides.get("model", remote["public"]["model"])
     return {
+        **({'vision': vision} if vision else {}),
         "api_key": key, "base_url": base_url, "model": model,
-        "vision_model": overrides.get("vision_model", model),
+        "vision_model": vision['model'] if vision else overrides.get("vision_model", model),
         "proxy_url": overrides.get("proxy_url", ""),
     }
 
@@ -136,8 +139,9 @@ def create_app(*, config_path=None):
                 **os.environ,
             })
             for connection in (bridge, state_bridge):
-                if model_settings["api_key"] not in connection.secrets:
-                    connection.secrets.append(model_settings["api_key"])
+                for key in (model_settings['api_key'], (model_settings.get('vision') or {}).get('api_key')):
+                    if key and key not in connection.secrets:
+                        connection.secrets.append(key)
             public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model", "proxy_url")})
             model = DeepSeekModel(
                 **model_settings,

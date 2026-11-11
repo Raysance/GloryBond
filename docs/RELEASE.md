@@ -22,6 +22,30 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Independent Doubao vision routing — 2026-11-11
+
+QQ and local Web can route image-bearing requests through a shared `VisionAPI`
+with its own endpoint, named environment key, proxy and timeouts. The chosen
+model is `doubao-seed-2-1-lite-260915`. Text generation, reply composition and
+text failover retain their existing channel settings. Routing happens after
+attachment resolution and image-budget omission, including historical images and
+images supplied by tools. Ark image detail conversion affects only the request
+snapshot; existing conversation data and source pixels are preserved.
+Streaming encrypted thinking is retained verbatim through tool rounds, as required
+by Seed 2.1. Provider-specific ciphertext is omitted only from outgoing requests
+to other providers, leaving the saved messages intact.
+
+The worker exposes the vision key only in private settings and registers it for
+redaction. Vision failures retain their actual status and cannot trigger text
+failover. Offline checks cover routing, history, tools, provider-specific payloads,
+proxy and credential separation, metadata, legacy behavior and worker bootstrap.
+Validation passed 131 related Python checks, eight image UI checks and full manual
+validation (102 nodes, 33 documents, 111 source locations). Both the local and
+production Ark keys return `ModelNotOpen` for the chosen Lite model;
+successful live image recognition and a quality comparison remain pending model
+activation. API Key creation and activation instructions are documented in the
+[adapter guide](../agent_console/README.md#豆包识图接入).
+
 ## Host security maintenance — 2026-11-05
 
 Host maintenance now has guarded vendor updates, private restore points, service health checks and separate overnight update/reboot windows. Alibaba Cloud Linux system packages stay on official distribution repositories; Nginx uses official stable RPMs, PostgreSQL stays on major 16, and the standalone website Node runtime stays on major 22. Failed or incomplete transactions block unattended reboot. Application deployment remains separate. See [operations](../deployment/server_modules/SECURITY_UPDATES.md).

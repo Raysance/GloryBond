@@ -139,6 +139,11 @@ class ChatEnvironmentTests(unittest.TestCase):
         local_routes = [config['LocalAgent']['vision_model'], config['LocalAgent']['llm']['model'],
                         config['LocalAgent']['llm']['vision_model']]
         self.assertEqual(set(local_routes), {'deepseek/deepseek-v4.1-flash'})
+        self.assertEqual(config['VisionAPI'], {
+            'base_url': 'https://ark.cn-beijing.volces.com/api/v3', 'api_key_env': 'HOK_ARK_API_KEY',
+            'model': 'doubao-seed-2-1-lite-260915', 'protocol': 'ark', 'proxy_url': '',
+            'first_token_timeout_seconds': 45, 'timeout_seconds': 120,
+        })
         self.assertEqual(config['Proxy']['clash_url'], 'http://127.0.0.1:7890')
 
     def test_failover_uses_its_own_key_and_keeps_credentials_separate(self):
@@ -152,6 +157,24 @@ class ChatEnvironmentTests(unittest.TestCase):
         self.assertEqual(result['first_token_timeout_seconds'], 15)
         with self.assertRaisesRegex(ValueError, 'fallback key'):
             self.build_chat_config(config, {'PRIMARY_KEY': 'primary-secret'})
+
+    def test_vision_uses_only_its_named_key_and_validates_its_settings(self):
+        config = {'ChatAPI': {'base_url': 'https://text.invalid', 'model': 'text', 'api_key_env': 'TEXT_KEY'},
+                  'VisionAPI': {'base_url': 'https://ark.invalid/api/v3', 'model': 'vision',
+                                'api_key_env': 'ARK_KEY', 'protocol': 'ark', 'proxy_url': ''}}
+        env = {'TEXT_KEY': 'text-secret', 'ARK_KEY': 'vision-secret'}
+        result = self.build_chat_config(config, env)
+        self.assertEqual(result['api_key'], 'text-secret')
+        self.assertEqual(result['vision'], {'base_url': 'https://ark.invalid/api/v3', 'model': 'vision',
+                                          'protocol': 'ark', 'proxy_url': '', 'api_key': 'vision-secret'})
+        with self.assertRaisesRegex(ValueError, 'VisionAPI key'):
+            self.build_chat_config(config, {'TEXT_KEY': 'text-secret'})
+        for field in ('base_url', 'model'):
+            settings = {k: v for k, v in config['VisionAPI'].items() if k != field}
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'VisionAPI ' + field):
+                self.build_chat_config({**config, 'VisionAPI': settings}, env)
+        with self.assertRaisesRegex(ValueError, 'VisionAPI timeout_seconds'):
+            self.build_chat_config({**config, 'VisionAPI': {**config['VisionAPI'], 'timeout_seconds': 0}}, env)
 
     def run_environment_loader(self, files, initial_environment=None):
         loaded = []

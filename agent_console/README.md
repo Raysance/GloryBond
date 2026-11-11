@@ -12,7 +12,7 @@ local_debugger/.venv/bin/python -m agent_console
 
 然后打开 http://127.0.0.1:8765/ 。首次缺少环境时，先执行 `python3 local_debugger/setup_env.py`。端口可用 `--port` 覆盖，其他非密钥设置在根 `config.yaml` 的 `LocalAgent`。
 
-本地 Web 使用 `https://zenmux.ai/api/v1`，文字和图片均显式调用 `deepseek/deepseek-v4.1-flash`，`LocalAgent.llm.api_key_env` 引用现有 `.env` 的 `LLM_API_KEY`。远程 QQ 使用 DeepSeek 官方 `https://api.deepseek.com` 的 `deepseek-flash`，`ChatAPI.api_key_env` 引用同一 `.env` 的 `HOK_DEEPSEEK_API_KEY`。进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。ReAct、回复整理、联网角色生成及远程业务单轮文案使用对应渠道的相同端点和模型，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接。未提供配置的密钥时拒绝启动，不回退发送其他供应商旧密钥。删除 `LocalAgent.llm` 并重启即可继承服务器当前模型配置；切回其他供应商需同步修改端点、模型和密钥变量。
+本地 Web 的文字模型使用 `https://zenmux.ai/api/v1` 的 `deepseek/deepseek-v4.1-flash`，`LocalAgent.llm.api_key_env` 引用现有 `.env` 的 `LLM_API_KEY`。远程 QQ 的文字模型使用 DeepSeek 官方 `https://api.deepseek.com` 的 `deepseek-flash`，`ChatAPI.api_key_env` 引用同一 `.env` 的 `HOK_DEEPSEEK_API_KEY`。识图独立使用共享 `VisionAPI`，不随本地文字端点覆盖而替换密钥。进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。纯文字 ReAct、回复整理、联网角色生成及远程业务单轮文案沿用对应渠道的文字模型，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接。未提供配置的密钥时拒绝启动，不回退发送其他供应商旧密钥。删除 `LocalAgent.llm` 并重启即可继承服务器文字模型配置；切回其他供应商需同步修改端点、模型和密钥变量。
 
 QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭据仅通过 worker private 设置传递，并参与日志脱敏。本地 `LocalAgent.llm` 独立覆盖时继续使用本地模型配置；移除覆盖后继承服务器的主备模型和超时设置。
 
@@ -20,10 +20,33 @@ QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭�
 
 当前本地 `LocalAgent.llm.proxy_url` 与远程 `ChatAPI.proxy_url` 均为空，模型直连。模型客户端只采用对应渠道的显式代理，禁用环境代理继承。本地端点覆盖不继承远程的 loopback 代理地址。
 
+## 豆包识图接入
+
+1. 登录[火山方舟](https://ark.volcengine.com/region:cn-beijing/apikey)，在 API Key 管理中创建并保存 Key。已有方舟 Key 可继续使用。
+2. 在控制台的模型开通入口开通 **Seed 2.1 Lite**，模型 ID 为 `doubao-seed-2-1-lite-260915`；确认该 Key 所属项目有权调用。Key 创建与模型开通是独立步骤，返回 `ModelNotOpen` 时先检查开通状态。官方步骤见[快速入门](https://docs.volcengine.com/docs/ark/quick-start-beginner?lang=zh)，可用 ID 见[模型列表](https://docs.volcengine.com/docs/ark/model-list?lang=zh)。
+3. 将 Key 写入现有 `.env` 的 `HOK_ARK_API_KEY`，在现有 `config.yaml` 配置以下非密钥设置。需要单独管理识图 Key 时，可改用自己的 `api_key_env` 变量名。
+
+```yaml
+VisionAPI:
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  api_key_env: HOK_ARK_API_KEY
+  model: doubao-seed-2-1-lite-260915
+  protocol: ark
+  proxy_url: ''
+  first_token_timeout_seconds: 45
+  timeout_seconds: 120
+```
+
+QQ 的 worker 读取该配置，仅将 Key 放入 private 设置，QQ 和本地 Web 各自调用该视觉端点；公开模型选项、界面、轨迹和日志不包含 Key。本地 Web 从服务器 worker 继承 `VisionAPI`，因此也需先同步服务器配置和源码，再重启本地适配器。配置同步与发布沿用[现有部署流程](../docs/DEVELOPMENT.md#production-updates)，只更新目标字段，保留服务器当前登录会话和其他配置。
+
+附件解析及图片预算处理完成后，仍有图片的当前输入、历史追问和工具图片结果使用豆包；纯文字使用原渠道模型。`VisionAPI` 优先于旧 `vision_model`，未配置时保留旧路由。方舟将共享输入的 `auto` / `original` detail 映射为 `high`，仅调整请求副本。视觉失败明确报错，不借用文字主备端点或密钥；运行记录报告实际选用的视觉模型及接口返回的用量。识图模型切换不代表准确率已提高，须用相同图片对照验证。
+
+Seed 2.1 的流式思考摘要与 `encrypted_content` 分别保留，多轮工具调用将加密原文原样回传给方舟。切回文字供应商时仅从请求副本中移除方舟专用加密字段，保存的上下文仍完整。协议要求见[回传思考内容](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh)。
+
 ## 功能
 
 - 真实 DeepSeek 流式正文及接口返回的 `reasoning_content`。主执行阶段按渠道 thinking 配置支持自动工具调用中的推理，已有推理内容完整回传；旧无思考历史补空字段，只有强制或指定工具选择按 DeepSeek 协议关闭 thinking。回复表达阶段沿用渠道配置进行选句和编辑，不重新调查、计算或调用工具，界面不伪造思考过程。
-- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时使用 `LocalAgent.llm.vision_model`，同一 ReAct 循环继续调用工具并支持图片追问；当前文字和视觉均为 `deepseek/deepseek-v4.1-flash`。模型支持视觉输入，见 [ZenMux 模型说明](https://zenmux.ai/deepseek/deepseek-v4.1-flash)。
+- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时优先使用共享 `VisionAPI`，未配置时使用 `LocalAgent.llm.vision_model`；同一 ReAct 循环继续调用工具并支持图片追问。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。联网搜索统一经远程 worker 请求 [DeepSeek Search API](https://api-docs.deepseek.com/zh-cn/guides/search/)，默认复用服务器 `HOK_DEEPSEEK_API_KEY`，不使用本地 ZenMux 密钥。配置集中在 `DeepSeekSearch`，查询最多128字符、最多10条结果；默认读取长摘要，空结果与 HTTP 失败明确区分。旧阿里云实现及配置保留，聊天不再调用或回退。
 - 工具失败的 observation 附带 `data.error_details`：失败环节、异常类型、底层原因、有限定位与修复建议。SQL逐查询给出错误码/位置/提示，保留其他成功结果；Python沙箱给出退出码和有限stderr，网站错误保留HTTP状态。模型据此修正参数或改用其他来源。错误先脱敏后截断，不记录headers、局部变量或凭据；超时/断连写操作仍禁止自动重放。QQ、角色工具和后续注册的外部函数共用外部诊断注册表，内核协议不变。
 - KPL职业赛事数据：发现 `kpl` 后调用 `query_kpl`，直接读取 [KPL小助手](https://kplll.online/) 的公开 JSON 数据。支持18类查询：赛事、日期赛程、系列赛/小局BP、战队与最近赛程、选手与逐局表现、英雄统计/红蓝方摘要、分组积分、年度积分、分均输出/经济/承伤榜、MVP次数与英雄组合胜率。先查赛事与对象目录取得本站ID，名称和日期可过滤，不能混用营地、腾讯或B站ID。返回来源、范围、样本、分页/截断及可供Python/绘图使用的dataset_id；过大详情可用fields选择字段。第三方已收录资料不保证官方实时，不把缺失数据当零，不下载网页图片或调用站点AI/反馈功能。

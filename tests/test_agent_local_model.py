@@ -51,6 +51,17 @@ class LocalModelTests(unittest.TestCase):
         result = local_model_settings(self.local, self.remote, environment={'LLM_API_KEY': 'local-test-key'})
         self.assertEqual(result['vision_model'], 'separate-vision-model')
 
+    def test_local_text_override_retains_the_independent_remote_vision_provider(self):
+        self.remote['public']['model_options'] = {'vision': {
+            'base_url': 'https://ark.invalid/api/v3', 'model': 'doubao-vision', 'protocol': 'ark', 'proxy_url': ''}}
+        self.remote['private']['vision_api_key'] = 'vision-secret'
+        for config in ({}, self.local):
+            result = local_model_settings(config, self.remote, environment={'LLM_API_KEY': 'local-key'})
+            self.assertEqual(result['vision_model'], 'doubao-vision')
+            self.assertEqual(result['vision']['base_url'], 'https://ark.invalid/api/v3')
+            self.assertEqual(result['vision']['api_key'], 'vision-secret')
+            self.assertEqual(result['api_key'], 'local-key' if config else 'remote-test-key')
+
     def test_local_endpoint_override_does_not_inherit_a_remote_loopback_proxy(self):
         self.remote['public']['proxy_url'] = 'http://127.0.0.1:7890'
         self.assertEqual(local_model_settings(self.local, self.remote, environment={'LLM_API_KEY': 'test-key'})['proxy_url'], '')

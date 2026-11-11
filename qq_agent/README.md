@@ -112,15 +112,21 @@ API只读GET且无凭据、环境代理与重定向，保留查询范围、来�
 支持历史检索、游戏/聊天 SQL、联网搜索、参考映射、绘图、图片生成、隔离 Python、
 长期记忆、角色联网新增/选择/偏好、分段消息与持久任务。各类聊天均按需选择工具，
 当前资料足够时直接回答；首轮历史检索和能力发现可独立同轮调用，发现不重复返回已有目录。未披露或未授权
-工具不能执行。能力发现的说明从本轮授权注册表列出名称、用途和副作用，参数仍需按类别披露。主 ReAct 默认启用 thinking，自动工具选择保留推理，原生图片使用配置中的 vision_model；回复表达阶段沿用渠道 thinking 配置进行选句编辑，但不重新调查、计算或调用工具。
+工具不能执行。能力发现的说明从本轮授权注册表列出名称、用途和副作用，参数仍需按类别披露。主 ReAct 默认启用 thinking，自动工具选择保留推理，原生图片优先使用共享 VisionAPI，未配置时使用 vision_model；回复表达阶段沿用渠道 thinking 配置进行选句编辑，但不重新调查、计算或调用工具。
 
-当前 QQ 的文字、视觉、回复整理与联网角色生成使用 DeepSeek 官方
+当前 QQ 的文字、回复整理与联网角色生成使用 DeepSeek 官方
 `https://api.deepseek.com` 的 `deepseek-flash`。远程 `ChatAPI.api_key_env`
 引用现有 `.env` 中的 `HOK_DEEPSEEK_API_KEY`；业务单轮文案也使用该 ChatAPI。
 显式 `HOK_CHAT_API_KEY` 仍可覆盖，但部署启动环境不得遗留旧供应商配置。
 指定密钥缺失时拒绝启动，不回退其他供应商密钥。
 远程 `ChatAPI.proxy_url` 为空，工具循环、回复整理、角色生成和业务文案均直连，
 不继承环境代理。本地 Web 继续按自己的 llm 配置使用 ZenMux 与 `LLM_API_KEY`。
+
+识图独立使用 `VisionAPI` 的豆包 Seed 2.1 Lite（`doubao-seed-2-1-lite-260915`），
+Key 来自 `.env` 的 `HOK_ARK_API_KEY`，端点为 `https://ark.cn-beijing.volces.com/api/v3`。
+当前、历史及工具图片在实际仍有像素时走该端点，保留工具调用及图片追问；视觉失败不会进入文字备用模型。
+worker 通过 private 设置传递并脱敏该密钥，本地 Web 同样继承视觉配置。
+模型需先在火山方舟开通，完整申请及配置步骤见[豆包识图接入](../agent_console/README.md#豆包识图接入)。
 
 `ChatAPI.fallback` 使用百炼 `kimi-k3`，密钥来自现有 `.env` 的 `DASHSCOPE_API_KEY`。
 DeepSeek 15 秒没有首个有效输出，或发生连接故障、鉴权失败、限流、服务故障时自动回退。

@@ -125,6 +125,12 @@ Ordinary chat uses the configured DeepSeek-compatible endpoint directly with
 environment-proxy inheritance disabled. Credentials come from `.env`; provider,
 model, and behavior settings come from `config.yaml`.
 
+Image-bearing QQ and local Web requests can use an independent `VisionAPI`
+endpoint with the `ark` protocol. The selected Doubao Seed 2.1 Lite model must be
+opened in the Ark account before switching live traffic. Its named key stays in
+the existing `.env` and worker private settings; text-provider fallback does not
+handle vision errors. See [Doubao setup](../agent_console/README.md#豆包识图接入).
+
 Chat web search uses the configured DeepSeek search adapter. Its endpoint and limits are under `DeepSeekSearch` in `config.yaml`; credentials come from `.env`.
 
 Steam, APIMart, and X website subscriptions share the explicit `Proxy.clash_url` route from

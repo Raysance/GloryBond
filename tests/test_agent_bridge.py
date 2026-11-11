@@ -78,7 +78,9 @@ class WorkerBootstrapTests(unittest.TestCase):
                 'site_url': 'https://example.invalid', 'timeout_seconds': 1, 'max_response_bytes': 1024,
                 'max_rows': 10, 'max_nested_items': 10, 'max_observation_chars': 1000}
             args = {**bridge._bootstrap_arguments(), 'use_process_environment': True}
-            model = {'api_key': 'test-key', 'model': 'test', 'base_url': 'https://example.invalid', 'proxy_url': ''}
+            model = {'api_key': 'test-key', 'model': 'test', 'base_url': 'https://example.invalid', 'proxy_url': '',
+                     'vision': {'api_key': 'vision-secret', 'base_url': 'https://ark.invalid',
+                                'model': 'doubao-vision', 'protocol': 'ark'}}
             def functions(path, names, namespace):
                 namespace.update({name: Mock() for name in names})
                 namespace.update(_apply_secret_environment=lambda cfg, env: cfg,
@@ -96,6 +98,9 @@ class WorkerBootstrapTests(unittest.TestCase):
             self.assertEqual(result['public']['views_mode'], 'trusted_cte')
             self.assertEqual(result['public']['model'], 'test')
             store.ping.assert_called_once()
+            self.assertEqual(result['private']['vision_api_key'], 'vision-secret')
+            self.assertEqual(result['public']['model_options']['vision']['model'], 'doubao-vision')
+            self.assertNotIn('vision-secret', json.dumps(result['public']))
             self.assertNotIn('information_schema.views', str(cursor.execute.call_args_list))
 
 

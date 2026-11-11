@@ -219,6 +219,9 @@ def bootstrap(args):
     if model.get('fallback'):
         private['fallback_api_key'] = model['fallback']['api_key']
         model_options['fallback'] = {key: value for key, value in model['fallback'].items() if key != 'api_key'}
+    if model.get('vision'):
+        private['vision_api_key'] = model['vision']['api_key']
+        model_options['vision'] = {key: value for key, value in model['vision'].items() if key != 'api_key'}
     return {
         "private": private,
         "public": {

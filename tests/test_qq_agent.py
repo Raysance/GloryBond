@@ -209,6 +209,22 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.gateway.model.options['thinking'])
         self.assertFalse(self.gateway.runtime.finalizer.composer.model.options['thinking'])
 
+    async def test_shared_vision_route_keeps_its_own_credentials_and_overrides_legacy_name(self):
+        await self.gateway.close()
+        remote = await self.gateway.bridge.start()
+        remote['private']['vision_api_key'] = 'vision-secret'
+        remote['public']['model_options'] = {'vision': {
+            'model': 'doubao-vision', 'base_url': 'https://ark.invalid/api/v3', 'protocol': 'ark'}}
+        self.gateway.config['vision_model'] = 'legacy-vision'
+        with patch.object(type(self.gateway.bridge), 'start', AsyncMock(return_value=remote)):
+            await self.gateway.start()
+        options = self.gateway.model.options
+        self.assertEqual(options['model'], 'test-model')
+        self.assertEqual(options['api_key'], 'test-key')
+        self.assertEqual(options['vision_model'], 'doubao-vision')
+        self.assertEqual(options['vision']['api_key'], 'vision-secret')
+        self.assertEqual(options['vision']['base_url'], 'https://ark.invalid/api/v3')
+
     async def test_all_conversation_scopes_can_answer_without_a_tool_preamble(self):
         for user, group in [('101', '200'), ('101', None), ('999', None)]:
             with self.subTest(user=user, group=group):

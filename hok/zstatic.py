@@ -97,6 +97,22 @@ def _build_chat_api_config(config, environment):
             if key in values['fallback'] and float(values['fallback'][key]) <= 0:
                 raise ValueError(f'ChatAPI fallback {key} must be positive')
         values['fallback']['api_key'] = api_key
+    vision = config.get('VisionAPI')
+    if vision:
+        key_name = vision.get('api_key_env')
+        api_key = str(environment.get(key_name) or '').strip() if key_name else ''
+        if not api_key:
+            raise ValueError(f'VisionAPI key is not configured: {key_name}')
+        values['vision'] = {key: vision[key] for key in (
+            'base_url', 'model', 'proxy_url', 'protocol',
+            'timeout_seconds', 'first_token_timeout_seconds') if key in vision}
+        for key in ('base_url', 'model'):
+            if not values['vision'].get(key):
+                raise ValueError(f'VisionAPI {key} is not configured')
+        for key in ('timeout_seconds', 'first_token_timeout_seconds'):
+            if key in values['vision'] and float(values['vision'][key]) <= 0:
+                raise ValueError(f'VisionAPI {key} must be positive')
+        values['vision']['api_key'] = api_key
     return values
 
 
