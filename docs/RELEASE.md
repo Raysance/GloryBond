@@ -22,6 +22,36 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Structured foreground chat context — 2026-11-16
+
+QQ and local Web now assemble foreground input through one host-side state/model
+adapter. The current question, quote authorship and media stay together. History
+is selected as complete turns with separate budgets, and identified public copies
+are deduplicated without replacing detailed personal answers. Third-party quotes
+follow explicit message relationships; unrelated posts from the same author do
+not establish a shared topic. Subsequent questions retain the quote and answer.
+An optional read-only direct-history tool retrieves omitted tasks and formats
+from the trusted current session, without accepting another user or session ID.
+
+Reference records and personal facts are projected for the current input. Stable
+instructions and role presentation were shortened. The main model owns the full
+answer; short answers skip presentation generation, and longer answers only get
+a brief version. Presentation cannot rewrite the detailed answer. New history
+retains source IDs, times and quote input, with compatible reads of older records.
+Archives, authorization, background scheduling and private runtime pins remain
+unchanged. Context diagnostics distinguish estimated text budgets from reported
+provider usage; tool rounds and reasoning are preserved.
+
+Validation passed 438 final host regressions, targeted Web/trace checks, 40 deployment
+checks, five history-privacy checks and manual validation. Six real scenarios
+were replayed, including a four-step recognition conversation with successive
+generated answers carried forward. The original drift case was repeated: the
+final inputs stayed on the quoted image rather than unrelated game history.
+Its first input fell from 14,628 to 4,864 reported prompt tokens. Recorded tool
+observations were reused; no QQ test messages, task operations or personal-state
+writes were performed. Visual character identification remains unreliable; these
+bounded replays do not establish a general understanding or accuracy benchmark.
+
 ## Failed task details in QQ forwards — 2026-11-12
 
 Failed AI runs now use the existing detailed-forward and brief-message delivery

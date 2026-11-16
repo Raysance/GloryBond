@@ -1131,10 +1131,13 @@ def dispatch(args):
             pipe.rpush(
                 key,
                 json.dumps(
-                    {"role": "user", "content": args["question"]}, ensure_ascii=False
+                    {"role": "user", "content": args["question"],
+                     **({"turn": args["turn"]} if args.get("turn") else {})}, ensure_ascii=False
                 ),
                 json.dumps(
-                    {"role": "assistant", "content": args["answer"]}, ensure_ascii=False
+                    {"role": "assistant", "content": args["answer"],
+                     **({"turn": {key: value for key, value in args["turn"].items() if key != "input"}}
+                        if args.get("turn") else {})}, ensure_ascii=False
                 ),
             )
             pipe.ltrim(key, -20, -1)

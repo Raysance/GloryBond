@@ -300,6 +300,7 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "nickname": qid2nick(user_id),
         "group_id": group_id,
         "message_id": getattr(event, "message_id", None),
+        "mentioned_user_ids": tuple(mentioned_users),
         "message_timestamp": getattr(event, "time", None),
         "use_memory": use_memory,
         "quoted_message": normalize_quoted_message(event),

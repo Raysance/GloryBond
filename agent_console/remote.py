@@ -11,6 +11,7 @@ from .tool_errors import RemoteToolError, exception_details, redact_error
 from .bot_manual import load_manual_documents
 from .timeouts import IMAGE_RPC_TIMEOUT_SECONDS, SQL_RPC_TIMEOUT_SECONDS
 from .tools.memory import dialogue_with_sources
+from .chat_context import active_turn, observe_chat_event
 
 
 class BridgeUnavailable(ConnectionError):
@@ -271,6 +272,7 @@ class RemoteState:
         self.local_log = local_log
 
     async def append_event(self, session_id, event):
+        observe_chat_event(event)
         if self.event_projector:
             event = self.event_projector(event)
         await self.bridge.call(
@@ -284,9 +286,21 @@ class RemoteState:
         return events
 
     async def load_dialogue(self, session_id):
-        return dialogue_with_sources(await self.bridge.call("dialogue_load", session_id=session_id))
+        messages = await self.bridge.call("dialogue_load", session_id=session_id)
+        turn = active_turn()
+        if turn:
+            boundary = turn.record.get("timestamp")
+            if boundary is not None:
+                messages = [message for message in messages if message.get("turn", {}).get("timestamp") is None
+                            or float(message["turn"]["timestamp"]) <= float(boundary)]
+            turn.diagnostics["legacy_history_timestamps_unknown"] = any(
+                message.get("turn", {}).get("timestamp") is None for message in messages)
+            return messages
+        return dialogue_with_sources(messages)
 
     async def save_dialogue(self, session_id, question, answer):
+        turn = active_turn()
         await self.bridge.call(
-            "dialogue_save", session_id=session_id, question=question, answer=answer
+            "dialogue_save", session_id=session_id, question=question, answer=answer,
+            **({"turn": {**turn.record, "run_id": turn.run_id, "input": turn.current}} if turn else {})
         )

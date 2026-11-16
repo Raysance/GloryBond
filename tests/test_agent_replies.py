@@ -22,7 +22,7 @@ from tests.test_agent_runtime import ScriptedModel
 
 
 ROLE = json.loads(Path("shared/agent/roles/makise_kurisu.json").read_text())
-DETAIL = "这8场拿下5胜，胜率62.5%，这段战绩整体表现不错。统计范围为这8场。"
+DETAIL = "这8场拿下5胜，胜率62.5%，这段战绩整体表现不错。统计范围为这8场。" + "这些记录只描述当前样本，比较实力仍需要相同口径和充分依据。" * 12
 CHAT = "这8场拿下5胜，胜率62.5%，这段表现不错。"
 
 
@@ -84,8 +84,9 @@ class ValidationTests(unittest.TestCase):
             with self.subTest(detailed=detailed), self.assertRaises(ValueError):
                 validate_chat(json.dumps({"chat": CHAT, "detailed": detailed}), evidence, ReplyPolicy())
         edited = "统计范围为这8场，5胜，胜率62.5%。 https://example.com/source"
-        self.assertEqual(validate_chat(json.dumps({"chat": CHAT, "detailed": edited}),
-                                       evidence, ReplyPolicy()), CHAT)
+        with self.assertRaises(ValueError):
+            validate_chat(json.dumps({"chat": CHAT, "detailed": edited}), evidence, ReplyPolicy())
+        self.assertEqual(validate_chat(json.dumps({"chat": CHAT, "detailed": evidence}), evidence, ReplyPolicy()), CHAT)
 
     def test_detail_edit_cannot_be_blank_or_exceed_the_source_budget(self):
         for detailed in (" ", "长" * 1001):
@@ -164,19 +165,15 @@ class ValidationTests(unittest.TestCase):
 
 
 class ComposerTests(unittest.IsolatedAsyncioTestCase):
-    async def test_expression_edit_updates_both_delivery_and_history_without_overwriting_draft(self):
-        draft = "这是我的原则，这点不松口。"
-        edited = "认个角色写成答辩了，脚注比正文还长。"
-        ctx = FinalizationContext(RunRequest("认个角色还要答辩呢。", "session",
+    async def test_complete_short_answer_keeps_meaning_and_skips_a_second_model(self):
+        draft = "像是甲发的，但图里的人还不能确认。"
+        ctx = FinalizationContext(RunRequest("你怎么看", "session",
                                   Principal("owner", frozenset({"roleplay.use"}))), draft, [])
-        model = ScriptedModel([{"role": "assistant", "content": json.dumps(
-            {"chat": edited, "detailed": edited}, ensure_ascii=False)}])
+        model = ScriptedModel([])
         answer = await ReplyComposer(model=model, roles=Roles()).finalize(ctx, AsyncMock())
-        self.assertEqual(answer.variants, {"detailed": edited, "chat": edited})
-        self.assertEqual(answer.history_text, edited)
-        self.assertEqual(ctx.draft, draft)
-        self.assertEqual(len(model.requests), 1)
-        self.assertEqual(model.schemas, [[]])
+        self.assertEqual(answer.variants, {"detailed": draft, "chat": draft})
+        self.assertEqual(answer.history_text, draft)
+        self.assertEqual(model.requests, [])
 
     async def test_invalid_detail_edit_uses_the_existing_repair_budget(self):
         invalid = {"role": "assistant", "content": json.dumps({"chat": CHAT, "detailed": "结论不错。"})}
@@ -196,7 +193,7 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(answer.variants["detailed"], DETAIL)
         self.assertEqual(len(model.requests), 2)
         self.assertIn("reply.validation", emitted)
-        self.assertIn("回复表达约定", model.requests[0][0]["content"])
+        self.assertLess(len(model.requests[0][0]["content"]), 1000)
 
     async def test_qq_degraded_full_draft_retains_detailed_delivery(self):
         model = ScriptedModel([{"role": "assistant", "content": "invalid"}])
@@ -282,7 +279,7 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(roles.users, ["owner"])
         self.assertEqual(answer.metadata["role_id"], "makise_kurisu")
         packet = json.loads(model.requests[0][1]["content"])
-        self.assertEqual(packet["role"]["voice"]["examples"], ROLE["voice"]["examples"])
+        self.assertEqual(packet["role"], {"name": ROLE["name"]})
         self.assertNotIn("profile", packet["role"])
         self.assertEqual(packet["answer"], DETAIL)
         self.assertEqual(set(packet), {"question", "answer", "role", "preferences"})
@@ -312,8 +309,8 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(answer.metadata["role_id"], "assistant")
         self.assertEqual(answer.history_text, answer.text)
         self.assertEqual(
-            json.loads(model.requests[0][1]["content"])["role"]["voice"]["tone"],
-            neutral["voice"]["tone"],
+            json.loads(model.requests[0][1]["content"])["role"]["name"],
+            neutral["name"],
         )
 
     async def test_literal_guard_repair_does_not_repeat_tools_or_mutate_detail(self):

@@ -350,6 +350,8 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual("".join(nodes), text)
             self.assertTrue(all(len(node) <= 12 for node in nodes))
 
-    def test_both_generation_stages_share_concrete_fact_style(self):
-        for instruction in (application_prompt(), reply_instruction(ReplyPolicy())):
-            self.assertIn(reply_style_instruction(), instruction)
+    def test_main_answer_owns_style_and_brief_generation_has_a_smaller_contract(self):
+        self.assertIn(reply_style_instruction(), application_prompt())
+        brief = reply_instruction(ReplyPolicy())
+        self.assertNotIn(reply_style_instruction(), brief)
+        self.assertLess(len(brief), 1000)

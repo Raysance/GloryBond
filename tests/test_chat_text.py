@@ -40,9 +40,9 @@ class PlayerDisplayTests(unittest.TestCase):
                             identity_names={"123456789": "示例玩家65", "987654321": "示例玩家51"}, aliases=["脚"])
 
     def test_configured_nicknames_replace_raw_keys_and_incorrect_aliases(self):
-        self.assertEqual(self.render("推荐lry与wzy；LRY（示例玩家65）和jiao（脚）。"), "推荐示例玩家65与示例玩家51；示例玩家65和示例玩家34。")
+        self.assertEqual(self.render("推荐example_user_10与example_user_21；EXAMPLE_USER_10（示例玩家65）和example_user_7（脚）。"), "推荐示例玩家65与示例玩家51；示例玩家65和示例玩家34。")
         self.assertEqual(self.render("示例玩家51（example_user_10）× example_user_21（示例玩家65）"), "示例玩家65× 示例玩家51")
-        self.assertEqual(self.render("sh与jiao（本赛季0场）"), "sh与示例玩家34（本赛季0场）")
+        self.assertEqual(self.render("sh与example_user_7（本赛季0场）"), "sh与示例玩家34（本赛季0场）")
 
     def test_labeled_ids_disappear_and_unlabeled_known_ids_become_names(self):
         self.assertEqual(self.render("example_user_10（qid: 123456789，role_id=556677）胜率62.5%。"), "示例玩家65胜率62.5%。")

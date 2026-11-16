@@ -31,6 +31,7 @@ def build_trace(events, *, answer="", status="ok"):
                     "system_messages": [m for m in messages if m.get("role") == "system"],
                     "context_messages": [m for m in messages if m.get("role") != "system"],
                     "tool_definitions": tools, "tool_choice": data.get("tool_choice", "none"),
+                    **({"assembly": data["context_assembly"]} if data.get("context_assembly") else {}),
                 },
             }
             rounds.append(current)

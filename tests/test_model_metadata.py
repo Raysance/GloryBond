@@ -76,6 +76,7 @@ class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_usage_reaches_following_round_and_reply_without_entering_dialogue(self):
         requests = []
+        detailed = "结果为8。" + "这里保留完整的计算说明。" * 30
         usages = [
             {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110,
              "prompt_cache_hit_tokens": 60, "prompt_cache_miss_tokens": 40,
@@ -87,7 +88,7 @@ class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
             body = json.loads(request.content)
             requests.append(body)
             index = len(requests) - 1
-            return stream(text=json.dumps({"chat": "结果为8。"}) if index == 2 else "结果为8。",
+            return stream(text=json.dumps({"chat": "结果为8。"}) if index == 2 else detailed,
                           usage=usages[index], tool=index == 0)
         assistant = next(role for role in BUILTINS if role["role_id"] == "assistant")
         runtime, state = self.runtime(finalizer=ReplyComposer(model=self.provider(), roles=Roles(assistant)))
@@ -105,6 +106,7 @@ class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply["run"]["cumulative_usage"]["total_tokens"], 250)
         self.assertEqual(reply["run"]["usage_counter_calls"]["total_tokens"], 2)
         self.assertEqual(result["text"], "结果为8。")
+        self.assertEqual(result["variants"]["detailed"], detailed)
         self.assertNotIn("runtime_metadata", json.dumps(state.dialogue))
         self.assertEqual(request.system_prompt, "保持事实准确")
         self.assertTrue(all(sum(message.get("content", "").count('"runtime_metadata"')

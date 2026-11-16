@@ -272,12 +272,15 @@ class WebEndpointTests(unittest.TestCase):
         self.addCleanup(client.close)
         client.get("/")
         message = "总结 https://example.com/article"
-        result = client.post("/api/chat", headers={"X-Local-UI": "1"},
-                             json={"session_id": "page-test", "message": message})
+        with patch("agent_console.server.time.time", return_value=20):
+            result = client.post("/api/chat", headers={"X-Local-UI": "1"},
+                                 json={"session_id": "page-test", "message": message})
         self.assertEqual(result.status_code, 200)
         request = captured[0]
         self.assertEqual(request.user_message, message)
         self.assertEqual(request.system_prompt, "test system prompt")
+        self.assertEqual(request.metadata["message_timestamp"], 20)
+        self.assertEqual(request.metadata["chat_context"]["record"]["timestamp"], 20)
         self.assertIn("安琪拉技能伤害提升", request.context_messages[0]["content"])
         self.assertEqual(request.context_messages[0]["role"], "user")
         logged = [call.args[0] for call in app.state.local_log.record.await_args_list]

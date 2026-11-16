@@ -58,7 +58,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         bridge.call.side_effect = [OSError('database unavailable'), {'messages': []}]
         with self.assertLogs('qq_agent.context', 'WARNING'):
             context = await group_context(bridge, principal(), '42')
-        self.assertIn('"available": false', context[0]['content'])
+        self.assertIn('"available":false', context[0]['content'])
 
     async def test_private_context_is_not_injected_even_for_admin_with_default_query_group(self):
         bridge = AsyncMock()
@@ -73,7 +73,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         bridge.call.side_effect = stalled
         with self.assertLogs('qq_agent.context', 'WARNING'):
             context = await group_context(bridge, principal(), '42', timeout_seconds=.01)
-        self.assertIn('"available": false', context[0]['content'])
+        self.assertIn('"available":false', context[0]['content'])
         task = asyncio.create_task(group_context(bridge, principal(), '42'))
         await asyncio.sleep(0)
         task.cancel()

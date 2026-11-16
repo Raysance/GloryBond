@@ -226,6 +226,9 @@ def register_application_tools(registry, *, service, catalogs):
     async def recent(args, ctx):
         return await service.recent_history(args.model_dump(), ctx)
 
+    async def direct(args, ctx):
+        return await service.direct_history(ctx)
+
     async def sql(args, ctx, domain):
         queries = [
             {**item.model_dump(), "intent": item.intent or ctx.request.user_message}
@@ -384,6 +387,16 @@ def register_application_tools(registry, *, service, catalogs):
             (),
             30,
             "message_send",
+        ),
+        (
+            "read_direct_history",
+            "读取当前调用者在当前会话的直接问答与详细答案，用于取回被省略的原任务、格式或依据；不能选择其他用户或会话。",
+            EmptyArgs,
+            direct,
+            "chat_history",
+            (),
+            20,
+            "read",
         ),
         (
             "search_chat_history",

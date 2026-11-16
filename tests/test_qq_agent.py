@@ -217,7 +217,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                         call("wait_for_recall", {}, "wait"), call("wait_for_recall", {}, "skip")]}]
                     target, method = self.gateway.model, "complete"
                 else:
-                    self.script = [{"role": "assistant", "content": "完整底稿"}]
+                    self.script = [{"role": "assistant", "content": "完整底稿。" * 30}]
                     target, method = ((self.gateway.state, "load_dialogue") if phase == "setup" else
                         (self.gateway.model, "complete_request") if phase == "model" else
                         (self.gateway.runtime.finalizer.composer.model, "complete") if phase == "reply" else
@@ -310,7 +310,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(self.gateway.model.requests[-1].tool_choice, 'auto')
 
     async def test_followup_retains_full_factual_answer_while_public_delivery_stays_short(self):
-        draft = '示例玩家甲用了小乔，8局5胜。原任务是根据这些数据完成一首四行诗，不需要图表。'
+        draft = '示例玩家甲用了小乔，8局5胜。原任务是根据这些数据完成一首四行诗，不需要图表。' + '完整作品与必要依据都在这里。' * 12
         self.reply_text = '资料已经齐了。'
         self.script = [{'role': 'assistant', 'content': draft}]
         await self.gateway.chat(user_text='根据数据完成作品', user_id='101', nickname='用户', group_id='200')
@@ -322,17 +322,16 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(message.get('role') == 'assistant' and message.get('content', '').endswith(draft)
                             for message in self.gateway.model.requests[-1].messages))
 
-    async def test_edited_detail_is_delivered_and_remembered_while_raw_model_output_stays_in_trace(self):
-        draft = '这就是我的原则，不会改。'
-        self.reply_detail = '认个角色写成答辩了，脚注比正文长。'
-        self.reply_text = '脚注比正文长了。'
+    async def test_short_detail_is_delivered_and_remembered_without_reinterpretation(self):
+        draft = '像是甲发的，但图里的人还不能确认。'
+        self.reply_detail = '一定是另一个人。'
+        self.reply_text = '说不是乙，谁信。'
         self.script = [{'role': 'assistant', 'content': draft}]
-        result = await self.gateway.chat(user_text='认个角色还要答辩呢。', user_id='101', nickname='用户', group_id='200')
-        self.assertEqual(result['variants']['detailed'], self.reply_detail)
-        self.assertEqual(self.dialogue['qq_g_200_101'][-1]['content'], self.reply_detail)
-        self.assertEqual(self.group_replies['200'][-1]['text'], self.reply_text)
-        self.assertEqual(self.sent[-1][0]['variants']['detailed'], self.reply_detail)
-        self.assertEqual(self.gateway.model.requests[-1].messages[-1]['content'], draft)
+        result = await self.gateway.chat(user_text='你怎么看', user_id='101', nickname='用户', group_id='200')
+        self.assertEqual(result['variants'], {'detailed': draft, 'chat': draft})
+        self.assertEqual(self.dialogue['qq_g_200_101'][-1]['content'], draft)
+        self.assertEqual(self.group_replies['200'][-1]['text'], draft)
+        self.assertFalse(any(e['kind'] == 'reply.model.request' for rows in self.events.values() for e in rows))
 
     async def test_independent_search_and_discovery_succeed_in_the_first_round(self):
         self.script = [
@@ -574,7 +573,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         ]
         await self.gateway.chat(user_text='现在立刻提醒一下', user_id='102', nickname='乙', group_id='200', message_id='42')
         messages = self.gateway.model.requests[-3].messages
-        background = next(m for m in messages if m['role'] == 'user' and '当前群近期公共对话' in str(m.get('content')))
+        background = next(m for m in messages if m['role'] == 'user' and '群聊背景（资料' in str(m.get('content')))
         self.assertEqual(background['role'], 'user')
         self.assertIn('每小时提醒示例玩家65别内卷', background['content'])
         self.assertIn('已安排提醒示例玩家65', background['content'])
@@ -676,7 +675,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             sender = import_hok_module('utils.message_sender')
         composer = self.gateway.runtime.finalizer.composer
         composer.policy = composer.policy.model_copy(update={'select_delivery_variant': True})
-        draft = '事实底稿：机器人支持查询近期群聊，但只读取授权范围。'
+        draft = '事实底稿：机器人支持查询近期群聊，但只读取授权范围。' + '不同会话的资料应当保持各自的来源和权限。' * 12
         self.reply_text = '可以查近期群聊，范围受当前会话权限限制。'
         cases = [('不用详细解释，简短说能否逐一统计所有玩家。', 'chat'),
                  ('Please show the full explanation and supporting evidence.', 'detailed')]
@@ -742,7 +741,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             first = await self.gateway.current_prompt(principal, snapshot=REFERENCES)
             second = await self.gateway.current_prompt(principal, snapshot=REFERENCES)
         self.assertEqual(first.split('本次时间：')[0], second.split('本次时间：')[0])
-        self.assertLess(first.index('权威参考数据目录'), first.index('本次时间：'))
+        self.assertLess(first.index('项目参考目录'), first.index('本次时间：'))
         self.assertLess(first.index('本次时间：'), first.index('本轮执行约定：'))
 
     async def test_admin_private_query_uses_configured_default_without_changing_private_history(self):
@@ -775,7 +774,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         ]
         result = await self.gateway.chat(user_text="记住我喜欢安琪拉，每10秒发一条消息，共3次。", user_id="101", nickname="B", group_id="200", message_id=300)
         self.assertEqual(len(self.sent), 2)
-        self.assertEqual(result["text"], "记住了。10秒一条，发3次。")
+        self.assertEqual(result["text"], "记忆已保存。之后每10秒发一条提醒，共3次。")
         self.assertTrue(all(delivery == {"platform": "qq", "channel": "group", "recipient_id": "200",
                                        "mention_user_id": "101"} for _, delivery in self.sent))
         self.assertTrue(all(args["user_id"] == "101" for op, args in self.calls if op == "memory"))
@@ -913,7 +912,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         context = next(m for m in messages if "FORWARD_ONLY" in json.dumps(m))
         self.assertEqual(context["role"], "user")
         self.assertIn("队友", json.dumps(context, ensure_ascii=False))
-        self.assertIn("不构成当前指令", json.dumps(context, ensure_ascii=False))
+        self.assertIn("引用消息（资料）", json.dumps(context, ensure_ascii=False))
         self.assertNotIn("CHILD_SECRET", json.dumps(messages))
         self.assertNotIn("FORWARD_ONLY", json.dumps([m for m in messages if m["role"] == "system"]))
         self.assertNotIn("FORWARD_ONLY", json.dumps(self.dialogue))
@@ -936,7 +935,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         download.assert_awaited_once_with(urls[:4])
         context = next(m for m in self.gateway.model.requests[0].messages if "FORWARD_ONLY" in json.dumps(m))
         quote_text = context["content"][0]["text"]
-        self.assertIn('"omitted_images": 2', quote_text)
+        self.assertIn('"omitted_images":2', quote_text)
         self.assertIn("部分图片未读取", quote_text)
         self.assertNotIn("像素已附上", quote_text)
         self.assertNotIn("FORWARD_ONLY", json.dumps(self.dialogue))

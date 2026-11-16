@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import secrets
 import traceback
+import time
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -39,6 +40,7 @@ from .roleplay import RoleplayService
 from .replies import DeliveryHistory, ReplyComposer, ReplyPolicy
 from .identity import local_principal
 from .model_metadata import observe_model_event
+from .chat_context import ChatContextPolicy, ChatModel, chat_metadata, current_message
 from .webpages import WebPageFetcher, WebPageLimits
 from .tools.roleplay import PreferencesArgs, SelectArgs, register_roleplay_tools
 
@@ -110,6 +112,7 @@ def create_app(*, config_path=None):
     root = Path(__file__).resolve().parents[1]
     document = yaml.safe_load(Path(config_path or root / "config.yaml").read_text())
     config = document.get("LocalAgent", {})
+    context_policy = ChatContextPolicy.model_validate(config.get("context", {}))
     token = secrets.token_urlsafe(32)
     shared = root / "shared/agent"
     public = {}
@@ -188,7 +191,7 @@ def create_app(*, config_path=None):
                 bridge, event_projector=image_store.project_event, local_log=local_log
             )
             runtime = AgentRuntime(
-                model=model,
+                model=ChatModel(model),
                 registry=registry,
                 state=state,
                 output=broker,
@@ -228,8 +231,9 @@ def create_app(*, config_path=None):
                     + "\n本次请求时间："
                     + Clock().now()
                     + "\n"
-                    + reference_prompt(snapshot)
-                    + await roles.context(principal, query)
+                    + reference_prompt(snapshot, user_ids=(principal.user_id,), query=query,
+                                       budget=context_policy.reference_tokens)
+                    + await roles.context(principal, query, memory_budget=context_policy.memory_tokens)
                     + "\n本轮执行约定：" + application_prompt()
                 )
 
@@ -390,6 +394,7 @@ def create_app(*, config_path=None):
 
     @app.post("/api/chat")
     async def chat(body: ChatInput):
+        received_at = time.time()
         if body.session_id in active_sessions:
             raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
         try:
@@ -431,7 +436,11 @@ def create_app(*, config_path=None):
             principal=principal,
             system_prompt=prompt,
             required_tools=chat_required_tools(),
-            metadata={"role_name": role_name},
+            metadata={"role_name": role_name, "message_timestamp": received_at, "chat_context": chat_metadata(
+                current=current_message(message, actor={"user_id": principal.user_id,
+                    "name": principal.attributes.get("identity", {}).get("name", "")}, images=images),
+                context_count=len(page_context.messages), policy=context_policy.model_dump(),
+                user_id=principal.user_id, timestamp=received_at)},
         )
         run_id = app.state.runtime.submit(request)
         active_sessions[body.session_id] = run_id
