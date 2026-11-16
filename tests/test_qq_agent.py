@@ -195,6 +195,77 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         await self.gateway.start()
         self.addAsyncCleanup(self.gateway.close)
 
+    async def test_recall_cancels_model_tool_and_reply_and_preserves_cancelled_trace(self):
+        from pydantic import BaseModel
+        from qq_agent.inflight import ChatRollouts
+
+        class EmptyArgs(BaseModel):
+            pass
+
+        for phase in ("setup", "model", "tool", "reply", "delivery"):
+            with self.subTest(phase=phase):
+                started = asyncio.Event()
+
+                async def blocked(*args):
+                    started.set()
+                    await asyncio.Event().wait()
+
+                if phase == "tool":
+                    self.gateway.runtime.registry.register(name="wait_for_recall", description="wait",
+                        args_model=EmptyArgs, handler=blocked)
+                    self.script = [{"role": "assistant", "content": "", "tool_calls": [
+                        call("wait_for_recall", {}, "wait"), call("wait_for_recall", {}, "skip")]}]
+                    target, method = self.gateway.model, "complete"
+                else:
+                    self.script = [{"role": "assistant", "content": "完整底稿"}]
+                    target, method = ((self.gateway.state, "load_dialogue") if phase == "setup" else
+                        (self.gateway.model, "complete_request") if phase == "model" else
+                        (self.gateway.runtime.finalizer.composer.model, "complete") if phase == "reply" else
+                        (self.gateway.output, "prepare_reply"))
+                rollouts = ChatRollouts()
+                key = ("300", "group", "200", "101", phase)
+                with patch.object(target, method, side_effect=blocked):
+                    job = asyncio.create_task(rollouts.run(key, lambda: self.gateway.chat(
+                        user_text="请分析", user_id="101", nickname="用户", group_id="200", message_id=phase)))
+                    await asyncio.wait_for(started.wait(), 3)
+                    # Cancellation must still prepare/save the cancelled trace.
+                    if phase == "delivery":
+                        target.prepare_reply.side_effect = None
+                        target.prepare_reply.return_value = {}
+                    self.assertTrue(rollouts.recall(key))
+                    self.assertIsNone(await asyncio.wait_for(job, 3))
+                    if phase == "delivery":
+                        trace = target.prepare_reply.call_args.args[0]["trace"]
+                        self.assertEqual(trace["status"], "cancelled")
+                        self.assertEqual(trace["question"], "请分析")
+                        self.assertTrue(trace["rounds"])
+                events = self.events["qq_g_200_101"]
+                self.assertEqual(events[-1]["data"]["status"], "cancelled")
+                self.assertFalse(self.sent)
+                self.assertFalse(self.gateway.runtime.active)
+                self.assertFalse(self.gateway.output.events)
+                self.assertFalse(self.gateway.output.finals)
+                self.assertFalse(self.gateway.output.results)
+                self.assertFalse(self.gateway.mentions.targets)
+                if phase == "tool":
+                    results = [e["data"]["result"]["code"] for e in events if e["kind"] == "tool.result"]
+                    self.assertEqual(results, ["CANCELLED", "SKIPPED_CANCELLED"])
+
+    async def test_cancelled_run_with_cached_final_saves_trace_without_sending_it(self):
+        from agent_runtime.runtime.output import EventOutput
+        principal = qq_principal("101", "200", "用户", admin_id="999", references=REFERENCES)
+        request = RunRequest("原问题", "cancelled-session", principal,
+                             metadata={"delivery": principal.attributes["delivery"]})
+        emitter = EventOutput(request, self.gateway.state, self.gateway.output, self.gateway.clock)
+        prepare = AsyncMock(side_effect=lambda packet: packet)
+        with patch.object(self.gateway.output, "prepare_reply", prepare):
+            await emitter.emit("run.start", {"message": "原问题"})
+            await emitter.emit("output.message", {"kind": "final", "text": "尚未发送的回答"})
+            await emitter.emit("run.end", {"status": "cancelled"})
+        self.assertFalse(self.sent)
+        self.assertEqual(prepare.call_args.args[0]["trace"]["status"], "cancelled")
+        self.assertFalse(self.gateway.output.finals)
+
     async def test_model_uses_configured_remote_proxy_and_model_as_vision_fallback(self):
         self.assertEqual(self.gateway.model.options['proxy_url'], 'http://configured-proxy.invalid:7890')
         self.assertEqual(self.gateway.model.options['vision_model'], 'test-model')

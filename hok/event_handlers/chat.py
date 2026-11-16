@@ -3,9 +3,33 @@
 import asyncio
 import re
 
+from qq_agent.inflight import ChatRollouts
+
+
+live_chat_rollouts = ChatRollouts()
+
 
 def _field(value, name, default=None):
     return value.get(name, default) if isinstance(value, dict) else getattr(value, name, default)
+
+
+def chat_message_key(event):
+    """Use adapter identity, never quoted IDs or model-supplied metadata."""
+    bot, user, message = (_field(event, field) for field in ("self_id", "user_id", "message_id"))
+    group = _field(event, "group_id")
+    if any(value is None or str(value) == "" for value in (bot, user, message)):
+        return None
+    return (str(bot), "group" if group is not None else "private",
+            str(group) if group is not None else str(user), str(user), str(message))
+
+
+def cancel_recalled_chat(event):
+    kind = _field(event, "notice_type")
+    if kind not in {"group_recall", "friend_recall"}:
+        return False
+    if (kind == "group_recall") != (_field(event, "group_id") is not None):
+        return False
+    return live_chat_rollouts.recall(chat_message_key(event))
 
 
 def _cq_unescape(value):

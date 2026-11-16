@@ -31,6 +31,13 @@ class QQOutput:
                 self.delivery_history.parts.pop(event["run_id"], None)
                 if self.mentions:
                     self.mentions.finish(event["run_id"])
+                if event["data"].get("status") == "cancelled":
+                    run = event["run_id"]
+                    for cache in (self.events, self.finals, self.artifacts, self.results):
+                        cache.pop(run, None)
+                    for key in list(self.local_artifacts):
+                        if key[0] == run:
+                            self.local_artifacts.pop(key)
 
     async def send(self, packet, delivery, event):
         if self.mentions:
@@ -80,9 +87,13 @@ class QQOutput:
             else:
                 await self.send({"text": data["text"], "artifacts": []}, delivery, event)
         elif kind == "run.end":
-            final = self.finals.pop(run, None)
-            events = self.events.pop(run, [])
-            artifacts = self.artifacts.pop(run, [])
+            # Retain the snapshot until preparation/delivery finishes: a recall
+            # during either await must still build the complete cancelled trace.
+            final = self.finals.get(run)
+            events = self.events.get(run, [])
+            artifacts = self.artifacts.get(run, [])
+            if data.get("status") == "cancelled":
+                final = None
             failed = data.get("status") == "failed"
             text = "本次AI任务未完成，请稍后重试。" if failed else final["text"] if final else "\n\n".join(
                 e["data"].get("text", "") for e in events if e["kind"] == "output.message")
@@ -102,4 +113,7 @@ class QQOutput:
                 await self.send(prepared, delivery, event)
                 if event.get("metadata", {}).get("origin") != "background":
                     self.results[run] = prepared
+            self.finals.pop(run, None)
+            self.events.pop(run, None)
+            self.artifacts.pop(run, None)
         self.delivery_history.record(event)

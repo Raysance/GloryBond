@@ -10,6 +10,7 @@ from uuid import uuid4
 import httpx
 
 from agent_runtime import AgentRuntime, FinalAnswer, Principal, RunRequest
+from agent_runtime.runtime.output import EventOutput
 from agent_console.timeouts import application_budget
 from agent_console.automation import AutomationPolicy
 from agent_console.tools.diagnostics import DiagnosticToolRegistry
@@ -434,7 +435,20 @@ class QQAgentService:
                                          "user_id": principal.user_id, "name": str(nickname)}},
         )
         run_id = self.runtime.submit(request)
-        result = await self.runtime.active[run_id]
+        try:
+            # Let the runtime own cancellation and finish its journal/IO cleanup.
+            result = await asyncio.shield(self.runtime.active[run_id])
+        except asyncio.CancelledError:
+            await self.runtime.cancel(run_id)
+            # Runtime setup (including dialogue loading) precedes its loop's
+            # cancellation handler. Finish any already-published setup record.
+            pending = self.output.events.get(run_id)
+            if pending:
+                emitter = EventOutput(request, self.state, self.output, self.clock)
+                emitter.sequence = max(event["sequence"] for event in pending)
+                await emitter.emit("run.end", {"status": "cancelled"})
+            self.output.results.pop(run_id, None)
+            raise
         return self.output.results.pop(run_id, result)
 
     async def tick(self):

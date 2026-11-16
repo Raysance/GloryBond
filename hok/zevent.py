@@ -58,6 +58,7 @@ async def handle_all_messages(event: MessageEvent):
 
 # EVENT
 _group_poke = on_notice()
+_chat_recall = on_notice(priority=0, block=False)
 _qid_blocked=on_message(rule=judge_qid_blocked,priority=1, block=True)
 _repair=on_fullmatch("##r",rule=judge_super_command,priority=1, block=True)
 _service_health = on_fullmatch({"##health", "＃＃health", "##连通性检查", "＃＃连通性检查"}, rule=judge_super_command, priority=1, block=True)
@@ -836,10 +837,10 @@ async def f_history_query(event: Event):
 @_direct_chat.handle()
 @_chat.handle()
 async def f_chat(bot,event):
-    from .event_handlers.chat import prepare_live_chat_request
+    from .event_handlers.chat import chat_message_key, live_chat_rollouts, prepare_live_chat_request
     from .zfunc import agent_chat
 
-    try:
+    async def respond():
         request = await prepare_live_chat_request(event, common_expr, dmc.use_mem, bot.get_msg, bot.get_forward_msg)
         if request is None:
             return
@@ -850,6 +851,9 @@ async def f_chat(bot,event):
                 source="chat",
             )
         await agent_chat(**request)
+
+    try:
+        await live_chat_rollouts.run(chat_message_key(event), respond)
     except Exception as e:
         add_msg(
             "AI对话失败：location=zevent.f_chat "
@@ -859,6 +863,13 @@ async def f_chat(bot,event):
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
+
+
+@_chat_recall.handle()
+async def f_chat_recall(event: Event):
+    from .event_handlers.chat import cancel_recalled_chat
+
+    cancel_recalled_chat(event)
 
 
 @_player_client.handle()
