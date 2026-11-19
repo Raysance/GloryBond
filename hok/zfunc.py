@@ -836,7 +836,8 @@ def _list_group_chat_history_groups_redis():
     return groups
 
 
-def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply_to_message_id=None):
+def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply_to_message_id=None,
+                              mentions=None, plain_text=None):
     """Persist one inbound group message to PostgreSQL, with Redis fallback."""
     from .ztime import current_datetime_text, current_epoch_seconds
 
@@ -854,6 +855,10 @@ def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply
         "timestamp": current_epoch_seconds(),
         "text": normalized_text,
     }
+    if mentions is not None:
+        record["mentions"] = [dict(item) for item in mentions]
+    if plain_text is not None:
+        record["plain_text"] = str(plain_text)
     try:
         from . import zdb
         zdb.upsert_group_chat_message(record, trusted_group_id=group_id)

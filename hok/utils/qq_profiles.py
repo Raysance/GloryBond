@@ -1,8 +1,49 @@
 """QQ profile/account adapter boundary; no business decisions or message sending."""
 
+import asyncio
 import base64
+import logging
 import nonebot
 from ..zstatic import confs
+
+
+MENTION_SNAPSHOT_TIMEOUT_SECONDS = 2
+
+
+async def snapshot_group_mentions(group_id, user_ids):
+    """Best-effort receipt-time names for native mentions, never an identity grant."""
+    mentions = [{"user_id": user, "nickname": None, "group_card": None,
+                 "display_name": "全体成员" if user == "all" else None}
+                for user in dict.fromkeys(map(str, user_ids))]
+    members = [item for item in mentions if item["user_id"] != "all"]
+    if not members:
+        return mentions
+    logger = logging.getLogger(__name__)
+    try:
+        bot = nonebot.get_bot(str(confs["QQBot"]["bot_qid"]))
+        semaphore = asyncio.Semaphore(4)
+
+        async def read(item):
+            try:
+                async with semaphore:
+                    profile = await bot.get_group_member_info(
+                        group_id=int(group_id), user_id=int(item["user_id"]), no_cache=True)
+                if (not isinstance(profile, dict)
+                        or str(profile.get("group_id")) != str(group_id)
+                        or str(profile.get("user_id")) != item["user_id"]):
+                    raise ValueError("member profile identity mismatch")
+                for field, source in (("nickname", "nickname"), ("group_card", "card")):
+                    value = profile.get(source)
+                    item[field] = (value.strip() or None) if isinstance(value, str) else None
+                item["display_name"] = item["group_card"] or item["nickname"]
+            except Exception as error:
+                logger.warning("GROUP_MENTION_PROFILE_UNAVAILABLE: error_type=%s", type(error).__name__)
+
+        async with asyncio.timeout(MENTION_SNAPSHOT_TIMEOUT_SECONDS):
+            await asyncio.gather(*(read(item) for item in members))
+    except Exception as error:
+        logger.warning("GROUP_MENTION_SNAPSHOT_INCOMPLETE: error_type=%s", type(error).__name__)
+    return mentions
 
 
 async def service_health_status():

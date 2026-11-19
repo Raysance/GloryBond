@@ -83,6 +83,16 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
         save.assert_called_once_with(record, trusted_group_id="200")
         self.assertEqual(ZFUNC.dmc.redis_deamon.values, {})
 
+    def test_mention_snapshot_survives_redis_fallback_and_later_name_changes(self):
+        mentions = [{"user_id": "101", "nickname": "当时昵称", "group_card": None,
+                     "display_name": "当时昵称"}]
+        ZFUNC.record_group_chat_message("200", "100", "@当时昵称(QQ:101)", message_id="1",
+                                       mentions=mentions, plain_text="")
+        mentions[0]["nickname"] = "新昵称"
+        record = ZFUNC.load_group_chat_history("200")[0]
+        self.assertEqual(record["mentions"][0]["nickname"], "当时昵称")
+        self.assertEqual(record["plain_text"], "")
+
     def test_sql_and_legacy_redis_are_merged_with_sql_authoritative(self):
         key = ZFUNC._group_chat_history_key("200")
         ZFUNC.dmc.redis_deamon.values[key] = [

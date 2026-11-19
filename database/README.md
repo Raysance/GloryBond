@@ -18,6 +18,10 @@ The connection string comes from `HOK_DATABASE_DSN`, then `PostgreSQL.dsn` in `c
 
 New inbound group messages are written idempotently to PostgreSQL. If that write fails, the message is appended to the legacy DB0 `hok:chat:group:<群号>` list so normal routing is not interrupted. Reads merge PostgreSQL with any Redis-only records by `(group_id, message_id)`, with PostgreSQL authoritative for duplicates.
 
+Native mentions are captured from the current event's `original_message`, including adapter-stripped bot mentions and messages with no text body. `payload.mentions` contains one snapshot per target (`user_id`, `nickname`, `group_card`, `display_name`); `user_id="all"` denotes the whole group. Names come from fresh OneBot group-member reads, with at most four concurrent lookups and a two-second total budget per message. Missing names remain null, and completed snapshots survive partial failures/timeouts. These are names available at receipt, not proof of the exact label shown on the sender's client. Quoted messages are not inspected for mentions.
+
+For mentioned messages, `payload.plain_text` retains the stripped text body and `message_text`/`payload.text` render text and mentions in segment order, using `@name(QQ:id)` or `@全体成员`. Existing scoped text-only SQL and history readers therefore retain mention targets without granting access to the private payload or requiring a schema migration. Snapshots survive Redis fallback and later nickname changes; old records are not backfilled from current profiles.
+
 Preview the existing DB0 migration, then apply it:
 
 ```bash
