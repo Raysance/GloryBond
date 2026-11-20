@@ -17,6 +17,8 @@ from agent_console.tools.diagnostics import DiagnosticToolRegistry
 from agent_console.tool_errors import redact_error
 from agent_console.capabilities import Clock, application_prompt, chat_required_tools, load_catalogs, reference_prompt
 from agent_console.identity import LOCAL_SCOPES
+from agent_console.document_inputs import MAX_DOCUMENTS
+from .documents import QQDocuments
 from agent_console.image_inputs import ImageLimits, ImageStore
 from agent_console.local_logs import LocalEventLog
 from agent_console.provider import DeepSeekModel, remote_model_options
@@ -163,7 +165,9 @@ class QQAgentService:
                 if self.bot_avatar_setter is not None:
                     register_bot_avatar_tool(registry, setter=self.bot_avatar_setter, image_store=self.image_store,
                                              generated_image_reader=self.generated_image_reader)
+                self.documents = QQDocuments(remote)
                 options = {
+                    "documents": self.documents.provider,
                     **remote_model_options(remote),
                     "api_key": remote["private"]["api_key"], "base_url": self.public["base_url"],
                     "model": self.public["model"], "thinking": self.config.get("thinking", True),
@@ -351,7 +355,7 @@ class QQAgentService:
 
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
                    use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=(),
-                   message_timestamp=None, mentioned_user_ids=()):
+                   message_timestamp=None, mentioned_user_ids=(), document_sources=(), read_file=None):
         received_at = message_timestamp if message_timestamp is not None else time.time()
         await self.start()
         snapshot = await self.bridge.call("reference_snapshot")
@@ -360,6 +364,7 @@ class QQAgentService:
                                  admin_private_default_group_id=self.config.get("admin_private_default_group_id"),
                                  bot_id=self.bot_id)
         question = str(user_text) or ("请结合引用的消息回复。" if quoted_message else
+                                     "请分析所附资料。" if document_sources else
                                      "请分析这些图片。" if image_urls else "请回应这次招呼。")
         participant_ids = [*mentioned_user_ids]
         if quoted_message and quoted_message.get("available"):
@@ -408,7 +413,7 @@ class QQAgentService:
         quote = None
         quoted_images = ()
         if quoted_message:
-            quote = {key:value for key, value in quoted_message.items() if key not in {"image_urls", "native_faces"}}
+            quote = {key:value for key, value in quoted_message.items() if key not in {"image_urls", "native_faces", "document_sources"}}
             if quote.get("available") and quote.get("sender_id"):
                 quote["sender_identity"] = participant_identity(snapshot, quote["sender_id"])
             if omitted_quote_images:
@@ -431,8 +436,15 @@ class QQAgentService:
             page_sources.append(("quote", quoted_message.get("text", "")))
         page_context = await self.webpages.prepare(page_sources)
         context_messages += page_context.messages
+        quoted_files = quoted_message.get("document_sources", ()) if quote and quote.get("available") else ()
+        if len(document_sources) + len(quoted_files) > MAX_DOCUMENTS:
+            raise ValueError("每次最多附加或引用 4 份文档")
+        scope = ("group", str(group_id)) if group_id else ("private", str(user_id))
+        documents = await self.documents.prepare(document_sources, scope, message_id, read_file)
+        quoted_documents = await self.documents.prepare(quoted_files, scope, (quote or {}).get("message_id"), read_file)
         current = current_message(question, actor={"user_id": principal.user_id, "name": str(nickname)},
-                                  message_id=message_id, quote=quote, images=images, quoted_images=quoted_images)
+                                  message_id=message_id, quote=quote, images=images, quoted_images=quoted_images,
+                                  documents=documents, quoted_documents=quoted_documents)
         request = RunRequest(
             question, "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id), principal,
             system_prompt=prompt, required_tools=chat_required_tools(),

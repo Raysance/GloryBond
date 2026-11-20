@@ -6,6 +6,7 @@ import time
 
 import httpx
 
+from .document_inputs import project_documents
 from .model_metadata import metadata_messages, model_metadata
 
 
@@ -100,6 +101,7 @@ class DeepSeekModel:
         first_token_timeout_seconds=120,
         fallback=None,
         vision=None,
+        documents=None,
     ):
         self.api_key, self.base_url, self.model = api_key, base_url.rstrip("/"), model
         self.thinking, self.max_tokens = thinking, max_tokens
@@ -110,6 +112,7 @@ class DeepSeekModel:
         self.timeout_seconds = timeout_seconds
         self.first_token_timeout_seconds = first_token_timeout_seconds
         self.fallback = fallback
+        self.documents = documents
         self.vision = vision
 
     async def complete_request(self, request, on_delta):
@@ -121,6 +124,17 @@ class DeepSeekModel:
         vision_context = {}
         if self.image_store:
             messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
+        messages, has_documents = project_documents(messages)
+        if has_documents:
+            if not self.documents or not self.documents.settings:
+                raise ValueError("文件引用需要 DeepSeek 官方 deepseek-flash")
+            # Account-scoped file IDs and any accompanying pixels stay on the upload provider.
+            model = DeepSeekModel(**self.documents.settings, thinking=self.thinking, max_tokens=self.max_tokens,
+                                  response_format=self.response_format, timeout_seconds=self.timeout_seconds,
+                                  first_token_timeout_seconds=self.first_token_timeout_seconds)
+            result = await model.complete(messages, tools, on_delta, tool_choice=tool_choice)
+            result['vision_context'] = vision_context
+            return result
         if self.vision and has_image_inputs(messages):
             # Route after resolving attachment references and the image budget.
             # Text-provider failover must not intercept a dedicated vision error.

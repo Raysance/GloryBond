@@ -72,7 +72,7 @@ function setup({ uploadError = false, chatError = false } = {}) {
             bytes: 20,
             url: "/api/images/" + String(uploaded).padStart(32, "0"),
           }
-        : { run_id: "accepted-run" };
+        : url.startsWith("/api/documents") ? { id: "document-id" } : { run_id: "accepted-run" };
       return {
         ok: !failed,
         json: async () => data,
@@ -259,4 +259,17 @@ test("reply JSON streaming stays in execution details and has usage tracking", (
   assert.equal(run.draft.textContent, "");
   assert.equal(ui.evaluate("state.usage.summary().total"), 240);
   assert.equal(ui.evaluate("state.usage.summary().requests"), 1);
+});
+
+test("documents wait for send and reuse their upload handle on chat submission", async () => {
+  const ui = setup();
+  ui.context.file = { name: "report.pdf", size: 20, type: "application/pdf" };
+  await ui.evaluate("uploadImages([file])");
+  assert.equal(ui.requests.length, 0);
+  assert.equal(ui.ids.get("model-name").textContent, "deepseek-flash");
+  await ui.evaluate("send()");
+  assert.match(ui.requests[0].url, /^\/api\/documents\?session_id=session/);
+  const chat = JSON.parse(ui.requests[1].options.body);
+  assert.deepEqual(chat.document_ids, ["document-id"]);
+  assert.deepEqual(chat.image_ids, []);
 });

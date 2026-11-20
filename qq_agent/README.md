@@ -16,6 +16,8 @@ OneBot event → event_handlers/chat → zfunc.agent_chat → QQAgentService
                                                        QQ messages
 ```
 
+当前或显式引用的原生文档经会话校验与有界下载后上传给官方 DeepSeek，文件引用随直接问答保存。同进程近期重复引用同一条 QQ 文件消息会复用已解析的文件。
+
 `zevent` 不实现工具循环、不重复发送最终结果。正式入口为 `zfunc.agent_chat`，没有旧聊天兼容循环。
 群中直接 @ 机器人即可聊天，无需 `#`；这类消息中的业务关键词交给 agent 处理。
 带 `#` / `＃` 前缀的命令继续按原入口执行。@ 其他人、@ 全体或引用里的 @ 不会触发 AI。

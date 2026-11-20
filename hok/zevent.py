@@ -841,7 +841,7 @@ async def f_chat(bot,event):
     from .zfunc import agent_chat
 
     async def respond():
-        request = await prepare_live_chat_request(event, common_expr, dmc.use_mem, bot.get_msg, bot.get_forward_msg)
+        request = await prepare_live_chat_request(event, common_expr, dmc.use_mem, bot.get_msg, bot.get_forward_msg, bot)
         if request is None:
             return
         if request["group_id"]:

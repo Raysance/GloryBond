@@ -12,6 +12,8 @@ local_debugger/.venv/bin/python -m agent_console
 
 然后打开 http://127.0.0.1:8765/ 。首次缺少环境时，先执行 `python3 local_debugger/setup_env.py`。端口可用 `--port` 覆盖，其他非密钥设置在根 `config.yaml` 的 `LocalAgent`。
 
+本地 Web 的“＋ 附件”支持图片及文档。文档在点击发送时上传到 QQ 渠道配置的官方 DeepSeek 账号。PDF、Word、PPT 使用图文解析，文本与表格使用 user_data。每轮最多 4 份，每份 16 MiB，引用有效期 24 小时。带有效文件引用的轮次（含图片、追问和工具续轮）通过同一官方账号的 deepseek-flash 请求，避免将账号专属文件 ID 发给其他端点。
+
 本地 Web 的文字模型使用 `https://zenmux.ai/api/v1` 的 `deepseek/deepseek-v4.1-flash`，`LocalAgent.llm.api_key_env` 引用现有 `.env` 的 `LLM_API_KEY`。远程 QQ 的文字模型使用 DeepSeek 官方 `https://api.deepseek.com` 的 `deepseek-flash`，`ChatAPI.api_key_env` 引用同一 `.env` 的 `HOK_DEEPSEEK_API_KEY`。识图独立使用共享 `VisionAPI`，不随本地文字端点覆盖而替换密钥。进程环境可覆盖文件值，`HOK_ENV_FILE` 可覆盖密钥文件路径。纯文字 ReAct、回复整理、联网角色生成及远程业务单轮文案沿用对应渠道的文字模型，SSH 工具与远程 Redis/PostgreSQL 继续使用原连接。未提供配置的密钥时拒绝启动，不回退发送其他供应商旧密钥。删除 `LocalAgent.llm` 并重启即可继承服务器文字模型配置；切回其他供应商需同步修改端点、模型和密钥变量。
 
 QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭据仅通过 worker private 设置传递，并参与日志脱敏。本地 `LocalAgent.llm` 独立覆盖时继续使用本地模型配置；移除覆盖后继承服务器的主备模型和超时设置。

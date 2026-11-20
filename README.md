@@ -29,6 +29,8 @@ DeepSeek 聊天将每轮变化的运行统计与稳定上下文分开，改善 p
 
 新增群消息归档保留原生 @ 对象的 QQ、归档时可获取的群名片及昵称快照，只有 @ 的消息和 @全体成员也会保存。历史正文显示可读的 @ 标记，名字读取失败时保留 QQ；旧归档缺失的信息不自动补写。说明见[群聊背景查询](shared/agent/manual/chapters/history.md)。
 
+AI 聊天可以读取文件附件。回复一份群文件并问 `@机器人 总结这份 PDF，列出依据`。本地聊天网页通过“＋ 附件”选择文档。格式、大小和使用范围见[聊天附件说明](shared/agent/manual/chapters/vision.md)。
+
 AI 识图支持独立的火山方舟豆包端点，本次配置采用 Seed 2.1 Lite（`doubao-seed-2-1-lite-260915`）。QQ 与本地 Web 共享 `VisionAPI`，有图片的请求及图片追问使用视觉模型，纯文字与回复整理沿用当前文字模型。API Key 仍保存在 `.env`，需先在方舟控制台开通对应模型；申请入口、配置与验证方法见[豆包识图接入](agent_console/README.md#豆包识图接入)。
 
 王者官方客户端请求目前统一停用（`PlayerClient.enabled=false`）。`#在线` 恢复营地方式，战绩查询只请求营地，普通英雄查询保留原有统计并跳过客户端图片和资料。显式 `#客户端` 命令及后台官方客户端登录操作提示已停用；营地和 NapCat 登录正常使用。已有客户端凭据、绑定和历史记录保留。配置及边界见[玩家客户端部署说明](deployment/README.md#王者玩家客户端)，验证方式见[开发说明](docs/DEVELOPMENT.md#checks-and-manuals)。

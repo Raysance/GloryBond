@@ -67,6 +67,20 @@ def image_urls(message):
     return urls
 
 
+def document_sources(message):
+    """Only adapter file segments can supply file IDs or download URLs."""
+    if isinstance(message, str):
+        return []
+    files = []
+    for segment in message or ():
+        if _field(segment, "type") == "file":
+            data = _field(segment, "data", {})
+            files.append({"name": data.get("name") or data.get("file") or "未知文件",
+                          "id": data.get("file_id"), "url": data.get("url"),
+                          "size": data.get("file_size"), "busid": data.get("busid")})
+    return files
+
+
 def native_faces(message):
     """Keep native QQ face IDs as data; never infer them from visible text."""
     faces = []
@@ -100,6 +114,8 @@ def _quoted_text(message, bot_id, *, nested=False):
         elif kind == "at":
             if str(data.get("qq", "")) != str(bot_id):
                 parts.append(f"[提及QQ:{data.get('qq', '')}]")
+        elif kind == "file" and not nested:
+            parts.append("[引用文件]")
         elif kind == "forward":
             parts.append("[嵌套合并转发消息，未展开]" if nested else "[合并转发消息，未读取内容]")
         elif kind in {"mface", "marketface", "face"} and image_urls([segment]):
@@ -120,7 +136,7 @@ def normalize_quoted_message(event, reply=None):
         return unavailable
     group_id = getattr(event, "group_id", None)
     reply_group = _field(reply, "group_id")
-    if reply_group is not None and str(reply_group) != str(group_id):
+    if reply_group not in (None, 0, "0") and str(reply_group) != str(group_id):
         return unavailable
     if group_id and _field(reply, "message_type") != "group":
         return unavailable
@@ -130,11 +146,21 @@ def normalize_quoted_message(event, reply=None):
                          or _field(reply, "message_type") != "private"):
         return unavailable
     message = _field(reply, "message", [])
+    files = document_sources(message)
+    if files:
+        # NoneBot's compact Reply can omit group_id. Re-fetch get_msg so the
+        # file can be tied to its actual group or the peer of an outgoing DM.
+        if group_id and str(reply_group) != str(group_id):
+            return unavailable
+        if not group_id and str(_field(sender, "user_id")) != str(event.get_user_id()):
+            if str(_field(reply, "target_id")) != str(event.get_user_id()):
+                return unavailable
     text = _quoted_text(message, getattr(event, "self_id", "")).strip().lstrip("#＃").strip()
     return {"message_id": str(message_id), "available": True,
             "sender_id": str(_field(sender, "user_id", "")),
             "sender_name": str(_field(sender, "card") or _field(sender, "nickname") or ""),
             "text": text[:12000], "truncated": len(text) > 12000,
+            **({"document_sources": files} if files else {}),
             "image_urls": image_urls(message), "native_faces": native_faces(message)}
 
 
@@ -251,13 +277,19 @@ async def read_quoted_message(event, fetch_message, fetch_forward_message=None, 
 
 
 async def prepare_live_chat_request(event, common_expressions, default_use_memory,
-                                    fetch_message, fetch_forward_message=None):
+                                    fetch_message, fetch_forward_message=None, bot=None):
     from ..zfunc import is_agent_chat_ignored
 
     if await asyncio.to_thread(is_agent_chat_ignored, event.get_user_id(), getattr(event, "group_id", None)):
         return None
     request = prepare_chat_request(event, common_expressions, default_use_memory)
     request["quoted_message"] = await read_quoted_message(event, fetch_message, fetch_forward_message)
+    quote = request["quoted_message"] or {}
+    if request.get("document_sources") or quote.get("document_sources"):
+        from qq_agent.documents import read_qq_document
+        async def read_file(source):
+            return await read_qq_document(bot, getattr(event, "group_id", None), source)
+        request["read_file"] = read_file
     return request
 
 
@@ -304,6 +336,7 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "message_timestamp": getattr(event, "time", None),
         "use_memory": use_memory,
         "quoted_message": normalize_quoted_message(event),
+        "document_sources": document_sources(getattr(event, "original_message", None) or getattr(event, "message", None)),
         "image_urls": image_urls(segments),
         "native_faces": native_faces(segments),
     }

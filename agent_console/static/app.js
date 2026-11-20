@@ -347,10 +347,11 @@ function inputImageURL(image) {
     image.id || image.url?.match(/^attachment:\/\/([a-f0-9]{32})$/)?.[1];
   return id && /^[a-f0-9]{32}$/.test(id) ? "/api/images/" + id : null;
 }
-function userMessage(text, images = []) {
+function userMessage(text, images = [], documentNames = []) {
   const row = el("div", "user-message");
   const bubble = el("div", "user-bubble");
   if (text) bubble.append(el("div", "user-text", text));
+  for (const name of documentNames) bubble.append(el("div", "user-text", "📄 " + name));
   if (images.length) {
     const gallery = el("div", "user-images");
     for (const image of images) {
@@ -571,7 +572,7 @@ function consume(event) {
     refreshRoles().catch((e) => error(e.message));
   if (event.kind === "run.start") {
     const background = event.metadata?.origin === "background";
-    if (!background) userMessage(d.message, d.images || []);
+    if (!background) userMessage(d.message, d.images || [], event.metadata?.document_names || []);
     $("welcome").hidden = true;
     if (!background) {
       state.run = event.run_id;
@@ -733,13 +734,15 @@ async function send() {
     !state.ready
   )
     return;
-  const sentImages = state.attachments.slice();
+  const sent = state.attachments.slice();
+  const documents = sent.filter((item) => item.file);
+  const sentImages = sent.filter((item) => !item.file);
   const session = state.session;
   state.sending = true;
   $("error-banner").hidden = true;
   const current = state.sessions.find((x) => x.id === state.session);
   if (current.title === "新会话") {
-    current.title = message.slice(0, 22) || "图片对话";
+    current.title = message.slice(0, 22) || documents[0]?.name || "图片对话";
     save();
     sessions();
     $("session-title").textContent = current.title;
@@ -747,17 +750,32 @@ async function send() {
   $("message-input").value = "";
   running(true);
   try {
+    for (const item of documents) {
+      if (!item.id) {
+        item.uploading = true;
+        renderAttachments();
+        try {
+          const result = await api("/api/documents?session_id=" + encodeURIComponent(session) +
+            "&name=" + encodeURIComponent(item.name), { method: "POST", body: item.file });
+          item.id = result.id;
+        } finally {
+          item.uploading = false;
+          renderAttachments();
+        }
+      }
+    }
     const r = await api("/api/chat", {
       method: "POST",
       body: JSON.stringify({
         session_id: session,
         message,
+        ...(documents.length ? { document_ids: documents.map((item) => item.id) } : {}),
         image_ids: sentImages.map((image) => image.id),
       }),
     });
     if (state.session === session) {
       state.run = state.runs.get(r.run_id)?.ended ? null : r.run_id;
-      for (const image of sentImages) removeAttachment(image);
+      for (const item of sent) removeAttachment(item);
       running(Boolean(state.run));
     }
   } catch (e) {
@@ -768,6 +786,7 @@ async function send() {
     }
   } finally {
     state.sending = false;
+    renderAttachments();
   }
 }
 function renderAttachments() {
@@ -777,23 +796,27 @@ function renderAttachments() {
   for (const image of state.attachments) {
     const card = el("div", "image-attachment");
     const img = el("img");
-    img.src = image.preview || inputImageURL(image);
-    img.alt = image.name;
+    if (!image.file) {
+      img.src = image.preview || inputImageURL(image);
+      img.alt = image.name;
+      card.append(img);
+    }
     const caption = el(
       "span",
       "attachment-caption",
-      image.uploading ? "上传中" : image.name,
+      image.uploading ? (image.file ? "解析中 · " + image.name : "上传中") : image.name,
     );
     const remove = el("button", "remove-attachment", "×");
     remove.type = "button";
-    remove.setAttribute("aria-label", "移除图片 " + image.name);
+    remove.disabled = Boolean(state.sending);
+    remove.setAttribute("aria-label", "移除附件 " + image.name);
     remove.onclick = () => removeAttachment(image);
-    card.append(img, caption, remove);
+    card.append(caption, remove);
     container.append(card);
   }
   $("send-button").disabled = !state.ready || Boolean(state.uploading);
   if (state.textModel)
-    $("model-name").textContent = state.attachments.length
+    $("model-name").textContent = state.attachments.some((item) => item.file) ? "deepseek-flash" : state.attachments.length
       ? state.visionModel
       : state.textModel;
 }
@@ -815,13 +838,21 @@ async function uploadImages(files) {
   if (!state.ready) return;
   for (const file of files) {
     try {
-      if (state.attachments.length >= state.imageLimits.max_images)
+      if (/\.(pdf|docx?|pptx?|xlsx?|txt|md|csv|tsv|json)$/i.test(file.name)) {
+        if (state.attachments.filter((item) => item.file).length >= 4) throw Error("最多附加 4 份文档");
+        if (!file.size || file.size > 16 * 1048576) throw Error("文档须为非空且不超过 16 MiB");
+        state.attachments.push({ file, name: file.name });
+        renderAttachments();
+        continue;
+      }
+      const images = state.attachments.filter((item) => !item.file);
+      if (images.length >= state.imageLimits.max_images)
         throw Error("最多附加 " + state.imageLimits.max_images + " 张图片");
       if (
         !/^image\/(png|jpeg|webp|gif)$/i.test(file.type) &&
         !(file.type === "" && /\.(png|jpe?g|webp|gif)$/i.test(file.name))
       )
-        throw Error("仅支持 PNG、JPEG、WebP 和 GIF");
+        throw Error("请选择支持的图片或文档格式");
       if (file.size > state.imageLimits.max_image_bytes)
         throw Error(
           "单张图片不能超过 " +
@@ -829,7 +860,7 @@ async function uploadImages(files) {
             " MB",
         );
       const total =
-        state.attachments.reduce((n, image) => n + image.bytes, 0) + file.size;
+        images.reduce((n, image) => n + image.bytes, 0) + file.size;
       if (total > state.imageLimits.max_total_bytes)
         throw Error("本次图片总大小超过限制");
       const image = {
@@ -872,9 +903,7 @@ $("image-input").onchange = (e) => {
   uploadImages(files);
 };
 $("message-input").addEventListener("paste", (e) => {
-  const files = [...e.clipboardData.files].filter((file) =>
-    file.type.startsWith("image/"),
-  );
+  const files = [...e.clipboardData.files];
   if (files.length) {
     if (!e.clipboardData.getData("text/plain")) e.preventDefault();
     uploadImages(files);
@@ -1056,7 +1085,7 @@ async function init() {
     state.visionModel = s.vision_model || s.model;
     state.imageLimits = s.image_limits || state.imageLimits;
     $("attach-images").title =
-      "选择、粘贴或拖入图片 · 最多 " + state.imageLimits.max_images + " 张";
+      "选择、粘贴或拖入图片和文档，文档在发送时上传解析";
     document.body.classList.add("connected");
     $("model-name").textContent = s.model;
     $("thinking-tag").textContent = s.thinking ? "思考" : "";

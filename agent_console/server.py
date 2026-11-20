@@ -33,6 +33,7 @@ from .capabilities import (
     reference_prompt,
 )
 from .provider import DeepSeekModel, remote_model_options
+from .document_inputs import DeepSeekDocuments, MAX_DOCUMENTS, document_name, read_document_bytes
 from .image_inputs import ImageLimits, ImageStore
 from .local_logs import LocalEventLog
 from .remote import BridgeUnavailable, RemoteBridge, RemoteState
@@ -71,11 +72,12 @@ class ChatInput(BaseModel):
     session_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,80}$")
     message: str = Field(default="", max_length=12000)
     image_ids: list[str] = Field(default_factory=list)
+    document_ids: list[str] = Field(default_factory=list, max_length=MAX_DOCUMENTS)
 
     @model_validator(mode="after")
     def nonempty(self):
-        if not self.message.strip() and not self.image_ids:
-            raise ValueError("请提供文字或图片")
+        if not self.message.strip() and not self.image_ids and not self.document_ids:
+            raise ValueError("请提供文字或附件")
         return self
 
 
@@ -117,6 +119,7 @@ def create_app(*, config_path=None):
     shared = root / "shared/agent"
     public = {}
     active_sessions = {}
+    uploaded_documents = {}
     image_store = ImageStore(
         root / "file_transfer/agent_inputs", ImageLimits(**config.get("images", {}))
     )
@@ -146,7 +149,9 @@ def create_app(*, config_path=None):
                     if key and key not in connection.secrets:
                         connection.secrets.append(key)
             public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model", "proxy_url")})
+            app.state.documents = DeepSeekDocuments(remote)
             model = DeepSeekModel(
+                documents=app.state.documents,
                 **model_settings,
                 thinking=config.get("thinking", True),
                 max_tokens=config.get("max_tokens", 4096),
@@ -332,6 +337,21 @@ def create_app(*, config_path=None):
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
+    @app.post("/api/documents")
+    async def upload_document(request: Request, session_id: str, name: str):
+        try:
+            name = document_name(name)
+            raw = await read_document_bytes(request.stream())
+            part = await app.state.documents.upload(name, raw)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        for key, (_, previous) in list(uploaded_documents.items()):
+            if previous["expires_at"] <= time.time():
+                del uploaded_documents[key]
+        handle = secrets.token_hex(16)
+        uploaded_documents[handle] = (session_id, part)
+        return {"id": handle, "name": name}
+
     @app.get("/api/images/{image_id}")
     async def input_image(image_id: str):
         try:
@@ -401,7 +421,13 @@ def create_app(*, config_path=None):
             images = image_store.inputs(body.image_ids)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        message = body.message.strip() or "请分析这些图片。"
+        documents = []
+        for handle in dict.fromkeys(body.document_ids):
+            saved = uploaded_documents.get(handle)
+            if not saved or saved[0] != body.session_id or saved[1]["expires_at"] <= time.time():
+                raise HTTPException(422, "本会话的文件引用无效或已过期，请重新添加")
+            documents.append(saved[1])
+        message = body.message.strip() or ("请分析所附资料。" if documents else "请分析这些图片。")
         run_id = secrets.token_hex(16)
         async def log_request(kind, data):
             await app.state.local_log.record({
@@ -436,9 +462,9 @@ def create_app(*, config_path=None):
             principal=principal,
             system_prompt=prompt,
             required_tools=chat_required_tools(),
-            metadata={"role_name": role_name, "message_timestamp": received_at, "chat_context": chat_metadata(
+            metadata={"role_name": role_name, "document_names": [doc["name"] for doc in documents], "message_timestamp": received_at, "chat_context": chat_metadata(
                 current=current_message(message, actor={"user_id": principal.user_id,
-                    "name": principal.attributes.get("identity", {}).get("name", "")}, images=images),
+                    "name": principal.attributes.get("identity", {}).get("name", "")}, images=images, documents=documents),
                 context_count=len(page_context.messages), policy=context_policy.model_dump(),
                 user_id=principal.user_id, timestamp=received_at)},
         )

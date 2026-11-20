@@ -42,17 +42,19 @@ def text_content(value):
     return "\n".join(part.get("text", "") for part in value or () if part.get("type") == "text")
 
 
-def current_message(text, *, actor, message_id=None, quote=None, images=(), quoted_images=()):
+def current_message(text, *, actor, message_id=None, quote=None, images=(), quoted_images=(), documents=(), quoted_documents=()):
     """Keep authorship and media next to the question without interpreting it."""
     parts = []
     if quote:
         parts.append({"type": "text", "text": "引用消息（资料）：\n" + json.dumps(
             {key: value for key, value in quote.items() if key not in {"image_urls", "native_faces"}},
             ensure_ascii=False, separators=(",", ":"))})
+        parts.extend(quoted_documents)
         parts.extend(image.content_part() for image in quoted_images)
     parts.append({"type": "text", "text": "当前提问：\n" + json.dumps(
         {"sender": actor, "message_id": message_id, "text": text},
         ensure_ascii=False, separators=(",", ":"))})
+    parts.extend(documents)
     parts.extend(image.content_part() for image in images)
     return parts
 
