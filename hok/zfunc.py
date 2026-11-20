@@ -1140,6 +1140,15 @@ async def agent_read_group_member_profile(*, group_id, user_id, include_avatar=T
     return result
 
 
+async def agent_recent_group_messages(group_id, count):
+    import nonebot
+    bot = nonebot.get_bot(str(confs["QQBot"]["bot_qid"]))
+    result = await bot.get_group_msg_history(group_id=int(group_id), count=count)
+    if not isinstance(result, dict) or not isinstance(result.get("messages"), list):
+        raise ValueError("QQ 未返回近期群消息")
+    return result["messages"][-count:]
+
+
 async def agent_runtime_start():
     """Bind QQ IO to the shared, externally maintained ReAct runtime."""
     from agent_console.function_calls import assert_outside_function
@@ -1187,6 +1196,7 @@ async def agent_runtime_start():
                              bot_id=confs["QQBot"]["bot_qid"],
                              sender=send, prepare_reply=prepare, store_artifact=store, formatter=format_text,
                              member_profile_reader=agent_read_group_member_profile,
+                             group_history_reader=agent_recent_group_messages,
                              bot_avatar_setter=agent_set_bot_avatar,
                              generated_image_reader=agent_read_generated_image,
                              private_message_sender=agent_send_group_member_private_message,

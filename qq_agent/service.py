@@ -19,6 +19,7 @@ from agent_console.capabilities import Clock, application_prompt, chat_required_
 from agent_console.identity import LOCAL_SCOPES
 from agent_console.document_inputs import MAX_DOCUMENTS
 from .documents import QQDocuments
+from .history_images import register_history_image_tool
 from agent_console.image_inputs import ImageLimits, ImageStore
 from agent_console.local_logs import LocalEventLog
 from agent_console.provider import DeepSeekModel, remote_model_options
@@ -51,7 +52,7 @@ def qq_principal(user_id, group_id, nickname, *, admin_id, references, use_memor
     if user == str(admin_id):
         scopes.update({"qq.avatar.write", "roleplay.manage_others"})
     if group:
-        scopes.update({"chat.read", "qq.profile.read", "qq.private.send", "qq.chat.ignore.manage"})
+        scopes.update({"chat.read", "qq.profile.read", "qq.private.send", "qq.chat.ignore.manage", "qq.group_images.read"})
     elif user == str(admin_id):
         scopes.update({"chat.read", "chat.cross_group", "qq.profile.read", "qq.private.send"})
     if not use_memory:
@@ -104,13 +105,14 @@ class QQFinalizer:
 class QQAgentService:
     def __init__(self, *, root, config, admin_id, sender, prepare_reply, store_artifact, formatter,
                  bridge_factory=ProcessBridge, model_factory=DeepSeekModel, member_profile_reader=None, bot_id=None,
-                 bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None,
+                 group_history_reader=None, bot_avatar_setter=None, generated_image_reader=None, private_message_sender=None,
                  business_functions=None, business_image_loader=None, webpage_proxy_url="", automation_operation=None,
                  automation_media_storer=None, chat_ignore_operation=None):
         self.root, self.config, self.admin_id = Path(root), config, str(admin_id)
         self.bot_id = bot_id
         self.sender, self.prepare_reply, self.store_artifact, self.formatter = sender, prepare_reply, store_artifact, formatter
         self.bridge_factory, self.model_factory = bridge_factory, model_factory
+        self.group_history_reader = group_history_reader
         self.member_profile_reader = member_profile_reader
         self.bot_avatar_setter = bot_avatar_setter
         self.generated_image_reader = generated_image_reader
@@ -154,6 +156,8 @@ class QQAgentService:
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):
                     register_automation_tools(registry, operation=self.automation_operation,
                         image_store=self.image_store, media_storer=self.automation_media_storer)
+                if self.group_history_reader is not None:
+                    register_history_image_tool(registry, reader=self.group_history_reader, load_image=self.load_history_image)
                 if self.member_profile_reader is not None:
                     register_member_profile_tool(registry, reader=self.member_profile_reader,
                                                  store_image=self.store_tool_image, now=self.clock.now)
@@ -286,24 +290,34 @@ class QQAgentService:
         if len(urls) > limits.max_images:
             raise ValueError("图片数量超过上限")
         ids = []
-        domains = self.config.get("image_hosts", ["qq.com", "qq.com.cn", "qpic.cn"])
         async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=20) as client:
             for source in urls:
-                url = httpx.URL(source)
-                if url.username or url.password or url.scheme not in {"http", "https"} or url.port not in {None, 80, 443} or not any(
-                    url.host == domain or url.host.endswith("." + domain) for domain in domains
-                ):
-                    raise ValueError("图片必须来自配置允许的QQ媒体域名")
-                raw = bytearray()
-                async with client.stream("GET", url) as response:
-                    response.raise_for_status()
-                    async for chunk in response.aiter_bytes():
-                        raw.extend(chunk)
-                        if len(raw) > limits.max_image_bytes:
-                            raise ValueError("图片超过大小上限")
-                saved = await asyncio.to_thread(self.image_store.save, bytes(raw), "QQ图片")
+                raw = await self.download_qq_image(client, source)
+                saved = await asyncio.to_thread(self.image_store.save, raw, "QQ图片")
                 ids.append(saved["id"])
         return self.image_store.inputs(ids)
+
+    async def download_qq_image(self, client, source):
+        domains = self.config.get("image_hosts", ["qq.com", "qq.com.cn", "qpic.cn"])
+        url = httpx.URL(source)
+        if url.username or url.password or url.scheme not in {"http", "https"} or url.port not in {None, 80, 443} or not any(
+            url.host == domain or url.host.endswith("." + domain) for domain in domains
+        ):
+            raise ValueError("图片必须来自配置允许的QQ媒体域名")
+        raw = bytearray()
+        async with client.stream("GET", url) as response:
+            response.raise_for_status()
+            async for chunk in response.aiter_bytes():
+                raw.extend(chunk)
+                if len(raw) > self.image_store.limits.max_image_bytes:
+                    raise ValueError("图片超过大小上限")
+        return bytes(raw)
+
+    async def load_history_image(self, url, ctx):
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=20) as client:
+            raw = await self.download_qq_image(client, url)
+        info = await self.store_tool_image(raw, "近期群聊图片", ctx)
+        return info["id"]
 
     async def store_tool_image(self, raw, name, ctx):
         """Tool images share the current request's input count and byte limits."""
@@ -317,6 +331,9 @@ class QQAgentService:
                     if isinstance(message["content"], list):
                         sources.update((part.get("image_url") or {}).get("url", "")
                                        for part in message["content"] if part.get("type") == "image_url")
+                for part in ctx.request.metadata.get("chat_context", {}).get("current", ()):
+                    if isinstance(part, dict) and part.get("type") == "image_url":
+                        sources.add(part["image_url"]["url"])
                 size = sum(self.image_store.load(source.removeprefix("attachment://"))[0]["bytes"]
                            for source in sources if source.startswith("attachment://"))
                 budget = {"count": len(sources), "bytes": size}
@@ -328,7 +345,8 @@ class QQAgentService:
             budget["count"] += 1
             budget["bytes"] += len(raw)
             return saved
-        return await asyncio.to_thread(save)
+        async with ctx.resources.setdefault("qq_tool_image_lock", asyncio.Lock()):
+            return await asyncio.to_thread(save)
 
     async def authorize_role_target(self, ctx, target_user_id):
         """Authorize only the role owner override; the caller and delivery stay bound."""
@@ -492,7 +510,7 @@ class QQAgentService:
         channel, recipient = rule["scope"].split(":", 1)
         principal = qq_principal(rule["owner_id"], recipient if channel == "group" else None, "",
             admin_id=self.admin_id, references=self.public["references"], bot_id=self.bot_id)
-        blocked_scopes = {"automation.use", "task.use", "memory.use", "roleplay.use", "roleplay.manage_others", "qq.avatar.write", "qq.private.send", "qq.chat.ignore.manage"}
+        blocked_scopes = {"automation.use", "task.use", "memory.use", "roleplay.use", "roleplay.manage_others", "qq.avatar.write", "qq.private.send", "qq.chat.ignore.manage", "qq.group_images.read"}
         principal = Principal(principal.user_id, (principal.scopes & frozenset(rule["scopes"])) - blocked_scopes,
                               principal.attributes)
         registry = ToolRegistry()

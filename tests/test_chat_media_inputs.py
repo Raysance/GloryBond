@@ -10,9 +10,11 @@ from fastapi.testclient import TestClient
 from agent_console.document_inputs import DeepSeekDocuments, project_documents
 from agent_console.provider import DeepSeekModel
 from agent_console.server import create_app
-from agent_runtime import Principal
+from agent_runtime import Principal, RunRequest, ToolRegistry
+from agent_runtime.models import ToolContext
 from local_debugger import import_hok_module
 from qq_agent.documents import QQDocuments
+from qq_agent.history_images import HistoryImageArgs, register_history_image_tool
 
 
 REMOTE = {"public": {"base_url": "https://api.deepseek.com", "model": "deepseek-flash"},
@@ -102,3 +104,31 @@ class DocumentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(submit("a").status_code, 200)
         current = app.state.runtime.submit.call_args.args[0].metadata["chat_context"]["current"]
         self.assertEqual(current[-1]["file_id"], "file-api-test")
+
+
+class HistoryImageTests(unittest.IsolatedAsyncioTestCase):
+    async def test_only_prior_in_group_images_deliver_pixels_with_attribution(self):
+        def row(seq, timestamp, group=8):
+            return {"message_id": str(seq), "real_seq": str(seq), "time": timestamp, "group_id": group,
+                    "message_type": "group", "user_id": 12, "message": [{"type": "image", "data": {"url": f"https://cdn.qq.com/{seq}"}}]}
+        rows = [row(2, 99, 9), row(3, 99), row(4, 100), row(5, 100), row(6, 100), row(7, 101)]
+        reader, load = AsyncMock(return_value=rows), AsyncMock(return_value="fixture")
+        registry = ToolRegistry()
+        register_history_image_tool(registry, reader=reader, load_image=load)
+        handler = registry.tools["read_recent_group_images"].handler
+        principal = Principal("1", frozenset({"qq.group_images.read"}), {"chat": {"group_id": "8"}})
+        meta = {"message_id": "5", "message_timestamp": 100}
+        ctx = ToolContext(RunRequest("刚才的截图？", "s", principal, metadata=meta), AsyncMock())
+        result = await handler(HistoryImageArgs(), ctx)
+        self.assertEqual(result["matching_images"], 2)
+        self.assertEqual(result["images"][0]["message_id"], "4")
+        self.assertEqual(result["images"][0]["user_id"], "12")
+        self.assertEqual(result["model_images"][0]["image_url"]["url"], "attachment://fixture")
+        load.assert_awaited_once_with("https://cdn.qq.com/4", ctx)
+        await handler(HistoryImageArgs(), ctx)
+        load.assert_awaited_once()
+        reader.assert_awaited_once_with("8", 50)
+        self.assertNotIn("https://", str(result))
+        with self.assertRaises(PermissionError):
+            ctx.request.metadata["origin"] = "background"
+            await handler(HistoryImageArgs(), ctx)

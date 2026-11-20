@@ -16,7 +16,7 @@ OneBot event → event_handlers/chat → zfunc.agent_chat → QQAgentService
                                                        QQ messages
 ```
 
-当前或显式引用的原生文档经会话校验与有界下载后上传给官方 DeepSeek，文件引用随直接问答保存。同进程近期重复引用同一条 QQ 文件消息会复用已解析的文件。
+QQ 前台群聊可在 chat_history 类别调用 `read_recent_group_images`。工具按需取 NapCat 最近 50 条消息，按发言人、消息 ID 或位置筛选原生图片，将本群提问前的有效像素及其作者交给模型。私聊和后台执行无法调用。当前或显式引用的原生文档经会话校验与有界下载后上传给官方 DeepSeek，文件引用随直接问答保存。同进程近期重复引用同一条 QQ 文件消息会复用已解析的文件。
 
 `zevent` 不实现工具循环、不重复发送最终结果。正式入口为 `zfunc.agent_chat`，没有旧聊天兼容循环。
 群中直接 @ 机器人即可聊天，无需 `#`；这类消息中的业务关键词交给 agent 处理。

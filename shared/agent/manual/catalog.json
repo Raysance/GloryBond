@@ -271,6 +271,7 @@
         "视觉",
         "引用",
         "回复图片",
+        "群聊历史图片",
         "PDF",
         "文件读取",
         "动态表情",
@@ -278,7 +279,7 @@
         "gif",
         "视频"
       ],
-      "tools": [],
+      "tools": ["read_recent_group_images"],
       "code": [
         {
           "path": "hok/event_handlers/chat.py",
