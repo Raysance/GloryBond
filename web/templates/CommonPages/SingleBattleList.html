@@ -1595,6 +1595,7 @@
                 <div class="player-info">
                     <h2 id="playerName" class="player-name">未知玩家</h2>
                     <span id="playerTitle" class="player-title">无称号</span>
+                    <small id="publicRoleDetails" hidden></small>
                     <div class="player-profile-status">
                         <div id="rankCard" class="status-card" style="display: none;">
                             <span class="label">当前段位</span>
@@ -2261,7 +2262,10 @@
                 
                 
                 // 检查是否战绩隐藏
-                if (data.btlist && data.btlist.invisible) {
+                if (data.btlist?.invisible || data.btlist?.unavailable) {
+                    if (data.btlist.unavailable) document.querySelector('#hiddenMessage h3').textContent = '战绩暂不可用';
+                    showHiddenRoleProfile(data.profile, 'playerProfileCard', 'playerProfileSummary');
+                    requestAnimationFrame(updateTopInfoSpace);
                     showHiddenMessage(data.btlist.invisDes || '战绩已隐藏');
                     return;
                 }

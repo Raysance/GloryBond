@@ -17,6 +17,32 @@ function battleProfileRole(profile) {
     return roles.length === 1 ? roles[0] : null;
 }
 
+function showHiddenRoleProfile(profile, cardId, summaryId) {
+    const card = document.getElementById(cardId);
+    const role = battleProfileRole(profile);
+    const label = value => typeof value === 'string' ? value.trim() : '';
+    const name = label(role?.roleName);
+    const rank = label(role?.roleJobName);
+    const area = [label(role?.areaName), label(role?.serverName)].filter(Boolean);
+    const level = Number(role?.gameLevel);
+    const details = [...new Set(area)];
+    if (Number.isSafeInteger(level) && level > 0) details.push(`等级 ${level}`);
+    const avatar = label(role?.roleIcon);
+    const hasAvatar = /^https?:\/\//i.test(avatar);
+    card.style.display = name || rank || details.length || hasAvatar ? '' : 'none';
+    document.getElementById(summaryId).textContent = name || '玩家资料';
+    document.getElementById('playerName').textContent = name;
+    const title = document.getElementById('playerTitle');
+    title.textContent = rank;
+    title.style.display = rank ? '' : 'none';
+    const info = document.getElementById('publicRoleDetails');
+    info.textContent = details.join(' · ');
+    info.hidden = details.length === 0;
+    const image = document.getElementById('playerAvatar');
+    image.style.display = hasAvatar ? 'block' : 'none';
+    if (hasAvatar) image.src = avatar;
+}
+
 function battleGrade(battle) {
     if (battle.gradeMissing || battle.GradeMissing) return null;
     const value = battle.gradeGame ?? battle.GameGrade;

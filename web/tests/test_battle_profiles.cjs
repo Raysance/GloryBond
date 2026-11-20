@@ -67,3 +67,15 @@ for (const template of ['SingleBattleList.html', 'SinglePeriodBattleList.html', 
     }
 }
 console.log('Battle profiles: mixed and exact IDs, correct bound role, missing targets, names, titles and cached avatars passed');
+
+const nodes = new Map(['card', 'summary', 'playerName', 'playerTitle', 'publicRoleDetails', 'playerAvatar']
+    .map(id => [id, {style: {}}]));
+const hiddenScope = vm.createContext({document: {getElementById: id => nodes.get(id)}});
+vm.runInContext(helpers, hiddenScope);
+hiddenScope.showHiddenRoleProfile({...profile, roleList: [other, {...target, areaName: '安卓区', serverName: '一区', gameLevel: 30}]}, 'card', 'summary');
+assert.equal(nodes.get('summary').textContent, '目标<玩家>');
+assert.equal(nodes.get('playerAvatar').src, target.roleIcon);
+assert.equal(nodes.get('publicRoleDetails').textContent, '安卓区 · 一区 · 等级 30');
+hiddenScope.showHiddenRoleProfile({roleList: [other, target]}, 'card', 'summary');
+assert.equal(nodes.get('card').style.display, 'none');
+assert.equal(nodes.get('publicRoleDetails').hidden, true);

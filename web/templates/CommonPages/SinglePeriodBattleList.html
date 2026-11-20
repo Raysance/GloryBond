@@ -1434,6 +1434,7 @@
                 <div class="player-info">
                     <h2 id="playerName" class="player-name">未知玩家</h2>
                     <span id="playerTitle" class="player-title">无称号</span>
+                    <small id="publicRoleDetails" hidden></small>
                     <div id="playerStats" class="player-stats"></div>
                     <div class="period-profile-actions">
                         <button id="heroStatsToggle" class="hero-stats-toggle" type="button">
@@ -1973,6 +1974,9 @@
                 hideLoading();
                 if (!data) throw new Error('数据为空');
                 if (data.btlist && data.btlist.invisible) {
+                    showHiddenRoleProfile(data.profile, 'periodMetaCard', 'periodMetaSummary');
+                    document.getElementById('heroStatsToggle').style.display = 'none';
+                    requestAnimationFrame(updateGlassTopSpace);
                     showHiddenMessage(data.btlist.invisDes || '战绩已隐藏');
                     return;
                 }

@@ -25,6 +25,41 @@ class BattleListLoadingTests(unittest.TestCase):
         self.assertEqual(result['profile'], before['profile'])
         self.assertEqual(original, before)
 
+    def test_hidden_snapshot_exposes_only_selected_public_role_fields(self):
+        selected = {'roleId': 9223372036854775806, 'roleName': '玩家', 'roleJobName': '钻石',
+                    'roleIcon': 'https://example.com/avatar', 'gameLevel': 30, 'areaName': '安卓区',
+                    'serverName': '一区', 'gameOpenId': 'private', 'battleId': 'hidden'}
+        profile = {'targetRoleId': str(selected['roleId']), 'roleList': [{'roleId': 'other'}, selected],
+                   'head': {'mods': [{'name': '胜率', 'content': '50%'}]}}
+        original = {'profile': profile, 'btlist': {'invisible': True, 'invisDes': '已隐藏',
+                    'list': [{'gameSeq': 'hidden'}], 'gaming': {'battleId': 'hidden'}}}
+        result = lists.compact_battle_list(original)
+        self.assertEqual(result['profile']['roleList'], [{k: selected[k] for k in
+            ('roleName', 'roleJobName', 'roleIcon', 'gameLevel', 'areaName', 'serverName')}])
+        self.assertEqual(result['btlist']['invisDes'], '已隐藏')
+        self.assertNotIn('hidden', repr(result))
+        self.assertEqual(lists.profile_only_battle_list({**profile, 'targetRoleId': 'missing'})['profile']['roleList'], [])
+
+    def test_period_with_private_days_retains_only_available_information(self):
+        day = {'visible': False, 'nickname': '玩家', 'rank_name': '钻石', 'details': [{'gameSeq': 'hidden'}]}
+        hidden = lists.visible_period_data({'periods': [day]})
+        self.assertTrue(hidden['btlist']['invisible'])
+        self.assertEqual(hidden['profile']['roleList'][0]['roleName'], '玩家')
+        self.assertNotIn('hidden', repr(hidden))
+        self.assertEqual(lists.visible_period_data([day, {'visible': True}]), [{'visible': True}])
+
+    def test_jump_person_keeps_public_profile_when_battle_request_fails(self):
+        profile = {'roleList': [{'roleId': 1, 'roleName': '另一个角色'}, {'roleId': 2, 'roleName': '目标'}]}
+        with patch.object(web, 'check_key_valid', return_value=True), patch.object(web, 'writerl') as save, \
+             patch.object(web, 'should_track_request', return_value=False), \
+             patch.object(web, 'wzry_get_official', side_effect=[profile, ValueError('network')]):
+            response = TestClient(web.app).get('/jump-person', params={'userid': '3', 'roleid': '2', 'key': 'test'})
+        self.assertEqual(response.status_code, 200)
+        saved = save.call_args.args[1]
+        self.assertFalse(saved['btlist']['invisible'])
+        self.assertTrue(saved['btlist']['unavailable'])
+        self.assertEqual(saved['profile']['roleList'], [{'roleName': '目标'}])
+
     def test_compact_route_uses_existing_key_and_cache_invalidates_after_snapshot_change(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'temp_files').mkdir()

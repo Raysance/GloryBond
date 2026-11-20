@@ -18,7 +18,7 @@ import shutil
 from urllib.parse import urlencode
 from web.runtime_config import RUNTIME, load_shared_config
 from web.utils import *
-from web.battle_list_data import load_battle_list
+from web.battle_list_data import profile_only_battle_list, load_battle_list, visible_period_data
 from web.request_analytics import (
     analytics_payload,
     build_request_event,
@@ -558,7 +558,7 @@ async def show_btlperson(request:Request,key: str, data: bool = False):
         text_content,jsonpath = key_to_filename(key=key,reqtype="btlperson")
     except Exception as e:
         return templates.TemplateResponse(
-            "ErrorPages/expired.html",{"request": request,}
+            request=request, name="ErrorPages/expired.html", context={}
         )
     if data:
         try:
@@ -567,9 +567,8 @@ async def show_btlperson(request:Request,key: str, data: bool = False):
             raise HTTPException(status_code=410, detail="battle list expired")
         return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
     return templates.TemplateResponse(
-        "CommonPages/SingleBattleList.html",
-        {
-            "request": request,
+        request=request, name="CommonPages/SingleBattleList.html",
+        context={
             "filename": jsonpath,
             "data_url": str(request.url.path) + "?" + urlencode({"key": key, "data": "true"}),
             "key": key,
@@ -582,18 +581,17 @@ async def show_btlperiod(request:Request,key: str, data: bool = False):
         text_content,jsonpath = key_to_filename(key=key,reqtype="btlperiod")
     except Exception as e:
         return templates.TemplateResponse(
-            "ErrorPages/expired.html",{"request": request,}
+            request=request, name="ErrorPages/expired.html", context={}
         )
     if data:
         try:
             payload = await asyncio.to_thread(load_battle_list, jsonpath)
         except (OSError, ValueError):
             raise HTTPException(status_code=410, detail="battle list expired")
-        return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
+        return JSONResponse(content=visible_period_data(payload), headers={"Cache-Control": "no-store"})
     return templates.TemplateResponse(
-        "CommonPages/SinglePeriodBattleList.html",
-        {
-            "request": request,
+        request=request, name="CommonPages/SinglePeriodBattleList.html",
+        context={
             "filename": jsonpath,
             "data_url": str(request.url.path) + "?" + urlencode({"key": key, "data": "true"}),
             "key": key,
@@ -749,23 +747,29 @@ async def jump_btlperson(request:Request,userid: str,roleid: str,key:str = Query
     final_key = key or AdminKey
     if (not check_key_valid(key=final_key,reqtype="jump_btlperson")):
         return templates.TemplateResponse(
-            "ErrorPages/illegal.html",{"request": request,"message":"key失效"}
+            request=request, name="ErrorPages/illegal.html", context={"message":"key失效"}
         )
     try:
         profile_res=wzry_get_official(reqtype="profile",userid=userid,roleid=roleid)
-        btlist_res=wzry_get_official(reqtype="btlist",userid=userid,roleid=roleid)
     except Exception as e:
         return templates.TemplateResponse(
-            "ErrorPages/illegal.html",{"request": request,"message":f"网络参数错误 {str(e)}"}
+            request=request, name="ErrorPages/illegal.html", context={"message":f"网络参数错误 {str(e)}"}
         )
-    res={"btlist":btlist_res,"profile":profile_res}
+    profile = {**profile_res, "targetRoleId": roleid}
+    try:
+        btlist = wzry_get_official(reqtype="btlist", userid=userid, roleid=roleid)
+    except Exception:
+        res = profile_only_battle_list(profile, "本次未能取得战绩列表。", unavailable=True)
+    else:
+        res = {"btlist": btlist, "profile": profile}
+        if btlist.get("invisible"):
+            res = profile_only_battle_list(profile, btlist.get("invisDes"))
     file_name=secrets.token_hex(8)+".json"
     save_path=os.path.join(file_path_root,"temp_files", file_name)
     writerl(save_path,res)
     return templates.TemplateResponse(
-        "CommonPages/SingleBattleList.html",
-        {
-            "request": request,
+        request=request, name="CommonPages/SingleBattleList.html",
+        context={
             "filename": os.path.join("file_transfer","temp_files",file_name),
             "key": final_key,
         }
