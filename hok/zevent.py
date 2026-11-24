@@ -603,6 +603,7 @@ async def f_showonline(bot,event):
 @_rnk.handle()
 async def f_rnk(bot,event):
     from .event_handlers.player_reports import ranking_reply
+    from .zfile import existing_absolute_path
 
     log_message("VISIT: RANK_FUNCTION")
     group_id = getattr(event, "group_id", None)
@@ -614,7 +615,11 @@ async def f_rnk(bot,event):
         add_msg(str(e), event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
         return
-    add_msg(result["text"], event=event)
+    image_path = existing_absolute_path(result["image_path"])
+    if image_path:
+        add_msg(MessageSegment.image(f"file://{image_path}"), event=event)
+    else:
+        add_msg(result["text"] or "战报图片生成失败，请稍后重试。", event=event)
     if result["error_report"]:
         add_msg(result["error_report"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
 @_single.handle()

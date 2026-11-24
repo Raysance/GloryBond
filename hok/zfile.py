@@ -913,12 +913,13 @@ def battle_report_fonts():
     return fonts
 
 
-def load_battle_report_image(url):
+def load_battle_report_image(url, *, max_cache_age=None):
     """Reuse original decoded assets across sizes; persist public thumbnails through IO."""
     import hashlib
     from PIL import Image
     from .zstatic import battle_image_cache_path
     from .zapi import wzry_battle_image_bytes
+    from .ztime import current_timestamp
 
     for marker, extension in (("custom_wzryequip", "png"), ("custom_wzry_E1", "jpg")):
         if marker in url:
@@ -929,14 +930,33 @@ def load_battle_report_image(url):
                     with Image.open(local) as image:
                         return image.convert("RGBA")
     path = os.path.join(battle_image_cache_path, hashlib.sha256(url.encode()).hexdigest() + ".img")
+    cached_image = None
     if os.path.isfile(path):
-        with open(path, "rb") as source:
-            return pil_image_from_bytes(source.read(), max_pixels=8_000_000).convert("RGBA")
-    content = wzry_battle_image_bytes(url)
-    image = pil_image_from_bytes(content, max_pixels=8_000_000).convert("RGBA")
+        try:
+            with open(path, "rb") as source:
+                cached_image = pil_image_from_bytes(source.read(), max_pixels=8_000_000).convert("RGBA")
+            if max_cache_age is None or current_timestamp() - os.path.getmtime(path) < max_cache_age:
+                return cached_image
+        except (OSError, ValueError):
+            pass
+    try:
+        content = wzry_battle_image_bytes(url)
+        image = pil_image_from_bytes(content, max_pixels=8_000_000).convert("RGBA")
+    except Exception:
+        if cached_image is not None:
+            return cached_image
+        raise
     ensure_dir(battle_image_cache_path)
-    with open(path, "wb") as target:
-        target.write(content)
+    import tempfile
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=battle_image_cache_path, delete=False) as target:
+            temporary = target.name
+            target.write(content)
+        os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
     return image
 
 
@@ -976,6 +996,18 @@ def save_skin_votes_image(image):
     import uuid
 
     path = os.path.join(temp_path, "temp_files", f"skin_votes_{uuid.uuid4().hex}.png")
+    return save_pil_image(image, path, format="PNG")
+
+
+def daily_report_font(size, weight=400):
+    return load_project_font("resources/fonts/noto-sans-sc/NotoSansSC-VF.ttf", size, weight)
+
+
+def save_daily_report_image(image):
+    """Keep concurrent rank queries and scheduled reports in separate artifacts."""
+    import uuid
+
+    path = os.path.join(temp_path, "temp_files", f"daily_report_{uuid.uuid4().hex}.png")
     return save_pil_image(image, path, format="PNG")
 
 

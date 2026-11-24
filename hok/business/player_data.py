@@ -198,7 +198,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         previous = zfile.read_personal_history(str(target_date_obj), userid) or {}
         profile_data = previous.get("profile")
         if not profile_data:
-            profile_data = {"roleList": [{"roleId": roleid, "roleName": runtime.namenick.get(realname, realname)}],
+            profile_data = {"roleList": [{"roleId": roleid, "roleName": "昵称未收录"}],
                             "head": {"mods": [{"modId": 701, "name": "段位未取得", "param1": '{"rankingStar":0}'}]}}
         btlist_data["sourceWarnings"].append("营地玩家资料本次未取得，当前段位不可确认。")
         runtime.log_message(f"BATTLE_PROFILE_FAILED: error={type(error).__name__}")
@@ -336,7 +336,7 @@ def wzry_data(realname,savepath=None,target_userid=None,target_roleid=None,targe
         today_btl_contribute_aver = runtime.calculate_official_battle_contribution_average(today_details, roleid)
     return {"id":userid,"roleid":roleid,"key":realname,"nickname":nickname,"date":str(real_date),"today_num":today_num,"rank_name":rankName,"rank_star":rankStar,"total_num":totalNum,"up_tourna":today_up_tourna,"up_peak":today_up_peak,"map_cnt":today_game_cnt,"btl_aver":today_btl_aver,"btl_contribute_aver":today_btl_contribute_aver,"rank":rankName,"star":starNum,"star_up":starUp,"peak_up":peakUp,"details":today_details,"gaming_info":gaming_info,"visible":BtlVisible,"unaccessible_battles":unaccessible_battles,
             "source_warnings": btlist_data.get("sourceWarnings", []), "client_added": btlist_data.get("clientAdded", 0),
-            "profile_available": profile_available}
+            "profile_available": profile_available, "avatar_url": roleInfo.get("roleIcon")}
 
 def battle_list_web_payload(payload):
     """Keep native match protocols in private archives, not in list-page downloads."""

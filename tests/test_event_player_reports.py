@@ -53,23 +53,21 @@ class PlayerReportEventTests(unittest.IsolatedAsyncioTestCase):
             {"text": "在线正文", "error_report": "错误汇总"},
         )
 
-    async def test_ranking_keeps_caller_debug_and_greeting_contract(self):
+    async def test_ranking_returns_image_without_greeting(self):
         calls = []
         ZFUNC.qid2nick = lambda user_id: "Alice"
         ZFUNC.generate_greeting = lambda: "晚上好"
-        ZFUNC.rnk_process = lambda **kwargs: calls.append(kwargs) or [
-            "排行正文",
-            set(),
-            "错误汇总",
-        ]
+        ZFUNC.rnk_process = lambda **kwargs: calls.append(kwargs) or {
+            "text": "", "image_path": "/tmp/rank.png", "error_report": "错误汇总"}
 
         result = await REPORTS.ranking_reply(FakeEvent("#排行", group_id=123))
 
-        self.assertEqual(result["text"], "Alice 晚上好\n排行正文")
+        self.assertEqual(result["text"], "")
+        self.assertEqual(result["image_path"], "/tmp/rank.png")
         self.assertEqual(result["error_report"], "错误汇总")
         self.assertEqual(result["group_id"], 123)
         self.assertTrue(calls[0]["debug"])
-        self.assertEqual(calls[0]["caller"], "Alice")
+        self.assertTrue(calls[0]["show_zero"])
 
     async def test_single_summary_and_last_battle_keep_two_stage_contract(self):
         calls = []

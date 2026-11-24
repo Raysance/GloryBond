@@ -19,30 +19,29 @@ async def online_reply():
 
 
 async def ranking_reply(event):
-    from ..zfunc import generate_greeting, qid2nick, rnk_process
+    from ..zfunc import rnk_process
 
     dmc.rank_query_late = ztime.time_r()
     user_id = event.get_user_id()
-    nickname = qid2nick(user_id)
     received = event.get_plaintext()
     ranking = await asyncio.to_thread(
         rnk_process,
         rcv_msg=received,
-        caller=nickname,
-        show_zero=False,
-        show_analyze=True,
+        show_zero=True,
         debug="#" in received,
     )
     if not ranking:
         return {
             "text": "王者荣耀数据源错误，暂无可用排行数据",
+            "image_path": None,
             "error_report": "",
             "user_id": user_id,
             "group_id": getattr(event, "group_id", None),
         }
     return {
-        "text": f"{nickname} {generate_greeting()}\n{ranking[0]}",
-        "error_report": ranking[2] if len(ranking) > 2 else "",
+        "text": ranking["text"],
+        "image_path": ranking["image_path"],
+        "error_report": ranking["error_report"],
         "user_id": user_id,
         "group_id": getattr(event, "group_id", None),
     }

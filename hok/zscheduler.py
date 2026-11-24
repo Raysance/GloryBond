@@ -170,17 +170,21 @@ def _dump_today_impl():
     id="notify_msg",
 )
 async def notify_msg():
+    import asyncio
     from .zfunc import notify_msg_impl
     from .utils.message_sender import add_msg
     from .zutil import log_message
     from .zstatic import confs
 
-    messages = notify_msg_impl()
+    messages = await asyncio.to_thread(notify_msg_impl)
     if not messages:
         return
 
     # 处理返回的结果
     for i, msg in enumerate(messages):
+        if isinstance(msg, dict) and msg.get("admin_error"):
+            add_msg(msg["admin_error"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
+            continue
         # 如果第一条包含错误堆栈（通常很长），发给管理员
         if i == 0 and "Traceback" in str(msg):
             add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
@@ -198,6 +202,8 @@ async def notify_msg():
             image_path = existing_absolute_path(img_path)
             if image_path:
                 final_msg += MessageSegment.image(f"file://{image_path}")
+            elif not text_part:
+                final_msg = Message("战报图片暂时不可用，请稍后查询。")
             if commentary:
                 final_msg += MessageSegment.text(f"\n{commentary}")
             

@@ -14,18 +14,18 @@ def _runtime():
 def notify_msg_impl():
     runtime = _runtime()
     runtime.log_message("NOTIFY" + ztime.date_r())
-    report_text = "今日王者战报(每日23:30推送)：\n"
     try:
-        report_text += runtime.rnk_process(
+        report = runtime.rnk_process(
             rcv_msg="",
             caller=None,
-            show_zero=False,
-            show_analyze=True,
-        )[0]
+            show_zero=True,
+        )
     except Exception:
         return [traceback.format_exc()]
 
-    messages = [report_text]
+    messages = [(report["text"], report["image_path"])] if report["image_path"] else [report["text"]]
+    if report["error_report"]:
+        messages.append({"admin_error": report["error_report"]})
     try:
         representative = runtime.get_daily_representative_battle()
         if representative:

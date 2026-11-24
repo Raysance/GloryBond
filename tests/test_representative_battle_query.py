@@ -127,7 +127,7 @@ class RepresentativeBattleQueryTests(unittest.TestCase):
         original_rank = ZFUNC.rnk_process
         original_getter = ZFUNC.get_daily_representative_battle
         try:
-            ZFUNC.rnk_process = lambda **kwargs: ["战报", set()]
+            ZFUNC.rnk_process = lambda **kwargs: {"text": "", "image_path": "/tmp/rank.png", "error_report": ""}
             ZFUNC.get_daily_representative_battle = lambda: (
                 "正式文字",
                 "/tmp/representative.png",

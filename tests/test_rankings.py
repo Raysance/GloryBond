@@ -1,102 +1,78 @@
 import unittest
+from unittest.mock import patch
 
 from local_debugger import import_hok_module
 
 
-RANKINGS = import_hok_module("business.rankings")
-ZFUNC = import_hok_module("zfunc")
+RANKINGS = import_hok_module('business.rankings')
+REPORT = import_hok_module('business.daily_report')
+ZFUNC = import_hok_module('zfunc')
 
 
 class RankingTests(unittest.TestCase):
     def setUp(self):
-        self.originals = {
-            "userlist": RANKINGS.userlist,
-            "roleidlist": RANKINGS.roleidlist,
-            "wzry_data": ZFUNC.wzry_data,
-            "history_artifact": ZFUNC.WebArtifacts.__dict__["make_hash"],
-            "history_link": ZFUNC.WebArtifacts.__dict__["history_route_link"],
-            "daily_writer": RANKINGS.write_daily_history_export,
-            "web_writer": RANKINGS.write_web_history_payload,
-        }
-        RANKINGS.userlist = {"alice": 11, "bob": 22}
-        RANKINGS.roleidlist = {"alice": 111, "bob": 222}
-        ZFUNC.WebArtifacts.make_hash = staticmethod(lambda seed=None: "fixed")
-        ZFUNC.WebArtifacts.history_route_link = staticmethod(
-            lambda *args, **kwargs: "https://example/rank"
-        )
-        self.daily_writes = []
-        self.web_writes = []
-        RANKINGS.write_daily_history_export = (
-            lambda date_text, payload: self.daily_writes.append((date_text, payload))
-        )
-        RANKINGS.write_web_history_payload = (
-            lambda key, payload: self.web_writes.append((key, payload))
-        )
+        self.report = None
+        def render(report):
+            self.report = report
+            return '/tmp/report.png'
+        patches = [
+            patch.object(RANKINGS, 'userlist', {'alice': 11, 'bob': 22}),
+            patch.object(RANKINGS, 'write_daily_history_export'),
+            patch.object(RANKINGS.zfile, 'read_history_date', return_value=[]),
+            patch.object(RANKINGS.zfile, 'read_latest_player_activity', return_value={}),
+            patch.object(REPORT, 'render_daily_report_file', side_effect=render),
+            patch.object(ZFUNC, 'ai_parser', side_effect=AssertionError('no AI for report images')),
+        ]
+        self.mocks = [p.start() for p in patches]
+        for p in patches:
+            self.addCleanup(p.stop)
+        self.writer, self.history = self.mocks[1:3]
 
-    def tearDown(self):
-        RANKINGS.userlist = self.originals["userlist"]
-        RANKINGS.roleidlist = self.originals["roleidlist"]
-        ZFUNC.wzry_data = self.originals["wzry_data"]
-        ZFUNC.WebArtifacts.make_hash = self.originals["history_artifact"]
-        ZFUNC.WebArtifacts.history_route_link = self.originals["history_link"]
-        RANKINGS.write_daily_history_export = self.originals["daily_writer"]
-        RANKINGS.write_web_history_payload = self.originals["web_writer"]
+    def test_partial_player_failure_keeps_available_image_and_saved_history(self):
+        old = {'key': 'bob', 'nickname': 'Saved Game Name', 'today_num': 9, 'visible': True, 'star_up': 20}
+        self.history.return_value = [old]
+        def collect(*, realname):
+            if realname == 'bob':
+                raise RuntimeError('unavailable')
+            return {'key': 'alice', 'nickname': 'Game Name', 'star_up': 3, 'today_num': 2,
+                    'visible': True, 'details': []}
+        with patch.object(ZFUNC, 'wzry_data', side_effect=collect):
+            result = ZFUNC.rnk_process('$', show_zero=False)
+        self.assertEqual(result['text'], '')
+        self.assertEqual(result['image_path'], '/tmp/report.png')
+        self.assertIn('排行遍历异常汇总 count=1', result['error_report'])
+        self.assertIn('rank.wzry_data', result['error_report'])
+        self.assertIn(old, self.writer.call_args.args[1])
+        self.assertEqual(self.report['rows'][1]['name'], 'Saved Game Name')
+        self.assertEqual(self.report['rows'][1]['status'], '查询失败')
+        self.assertIsNone(self.report['rows'][1]['games'])
+        self.assertIsNone(self.report['rows'][1]['stars'])
 
-    def test_partial_player_failure_keeps_available_ranking(self):
-        def wzry_data(*, realname):
-            if realname == "bob":
-                raise RuntimeError("unavailable")
-            return {
-                "key": "alice",
-                "nickname": "Alice",
-                "star_up": 3,
-                "today_num": 2,
-            }
+    def test_all_failures_do_not_write_or_render(self):
+        with patch.object(ZFUNC, 'wzry_data', side_effect=RuntimeError('offline')):
+            result = ZFUNC.rnk_process('$')
+        self.assertIn('暂无可用排行数据', result['text'])
+        self.assertIsNone(result['image_path'])
+        self.assertIn('count=2', result['error_report'])
+        self.writer.assert_not_called()
+        self.assertIsNone(self.report)
 
-        ZFUNC.wzry_data = wzry_data
-        message, highlights, error_report = ZFUNC.rnk_process(
-            "$",
-            caller="tester",
-            show_zero=False,
-        )
-
-        self.assertIn("今日上分最佳👆：Alice", message)
-        self.assertIn("https://example/rank", message)
-        self.assertEqual(highlights, {"Alice", ""})
-        self.assertIn("排行遍历异常汇总 count=1", error_report)
-        self.assertIn("rank.wzry_data", error_report)
-        self.assertEqual(len(self.daily_writes), 1)
-        self.assertEqual(self.web_writes[0][0], "fixed")
-        self.assertNotIn("key", self.web_writes[0][1][0])
-
-    def test_all_player_failures_keep_existing_error_response(self):
-        ZFUNC.wzry_data = lambda **kwargs: (_ for _ in ()).throw(
-            RuntimeError("offline")
-        )
-
-        message, highlights, error_report = ZFUNC.rnk_process("$")
-
-        self.assertIn("王者荣耀数据源错误，暂无可用排行数据", message)
-        self.assertEqual(highlights, [])
-        self.assertIn("排行遍历异常汇总 count=2", error_report)
-        self.assertEqual(self.daily_writes, [])
-        self.assertEqual(self.web_writes, [])
+    def test_zero_games_still_produces_image_with_idle_players(self):
+        def collect(*, realname):
+            return {'key': realname, 'nickname': realname, 'visible': True,
+                    'star_up': 0, 'today_num': 0, 'details': []}
+        with patch.object(ZFUNC, 'wzry_data', side_effect=collect):
+            result = ZFUNC.rnk_process('', show_zero=False, show_analyze=True)
+        self.assertEqual(len(self.report['rows']), 2)
+        self.assertEqual(result['image_path'], '/tmp/report.png')
 
     def test_traversal_error_report_compacts_large_parameters(self):
-        error = ZFUNC._build_traversal_error(
-            "rank.test",
-            "alice",
-            {"payload": "x" * 400},
-            RuntimeError("offline"),
-        )
-
-        report = ZFUNC.format_traversal_error_report("排行遍历", [error])
-
-        self.assertIn("排行遍历异常汇总 count=1", report)
-        self.assertIn("rank.test", report)
+        error = ZFUNC._build_traversal_error('rank.test', 'alice', {'payload': 'x' * 400}, RuntimeError('offline'))
+        report = ZFUNC.format_traversal_error_report('排行遍历', [error])
+        self.assertIn('count=1', report)
         self.assertIn("RuntimeError('offline')", report)
         self.assertLess(len(report), 520)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

@@ -22,7 +22,7 @@ class DailyNotificationTests(unittest.TestCase):
         ZFUNC.log_message = self.originals["log"]
 
     def test_keeps_report_then_representative_tuple_order(self):
-        ZFUNC.rnk_process = lambda **kwargs: ["排行正文", set(), ""]
+        ZFUNC.rnk_process = lambda **kwargs: {"text": "", "image_path": "/tmp/rank.png", "error_report": ""}
         ZFUNC.get_daily_representative_battle = lambda: (
             "代表局正文",
             "/tmp/battle.png",
@@ -34,7 +34,7 @@ class DailyNotificationTests(unittest.TestCase):
         self.assertEqual(
             result,
             [
-                "今日王者战报(每日23:30推送)：\n排行正文",
+                ("", "/tmp/rank.png"),
                 ("代表局正文", "/tmp/battle.png", "AI 文案"),
             ],
         )
@@ -50,7 +50,7 @@ class DailyNotificationTests(unittest.TestCase):
         self.assertIn("RuntimeError: rank failed", result[0])
 
     def test_representative_failure_keeps_main_report(self):
-        ZFUNC.rnk_process = lambda **kwargs: ["排行正文", set(), ""]
+        ZFUNC.rnk_process = lambda **kwargs: {"text": "", "image_path": "/tmp/rank.png", "error_report": ""}
         ZFUNC.get_daily_representative_battle = lambda: (_ for _ in ()).throw(
             RuntimeError("representative failed")
         )
@@ -59,7 +59,7 @@ class DailyNotificationTests(unittest.TestCase):
 
         self.assertEqual(
             result,
-            ["今日王者战报(每日23:30推送)：\n排行正文"],
+            [("", "/tmp/rank.png")],
         )
         self.assertTrue(
             any("GET_REPRESENTATIVE_BATTLE_ERROR" in item for item in self.logs)
