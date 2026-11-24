@@ -5,15 +5,20 @@ import re
 from bs4 import BeautifulSoup
 from twikit.x_client_transaction import ClientTransaction
 
+from .x_web_assets import XWebAssets, XWebError
+
 
 class XWebTransaction(ClientTransaction):
     async def init(self, session, headers):
-        # X's logged-out root is now a different application. The logged-in
-        # /home document still carries the transaction animation and chunk map.
+        self.assets = None
         response = await session.get("https://x.com/home", headers=headers)
         if response.status_code != 200:
-            raise RuntimeError("X 网页初始化失败，请检查登录会话")
+            raise XWebError(f"X 网页首页初始化失败（HTTP {response.status_code}），请检查登录会话；本次保留游标")
         self.home_page_response = BeautifulSoup(response.content, "html.parser")
+        entry = re.search(r'''\bentryHref\s*=\s*["'](https://abs\.twimg\.com/[^"']+)["']''', str(self.home_page_response))
+        if entry:
+            self.assets = XWebAssets(entry[1], session, headers)
+            await self.assets.bootstrap()
         self.DEFAULT_ROW_INDEX, self.DEFAULT_KEY_BYTES_INDICES = await self.get_indices(
             self.home_page_response, session, headers,
         )
@@ -24,6 +29,14 @@ class XWebTransaction(ClientTransaction):
         )
 
     async def get_indices(self, home_page_response, session, headers):
+        if getattr(self, "assets", None) is not None:
+            source = await self.assets.signature_source()
+            # Current obfuscation wraps arithmetic calls but leaves these byte
+            # accesses literal. Never evaluate downloaded JavaScript.
+            indices = [int(value) for value in re.findall(r'''\(\s*[\w$]+\[(\d{1,2})\],\s*16\)''', source)]
+            if len(indices) != 4:
+                raise XWebError("X 网页 transaction 索引结构变化，本次保留游标")
+            return indices[0], indices[1:]
         html = str(home_page_response)
         chunk = re.search(r'''(?:^|[,{])\s*["']?(\d+)["']?\s*:\s*["']ondemand\.s["']''', html)
         if chunk:
@@ -32,12 +45,12 @@ class XWebTransaction(ClientTransaction):
         else:
             hash_match = re.search(r'''["']ondemand\.s["']\s*:\s*["']([0-9a-f]+)["']''', html)
         if not hash_match:
-            raise RuntimeError("X 网页缺少 transaction 资源映射")
+            raise XWebError("X 网页缺少 transaction 资源映射，本次保留游标")
         asset = f"https://abs.twimg.com/responsive-web/client-web/ondemand.s.{hash_match[1]}a.js"
         response = await session.get(asset, headers=headers)
         if response.status_code != 200:
-            raise RuntimeError("X 网页 transaction 资源获取失败")
+            raise XWebError("X 网页 transaction 资源获取失败，本次保留游标")
         indices = [int(value) for value in re.findall(r'''\(\w{1,3}\[(\d{1,2})\],\s*16\)''', response.text)]
         if len(indices) < 2:
-            raise RuntimeError("X 网页 transaction 索引结构变化")
+            raise XWebError("X 网页 transaction 索引结构变化，本次保留游标")
         return indices[0], indices[1:]

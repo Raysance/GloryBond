@@ -10,17 +10,15 @@ import re
 from html import unescape
 from urllib.parse import urljoin, urlparse
 
+import httpx
 from twikit import Client
 from twikit.errors import TooManyRequests, Unauthorized, Forbidden, AccountLocked, AccountSuspended
 
 from .proxy import clash_request
 from .x_transaction import XWebTransaction
+from .x_web_assets import XWebError
 from ..zstatic import clash_proxy_url, x_subscription_config
 from ..ztime import parse_chat_time_bound, utc_timestamp_text
-
-
-class XWebError(RuntimeError):
-    """A credential-free diagnostic safe for the QQ command boundary."""
 
 
 def x_username(value):
@@ -44,6 +42,8 @@ class XWebClient(Client):
                          user_agent=x_subscription_config["user_agent"], trust_env=False,
                          timeout=x_subscription_config["timeout_seconds"], follow_redirects=False)
         self.query_ids = {}
+        self.relay = False
+        self._screen_names = {}
         self.client_transaction = XWebTransaction()
         self.set_cookies({key: x_subscription_config[key] for key in ("auth_token", "ct0")})
 
@@ -66,6 +66,9 @@ class XWebClient(Client):
         })
         page = self.client_transaction.home_page_response
         self.query_ids = dict(x_subscription_config.get("web_query_ids") or {})
+        self.relay = getattr(self.client_transaction, "assets", None) is not None
+        if self.relay:
+            return
         scripts = [urljoin("https://x.com", tag.get("src", "")) for tag in page.select("script[src]")]
         main_urls = [url for url in scripts if urlparse(url).scheme == "https" and urlparse(url).hostname == "abs.twimg.com"
                      and re.search(r"/main\.[^/]+\.js$", urlparse(url).path)]
@@ -76,20 +79,60 @@ class XWebClient(Client):
             discovered = {name: query_id for query_id, name in re.findall(pattern, response.text)}
             self.query_ids = {**discovered, **self.query_ids}
 
+    async def _screen_name(self, user_id):
+        if not re.fullmatch(r"[0-9]{1,19}", str(user_id)):
+            raise XWebError("无效的 X 用户 ID")
+        if user_id not in self._screen_names:
+            response = await self.http.get(f"https://x.com/i/user/{user_id}", follow_redirects=False)
+            destination = urlparse(urljoin("https://x.com", response.headers.get("location", "")))
+            if (response.status_code not in {301, 302, 303, 307, 308}
+                    or destination.scheme != "https" or destination.netloc != "x.com"
+                    or destination.query or destination.fragment
+                    or not re.fullmatch(r"/[A-Za-z0-9_]{1,15}", destination.path)
+                    or destination.path.lower() in {"/home", "/login", "/logout", "/explore", "/i"}):
+                raise XWebError("X 网页账号 ID 解析失败，请检查会话或账号状态；本次保留游标")
+            self._screen_names[user_id] = destination.path[1:]
+        return self._screen_names[user_id]
+
+    async def _relay_request(self, operation, params):
+        variables = json.loads(params.get("variables") or "{}")
+        if operation == "UserByScreenName":
+            variables = {"screenName": variables["screen_name"], "withIdentity": True}
+        elif operation in {"UserTweets", "UserTweetsAndReplies"}:
+            name = await self._screen_name(variables["userId"])
+            variables = {"screenName": name, "count": variables["count"],
+                         "cursor": variables.get("cursor"), "sortByMostLiked": False}
+            operation = "UserOriginalsTimeline" if operation == "UserTweets" else "UserTweets"
+        else:
+            variables = {"focalTweetId": variables["focalTweetId"], "cursor": variables.get("cursor"),
+                         "rankingMode": "Relevance", "referrer": None, "withFocalTweet": not variables.get("cursor")}
+        query_id, providers = await self.client_transaction.assets.query(operation)
+        query_id = self.query_ids.get(operation, query_id)
+        if not re.fullmatch(r"[\w-]+", query_id):
+            raise XWebError("X 网页操作标识无效，本次保留游标")
+        # Optional presentation features stay disabled; authentication reflects
+        # this cookie-session reader. No scripts or provider functions execute.
+        for provider in providers:
+            variables[provider] = provider == "__relay_internal__pv__xclientsfeaturesappviewerisloggedinrelayprovider"
+        return f"https://api.x.com/graphql/{query_id}/{operation}", {"variables": json.dumps(variables)}
+
     async def request(self, method, url, **kwargs):
         parsed = urlparse(url)
         operation = parsed.path.rsplit("/", 1)[-1]
         allowed = {"UserByScreenName", "UserTweets", "UserTweetsAndReplies", "TweetDetail"}
         if method.upper() != "GET" or parsed.scheme != "https" or parsed.hostname != "x.com" or operation not in allowed:
             raise ValueError("X 网页读取器拒绝非订阅读取请求")
-        query_id = self.query_ids.get(operation)
-        if not query_id or not re.fullmatch(r"[\w-]+", query_id):
-            raise XWebError("X 网页操作标识缺失，请更新网页适配或 XSubscriptions.web_query_ids")
-        url = f"https://x.com/i/api/graphql/{query_id}/{operation}"
         params = dict(kwargs.get("params") or {})
-        features = json.loads(params.get("features") or "{}")
-        features.update(x_subscription_config.get("web_features") or {})
-        params["features"] = json.dumps(features)
+        if self.relay:
+            url, params = await self._relay_request(operation, params)
+        else:
+            query_id = self.query_ids.get(operation)
+            if not query_id or not re.fullmatch(r"[\w-]+", query_id):
+                raise XWebError("X 网页操作标识缺失，请更新网页适配或 XSubscriptions.web_query_ids")
+            url = f"https://x.com/i/api/graphql/{query_id}/{operation}"
+            features = json.loads(params.get("features") or "{}")
+            features.update(x_subscription_config.get("web_features") or {})
+            params["features"] = json.dumps(features)
         kwargs["params"] = params
         headers = dict(kwargs.pop("headers", None) or self._base_headers)
         headers["X-Client-Transaction-Id"] = self.client_transaction.generate_transaction_id(method="GET", path=urlparse(url).path)
@@ -134,8 +177,12 @@ def _run(action):
         raise XWebError("X 网页请求被限流，请稍后重试") from None
     except (Unauthorized, Forbidden, AccountLocked, AccountSuspended):
         raise XWebError("X 网页会话不可用，请在浏览器确认登录状态并更新 auth_token 与 ct0") from None
-    except Exception:
-        raise XWebError("X 网页读取失败，请检查会话、代理或网页接口变化；本次保留游标") from None
+    except (TimeoutError, httpx.TimeoutException):
+        raise XWebError("X 网页读取超时，请稍后重试；本次保留游标") from None
+    except httpx.RequestError:
+        raise XWebError("X 网页网络或代理连接失败，请稍后重试；本次保留游标") from None
+    except Exception as exc:
+        raise XWebError(f"X 网页适配失败（{type(exc).__name__}），请检查网页接口变化；本次保留游标") from None
 
 
 def _user(result):
@@ -153,7 +200,8 @@ def x_get_user(username):
     username = x_username(username)
     async def action(client):
         payload, _ = await client.gql.user_by_screen_name(username)
-        return _user(((payload.get("data") or {}).get("user") or {}).get("result"))
+        data = payload.get("data") or {}
+        return _user((data.get("user_result_by_screen_name") or data.get("user") or {}).get("result"))
     return _run(action)
 
 
@@ -166,18 +214,26 @@ def _post(result):
     if not isinstance(legacy, dict):
         raise XWebError("X 网页帖子结构变化，本次保留游标")
     post_id = str(result.get("rest_id") or legacy.get("id_str") or "")
-    if not re.fullmatch(r"[0-9]{1,19}", post_id) or not legacy.get("created_at"):
+    details = result.get("details") or {}
+    created_at = details.get("created_at_ms")
+    if created_at is not None:
+        created_epoch = float(created_at) / 1000
+    else:
+        created_epoch = parse_chat_time_bound(legacy["created_at"]) if legacy.get("created_at") else None
+    if not re.fullmatch(r"[0-9]{1,19}", post_id) or created_epoch is None:
         raise XWebError("X 网页帖子缺少 ID 或发布时间，本次保留游标")
     user = _user(((result.get("core") or {}).get("user_results") or {}).get("result"))
     note = ((result.get("note_tweet") or {}).get("note_tweet_results") or {}).get("result") or {}
-    media = (legacy.get("extended_entities") or {}).get("media") or []
-    references = {"retweet": bool(legacy.get("retweeted_status_result") or result.get("retweeted_status_result")),
-                  "reply": bool(legacy.get("in_reply_to_status_id_str"))}
-    return {"id": post_id, "text": unescape(str(note.get("text") or legacy.get("full_text") or "")),
-            "created_at": utc_timestamp_text(parse_chat_time_bound(legacy["created_at"])),
+    media = result.get("media_entities2") or (legacy.get("extended_entities") or {}).get("media") or []
+    counts = result.get("counts") or legacy
+    references = {"retweet": bool(legacy.get("retweeted_status_result") or result.get("retweeted_status_result")
+                                  or result.get("retweeted_status_results")),
+                  "reply": bool(legacy.get("in_reply_to_status_id_str") or (result.get("reply_to_results") or {}).get("rest_id"))}
+    return {"id": post_id, "text": unescape(str(note.get("text") or details.get("full_text") or legacy.get("full_text") or "")),
+            "created_at": utc_timestamp_text(created_epoch),
             "lang": legacy.get("lang"), "username": user["username"], "name": user["name"],
             "author_id": user["id"], "conversation_id": str(legacy.get("conversation_id_str") or post_id),
-            "likes": int(legacy.get("favorite_count") or 0), "reply_count": int(legacy.get("reply_count") or 0),
+            "likes": int(counts.get("favorite_count") or 0), "reply_count": int(counts.get("reply_count") or 0),
             "media_urls": [row["media_url_https"] for row in media if row.get("media_url_https")],
             "media_short_urls": [row['url'] for row in media if row.get('url')],
             **references}
@@ -188,45 +244,52 @@ def _timeline_page(payload, *, detail=False):
     if detail:
         timeline = data.get("threaded_conversation_with_injections_v2") or data.get("threaded_conversation_with_injections") or {}
     else:
-        user = (data.get("user") or {}).get("result") or {}
-        timeline = user.get("timeline_v2") or user.get("timeline") or {}
+        user = (data.get("user_result_by_screen_name") or data.get("user") or {}).get("result") or {}
+        timeline = (user.get("profile_user_originals_timeline") or user.get("profile_with_replies_timeline_v2")
+                    or user.get("timeline_v2") or user.get("timeline") or {})
         timeline = timeline.get("timeline") or timeline
     instructions = timeline.get("instructions")
     if not isinstance(instructions, list):
         raise XWebError("X 网页时间线结构变化，本次保留游标")
     entries = []
     for instruction in instructions:
-        if instruction.get("type") == "TimelinePinEntry":
+        if (instruction.get("type") or instruction.get("__typename")) == "TimelinePinEntry":
             continue
-        entries.extend(instruction.get("entries") or instruction.get("moduleItems") or [])
+        entries.extend(instruction.get("entries") or instruction.get("moduleItems") or instruction.get("module_items") or [])
         if instruction.get("entry"):
             entries.append(instruction["entry"])
     posts, cursor = {}, None
 
     def read_content(content, can_bound=False):
         nonlocal cursor
-        if not isinstance(content, dict) or content.get("promotedMetadata"):
+        if not isinstance(content, dict) or content.get("promotedMetadata") or content.get("promoted_metadata"):
             return
-        item = content.get("itemContent") or content
-        if item.get("promotedMetadata"):
+        item = content.get("itemContent") or content.get("content") or content
+        if item.get("promotedMetadata") or item.get("promoted_metadata"):
             return
-        if item.get("cursorType") == "Bottom":
+        if (item.get("cursorType") or item.get("cursor_type")) == "Bottom":
             cursor = item.get("value")
+            if not isinstance(cursor, str) or not cursor:
+                raise XWebError("X 网页分页游标结构变化，本次保留游标")
+        if item.get("__typename") == "TimelineTweet" and not isinstance(item.get("tweet_results"), dict):
+            raise XWebError("X 网页帖子结构变化，本次保留游标")
         if isinstance(item.get("tweet_results"), dict):
             result = item["tweet_results"].get("result")
-            if result:
-                post = _post(result)
-                if post:
-                    post["_timeline_bound"] = can_bound
-                    posts[post["id"]] = post
+            if not isinstance(result, dict) or not result:
+                raise XWebError("X 网页帖子结果缺失，本次保留游标")
+            post = _post(result)
+            if post:
+                post["_timeline_bound"] = can_bound
+                posts[post["id"]] = post
         for child in content.get("items") or []:
             read_content(child.get("item") or child)
 
     for entry in entries:
-        if str(entry.get("entryId", "")).startswith(("promoted", "tweetdetailrelatedtweets")):
+        entry_id = str(entry.get("entryId") or entry.get("entry_id") or "")
+        if entry_id.startswith(("promoted", "tweetdetailrelatedtweets")):
             continue
         read_content(entry.get("content") or entry.get("item") or {},
-                     can_bound=str(entry.get("entryId", "")).startswith("tweet-"))
+                     can_bound=entry_id.startswith("tweet-"))
     return list(posts.values()), cursor
 
 

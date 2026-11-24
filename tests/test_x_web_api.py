@@ -175,6 +175,17 @@ class XWebApiTests(unittest.TestCase):
                 self.assertNotIn('csrf-secret',str(raised.exception))
         self.assertEqual(self.client.http.aclose.await_count,3)
 
+    def test_timeout_network_and_bootstrap_errors_remain_distinguishable_and_safe(self):
+        for error, message in ((TimeoutError('session-secret'), '超时'),
+                               (httpx.ConnectError('csrf-secret'), '网络或代理'),
+                               (API.XWebError('X 网页缺少 transaction 资源映射，本次保留游标'), '资源映射')):
+            with self.subTest(error=type(error).__name__):
+                self.client.prepare.side_effect=error
+                with self.assertRaisesRegex(API.XWebError,message) as raised:
+                    API.x_get_user('author1')
+                self.assertNotIn('session-secret',str(raised.exception))
+                self.assertNotIn('csrf-secret',str(raised.exception))
+
     def test_media_download_obeys_byte_budget_and_has_no_cookie_header(self):
         response=SimpleNamespace(status_code=200,headers={'Content-Type':'image/png'},
                                  iter_content=lambda size:iter([b'1234',b'5678']),close=lambda:None)

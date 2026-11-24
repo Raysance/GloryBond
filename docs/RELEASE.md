@@ -41,6 +41,24 @@ environment variable without including a credential value.
 Validation passed 1,192 host tests and 45 Web tests with the fixed SDK revision.
 All checks used offline fixtures and mocks, without additional Camp requests.
 
+## Current X website subscription protocol — 2026-11-24
+
+The X reader now discovers the x-web entry modules, transaction byte indices and
+Relay query IDs from current public scripts without executing downloaded code.
+It supports original and reply-inclusive timelines, current post fields and
+reply pagination while retaining the legacy website path. Stable subscription
+IDs resolve the current profile name through a constrained redirect; original
+author checks and incremental cursor protection remain in place. Public script
+caching is bounded and excludes authenticated pages and API responses.
+
+Network, timeout and website adaptation errors now have separate credential-free
+diagnostics. Missing recognized tweet results abort the batch instead of being
+silently skipped. README, project conventions and subscription manuals were
+updated together. Validation passed 81 host regression checks and the manual
+validator. Read-only production-network checks covered account lookup, two
+original-timeline pages, the reply-inclusive timeline, and two reply pages; no
+test message or subscription/cursor write was performed.
+
 ## Structured foreground chat context — 2026-11-16
 
 QQ and local Web now assemble foreground input through one host-side state/model

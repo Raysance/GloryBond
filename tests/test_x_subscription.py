@@ -124,6 +124,17 @@ class XBusinessTests(unittest.TestCase):
         self.assertEqual(result['pushed'], 0)
         self.assertEqual(self.state.cursors['1']['since_id'], '10')
 
+    def test_web_parse_failure_keeps_cursor_and_other_account_still_runs(self):
+        self.state.records.append({"id":"2", "username":"other", "name":"Other", "user_qid":"10001"})
+        self.state.cursors['2'] = {'since_id':'10'}
+        error = import_hok_module('api_adapters.x').XWebError('X 网页帖子结果缺失，本次保留游标')
+        with patch.object(ZAPI, 'x_get_posts', side_effect=[error, [{'id':'11','text':'new'}]]):
+            result = BUSINESS.x_check_and_push()
+        self.assertEqual(result['pushed'], 1)
+        self.assertEqual(len(result['errors']), 1)
+        self.assertEqual(self.state.cursors['1']['since_id'], '10')
+        self.assertEqual(self.state.cursors['2']['since_id'], '11')
+
     def test_replies_and_translation_are_in_card_and_failures_are_visible(self):
         replies = {'replies':[{'id':'9','text':'Great','lang':'en','likes':3}], 'sample_size':50}
         with patch.object(ZAPI, 'x_get_replies', return_value=replies), \
