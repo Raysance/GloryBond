@@ -277,6 +277,40 @@ def list_history_dates_descending(start_date=None):
     return sorted(dates, reverse=True)
 
 
+def read_latest_player_activity(player_names, *, before_epoch):
+    """Read saved activity from PostgreSQL, falling back to daily JSON archives."""
+    if not player_names:
+        return {}
+    try:
+        from .zdb import read_latest_player_activity as read_from_db
+
+        records = read_from_db(player_names, before_epoch=before_epoch)
+        if records:
+            return records
+    except Exception as exc:
+        log_message(f"POSTGRES_ACTIVITY_READ_FALLBACK: error_type={type(exc).__name__}", logging.WARNING)
+    requested = set(player_names)
+    records = {}
+    for date in list_history_archive_dates_descending():
+        payload = read_history_archive_date(date)
+        for player in payload if isinstance(payload, list) else []:
+            if not isinstance(player, dict) or player.get("key") not in requested:
+                continue
+            row = records.setdefault(player["key"], {
+                "nickname": player.get("nickname"), "visible": player.get("visible"),
+                "snapshot_date": date, "last_game_epoch": None,
+            })
+            details = player.get("details")
+            for detail in details if isinstance(details, list) else []:
+                value = detail.get("GameTime_Timestamp") if isinstance(detail, dict) else None
+                if isinstance(value, bool) or not str(value).isascii() or not str(value).isdigit():
+                    continue
+                timestamp = int(value)
+                if 0 < timestamp <= before_epoch:
+                    row["last_game_epoch"] = max(row["last_game_epoch"] or 0, timestamp)
+    return records
+
+
 def read_battle_detail(gameseq):
     """Read one battle detail from PostgreSQL, with JSON archive fallback."""
     try:

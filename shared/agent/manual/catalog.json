@@ -1087,6 +1087,23 @@
       }
     },
     {
+      "id": "games_inactivity",
+      "title": "多久没打了排名",
+      "parent": "games",
+      "summary": "#多久没打了按距最近收录对局时间从长到短排名，只读已保存战绩，全模式、不限赛季，不请求营地或客户端；隐藏和无有效记录不参与排名，采集缺档不代表没有游玩。",
+      "keywords": ["多久没打了", "多久没打排名", "多久没打排行", "最近收录对局"],
+      "document": {
+        "path": "shared/agent/manual/chapters/games.md",
+        "heading": "多久没打了排名"
+      },
+      "code": [
+        {
+          "path": "hok/business/rankings.py",
+          "symbol": "inactivity_rank_process"
+        }
+      ]
+    },
+    {
       "id": "games_3",
       "title": "在线状态",
       "parent": "games",

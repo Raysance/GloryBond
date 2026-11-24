@@ -117,6 +117,53 @@ def peak_rank_process(player_names=None):
     return "\n".join(lines)
 
 
+def inactivity_rank_process(player_names=None):
+    """Rank saved battles across all modes without requesting game providers."""
+    from .. import ztime
+
+    names = list(dict.fromkeys(player_names if player_names is not None else userlist))
+    now = ztime.current_epoch_seconds()
+    records = zfile.read_latest_player_activity(names, before_epoch=now)
+    ranked, other = [], []
+    for realname in names:
+        record = records.get(realname, {})
+        name = namenick.get(realname) or record.get("nickname") or realname
+        timestamp = record.get("last_game_epoch")
+        if record.get("visible") is False:
+            other.append((name, "最近归档战绩隐藏"))
+        elif timestamp is None:
+            other.append((name, "暂无有效本地对局"))
+        else:
+            ranked.append((timestamp, name, realname))
+
+    lines = ["【多久没打了排名】", "按距最近收录对局时间从长到短排列（全模式）"]
+    dates = [str(row["snapshot_date"]) for row in records.values() if row.get("snapshot_date")]
+    if dates:
+        lines.append(f"最新归档日期：{max(dates)}")
+    for index, (timestamp, name, _) in enumerate(sorted(ranked), 1):
+        elapsed = inactivity_duration_text(now - timestamp)
+        last_played = ztime.epoch_to_text(timestamp, "%Y-%m-%d %H:%M", "Asia/Shanghai")
+        lines.append(f"{index}. {name}  {elapsed}（最近 {last_played}）")
+    if not ranked:
+        lines.append("暂无可参与排名的对局记录")
+    if other:
+        lines.append("\n未参与排名：")
+        lines.extend(f"{name}  {status}" for name, status in other)
+    lines.append("\n仅依据已保存战绩；采集缺档不代表没有游玩，不代表离线时长。")
+    return "\n".join(lines)
+
+
+def inactivity_duration_text(seconds):
+    days, remainder = divmod(max(0, int(seconds)), 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes = remainder // 60
+    if days:
+        return f"{days}天{hours}小时"
+    if hours:
+        return f"{hours}小时{minutes}分钟"
+    return f"{minutes}分钟" if minutes else "不足1分钟"
+
+
 def rnk_process(rcv_msg, caller=None, show_zero=True, show_analyze=False, debug=False):
     from ..ztime import current_timestamp, time_r, time_sul
 

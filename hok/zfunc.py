@@ -1014,6 +1014,10 @@ def peak_rank_process(player_names=None):
     return _rankings_business.peak_rank_process(player_names=player_names)
 
 
+def inactivity_rank_process(player_names=None):
+    return _rankings_business.inactivity_rank_process(player_names=player_names)
+
+
 from .business import player_data as _player_data_business
 
 

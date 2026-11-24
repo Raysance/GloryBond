@@ -91,6 +91,12 @@ _peak_rank=on_fullmatch(
     block=True,
 )
 _hero_tier=on_fullmatch(("#梯度", "＃梯度"),rule=judge_to_me,priority=3,block=True)
+_inactivity_rank = on_fullmatch(
+    ("#多久没打了", "＃多久没打了", "#多久没打排名", "＃多久没打排名",
+     "#多久没打排行", "＃多久没打排行", "#多久没打了排名", "＃多久没打了排名",
+     "#多久没打了排行", "＃多久没打了排行"),
+    rule=judge_to_me, priority=3, block=True,
+)
 _skin_votes = on_fullmatch(
     ("#皮肤返场", "＃皮肤返场", "#返场排行", "＃返场排行", "#返场排名", "＃返场排名",
      "#皮肤返场排行", "＃皮肤返场排行", "#皮肤返场排名", "＃皮肤返场排名",
@@ -426,6 +432,18 @@ async def f_peak_rank(event):
             event=event,
         )
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_inactivity_rank.handle()
+async def f_inactivity_rank(event):
+    from .zfunc import inactivity_rank_process
+
+    try:
+        result = await asyncio.to_thread(inactivity_rank_process)
+        add_msg(result, event=event)
+    except Exception as error:
+        log_message(f"INACTIVITY_RANK_FAILED: error_type={type(error).__name__}")
+        add_msg("多久没打了排名暂时查询失败，请稍后重试。", event=event)
 
 
 @_hero_tier.handle()

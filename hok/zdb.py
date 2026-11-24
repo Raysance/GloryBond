@@ -229,6 +229,35 @@ def list_history_dates_descending(start_date=None):
             return [row["snapshot_date"].isoformat() for row in cursor.fetchall()]
 
 
+def read_latest_player_activity(player_names, *, before_epoch):
+    """Read latest saved timestamps in one batch, without loading battle payloads."""
+    if not player_names:
+        return {}
+    with _connect() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                WITH latest AS (
+                    SELECT DISTINCT ON (player_key)
+                        player_key, nickname, visible, snapshot_date
+                    FROM hok.history_players
+                    WHERE player_key = ANY(%s)
+                    ORDER BY player_key, snapshot_date DESC
+                ), activity AS (
+                    SELECT player_key, max(game_time_epoch) AS last_game_epoch
+                    FROM hok.battle_records
+                    WHERE player_key = ANY(%s) AND game_time_epoch > 0
+                        AND game_time_epoch <= %s
+                    GROUP BY player_key
+                )
+                SELECT latest.*, activity.last_game_epoch
+                FROM latest LEFT JOIN activity USING (player_key)
+                """,
+                (list(player_names), list(player_names), int(before_epoch)),
+            )
+            return {row["player_key"]: row for row in cursor.fetchall()}
+
+
 def fetch_history(userid=None, start_date=None, end_date=None, filter_official=True):
     """Return the legacy {player_key: [battle]} shape using indexed rows."""
     conditions = ["snapshot_date BETWEEN %s AND %s"]
