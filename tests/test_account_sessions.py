@@ -47,17 +47,17 @@ class LoginTests(unittest.TestCase):
         self.addCleanup(self.manager.close)
         self.client = Mock()
         self.client.start.return_value = b'\x89PNG\r\n\x1a\nmock'
-        self.client.poll.return_value = ('authenticated', {'HOK_WZRY_TOKEN': 'new'})
+        self.client.poll.return_value = ('authenticated', None)
         self.provider = patch.object(self.manager, 'provider', return_value=self.client)
         self.provider.start()
         self.addCleanup(self.provider.stop)
 
     def test_json_roundtrip_preserves_backslashes_quotes_and_other_settings(self):
         value = json.dumps({'raw': 'quoted\' " \\n literal', 'nested': json.dumps({'quote': '"'})}, ensure_ascii=False)
-        store.save_secrets(self.env, {'HOK_CAMP_SESSION_JSON': value}, self.root)
+        store.save_secrets(self.env, {'HOK_PLAYER_CLIENT_SESSION_JSON': value}, self.root)
         values = store.secrets(self.env)
-        self.assertEqual(values['HOK_CAMP_SESSION_JSON'], value)
-        self.assertEqual(json.loads(values['HOK_CAMP_SESSION_JSON']), json.loads(value))
+        self.assertEqual(values['HOK_PLAYER_CLIENT_SESSION_JSON'], value)
+        self.assertEqual(json.loads(values['HOK_PLAYER_CLIENT_SESSION_JSON']), json.loads(value))
         self.assertEqual(values['OTHER'], 'preserve')
         self.assertEqual(self.env.stat().st_mode & 0o777, 0o600)
 
@@ -71,7 +71,7 @@ class LoginTests(unittest.TestCase):
     def test_atomic_compare_and_swap_prevents_overwrite(self):
         before = self.env.read_bytes()
         with self.assertRaises(ValueError):
-            store.save_secrets(self.env, {'HOK_WZRY_TOKEN': 'new'}, self.root, expected={'HOK_WZRY_TOKEN': 'stale'})
+            store.save_secrets(self.env, {'HOK_NAPCAT_WEBUI_TOKEN': 'new'}, self.root, expected={'HOK_NAPCAT_WEBUI_TOKEN': 'stale'})
         self.assertEqual(self.env.read_bytes(), before)
 
     def test_qr_reuses_session_and_secret_stays_unchanged_until_verified(self):
@@ -83,7 +83,8 @@ class LoginTests(unittest.TestCase):
         self.assertEqual(self.env.read_bytes(), before)
         reply = self.manager.poll('camp', first['challenge_id'])
         self.assertEqual(reply['state'], 'authenticated')
-        self.assertEqual(store.secrets(self.env)['HOK_WZRY_TOKEN'], 'new')
+        self.assertEqual(self.env.read_bytes(), before)
+        self.client.commit.assert_called_once_with()
         self.assertNotIn('camp', self.manager.active)
         self.assertIsNone(self.redis.get(PREFIX+'camp:lease'))
         self.assertFalse((self.manager.directory / first['challenge_id']).exists())
@@ -154,10 +155,11 @@ class LoginTests(unittest.TestCase):
 
     def test_concurrent_credentials_change_is_preserved(self):
         qr = self.manager.start('camp')
-        store.save_secrets(self.env, {'HOK_WZRY_TOKEN': 'other-login'}, self.root)
+        before = self.env.read_bytes()
+        self.client.commit.side_effect = ValueError('SDK session changed')
         with self.assertRaises(ValueError):
             self.manager.poll('camp', qr['challenge_id'])
-        self.assertEqual(store.secrets(self.env)['HOK_WZRY_TOKEN'], 'other-login')
+        self.assertEqual(self.env.read_bytes(), before)
 
     def test_network_error_is_unknown_and_never_exposed(self):
         self.client.check.side_effect = RuntimeError('SECRET-TOKEN private response')
@@ -210,13 +212,14 @@ class LoginTests(unittest.TestCase):
         client.client.msdk_session.save.assert_called_once_with(client.session_path)
         self.assertEqual(json.loads(updates['HOK_PLAYER_CLIENT_ACCOUNT_JSON'])['server_id'], 2033)
 
-    def test_camp_public_projection_whitelists_fields(self):
-        state = {'token': 'token', 'encode_res': 'encoderes', 'userId': '123', 'openId': 'open',
-                 'profile': {'version_name': 'v', 'version_code': 1, 'sdk': 32, 'os_version': '12', 'hardware': 'x'},
-                 'login_response': {'private': 'SECRET'}, 'userKey': 'SECRET'}
-        projected = store.camp_overrides(state)
-        self.assertNotIn('SECRET', json.dumps(projected))
-        self.assertEqual(projected['userid'], '123')
+    def test_camp_credentials_are_never_projected_into_host_configuration(self):
+        config = {'wzry': {'roleid': '123'}}
+        store.apply_credentials(config, {'HOK_CAMP_SESSION_JSON': 'not-for-host-parsing',
+                                        'HOK_WZRY_TOKEN': 'SECRET'})
+        self.assertEqual(config, {'wzry': {'roleid': '123'}})
+        for key in ('HOK_CAMP_SESSION_JSON', 'HOK_WZRY_TOKEN', 'HOK_WZRY_ENCODERES'):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                store.save_secrets(self.env, {key: 'PRIVATE'}, self.root)
 
 
 class PinnedTlsTests(unittest.TestCase):
@@ -280,16 +283,23 @@ class PinnedTlsTests(unittest.TestCase):
 
 
 class CredentialHotReloadTests(unittest.TestCase):
-    def test_camp_credentials_replace_stale_process_values(self):
-        config = {'wzry': {'token': 'old', 'encoderes': 'old', 'userid': '123', 'pubkey': 'keep'}}
-        state = {'token': 'new', 'encode_res': 'new-encode', 'userId': '123', 'openId': 'same-account',
-                 'profile': {'version_name': 'new-version', 'version_code': 5, 'sdk': 32, 'os_version': '12', 'hardware': 'x'},
-                 'role': {'gameOpenId': 'game-account', 'gameRoleId': 1, 'gameAreaId': 1, 'gameServerId': 2}}
-        store.apply_credentials(config, {'HOK_CAMP_SESSION_JSON': json.dumps(state)})
-        self.assertEqual(config['wzry']['token'], 'new')
-        self.assertEqual(config['wzry']['encoderes'], 'new-encode')
-        self.assertEqual(config['wzry']['client_headers']['cclientversionname'], 'new-version')
-        self.assertEqual(config['wzry']['pubkey'], 'keep')
+    def test_camp_provider_commits_through_sdk_without_exporting_tokens(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with patch.object(providers, 'CampClient') as factory:
+                factory.session_revision.return_value = 'opaque-revision'
+                client = providers.Camp(root/'saved.json', root)
+                with patch.object(store, 'read_bytes', return_value=b'PNG'):
+                    client.start(root)
+                client.check = Mock(return_value={'authenticated': True})
+                role = dict(gameOpenId='game', gameRoleId=1, gameAreaId=1,
+                            gameServerId=1, gameUserSex=0, kohDimGender=1)
+                self.assertEqual(client._complete(role), ('authenticated', None))
+                factory.return_value.save_session.assert_not_called()
+                client.commit()
+                factory.return_value.save_session.assert_called_once_with(
+                    root/'saved.json', expected_revision='opaque-revision')
+                factory.return_value.export_session.assert_not_called()
 
     def test_expired_official_session_does_not_attempt_a_game_login(self):
         client = providers.Official.__new__(providers.Official)
@@ -315,15 +325,11 @@ class AccountSwitchTests(unittest.TestCase):
             env.write_text("OTHER='preserve'\nHOK_WZRY_TOKEN='old'\n")
             config.write_text('# keep comment\nwzry:\n  userid: old\n  pubkey: keep\nQQBot:\n  bot_qid: "12345"\n  super_qid: "99999"\nPlayerClient:\n  server_id: 1\n  tree_index: 1\n  players:\n    friend: {uid: 1}\n')
             state=self.state()
-            updates={'HOK_CAMP_SESSION_JSON':json.dumps(state),'HOK_WZRY_TOKEN':state['token'],
-                     'HOK_WZRY_ENCODERES':state['encode_res'],
-                     'HOK_NAPCAT_ACCOUNT_JSON':json.dumps({'uin':'67890'}),
+            updates={'HOK_NAPCAT_ACCOUNT_JSON':json.dumps({'uin':'67890'}),
                      'HOK_PLAYER_CLIENT_ACCOUNT_JSON':json.dumps({'server_id':7,'tree_index':0})}
             store.save_secrets(env,updates,root/'private',config_file=config)
             saved=yaml.safe_load(config.read_text())
-            for key,value in {'userid':'222222','openid':'new-camp-openid','gameopenid':'new-game-openid',
-                              'gameroleid':'99','roleid':'99','gameserverid':2001,'gameareaid':2}.items():
-                self.assertEqual(saved['wzry'][key],value)
+            self.assertEqual(saved['wzry'], {'userid': 'old', 'pubkey': 'keep'})
             self.assertEqual(saved['QQBot'],{'bot_qid':'67890','super_qid':'99999'})
             self.assertEqual(saved['PlayerClient']['players'],{'friend':{'uid':1}})
             self.assertEqual(saved['PlayerClient']['server_id'],7)
@@ -334,7 +340,7 @@ class AccountSwitchTests(unittest.TestCase):
     def test_projection_failure_rolls_back_credentials(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);env=root/'.env';config=root/'config.yaml'
-            env.write_text("HOK_WZRY_TOKEN='old'\n");config.write_text('wzry: {}\n')
+            env.write_text("HOK_NAPCAT_WEBUI_TOKEN='old'\n");config.write_text('wzry: {}\n')
             original=store.atomic_write
             def fail_config(path, value):
                 if Path(path)==config:
@@ -342,16 +348,13 @@ class AccountSwitchTests(unittest.TestCase):
                 original(path,value)
             with patch.object(store,'atomic_write',side_effect=fail_config):
                 with self.assertRaises(OSError):
-                    store.save_secrets(env,{'HOK_WZRY_TOKEN':'new'},root/'private',config_file=config)
-            self.assertEqual(store.secrets(env)['HOK_WZRY_TOKEN'],'old')
+                    store.save_secrets(env,{'HOK_NAPCAT_WEBUI_TOKEN':'new'},root/'private',config_file=config)
+            self.assertEqual(store.secrets(env)['HOK_NAPCAT_WEBUI_TOKEN'],'old')
 
-    def test_no_role_clears_every_old_role_field(self):
-        config={'wzry':{'gameopenid':'old','gameroleid':'old','roleid':'old'}}
-        state=self.state({'gameOpenId':'','gameRoleId':0,'gameAreaId':0,'gameServerId':0,'gameUserSex':0,'kohDimGender':1})
-        store.apply_credentials(config,{'HOK_CAMP_SESSION_JSON':json.dumps(state)})
-        self.assertEqual(config['wzry']['gameopenid'],'')
-        self.assertEqual(config['wzry']['gameroleid'],'0')
-        self.assertEqual(config['wzry']['roleid'],'0')
+    def test_no_role_is_owned_by_sdk_without_project_config_projection(self):
+        config = {'wzry': {'gameopenid': 'legacy', 'roleid': 'legacy'}}
+        store.apply_credentials(config, {'HOK_CAMP_SESSION_JSON': 'opaque-to-host'})
+        self.assertEqual(config['wzry'], {'gameopenid': 'legacy', 'roleid': 'legacy'})
 
     def test_camp_switch_fetches_new_roles_instead_of_reusing_old_role(self):
         client=providers.Camp.__new__(providers.Camp);client.client=Mock();client.pending_roles=None
@@ -393,10 +396,11 @@ class RoleSelectionLifecycleTests(unittest.TestCase):
         self.assertIn('camp',self.manager.active)
         self.assertTrue(self.redis.get(PREFIX+'camp:lease'))
         self.redis.values.pop(PREFIX+'camp:poll')
-        self.client.select_role.return_value=('authenticated',{'HOK_WZRY_TOKEN':'selected'})
+        self.client.select_role.return_value=('authenticated',None)
         result=self.manager.dispatch({'provider':'camp','action':'select_role','challenge_id':qr['challenge_id'],'role_choice':1})
         self.assertEqual(result['state'],'authenticated')
-        self.assertEqual(store.secrets(self.env)['HOK_WZRY_TOKEN'],'selected')
+        self.assertEqual(self.env.read_bytes(),before)
+        self.client.commit.assert_called_once_with()
         self.client.select_role.assert_called_once_with(1)
 
     def test_online_napcat_sync_saves_current_identity_and_releases_lease(self):

@@ -11,10 +11,12 @@ from shared import camp
 class CampBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.old = camp._client
+        self.old_path = camp._client_path
+        self.addCleanup(setattr, camp, "_client_path", self.old_path)
         camp._client = None
         self.addCleanup(setattr, camp, "_client", self.old)
         self.client = Mock()
-        factory = patch.object(camp.CampClient, "from_config", return_value=self.client)
+        factory = patch.object(camp, "CampClient", return_value=self.client)
         self.factory = factory.start()
         self.addCleanup(factory.stop)
 
@@ -28,21 +30,21 @@ class CampBoundaryTests(unittest.TestCase):
         for name, method in mapping.items():
             with self.subTest(name=name):
                 getattr(self.client, method).return_value = {"result": name}
-                self.assertEqual(camp.query({}, name, userid=1001, roleid=42), {"result": name})
-        self.factory.assert_called_once_with({}, timeout=30, trust_env=False)
-        self.assertEqual(self.client.update_config.call_count, len(mapping)-1)
+                self.assertEqual(camp.query("/private/camp.json", name, userid=1001, roleid=42), {"result": name})
+        self.factory.assert_called_once_with(state_file=Path("/private/camp.json"), timeout=30, trust_env=False)
+        self.assertEqual(self.client.reload_session.call_count, len(mapping)-1)
 
     def test_hot_reload_and_cursor_keep_same_instance(self):
-        camp.query({"token": "old"}, "btlist", userid=1001, roleid=42, last_time="1700000000")
-        camp.query({"token": "new"}, "btlist_url", userid=1001, roleid=42, last_time="1700000010")
+        camp.query("/private/camp.json", "btlist", userid=1001, roleid=42, last_time="1700000000")
+        camp.query("/private/camp.json", "btlist_url", userid=1001, roleid=42, last_time="1700000010")
         self.factory.assert_called_once()
-        self.client.update_config.assert_called_once_with({"token": "new"})
+        self.client.reload_session.assert_called_once_with()
         self.client.get_battle_list.assert_called_with(1001, 42, last_time="1700000010")
 
     def test_failure_is_not_retried_and_public_close_is_used(self):
         self.client.get_current_season.side_effect = TimeoutError("offline")
         with self.assertRaises(TimeoutError):
-            camp.query({}, "season", roleid=42)
+            camp.query("/private/camp.json", "season", roleid=42)
         self.client.get_current_season.assert_called_once_with(42)
         camp.close()
         self.client.close.assert_called_once()
@@ -60,7 +62,7 @@ class CampBoundaryTests(unittest.TestCase):
         tree = ast.parse(source)
         provider = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Camp")
         segment = ast.get_source_segment(source, provider)
-        for private in ("._post", "._qr", "._state", ".http"):
+        for private in ("._post", "._qr", "._state", ".http", "export_session", "session_from_config", "HOK_CAMP_SESSION_JSON"):
             self.assertNotIn(private, segment)
 
 

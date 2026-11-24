@@ -2287,6 +2287,33 @@
           "symbol": "QQAgentService.run_automation"
         }
       ]
+    },
+    {
+      "id": "metrics_live_watch",
+      "title": "当前对局观战截图",
+      "parent": "metrics",
+      "summary": "通过观战命令获取指定玩家的一张直播图片",
+      "keywords": [
+        "观战",
+        "截图",
+        "直播",
+        "观战我"
+      ],
+      "tools": [],
+      "code": [
+        {
+          "path": "hok/event_handlers/live_watch.py",
+          "symbol": "prepare_watch_request"
+        },
+        {
+          "path": "shared/camp.py",
+          "symbol": "capture_watch_frame"
+        }
+      ],
+      "document": {
+        "path": "shared/agent/manual/chapters/live_watch.md",
+        "heading": null
+      }
     }
   ],
   "version": 2,

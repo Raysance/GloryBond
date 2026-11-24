@@ -136,8 +136,6 @@ def _apply_secret_environment(config, environment):
         "HOK_X_CT0": ("XSubscriptions", "ct0"),
         "HOK_WEB_SECRET_KEY": ("WebService", "secret_key"),
         "HOK_WEB_VALID_PATTERN": ("WebService", "valid_pattern"),
-        "HOK_WZRY_TOKEN": ("wzry", "token"),
-        "HOK_WZRY_ENCODERES": ("wzry", "encoderes"),
     }
     for env_name, (section, key) in secret_paths.items():
         if env_name in environment:

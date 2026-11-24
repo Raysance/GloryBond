@@ -111,8 +111,6 @@ def load_shared_config(
         "HOK_STEAM_API_KEY": ("Steam", "api_key"),
         "HOK_WEB_SECRET_KEY": ("WebService", "secret_key"),
         "HOK_WEB_VALID_PATTERN": ("WebService", "valid_pattern"),
-        "HOK_WZRY_TOKEN": ("wzry", "token"),
-        "HOK_WZRY_ENCODERES": ("wzry", "encoderes"),
         "HOK_DATABASE_DSN": ("PostgreSQL", "dsn"),
     }
     for env_name, (section, key) in secret_paths.items():
@@ -124,10 +122,7 @@ def load_shared_config(
             section_values[key] = str(env[env_name]).strip()
     if environ is None:
         current = dotenv_values(runtime.env_file, interpolate=False)
-        for name, key in (("HOK_WZRY_TOKEN", "token"), ("HOK_WZRY_ENCODERES", "encoderes")):
-            if current.get(name):
-                config.setdefault("wzry", {})[key] = current[name]
-        if any(current.get(k) for k in ("HOK_CAMP_SESSION_JSON", "HOK_NAPCAT_ACCOUNT_JSON", "HOK_PLAYER_CLIENT_ACCOUNT_JSON")):
+        if any(current.get(k) for k in ("HOK_NAPCAT_ACCOUNT_JSON", "HOK_PLAYER_CLIENT_ACCOUNT_JSON")):
             # Shared pure projection; import only the standalone adapter, never hok.
             import sys
             if str(runtime.nbot_root) not in sys.path:

@@ -80,7 +80,7 @@ class ChatEnvironmentTests(unittest.TestCase):
 
         self.assertEqual(result["QQBot"]["ark_key"], "ark-secret")
         self.assertEqual(result["QQBot"]["ark_responses_model"], "model")
-        self.assertEqual(result["wzry"], {"roleid": "1", "token": "wzry-secret"})
+        self.assertEqual(result["wzry"], {"roleid": "1"})
 
     def test_official_deepseek_reuses_legacy_key_and_allows_direct_connection(self):
         result = self.build_chat_config({

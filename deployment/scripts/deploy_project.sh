@@ -27,6 +27,9 @@ if [[ "$install_dependencies" == true ]]; then
     .venv/bin/python -m pip install --no-build-isolation --editable .
 fi
 .venv/bin/python -c 'from agent_runtime import AgentRuntime; from qq_agent import QQAgentService; from hok_research import HokClient; from hok_camp_client import CampClient; import login_console.worker; import web.app'
+PYTHONPATH="$project_root/vendor/hok-camp-client/src" .venv/bin/python vendor/hok-camp-client/tools/session/import_saved_session.py \
+    --dotenv "$HOK_ENV_FILE" --key HOK_CAMP_SESSION_JSON \
+    --output "$HOK_DATA_DIR/account_sessions/camp-session.json"
 .venv/bin/python deployment/scripts/public_artifact_permissions.py --directory "$HOK_FILE_TRANSFER_DIR" --apply
 systemctl restart hok-nbot.service hok-web.service
 .venv/bin/python deployment/scripts/verify_startup.py

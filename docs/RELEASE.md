@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `4060da246bc446a29e646db3f47e5252527e0619` (version `0.5.1`)
+- `vendor/hok-camp-client`: `5c260a16969a79d02f010a20e81fd7c9d564fbf6` (version `0.6.0`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -259,3 +259,11 @@ Validation: 433 host regressions, 40 deployment checks, four history-privacy che
 Temporary battle, query, video-redirect and chat-trace links now share `Redis.REDIS_TEXT_EXPIRE_SECONDS=86400`. Chat traces and their discovery index use the same setting rather than a separate seven-day override. The local and deployed private configuration were updated without changing other configuration values. Reads do not renew a link.
 
 The file-backed benefit page enforces the same lifetime against the generated JSON timestamp, returns 410 when missing or expired, and uses the supported keyword template interface. Its responses remain uncached by the browser. Existing trace deadlines and cached-link TTLs are normalized without extending shorter remaining lifetimes; source archives, private JSONL and the physical file-cleanup schedule are retained. Validation covers the one-day Redis lifetime, non-renewing reads, file-link boundary and 42 Web regressions.
+
+## Live screenshots and SDK-owned Camp sessions — 2026-11-25
+
+`#观战昵称`, `#观战我` and `#我的观战` resolve the existing player directory, report progress, then return one JPEG from the SDK live stream. Concurrent capture requests stop immediately; unavailable targets, timeouts and errors do not retry. The stream and reader close after capture. Existing prediction and legacy observation commands remain available.
+
+Camp credentials are no longer read or projected by Bot/Web/login adapters. The SDK owns the private session file, preserves request pacing across reloads, and atomically publishes verified account switches with revision checks. Deployment delegates one-time offline import of the existing dotenv session to the private SDK tool without replacing a newer file. The host adds the video decoder dependency; no real watch or QQ-message test is performed during this integration.
+
+Validation passed 93 host checks, 45 Web checks and 46 deployment/readiness checks, plus the complete manual validator. SDK validation passed 143 tests and the Python 3.10/3.12/3.13 CI jobs; its private release includes wheel, sdist and checksums.

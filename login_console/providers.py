@@ -8,7 +8,7 @@ import re
 
 import requests
 
-from hok_camp_client import CampClient, session_from_config
+from hok_camp_client import CampClient
 
 from . import store
 
@@ -29,15 +29,9 @@ def status(authenticated=None, message="暂时无法确认，请稍后检查"):
 
 
 class Camp:
-    def __init__(self, config, env, directory):
-        self.path = directory / "camp.json"
-        self.previous_user = str(config["wzry"]["userid"])
+    def __init__(self, state_file, directory):
+        self.path = state_file
         self.pending_roles = None
-        state = json.loads(env["HOK_CAMP_SESSION_JSON"]) if env.get("HOK_CAMP_SESSION_JSON") else {}
-        if not state and env.get("HOK_WZRY_ENCODERES") and env.get("HOK_WZRY_TOKEN"):
-            settings = dict(config["wzry"], token=env["HOK_WZRY_TOKEN"], encoderes=env["HOK_WZRY_ENCODERES"])
-            state = session_from_config(settings)
-        store.write_json(self.path, state)
         self.client = CampClient(state_file=self.path, timeout=15, trust_env=False)
 
     def check(self):
@@ -46,11 +40,10 @@ class Camp:
         return status(value, {True: "营地登录有效", False: "营地登录已失效，请扫码", None: "营地状态暂时无法确认"}[value])
 
     def start(self, directory):
-        # Start a clean account state: CampClient merges login responses into its state.
-        # An old role must never survive a new QQ authorization.
+        # SDK owns both files; keep the current account until a verified login.
+        self.expected_revision = CampClient.session_revision(self.path)
         self.client.close()
-        store.write_json(self.path, {})
-        self.client = CampClient(state_file=self.path, timeout=15, trust_env=False)
+        self.client = CampClient(state_file=directory / "camp-login.json", timeout=15, trust_env=False)
         self.qr_path = directory / "camp-qr.png"
         self.client.start_login(self.qr_path)
         return store.read_bytes(self.qr_path)
@@ -65,9 +58,10 @@ class Camp:
                              game_user_sex=role["gameUserSex"], dim_gender=role["kohDimGender"])
         if self.check()["authenticated"] is not True:
             raise RuntimeError("Login could not be verified")
-        saved = self.client.export_session()
-        return "authenticated", {"HOK_CAMP_SESSION_JSON": json.dumps(saved, ensure_ascii=False),
-             "HOK_WZRY_TOKEN": saved["token"], "HOK_WZRY_ENCODERES": saved["encode_res"]}
+        return "authenticated", None
+
+    def commit(self):
+        self.client.save_session(self.path, expected_revision=self.expected_revision)
 
     def select_role(self, choice):
         if self.pending_roles is None or not 0 <= choice < len(self.pending_roles):

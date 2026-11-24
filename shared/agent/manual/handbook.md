@@ -16,6 +16,7 @@
 - [战绩、排行与在线状态](chapters/games.md)
 - [英雄表现、梯度与荣耀战力](chapters/heroes.md)
 - [数据分析与指标解释](chapters/metrics.md)
+- [当前对局观战截图](chapters/live_watch.md)
 - [代表局](chapters/representative.md)
 
 ## 图表、图片与表情

@@ -87,8 +87,8 @@ def check_battle_local_exist(gameseq,roleid=0): # 本地是否储存了战局详
 def wzry_get_official(reqtype, userid=-1, roleid=0, gameseq=-1, gameSvrId=-1,
                       relaySvrId=-1, pvptype=-1, heroid=-1, rankId=-1, rankSegment=-1,
                       battle_id=-1, *, last_time=0, honor_adcode=156):
-    from shared.camp import query
-    return query(load_shared_config()["wzry"], reqtype, userid, roleid, gameseq,
+    from shared.camp import query, session_path
+    return query(session_path(RUNTIME.data_dir), reqtype, userid, roleid, gameseq,
                  gameSvrId, relaySvrId, pvptype, heroid, rankId, rankSegment,
                  battle_id, honor_adcode, last_time=last_time)
 

@@ -57,7 +57,7 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - Bot 的文件、数据库、HTTP、缓存、时间和消息操作遵循上述统一入口；业务层专注领域逻辑。共享适配层管理自身的协议、进程和存储边界。
 - Web 与共享模块独立导入。Bot 启动和后台任务由现有生命周期入口管理，定时任务集中注册，外部请求与写入由明确调用触发。
 - `react-agent-runtime`、`hok-player-client`、`hok-camp-client` 保持私有，通过 submodule 调用公开接口。渠道身份、业务工具和交付逻辑由主项目适配层负责。
-- 营地网络、端点、签名/加解密、请求字段、业务响应、角色列表和扫码代理策略由 `hok-camp-client` 负责。Bot/Web 通过 `shared/camp.py` 复用每进程客户端并在请求前更新配置；宿主只负责配置加载、授权、存储、日志和业务展示。禁止恢复 `tools/endecoder.py` 副本或调用 SDK `_post/_qr/_state` 等私有成员。契约与测试见 [营地 SDK 接入](docs/camp-sdk.md)。
+- 营地网络、端点、签名/加解密、请求字段、业务响应、角色列表和扫码代理策略由 `hok-camp-client` 负责。Bot/Web 通过 `shared/camp.py` 复用每进程客户端并在请求前通过SDK重新加载私有会话；宿主只负责路径配置、授权、产物保存、日志和业务展示；营地token/完整会话由SDK管理，不投影到业务配置。禁止恢复 `tools/endecoder.py` 副本或调用 SDK `_post/_qr/_state` 等私有成员。契约与测试见 [营地 SDK 接入](docs/camp-sdk.md)。
 - 玩家 SDK 升级核对公开接口并运行宿主离线测试，测试数据由项目自行构造，旧渲染器也注入合成背景，不依赖 SDK 的研究目录或私有截图样本；当前固定提交见 [发布记录](docs/RELEASE.md)。
 - 当前通过 `PlayerClient.enabled=false` 统一停用王者官方客户端请求。在线使用营地，战绩跳过客户端来源，普通英雄查询走原有处理器；显式客户端命令及后台官方账号检查、扫码、轮询均不得发起客户端请求。保留凭据、绑定与已保存数据。
 - 玩家 SDK 的1042按结果码区分会话通知与登录限制；错误摘要只保留类型、协议码、限制时间和详情类型，服务器原因、链接与原始正文按私有账号资料处理。未知结果码沿用同一流程，协议结构变化需核验新版本。
@@ -92,6 +92,9 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - Web 个人战绩隐藏时，由 web/battle_list_data.py 只提取目标角色可展示的资料。战局列表读取失败与玩家设置隐藏采用独立提示，区间统计只纳入开放日期。
 
 - 管理页面校验管理员身份，账号认证和会话更新通过既有登录适配层管理。数据采集保留已有记录、有效结果和未知值，迁移与清理按明确需求执行。
+
+- 观战截图由 `event_handlers/live_watch.py` 解析 `#观战昵称` / `#观战我` / `#我的观战`，沿用玩家目录和命令权限；`api_adapters/wzry.py → shared/camp.capture_watch_frame` 仅调用SDK公开方法取得首帧。并发截图不排队，失败不重试，成功/失败均关闭读取器与直播。`zfile.save_watch_frame` 用独立文件名保存图片，`zevent` 沿统一消息出口回复。
+- 营地正式会话为 `HOK_DATA_DIR/account_sessions/camp-session.json`，由SDK读写；Bot/Web共享适配层仅持文件路径，`reload_session`保留限速。管理员扫码用临时SDK文件，租约校验后再带版本检查发布。旧.env中的完整会话仅由部署显式调用SDK迁移工具读取，已有目标文件不覆盖，旧配置不再作为营地凭据来源。
 
 ## 服务器与部署
 

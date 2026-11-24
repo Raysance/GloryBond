@@ -983,6 +983,17 @@ def player_client_artwork_cache(items, contents=None):
     return found, missing
 
 
+def save_watch_frame(jpeg):
+    """Store one SDK-produced JPEG with a unique name in the artifact area."""
+    import uuid
+    from pathlib import Path
+    directory = Path(temp_path) / "temp_files"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"watch_frame_{uuid.uuid4().hex}.jpg"
+    path.write_bytes(jpeg)
+    return str(path.resolve())
+
+
 def save_player_client_report(image):
     """Keep concurrent queries separate in the existing artifact cleanup area."""
     import uuid

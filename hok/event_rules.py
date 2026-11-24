@@ -30,6 +30,11 @@ async def judge_to_me(event):
     return is_bot_request_message(event)
 
 
+async def judge_live_watch(event):
+    from .event_handlers.live_watch import watch_target
+    return watch_target(event.get_plaintext()) is not None
+
+
 def is_direct_bot_mention(event):
     """Inspect this message's own segments, not inferred to_me or quoted content."""
     bot_id = str(getattr(event, "self_id", "") or "")

@@ -10,7 +10,7 @@ Before every commit, including documentation-only changes, run `git fetch origin
 
 Python 3.12+ is required by the application syntax. The root `pyproject.toml` is the only application dependency manifest. Production shares one root `.venv`; existing local debugging uses `local_debugger/.venv`. Bot starts through `./deploy_runner.sh`, Web through `python -m web`. Importing Web does not start NoneBot.
 
-Prepare the real root `.env` and `config.yaml` separately. Both are ignored by Git. `.env` contains keys, tokens, passwords, database DSNs and verified login sessions; `config.yaml` contains settings plus private user/account mappings. They are never public templates or part of source bundles. `HOK_ENV_FILE` and `HOK_CONFIG_FILE` can explicitly override their paths.
+Prepare the real root `.env` and `config.yaml` separately. Both are ignored by Git. `.env` contains other-service keys, passwords, database DSNs and login sessions; Camp sessions are owned by its SDK in `HOK_DATA_DIR/account_sessions/camp-session.json`; `config.yaml` contains settings plus private user/account mappings. They are never public templates or part of source bundles. `HOK_ENV_FILE` and `HOK_CONFIG_FILE` can explicitly override their paths.
 
 ## Production updates
 
@@ -41,6 +41,8 @@ Functional manuals are complete in `shared/agent/manual/`; Web guides are in `we
 
 ## Camp SDK integration
 
-Camp protocol code is owned by the private `hok-camp-client` package. Bot/Web call its named public methods through `shared/camp.py`; the application retains settings loading, identity authorization, persistence, business transformations and presentation. No public application source contains a copy of the Camp crypto or request builders. See [Camp SDK contracts](camp-sdk.md).
+Camp protocol code is owned by the private `hok-camp-client` package. Bot/Web call its named public methods through `shared/camp.py`; the application supplies only the private SDK session-file path and retains authorization, artifact storage, business transformations and presentation. No public application source contains a copy of the Camp crypto or request builders. See [Camp SDK contracts](camp-sdk.md).
 
-After updating its gitlink, run `local_debugger/.venv/bin/python -m unittest tests.test_camp_sdk_boundary tests.test_wzry_pagination_request tests.test_account_sessions tests.test_battle_list_pagination tests.test_battle_watch tests.test_honor_power_query` and `local_debugger/.venv/bin/python -m unittest discover -s web/tests`. These use fixtures/mocks and must not trigger QR login or live Camp requests. The SDK separately verifies wire contracts, encryption, role normalization, rate limiting and packaging.
+After updating its gitlink, run `local_debugger/.venv/bin/python -m unittest tests.test_camp_sdk_boundary tests.test_event_live_watch tests.test_wzry_pagination_request tests.test_account_sessions tests.test_battle_list_pagination tests.test_battle_watch tests.test_honor_power_query` and `local_debugger/.venv/bin/python -m unittest discover -s web/tests`. These use fixtures/mocks and must not trigger QR login or live Camp requests. The SDK separately verifies wire contracts, encryption, role normalization, rate limiting and packaging.
+
+Camp deployment runs the private SDK offline migration tool once to import the existing complete dotenv session into its private state file. It never overwrites an existing file or contacts Camp. Login switches use temporary SDK files; after verification and lease checks the SDK performs a version-checked atomic replacement. Bot/Web only call `reload_session` and never deserialize tokens. Back up this SDK-owned private file separately with other runtime state; never put it under public artifacts.

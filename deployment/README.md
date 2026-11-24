@@ -9,7 +9,7 @@ fresh-install template.
 
 The unified Bot/Web project has exactly two application configuration files, both in its project root:
 
-- `.env` contains credentials, database DSNs, verified login sessions and NoneBot's startup environment values.
+- `.env` contains other-service credentials, database DSNs and NoneBot startup settings. Camp owns its private session under `HOK_DATA_DIR/account_sessions/camp-session.json`; the application only passes this path to the SDK.
 - `config.yaml` contains non-secret settings plus private user/account mappings and deployment endpoints.
 
 Both files are ignored by Git and transferred separately over SSH. Code, documentation and deployment methods are public in `Raysance/GloryBond`; private SDKs remain submodules. See [configuration synchronization](../docs/DEVELOPMENT.md) before deploying. Code-only updates retain the current server files, including its latest verified sessions.

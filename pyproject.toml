@@ -11,6 +11,7 @@ dependencies = [
     "markdown-it-py>=3,<5",
     "apscheduler>=3.11,<4",
     "cryptography>=45,<46",
+    "av>=12",
     "httpx[socks]>=0.28.1,<1",
     "jieba>=0.42,<1",
     "matplotlib>=3.9,<4",

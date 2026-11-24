@@ -11,7 +11,7 @@
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `health_diagnostics.py`：管理员手动深度诊断的固定命令执行与安全 JSON 解析；只允许调用 NBot 的 `hok/tools/chat_runtime_diagnostic.py`，不接受来自请求的命令、模型或地址参数，不回传子进程 stderr；同时核对 systemd 当前 NBot 进程的工作目录、重启时间和 chat 凭据指纹是否与诊断进程一致，指纹不写入响应。
 - `utils.py`：业务辅助函数，保留营地查询调用签名并委托 `shared/camp.py`，另负责文件读写与战绩存在性检查；不实现营地 HTTP、headers 或加解密。
-- `runtime_config.py`：Web 运行目录与 NBot 共享配置的唯一解析入口；默认将自身父目录作为统一项目根，支持显式环境变量覆盖，只加载项目根目录 `.env` 与 `config.yaml`，并将前者的凭据注入后者的运行时视图。不再扫描兄弟仓库或旧NBot/Web目录；其他模块不得自建配置加载逻辑。
+- `runtime_config.py`：Web 运行目录与 NBot 共享配置的唯一解析入口；默认将自身父目录作为统一项目根，支持显式环境变量覆盖，只加载项目根目录 `.env` 与 `config.yaml`，并将其他服务凭据注入运行时视图；营地凭据只由SDK读取私有会话文件。不再扫描兄弟仓库或旧NBot/Web目录；其他模块不得自建配置加载逻辑。
 - `templates/`：Jinja2 HTML 模板根目录。
 - `templates/CommonPages/`：普通用户侧页面模板，包括全部战绩、单人战绩、周期战绩、战斗详情、查询页、B 站订阅视频详情页等。
 - `templates/CommonPages/BenefitVisualizer/`：受益受害贝叶斯收缩可视化单页面资源目录。
@@ -91,7 +91,7 @@
 - 管理控制台入口 `/admin/funcs/account-sessions`，模板 `AdminPages/AccountSessions.html`；只经 AdminKey Cookie 鉴权，页面和 API 统一 no-store/no-referrer/noindex。GET `/state` 只读缓存，不自动调用外部服务。POST `/action` 限定 camp/official/napcat 和 check/start/poll/select_role，校验独立 HMAC CSRF header，拒绝 cross-site 请求，select_role 只接受 camp 的有效 challenge_id 和整数 role_choice，角色身份始终由服务端保存的真实角色列表提供；不接收路径、命令、凭据或任意 API 参数。
 - `account_sessions.py` 按 `runtime_config.RUNTIME` 固定路径启动 NBot `login_console.worker`，复用 NBot venv；不导入 NoneBot、不启动第二个机器人。固定 stdin/stdout JSON RPC 串行执行，取消/超时关闭进程，不重放授权交换；stderr 丢弃，不把原始异常、二维码 URL、token 或 session 返回前端。Web shutdown 回收子进程。
 - 浏览器只在显式生成二维码后按6秒间隔轮询，隐藏页面暂停，过期或退出销毁图片；全部文本用 textContent。真实二维码只经受保护接口提供 data URI，不落公开目录。服务端 DB0 限速/租约独立于页面，刷新页面不会绕过。
-- 营地与官方会话更新由 NBot 独立登录适配层验证身份、原子保存至唯一 `.env`；管理员允许切换不同账号，营地多角色选择只展示标签与局部索引，不披露登录材料。NapCat 使用自身会话并在成功后同步 QQ 身份/重启账号，在线时支持同步当前账号，WebUI token 只存在 `.env`。`runtime_config.load_shared_config()` 对托管营地字段每次读取新文件，旧营地查询请求前加载，不依赖启动时 os.environ 的旧值。用户说明见 `docs/accounts.md`，并从根README链接。
+- 营地会话由SDK在 `HOK_DATA_DIR/account_sessions/camp-session.json` 管理，适配层只传路径、租约和不含凭据的版本标识；官方会话仍由独立登录适配层保存至 `.env`；管理员允许切换不同账号，营地多角色选择只展示标签与局部索引，不披露登录材料。NapCat 使用自身会话并在成功后同步 QQ 身份/重启账号，在线时支持同步当前账号，WebUI token 只存在 `.env`。营地查询前由SDK的 `reload_session()` 加载新登录态；Web配置不读取营地token或完整会话。用户说明见 `docs/accounts.md`，并从根README链接。
 - `PlayerClient.enabled=false` 时，登录适配层阻止官方客户端检查、扫码及轮询并显示停用，关闭已有授权挑战；营地和 NapCat 的授权流程继续使用，不清理已保存的官方凭据。
 
 ## 客户端战绩展示

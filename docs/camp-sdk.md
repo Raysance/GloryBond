@@ -1,48 +1,43 @@
 # 营地 SDK 接入
 
-营地功能使用私有 `hok-camp-client` 0.4.0，具体提交以主仓库 gitlink 和 RELEASE.md 为准。SDK 可以独立安装或导入；不依赖本项目、NoneBot、Web、Android 或 APK。公开接口及参数说明见 [SDK README](https://github.com/Raysance/hok-camp-client)。
+营地能力使用私有 `hok-camp-client` 0.6.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、业务查询、直播地址及视频帧接口，不依赖本项目或Android。
 
-## 职责与文件
+## 会话归属
+
+正式会话位于 `HOK_DATA_DIR/account_sessions/camp-session.json`，权限0600，由SDK读取和保存。Bot/Web只向 `CampClient(state_file=...)` 传路径，不读取token、userKey、完整登录响应或调用 `export_session()`。每次查询前调用 `reload_session()`；同一进程复用实例，保留至少5秒的请求间隔。
+
+管理员登录流程在临时SDK文件中完成扫码和角色选择。原会话继续可用；远端验证、挑战期限和Redis租约均通过后，调用SDK `save_session()` 带旧版本标识原子发布。并发更新时SDK拒绝覆盖，业务配置、玩家映射与.env不写入营地凭据。
+
+旧.env完整会话只在部署时由SDK的 `tools/session/import_saved_session.py` 离线迁移。工具不联网、不打印内容、不覆盖已有目标、不修改源文件。旧营地配置字段不再用于请求。正式会话需作为私有运行数据备份，不能放进公开产物目录。
+
+## 文件职责
 
 | 文件 | 职责 |
 | --- | --- |
-| `shared/camp.py` | 将旧业务调用名映射到 SDK 命名方法；惰性创建并复用每进程客户端；在同一锁中更新凭据并调用 |
-| `hok/api_adapters/wzry.py` | 请求前刷新应用配置，委托 shared.camp，记录脱敏错误类型/码；图片下载委托 SDK |
-| `web/utils.py` | 读取最新共享配置并委托同一个适配层；保持既有网页调用签名 |
-| `login_console/providers.py` | 登录流程与管理员角色选择编排，仅调用 SDK 公开登录、角色、会话导出和 close 接口 |
-| `login_console/store.py` | 应用凭据锁、原子持久化和配置投影编排；营地字段转换委托 SDK |
-| `tests/test_camp_sdk_boundary.py` | 检查方法映射、客户端复用、凭据更新、失败不重试和实现边界 |
-| `tests/test_wzry_pagination_request.py` | 验证业务分页游标直接交给 SDK |
+| `shared/camp.py` | 计算会话路径，复用SDK客户端，转发业务查询；截图只取首帧并关闭所有连接 |
+| `hok/api_adapters/wzry.py` | Bot调用入口，记录不含服务端正文的错误类型 |
+| `web/utils.py` | 保持网页业务签名，传SDK会话路径 |
+| `login_console/providers.py` | 登录页面编排，只接收状态和角色标签；SDK保存会话 |
+| `login_console/manager.py` | 授权、限速、挑战期限与租约，成功后触发SDK提交 |
+| `hok/event_handlers/live_watch.py` | 解析观战目标，线程中获取首帧，映射安全提示 |
+| `hok/zfile.py` | `save_watch_frame`为每次图片创建独立产物文件名 |
+| `tests/test_camp_sdk_boundary.py` | 路径式调用、实例复用、公开接口及协议隔离 |
+| `tests/test_event_live_watch.py` | 玩家解析、单张截图、失败关闭、并发拒绝与安全输出 |
 
-固定营地端点、HTTP 字段、签名、RSA/XXTEA、响应解码和游戏角色响应归一化均在 SDK。删除 `hok/tools/endecoder.py`、`web/tools/endecoder.py`，不保留兼容副本。角色、阵容或战绩如何用于业务分析与页面展示仍由宿主决定。
+## 业务映射
 
-## 调用映射
+| 原调用reqtype / 功能 | SDK公开接口 |
+| --- | --- |
+| btlist / btlist_url | get_battle_list |
+| btldetail | get_battle_detail |
+| profile / season | get_player_profile / get_current_season |
+| heropower / allhero / herostatistics | get_hero_power / get_heroes / get_hero_statistics |
+| heroranklist / honorranklist | get_hero_rankings / get_honor_rankings |
+| watchbattle（预言阵容） | get_watch_battle_info |
+| 观战截图 | open_watch_stream → frames → close |
 
-| 原调用 reqtype | SDK 方法 | 返回 |
-| --- | --- | --- |
-| btlist / btlist_url | get_battle_list | 战绩业务数据，含分页游标 |
-| btldetail | get_battle_detail | 对局详情 |
-| profile | get_player_profile | 玩家资料 |
-| season | get_current_season | 赛季资料 |
-| heropower | get_hero_power | 英雄战力 |
-| allhero | get_heroes | 英雄资源 |
-| herostatistics | get_hero_statistics | 英雄统计 |
-| heroranklist | get_hero_rankings | 英雄榜单 |
-| honorranklist | get_honor_rankings | 地区荣耀榜 |
-| watchbattle | get_watch_battle_info | 完整观战资料，保留现有阵容分析所需字段 |
+预言使用阵容资料；截图使用实时视频，不能用流状态替换原阵容返回结构。SDK负责端点、协议、签名、解密、IM等待和心跳，宿主不维护任何副本。`capture_watch_frame`只返回状态、固定原因或JPEG，不向QQ或Web回传签名URL。命令使用 `asyncio.to_thread`；同一进程的重复截图不会排队请求。
 
-兼容适配层保留旧调用参数，避免将数据层改造扩大到所有业务函数。新功能优先使用命名 SDK API，不增加新的宿主协议分支。`get_watch_battle_info` 与 SDK 的流状态接口用途不同，不可替换为只返回 URL/state 的方法。
+## 验证与发布
 
-## 会话、错误与限速
-
-应用仍从唯一 `.env` 加载会话与配置，在既有登录锁下原子保存；不把凭据放进源码、日志或公开测试。SDK `from_config/update_config` 接受营地配置段，读取文件、环境变量和数据库仍属于应用。相同配置不重复解析；凭据更新保留请求间隔，失败解析不替换已有实例凭据。
-
-每个 Bot/Web 进程复用一个 SDK 客户端，其营地请求串行且起始间隔至少5秒；两进程之间不共享限速计数。后台登录工作进程继续使用自己的客户端和既有 Redis 授权/限速。SDK 不自动重登或重试，移除旧 Bot 按空结果最多重试三次的行为。
-
-业务非零返回码抛出 `CampError`；网络错误保持网络错误。成功但空的列表/字典保留为空，不能据此认定登录失效。Bot 错误日志只记录业务调用名、异常类型与营地码，不记录请求头、原始响应或签名 URL。用户界面错误处理沿用现有调用方。
-
-## 维护与验证
-
-新增或修改营地协议应在 SDK 完成并验证，再更新本项目 gitlink。SDK 私有实现不得复制入主仓库。SDK 请求契约与响应解密测试只使用合成数据；宿主用 mock 验证委托及返回结构，不再 mock 删除的端点/加密代码。真实账号测试必须另有用户要求，常规回归与发布不追加营地验证请求。
-
-扫码、角色选择、凭据热更新、战绩分页、对局分析、英雄/榜单调用和网页回归均应覆盖。开发命令见 DEVELOPMENT.md；先推送 SDK，再固定提交并推送宿主，防止生产拉取不存在的私有提交。
+先推送SDK，再更新宿主gitlink并运行DEVELOPMENT.md中的离线检查。部署安装video所需的PyAV；发布不追加真实营地请求或QQ测试消息。SDK已有一次授权的RTMP首帧实测，但不代表任意玩家、整场持续播放或精确直播延迟都已验证。

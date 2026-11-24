@@ -1,4 +1,4 @@
-"""The only login-worker filesystem boundary; canonical secrets remain in .env."""
+"""Other-service login persistence; Camp session files belong to its SDK."""
 import fcntl
 import json
 import os
@@ -8,8 +8,7 @@ import tempfile
 
 from dotenv import dotenv_values
 
-MANAGED_KEYS = frozenset({"HOK_CAMP_SESSION_JSON", "HOK_WZRY_TOKEN", "HOK_WZRY_ENCODERES",
-                          "HOK_PLAYER_CLIENT_SESSION_JSON", "HOK_NAPCAT_WEBUI_TOKEN",
+MANAGED_KEYS = frozenset({"HOK_PLAYER_CLIENT_SESSION_JSON", "HOK_NAPCAT_WEBUI_TOKEN",
                           "HOK_PLAYER_CLIENT_ACCOUNT_JSON", "HOK_NAPCAT_ACCOUNT_JSON", "NAPCAT_QUICK_ACCOUNT", "HOK_NAPCAT_ONEBOT_JSON"})
 
 
@@ -82,20 +81,8 @@ def save_secrets(env_file, updates, lock_dir, expected=None, config_file=None):
                 raise
 
 
-def camp_overrides(state):
-    """Project settings through the SDK; application persistence stays here."""
-    from hok_camp_client import config_from_session
-    return config_from_session(state)
-
-
 def apply_credentials(config, env):
-    """Hot reload only managed Camp fields, retaining legacy settings until first scan."""
-    target = config.setdefault("wzry", {})
-    for name, key in (("HOK_WZRY_TOKEN", "token"), ("HOK_WZRY_ENCODERES", "encoderes")):
-        if env.get(name):
-            target[key] = env[name]
-    if env.get("HOK_CAMP_SESSION_JSON"):
-        target.update(camp_overrides(json.loads(env["HOK_CAMP_SESSION_JSON"])))
+    """Project non-Camp accounts; Camp credentials remain inside its SDK."""
     if env.get("HOK_NAPCAT_ACCOUNT_JSON"):
         account = json.loads(env["HOK_NAPCAT_ACCOUNT_JSON"])
         uin = str(account["uin"])
@@ -134,9 +121,6 @@ def prepare_config(path, env):
     config = yaml.safe_load(text)
     apply_credentials(config, env)
     patches = {}
-    if env.get("HOK_CAMP_SESSION_JSON"):
-        fields = ("userid", "openid", "gameopenid", "gameroleid", "roleid", "tinkerid", "x-log-uid", "gameareaid", "gameserverid", "gameusersex", "kohdimgender")
-        patches["wzry"] = {k: config["wzry"][k] for k in fields}
     if env.get("HOK_NAPCAT_ACCOUNT_JSON"):
         patches["QQBot"] = {"bot_qid": config["QQBot"]["bot_qid"]}
     if env.get("HOK_PLAYER_CLIENT_ACCOUNT_JSON"):

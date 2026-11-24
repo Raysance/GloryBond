@@ -61,6 +61,9 @@ class Manager:
             self.redis.set(PREFIX + name + ":start", "1", ex=60)
 
     def provider(self, name, env, directory):
+        if name == "camp":
+            from shared.camp import session_path
+            return providers.Camp(session_path(self.directory.parent), directory)
         kind = {"camp": providers.Camp, "official": providers.Official, "napcat": providers.NapCat}[name]
         args = (self.config(), env, directory)
         return kind(*args, self.official_gate) if name == "official" else kind(*args)
@@ -116,7 +119,7 @@ class Manager:
         directory = store.private_directory(self.directory / token)
         client = None
         try:
-            client = self.provider(name, store.secrets(self.env_file), directory)
+            client = self.provider(name, {} if name == "camp" else store.secrets(self.env_file), directory)
             result = client.check()
         except providers.Disabled:
             result = providers.status(None, providers.OFFICIAL_DISABLED_MESSAGE)
@@ -147,7 +150,7 @@ class Manager:
         directory = store.private_directory(self.directory / token)
         client = None
         try:
-            env = store.secrets(self.env_file)
+            env = {} if name == "camp" else store.secrets(self.env_file)
             client = self.provider(name, env, directory)
             png = client.start(directory)
             if name == "napcat" and png is None:
@@ -163,14 +166,11 @@ class Manager:
                 return {"state": "authenticated", "message": "当前 QQ 登录账号已同步"}
             if not isinstance(png, bytes) or not png.startswith(b"\x89PNG\r\n\x1a\n") or len(png) > 1048576:
                 raise ValueError("Invalid QR image")
-            key = "HOK_CAMP_SESSION_JSON" if name == "camp" else "HOK_PLAYER_CLIENT_SESSION_JSON"
-            expected = {key: env.get(key)}
+            expected = {} if name == "camp" else {"HOK_PLAYER_CLIENT_SESSION_JSON": env.get("HOK_PLAYER_CLIENT_SESSION_JSON")}
             if name == "official":
                 expected["HOK_PLAYER_CLIENT_ACCOUNT_JSON"] = env.get("HOK_PLAYER_CLIENT_ACCOUNT_JSON")
             if name == "napcat":
                 expected = {k: env.get(k) for k in ("HOK_NAPCAT_ACCOUNT_JSON", "NAPCAT_QUICK_ACCOUNT", "HOK_NAPCAT_ONEBOT_JSON")}
-            if name == "camp":
-                expected.update({k: env.get(k) for k in ("HOK_WZRY_TOKEN", "HOK_WZRY_ENCODERES")})
             challenge = {"id": token, "provider": client, "directory": directory, "expected": expected,
                          "expires_at": time.time()+240, "qr": "data:image/png;base64,"+base64.b64encode(png).decode()}
             self.active[name] = challenge
@@ -207,7 +207,9 @@ class Manager:
             if state == "authenticated":
                 if time.time() >= challenge["expires_at"] or self.redis.get(PREFIX + name + ":lease") != token.encode():
                     raise ValueError("Login lease expired")
-                if updates:
+                if name == "camp":
+                    challenge["provider"].commit()
+                elif updates:
                     store.save_secrets(self.env_file, updates, self.directory, expected=challenge["expected"], config_file=self.config_file)
                 self.record(name, providers.status(True, "登录成功，登录态已更新"))
             message = {"authenticated": "登录成功，登录态已更新", "waiting_scan": "等待扫码",

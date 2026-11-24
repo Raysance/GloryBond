@@ -69,7 +69,7 @@ class RuntimeConfigTests(unittest.TestCase):
             self.assertEqual(config["Redis"]["REDIS_DB"], 0)
             self.assertEqual(config["WebService"]["server_domain"], "example.test")
             self.assertEqual(config["WebService"]["secret_key"], "web-secret")
-            self.assertEqual(config["wzry"], {"roleid": "1", "token": "wzry-secret"})
+            self.assertEqual(config["wzry"], {"roleid": "1"})
             self.assertEqual(config["PostgreSQL"]["dsn"], "postgresql://private")
 
 

@@ -39,6 +39,7 @@ from .event_rules import (
     judge_representative_battle_query,
     judge_super_command,
     judge_to_me,
+    judge_live_watch,
     judge_unsuper,
 )
 
@@ -78,6 +79,7 @@ _sleep_blocked = on_message(rule=Rule(judge_bot_addressed,check_sleep), priority
 _blocked=on_message(rule=Rule(judge_bot_addressed,check_repair,judge_unsuper),priority=2, block=True)
 
 _player_client = on_message(rule=judge_player_client, priority=3, block=True)
+_live_watch = on_message(rule=Rule(judge_to_me, judge_live_watch), priority=3, block=True)
 
 _direct_chat=on_message(rule=judge_direct_ai_request,priority=3,block=True)
 
@@ -759,6 +761,23 @@ async def f_watchbattle(bot,event):
     except Exception as e:
         add_msg(f"WatchBattle Error: {str(e)}", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+
+
+@_live_watch.handle()
+async def f_live_watch(event):
+    from .event_handlers.live_watch import prepare_watch_request, run_watch_request
+    from .utils.message_sender import add_text_image_msg
+
+    prepared = prepare_watch_request(event)
+    if prepared["kind"] == "text":
+        add_msg(prepared["text"], event=event)
+        return
+    add_msg(prepared["status"], event=event)
+    result = await run_watch_request(prepared)
+    if result["kind"] == "image":
+        add_text_image_msg(result["text"], result["image_path"], event=event)
+    else:
+        add_msg(result["text"], event=event)
 
 @_spoiler.handle()
 async def f_spoiler(bot, event):
