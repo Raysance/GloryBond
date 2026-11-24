@@ -4,6 +4,8 @@
 
 GloryBond是Bot与Web的唯一开发及部署仓库。实现、文档和部署脚本公开；用户信息、登录态和密钥保存在Git忽略的 `.env` 与 `config.yaml`。运行需要私有SDK访问授权及自己的配置，见[开发与部署说明](docs/DEVELOPMENT.md)。
 
+阿里云搜索缺少密钥时，会明确提示应配置的环境变量名称；不会显示密钥内容。
+
 完整功能手册与专题说明：
 
 - [机器人功能手册](shared/agent/manual/handbook.md)
@@ -34,6 +36,8 @@ AI 聊天可以读文档，也可以按需看群里的近期图片。回复一�
 AI 识图支持独立的火山方舟豆包端点，本次配置采用 Seed 2.1 Lite（`doubao-seed-2-1-lite-260915`）。QQ 与本地 Web 共享 `VisionAPI`，有图片的请求及图片追问使用视觉模型，纯文字与回复整理沿用当前文字模型。API Key 仍保存在 `.env`，需先在方舟控制台开通对应模型；申请入口、配置与验证方法见[豆包识图接入](agent_console/README.md#豆包识图接入)。
 
 王者官方客户端请求目前统一停用（`PlayerClient.enabled=false`）。`#在线` 恢复营地方式，战绩查询只请求营地，普通英雄查询保留原有统计并跳过客户端图片和资料。显式 `#客户端` 命令及后台官方客户端登录操作提示已停用；营地和 NapCat 登录正常使用。已有客户端凭据、绑定和历史记录保留。配置及边界见[玩家客户端部署说明](deployment/README.md#王者玩家客户端)，验证方式见[开发说明](docs/DEVELOPMENT.md#checks-and-manuals)。
+
+营地的战绩、个人资料、英雄数据、榜单和观战查询统一使用独立的 [hok-camp-client SDK](https://github.com/Raysance/hok-camp-client)，原有 Bot 命令和网页入口继续使用。连续请求按客户端实例至少间隔5秒，失败不自动重试；后台更新登录态后，后续查询使用新凭据。接入接口与维护边界见[营地 SDK 接入](docs/camp-sdk.md)。
 
 ## 目录
 

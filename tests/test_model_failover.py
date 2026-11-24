@@ -15,8 +15,9 @@ def frame(delta=None, finish=None):
 
 class FailoverTests(unittest.IsolatedAsyncioTestCase):
     def model(self, **options):
+        options.setdefault('first_token_timeout_seconds', .02)
+        options.setdefault('timeout_seconds', .1)
         return DeepSeekModel(api_key='primary-secret', base_url='https://primary.invalid', model='primary',
-                             first_token_timeout_seconds=.02, timeout_seconds=.1,
                              fallback={'api_key': 'backup-secret', 'base_url': 'https://backup.invalid/v1',
                                        'model': 'kimi-k3', 'vision_model': 'kimi-k3', 'protocol': 'bailian_kimi',
                                        'first_token_timeout_seconds': 1}, **options)
@@ -129,7 +130,10 @@ class FailoverTests(unittest.IsolatedAsyncioTestCase):
         with patch('agent_console.provider.httpx.AsyncClient', side_effect=lambda **kw: original(
                 transport=httpx.MockTransport(respond), **kw)):
             with self.assertRaises(httpx.ReadError):
-                await self.model().complete([{'role': 'user', 'content': 'hi'}], [], delta)
+                # This case starts after visible output, not during first-token
+                # failover. Leave room for client setup and the 80 ms flush.
+                await self.model(first_token_timeout_seconds=1, timeout_seconds=5).complete(
+                    [{'role': 'user', 'content': 'hi'}], [], delta)
         self.assertTrue(deltas)
         self.assertEqual(len(requests), 1)
 

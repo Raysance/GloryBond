@@ -270,7 +270,7 @@ def aliyun_web_search(query, max_results=5):
     if missing:
         locations = {
             "endpoint": "config.yaml AliyunSearch.endpoint",
-            "api_key": "REDACTED_CREDENTIAL",
+            "api_key": ".env HOK_ALIYUN_SEARCH_API_KEY",
             "workspace": "config.yaml AliyunSearch.workspace",
             "service_id": "config.yaml AliyunSearch.service_id",
         }

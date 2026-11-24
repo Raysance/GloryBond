@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `372f859ae952dafa34b6f39be487daf6c0122344`
+- `vendor/hok-camp-client`: `4060da246bc446a29e646db3f47e5252527e0619` (version `0.5.1`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,25 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Shared Camp SDK integration — 2026-11-24
+
+Bot and Web now delegate Camp queries through one reusable client per process.
+Login adapters use public SDK methods for QR transport, roles and session export.
+The private SDK owns endpoints, request fields, crypto and response parsing;
+duplicate host implementations have been removed. Existing commands, page entry
+points, credential storage and account authorization stay compatible. Requests
+start at least five seconds apart per client, and failures are not retried
+automatically. See [Camp integration](camp-sdk.md) for the host API mapping.
+
+Offline compatibility fixtures now use synthetic renderer backgrounds and the
+configured example account key. The partial-output failover test allows enough
+time for its first visible chunk; the separate first-token deadline check keeps
+its short timeout. The search configuration hint once again names its required
+environment variable without including a credential value.
+
+Validation passed 1,192 host tests and 45 Web tests with the fixed SDK revision.
+All checks used offline fixtures and mocks, without additional Camp requests.
 
 ## Structured foreground chat context — 2026-11-16
 

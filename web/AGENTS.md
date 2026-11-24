@@ -10,7 +10,7 @@
 - `database.py`：PostgreSQL 数据访问入口；只负责连接、健康检查与结构化战局 payload 查询。
 - `request_analytics.py`：公开业务请求统计、敏感参数清理、IP 脱敏、异步地域解析缓存与后台聚合逻辑；只纳入人类可见业务入口，禁止统计静态资源、`/battle-data`、健康检查或管理后台自身请求。
 - `health_diagnostics.py`：管理员手动深度诊断的固定命令执行与安全 JSON 解析；只允许调用 NBot 的 `hok/tools/chat_runtime_diagnostic.py`，不接受来自请求的命令、模型或地址参数，不回传子进程 stderr；同时核对 systemd 当前 NBot 进程的工作目录、重启时间和 chat 凭据指纹是否与诊断进程一致，指纹不写入响应。
-- `utils.py`：业务辅助函数，包含王者荣耀官方接口请求、文件读写、战绩存在性检查等通用能力。
+- `utils.py`：业务辅助函数，保留营地查询调用签名并委托 `shared/camp.py`，另负责文件读写与战绩存在性检查；不实现营地 HTTP、headers 或加解密。
 - `runtime_config.py`：Web 运行目录与 NBot 共享配置的唯一解析入口；默认将自身父目录作为统一项目根，支持显式环境变量覆盖，只加载项目根目录 `.env` 与 `config.yaml`，并将前者的凭据注入后者的运行时视图。不再扫描兄弟仓库或旧NBot/Web目录；其他模块不得自建配置加载逻辑。
 - `templates/`：Jinja2 HTML 模板根目录。
 - `templates/CommonPages/`：普通用户侧页面模板，包括全部战绩、单人战绩、周期战绩、战斗详情、查询页、B 站订阅视频详情页等。
@@ -19,7 +19,7 @@
 - `templates/ErrorPages/`：错误页面模板，包括非法访问和链接过期。
 - `templates/footer_github.html`：可复用页脚模板。
 - `default_json_templates/`：默认 JSON 模板文件，主要用于本地或历史兜底数据参考。
-- `tools/`：项目辅助脚本。
+- `tools/`：项目辅助脚本；营地加解密已归入私有 SDK，不保留 endecoder 副本。
 - `tools/import_request_analytics.py`：从 Nginx combined access log 幂等回填最近公开业务请求到 Redis 访问分析库；沿用在线采集白名单、凭据清理与地域缓存规则。
 - `__main__.py`：统一项目根目录执行 `python -m web` 的启动入口；模块导入使用 `web.*`。
 

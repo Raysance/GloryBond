@@ -19,7 +19,7 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 | [agent_console](agent_console) | QQ/Web 共用的模型协议、[上下文组装](agent_console/chat_context.py)、工具、角色、记忆、任务与运行记录适配 |
 | [qq_agent](qq_agent) | QQ 身份、输入输出、工具授权与消息交付 |
 | [login_console](login_console) | 账号认证、登录会话与凭据管理 |
-| [shared](shared) | 共享工具目录、数据说明与[功能手册](shared/agent/manual/handbook.md) |
+| [shared](shared) | 共享工具目录、数据说明与[功能手册](shared/agent/manual/handbook.md)；[camp.py](shared/camp.py) 仅映射宿主业务调用到营地 SDK 公开接口 |
 | [vendor](vendor) | 三个私有 SDK 的 submodule 引用 |
 | `agent_runtime`、`hok_research`、`hok_camp_client` | 私有 SDK 的 Python 导入入口 |
 | [resources](resources)、[assets](assets) | 长期资源、字体与公开演示素材 |
@@ -57,7 +57,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - Bot 的文件、数据库、HTTP、缓存、时间和消息操作遵循上述统一入口；业务层专注领域逻辑。共享适配层管理自身的协议、进程和存储边界。
 - Web 与共享模块独立导入。Bot 启动和后台任务由现有生命周期入口管理，定时任务集中注册，外部请求与写入由明确调用触发。
 - `react-agent-runtime`、`hok-player-client`、`hok-camp-client` 保持私有，通过 submodule 调用公开接口。渠道身份、业务工具和交付逻辑由主项目适配层负责。
-- 玩家 SDK 升级核对公开接口并运行宿主离线测试，测试数据由项目自行构造，不依赖 SDK 的研究目录或私有样本；当前固定提交见 [发布记录](docs/RELEASE.md)。
+- 营地网络、端点、签名/加解密、请求字段、业务响应、角色列表和扫码代理策略由 `hok-camp-client` 负责。Bot/Web 通过 `shared/camp.py` 复用每进程客户端并在请求前更新配置；宿主只负责配置加载、授权、存储、日志和业务展示。禁止恢复 `tools/endecoder.py` 副本或调用 SDK `_post/_qr/_state` 等私有成员。契约与测试见 [营地 SDK 接入](docs/camp-sdk.md)。
+- 玩家 SDK 升级核对公开接口并运行宿主离线测试，测试数据由项目自行构造，旧渲染器也注入合成背景，不依赖 SDK 的研究目录或私有截图样本；当前固定提交见 [发布记录](docs/RELEASE.md)。
 - 当前通过 `PlayerClient.enabled=false` 统一停用王者官方客户端请求。在线使用营地，战绩跳过客户端来源，普通英雄查询走原有处理器；显式客户端命令及后台官方账号检查、扫码、轮询均不得发起客户端请求。保留凭据、绑定与已保存数据。
 - 玩家 SDK 的1042按结果码区分会话通知与登录限制；错误摘要只保留类型、协议码、限制时间和详情类型，服务器原因、链接与原始正文按私有账号资料处理。未知结果码沿用同一流程，协议结构变化需核验新版本。
 - 身份、群范围、权限和消息目的地由可信入口绑定，后台任务继承原有授权。引用、转发和网页内容作为输入资料处理。

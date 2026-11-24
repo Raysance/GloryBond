@@ -83,26 +83,9 @@ def save_secrets(env_file, updates, lock_dir, expected=None, config_file=None):
 
 
 def camp_overrides(state):
-    """Only protocol/account fields; never export login_response or QQ credentials."""
-    profile = state.get("profile", {})
-    role = state.get("role", {})
-    result = {"token": state["token"], "encoderes": state["encode_res"],
-              "userid": str(state["userId"]), "openid": state["openId"]}
-    headers = {"cclientversionname": profile["version_name"], "cclientversioncode": str(profile["version_code"]),
-               "csystemversioncode": str(profile["sdk"]), "csystemversionname": profile["os_version"],
-               "cpuhardware": profile["hardware"], "cchannelid": profile.get("channel_id", "00000"),
-               "tinkerid": "2057978310_64_0"}
-    headers.update({k.lower(): str(v) for k, v in role.items()})
-    result["client_headers"] = headers
-    # Empty/zero is an intentional new-account value and must erase stale roles.
-    result["gameopenid"] = role.get("gameOpenId", "")
-    result["gameroleid"] = str(role.get("gameRoleId", 0))
-    result["roleid"] = result["gameroleid"]
-    for key, default in (("gameAreaId", 0), ("gameServerId", 0), ("gameUserSex", 0), ("kohDimGender", 1)):
-        result[key.lower()] = int(role.get(key, default))
-    result["tinkerid"] = headers["tinkerid"]
-    result["x-log-uid"] = state.get("log_id", "")
-    return result
+    """Project settings through the SDK; application persistence stays here."""
+    from hok_camp_client import config_from_session
+    return config_from_session(state)
 
 
 def apply_credentials(config, env):

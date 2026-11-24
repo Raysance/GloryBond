@@ -8,21 +8,7 @@ import re
 
 import requests
 
-from hok_camp_client import CampClient
-from hok_camp_client.qq import QQLogin
-
-
-class DirectCampClient(CampClient):
-    """Keep QQ routing direct before begin(); upstream has no transport hook."""
-    def start_login(self, qr_path):
-        if time.monotonic() - self._last_qr_start < 30:
-            raise RuntimeError("QR generation is cooling down")
-        self._last_qr_start = time.monotonic()
-        http = requests.Session()
-        http.trust_env = False
-        self._qr = QQLogin(session=http, timeout=self.timeout)
-        p = self.profile
-        return self._qr.begin(qr_path, os_version=p["os_version"], model=p["model"], sdk=p["sdk"])
+from hok_camp_client import CampClient, session_from_config
 
 from . import store
 
@@ -44,18 +30,15 @@ def status(authenticated=None, message="暂时无法确认，请稍后检查"):
 
 class Camp:
     def __init__(self, config, env, directory):
-        from hok_camp_client.crypto import decode_encode_res
         self.path = directory / "camp.json"
         self.previous_user = str(config["wzry"]["userid"])
         self.pending_roles = None
         state = json.loads(env["HOK_CAMP_SESSION_JSON"]) if env.get("HOK_CAMP_SESSION_JSON") else {}
         if not state and env.get("HOK_WZRY_ENCODERES") and env.get("HOK_WZRY_TOKEN"):
-            state = {"userId": self.previous_user, "openId": config["wzry"]["openid"],
-                     "token": env["HOK_WZRY_TOKEN"], "encode_res": env["HOK_WZRY_ENCODERES"],
-                     "userKey": decode_encode_res(env["HOK_WZRY_ENCODERES"])["userKey"]}
+            settings = dict(config["wzry"], token=env["HOK_WZRY_TOKEN"], encoderes=env["HOK_WZRY_ENCODERES"])
+            state = session_from_config(settings)
         store.write_json(self.path, state)
-        self.client = DirectCampClient(state_file=self.path, timeout=15)
-        self.client.http.trust_env = False
+        self.client = CampClient(state_file=self.path, timeout=15, trust_env=False)
 
     def check(self):
         result = self.client.login_status()
@@ -65,36 +48,12 @@ class Camp:
     def start(self, directory):
         # Start a clean account state: CampClient merges login responses into its state.
         # An old role must never survive a new QQ authorization.
-        self.client.http.close()
+        self.client.close()
         store.write_json(self.path, {})
-        self.client = DirectCampClient(state_file=self.path, timeout=15)
-        self.client.http.trust_env = False
+        self.client = CampClient(state_file=self.path, timeout=15, trust_env=False)
         self.qr_path = directory / "camp-qr.png"
         self.client.start_login(self.qr_path)
         return store.read_bytes(self.qr_path)
-
-    @staticmethod
-    def normalize_roles(payload):
-        data = payload.get("data", payload)
-        if isinstance(data, dict):
-            data = data.get("roles", data.get("list", data.get("roleList")))
-        if not isinstance(data, list) or len(data) > 100:
-            raise RuntimeError("Unrecognized Camp roles response")
-        roles = []
-        for row in data:
-            if not isinstance(row, dict):
-                raise RuntimeError("Invalid Camp role")
-            role_id = int(row["roleId"])
-            open_id = row["openid"]
-            if role_id <= 0 or not isinstance(open_id, str) or not open_id:
-                raise RuntimeError("Incomplete Camp role")
-            role = dict(gameOpenId=open_id, gameRoleId=role_id, gameAreaId=int(row["areaId"]),
-                        gameServerId=int(row["serverId"]), gameUserSex=int(row.get("sex", 0)),
-                        kohDimGender=int(row.get("kohDimGender", 1)))
-            label = str(row.get("roleName") or row.get("name") or "王者角色")[:60]
-            label += " · 区服 " + str(role["gameServerId"])
-            roles.append({"role": role, "main": row.get("isMainRole") in (True, 1, "1"), "label": label})
-        return roles
 
     @property
     def role_choices(self):
@@ -106,7 +65,7 @@ class Camp:
                              game_user_sex=role["gameUserSex"], dim_gender=role["kohDimGender"])
         if self.check()["authenticated"] is not True:
             raise RuntimeError("Login could not be verified")
-        saved = store.read_json(self.path)
+        saved = self.client.export_session()
         return "authenticated", {"HOK_CAMP_SESSION_JSON": json.dumps(saved, ensure_ascii=False),
              "HOK_WZRY_TOKEN": saved["token"], "HOK_WZRY_ENCODERES": saved["encode_res"]}
 
@@ -122,8 +81,7 @@ class Camp:
         state = result["state"]
         if state == "authenticated":
             # Explicit admin reauthorization authorizes this single authenticated role lookup.
-            payload, _ = self.client._post("/game/roles", {"gameId": 20001})
-            roles = self.normalize_roles(payload)
+            roles = self.client.get_roles()
             mains = [r for r in roles if r["main"]]
             if len(mains) == 1 or len(roles) == 1:
                 return self._complete((mains or roles)[0]["role"])
@@ -135,10 +93,7 @@ class Camp:
         return state, None
 
     def close(self):
-        self.client.http.close()
-        qr = self.client._qr
-        if qr is not None:
-            qr.http.close()
+        self.client.close()
 
 
 class Official:

@@ -356,18 +356,18 @@ class AccountSwitchTests(unittest.TestCase):
     def test_camp_switch_fetches_new_roles_instead_of_reusing_old_role(self):
         client=providers.Camp.__new__(providers.Camp);client.client=Mock();client.pending_roles=None
         client.client.poll_login.return_value={'state':'authenticated'}
-        client.client._post.return_value=({'data':[{'openid':'new','roleId':99,'areaId':2,'serverId':2001,'isMainRole':1}]},0)
+        client.client.get_roles.return_value=[{'role':{'gameOpenId':'new','gameRoleId':99,'gameAreaId':2,'gameServerId':2001},'main':True,'label':'角色'}]
         client._complete=Mock(return_value=('authenticated',{'fresh':'credentials'}))
         self.assertEqual(client.poll()[0],'authenticated')
         self.assertEqual(client._complete.call_args.args[0]['gameOpenId'],'new')
-        client.client._post.assert_called_once_with('/game/roles',{'gameId':20001})
+        client.client.get_roles.assert_called_once_with()
 
     def test_ambiguous_roles_require_admin_selection_without_replaying_qq_exchange(self):
         client=providers.Camp.__new__(providers.Camp);client.client=Mock();client.pending_roles=None
         client.client.poll_login.return_value={'state':'authenticated'}
         rows=[{'openid':'one','roleId':1,'areaId':1,'serverId':2},
               {'openid':'two','roleId':3,'areaId':2,'serverId':4}]
-        client.client._post.return_value=({'data':{'roles':rows}},0)
+        client.client.get_roles.return_value=[{'role':{'gameOpenId':r['openid'],'gameRoleId':r['roleId'],'gameAreaId':r['areaId'],'gameServerId':r['serverId']},'main':False,'label':'角色'} for r in rows]
         client._complete=Mock(return_value=('authenticated',{}))
         self.assertEqual(client.poll(),('select_role',None))
         self.assertEqual(client.poll(),('select_role',None))

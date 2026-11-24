@@ -3,6 +3,8 @@
 
 def http_targets(config, chat, search, proxy, profiles):
     """Use the same resolved provider settings and proxy routes as production."""
+    from hok_camp_client import service_endpoints
+    camp = service_endpoints()
     targets = []
 
     def add(name, url, *, route="", check="reachability", **options):
@@ -21,9 +23,9 @@ def http_targets(config, chat, search, proxy, profiles):
     add("APIMart 图片服务", "https://api.apimart.ai/v1/", route=proxy, requires_proxy=True,
         configured=bool(qq.get("apimart_key")))
     add("阿里云搜索", search.get("endpoint", ""), configured=bool(search.get("api_key")))
-    add("王者营地", "https://kohcamp.qq.com/game/curseasonpage",
+    add("王者营地", camp["camp"],
         configured=bool(config.get("wzry", {}).get("token")))
-    add("王者英雄资源", "https://ssl.kohsocialapp.qq.com/play/h5getherolist")
+    add("王者英雄资源", camp["heroes"])
     add("天元之弈", "https://tianyuanzhiyi.com/api/global/tier")
     add("B站 API", "https://api.bilibili.com/x/web-interface/nav", check="bilibili")
     add("B站网页", "https://www.bilibili.com/")

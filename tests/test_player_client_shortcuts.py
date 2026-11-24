@@ -106,7 +106,7 @@ class PrimaryAccountTests(unittest.IsolatedAsyncioTestCase):
     async def test_explicit_alternate_key_beats_nickname_aliases_and_both_sources_use_that_key(self):
         for text, key, reference in (("#示例玩家41的英雄", "example_user_5", self.main),
                                      ("#我的英雄", "example_user_5", self.main),
-                                     ("#HYQ_的英雄", "example_user_6", self.alt)):
+                                     ("#EXAMPLE_USER_6的英雄", "example_user_6", self.alt)):
             with self.subTest(text=text), patch.object(ZFUNC, "player_client_query", return_value={}) as query, \
                  patch.object(ZFUNC, "player_client_hero_report", return_value={}), \
                  patch.object(ZFUNC, "qid2nick", return_value="示例玩家41"), \

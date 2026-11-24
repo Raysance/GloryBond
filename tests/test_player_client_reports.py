@@ -32,6 +32,13 @@ def hero_result():
 class HeroReportTests(unittest.TestCase):
     def setUp(self):
         self.settings = {**STATIC.player_client_config, "display_hero_limit": 5}
+        # These checks assert dynamic rendering and layout, not screenshot art.
+        # Keep the legacy renderer testable without private reference images.
+        from PIL import Image
+        template = patch.object(RENDER, "player_client_reference_image",
+                                side_effect=lambda kind: Image.new("RGB", (2048, 952), "#213c5c"))
+        template.start()
+        self.addCleanup(template.stop)
         cache = patch.object(ZFILE, "load_hero_tier_avatar_cache", return_value=({}, []))
         cache.start()
         self.addCleanup(cache.stop)
