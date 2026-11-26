@@ -37,7 +37,7 @@ AI 识图支持独立的火山方舟豆包端点，本次配置采用 Seed 2.1 L
 
 王者官方客户端请求目前统一停用（`PlayerClient.enabled=false`）。`#在线` 恢复营地方式，战绩查询只请求营地，普通英雄查询保留原有统计并跳过客户端图片和资料。显式 `#客户端` 命令及后台官方客户端登录操作提示已停用；营地和 NapCat 登录正常使用。已有客户端凭据、绑定和历史记录保留。配置及边界见[玩家客户端部署说明](deployment/README.md#王者玩家客户端)，验证方式见[开发说明](docs/DEVELOPMENT.md#checks-and-manuals)。
 
-营地的战绩、个人资料、英雄数据、榜单和观战查询统一使用独立的 [hok-camp-client SDK](https://github.com/Raysance/hok-camp-client)，原有 Bot 命令和网页入口继续使用。连续请求按客户端实例至少间隔5秒，失败不自动重试；登录态由 SDK 保存和更新，项目只传私有会话文件路径。接入接口与维护边界见[营地 SDK 接入](docs/camp-sdk.md)。
+营地的战绩、个人资料、英雄数据、榜单和观战查询统一使用独立的 [hok-camp-client SDK](https://github.com/Raysance/hok-camp-client)，原有 Bot 命令和网页入口继续使用。SDK 另提供本局胜率、经济/经验走势与完整对局回顾接口，可返回玩家位置、事件和双方经济记录，供业务按需接入；本次未新增 Bot 命令或网页回放。连续请求按客户端实例至少间隔5秒，失败不自动重试；登录态由 SDK 保存和更新，项目只传私有会话文件路径。接入接口与维护边界见[营地 SDK 接入](docs/camp-sdk.md)。
 
 ## 目录
 

@@ -1,6 +1,6 @@
 # 营地 SDK 接入
 
-营地能力使用私有 `hok-camp-client` 0.6.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、业务查询、直播地址及视频帧接口，不依赖本项目或Android。
+营地能力使用私有 `hok-camp-client` 0.8.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、业务查询、对局走势与完整回顾、直播地址及视频帧接口，不依赖本项目或Android。
 
 ## 会话归属
 
@@ -37,6 +37,14 @@
 | 观战截图 | open_watch_stream → frames → close |
 
 预言使用阵容资料；截图使用实时视频，不能用流状态替换原阵容返回结构。SDK负责端点、协议、签名、解密、IM等待和心跳，宿主不维护任何副本。`capture_watch_frame`只返回状态、固定原因或JPEG，不向QQ或Web回传签名URL。命令使用 `asyncio.to_thread`；同一进程的重复截图不会排队请求。
+
+## 对局走势与回顾接口
+
+SDK 新增 `get_battle_winning_trend`、`get_battle_replay` 和 `get_battle_analysis`，分别返回本局胜率、经济/经验复盘资料，以及包含可用玩家位置、事件、双方经济的完整回顾。三者独立请求，返回完整业务数据，共用既有会话和限速，不自动联查或补齐采样。
+
+前两项参数与 `get_battle_detail` 相同；完整回顾使用详情 `head.playerId`，不能改用角色 ID 或营地用户 ID。字段与时间单位以私有 SDK 的 [README](https://github.com/Raysance/hok-camp-client#对局走势与完整回顾) 和维护文档为准。SDK 负责协议，宿主接入时仍须经过共享客户端和原有授权，再处理保存及展示。
+
+这次同步依赖仅提供接口能力，现有 Bot/Web 不自动获取这些新资料，也未新增回放页面。新增协议已用 APK/官方公开脚本静态核对及合成数据离线验证，未进行真实对局请求；对局覆盖、隐私和保留期以服务端结果为准。
 
 ## 验证与发布
 

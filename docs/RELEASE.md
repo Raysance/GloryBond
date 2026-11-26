@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `5c260a16969a79d02f010a20e81fd7c9d564fbf6` (version `0.6.0`)
+- `vendor/hok-camp-client`: `81a864045917f8d018b7dea84d39c8b85c085c1a` (version `0.8.0`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,22 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Camp battle trends and replay reports — 2026-11-26
+
+Camp SDK 0.8.0 adds separate winning-trend, economy/experience and full replay
+report queries. Reports preserve the server's complete data, including available
+player positions, combat/objective/equipment events and team economy samples.
+The full report uses the player identifier from the selected battle detail.
+Requests retain shared session handling, five-second spacing and no automatic
+retries. Existing Bot/Web entry points do not issue these new queries implicitly.
+
+The update also includes upstream 0.7.0's on-demand battle history pagination.
+SDK validation passed 162 offline tests, package-content checks and seven query
+tests against the installed wheel. Host compatibility passed 62 Camp-related
+tests and 45 Web tests. New report fields were traced through the APK and official
+public scripts without executing them; no live account request verified current
+report availability, retention or permissions. See [Camp integration](camp-sdk.md).
 
 ## Shared Camp SDK integration — 2026-11-24
 
