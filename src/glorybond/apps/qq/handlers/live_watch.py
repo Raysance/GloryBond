@@ -36,17 +36,30 @@ def prepare_watch_request(event):
             "display_name": display, "status": f"正在获取【{display}】的观战截图，首次加载可能需要约一分钟…"}
 
 
-def _capture(prepared, *, on_error=None):
+def _capture(prepared, *, on_lineup=None, on_error=None):
     from glorybond.integrations.wzry import wzry_watch_frame
     from glorybond.storage.files import save_watch_frame
 
     display = prepared["display_name"]
+
+    def show_lineup(battle_info):
+        from glorybond.features.game.watch_lineup import prepare_watch_lineup
+        try:
+            lineup = prepare_watch_lineup(battle_info, role_id=prepared["roleid"])
+            if lineup is not None:
+                on_lineup(lineup)
+        except Exception as error:
+            # A missing/broken card must not restart or discard the live session.
+            if on_error:
+                on_error(RuntimeError("观战阵容图片生成或入队失败（" + type(error).__name__ + "）"))
+
     try:
-        result = wzry_watch_frame(prepared["userid"], prepared["roleid"])
+        options = {"on_battle_info": show_lineup} if on_lineup is not None else {}
+        result = wzry_watch_frame(prepared["userid"], prepared["roleid"], **options)
         if result["state"] == "ready":
-            return {"kind": "image", "text": f"【{display}】当前观战画面",
+            return {"kind": "image", "text": f"【{display}】观战画面",
                     "image_path": save_watch_frame(result["jpeg"])}
-        text = {"pending": "等待观战画面超时，本次已停止", "ended": "该对局已结束"}.get(
+        text = {"pending": "等待观战画面超时，请稍后再次观战", "ended": "该对局已结束"}.get(
             result["state"], "当前对局暂时无法观战")
         return {"kind": "text", "text": text}
     except CampError as error:
@@ -73,5 +86,14 @@ def _capture(prepared, *, on_error=None):
         return {"kind": "text", "text": "暂时无法获取观战截图，本次已停止"}
 
 
-async def run_watch_request(prepared, *, on_error=None):
-    return await asyncio.to_thread(_capture, prepared, on_error=on_error)
+def send_watch_lineup(lineup, *, event):
+    from glorybond.apps.qq.message_sender import add_watch_lineup_msg, watch_lineup_queued
+    from glorybond.features.game.watch_lineup import render_watch_lineup_file
+
+    if watch_lineup_queued(lineup["battle_id"], event=event):
+        return False
+    return add_watch_lineup_msg(lineup["battle_id"], render_watch_lineup_file(lineup), event=event)
+
+
+async def run_watch_request(prepared, *, on_lineup=None, on_error=None):
+    return await asyncio.to_thread(_capture, prepared, on_lineup=on_lineup, on_error=on_error)

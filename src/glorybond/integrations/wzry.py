@@ -9,8 +9,8 @@ from glorybond.config.settings import data_root
 from glorybond.common import log_message
 
 
-def wzry_battle_image_bytes(url):
-    return download_battle_image(url)
+def wzry_battle_image_bytes(url, *, timeout=10):
+    return download_battle_image(url, timeout=timeout)
 
 
 class WzryOfficialAPI:
@@ -36,9 +36,10 @@ class WzryOfficialAPI:
             raise
 
 
-def wzry_watch_frame(userid, roleid):
+def wzry_watch_frame(userid, roleid, *, on_battle_info=None):
     try:
-        return capture_watch_frame(session_path(data_root), userid, roleid)
+        options = {"on_battle_info": on_battle_info} if on_battle_info is not None else {}
+        return capture_watch_frame(session_path(data_root), userid, roleid, **options)
     except Exception as exc:
         log_message("WATCH_FRAME_ERROR type=" + type(exc).__name__, logging.WARNING)
         raise

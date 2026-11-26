@@ -324,13 +324,29 @@ async def _send_queued_message(bot, payload, *, observe=True):
         else:
             raise ValueError("Invalid queued message channel")
     except BaseException as error:
+        _record_watch_lineup_outcome(payload, error=error)
         if observe:
             await _automation_sent(payload, status="failed" if isinstance(error, ActionFailed) else "unknown")
         raise
+    _record_watch_lineup_outcome(payload, result=result)
     if observe:
         await _automation_sent(payload, result)
         await _record_task_receipt(payload, result)
     return result
+
+
+def _record_watch_lineup_outcome(payload, *, result=None, error=None):
+    if not payload.get("watch_lineup_key"):
+        return
+    from glorybond.storage.watch_lineups import record_outcome
+
+    status = "failed" if isinstance(error, ActionFailed) else "unknown"
+    if error is None and _confirmed_message_id(result) is not None:
+        status = "sent"
+    try:
+        record_outcome(payload, status)
+    except Exception as exc:
+        log_message("WATCH_LINEUP_RECEIPT_FAILED: error_type=" + type(exc).__name__)
 
 
 async def _send_video_with_metadata(bot, payload):
@@ -558,6 +574,32 @@ def add_text_image_msg(text, image_path, *, event=None, msg_type=None, to_id=Non
         f"file:///{image_path}"
     )
     return add_msg(message, event=event, msg_type=msg_type, to_id=to_id)
+
+
+def _watch_lineup_key(battle_id, event):
+    from glorybond.storage.watch_lineups import lineup_key
+
+    channel, recipient = _resolve_destination(event=event)
+    return lineup_key(bot_id=confs["QQBot"]["bot_qid"], channel=channel,
+                      recipient=recipient, battle_id=battle_id)
+
+
+def watch_lineup_queued(battle_id, *, event):
+    from glorybond.storage.watch_lineups import already_queued
+
+    return already_queued(_watch_lineup_key(battle_id, event))
+
+
+def add_watch_lineup_msg(battle_id, image_path, *, event):
+    """Atomically enqueue the first lineup before its later screenshot."""
+    from glorybond.storage.watch_lineups import enqueue_once
+
+    key = _watch_lineup_key(battle_id, event)
+    content = MessageSegment.text("本局双方阵容") + MessageSegment.image(f"file:///{image_path}")
+    payload = _prepare_automation_payload(_message_payload(content, event=event,
+                                                          metadata={"source": "watch_lineup"}))
+    payload["watch_lineup_key"] = key
+    return enqueue_once(key, payload)
 
 
 def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):

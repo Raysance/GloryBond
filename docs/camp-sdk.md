@@ -16,15 +16,17 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/glorybond/integrations/camp.py` | 计算会话路径，复用SDK客户端，转发业务查询；截图只取首帧并关闭所有连接 |
+| `src/glorybond/integrations/camp.py` | 计算会话路径，复用SDK客户端，通过公开截图接口保留推进中的直播 |
 | `src/glorybond/integrations/wzry.py` | Bot调用入口，记录不含服务端正文的错误类型 |
 | `src/glorybond/apps/web/utils.py` | 保持网页业务签名，传SDK会话路径 |
 | `src/glorybond/accounts/providers.py` | 登录页面编排，只接收状态和角色标签；SDK保存会话 |
 | `src/glorybond/accounts/manager.py` | 授权、限速、挑战期限与租约，成功后触发SDK提交 |
-| `src/glorybond/apps/qq/handlers/live_watch.py` | 解析观战目标，线程中获取首帧，映射安全提示 |
-| `src/glorybond/storage/files.py` | `save_watch_frame`为每次图片创建独立产物文件名 |
+| `src/glorybond/apps/qq/handlers/live_watch.py` | 解析观战目标，先回调阵容再返回新帧，映射安全提示 |
+| `src/glorybond/features/game/watch_lineup.py` | 只投影观战响应中的展示字段，使用底蕴/预言模板的缺项留白模式 |
+| `src/glorybond/storage/files.py` | 有界读取缓存头像，为阵容图与截图创建独立产物文件名 |
+| `src/glorybond/storage/watch_lineups.py` | 按机器人、会话、对局原子入队去重，独立记录投递结果 |
 | `tests/test_camp_sdk_boundary.py` | 路径式调用、实例复用、公开接口及协议隔离 |
-| `tests/test_event_live_watch.py` | 玩家解析、单张截图、失败关闭、并发拒绝与安全输出 |
+| `tests/test_event_live_watch.py`、`tests/test_watch_lineup.py`、`tests/test_watch_strength_template.py` | 解析、阵容顺序、缺项留白、去重与回执、会话复用、并发拒绝及安全输出 |
 
 ## 业务映射
 
@@ -36,9 +38,13 @@
 | heropower / allhero / herostatistics | get_hero_power / get_heroes / get_hero_statistics |
 | heroranklist / honorranklist | get_hero_rankings / get_honor_rankings |
 | watchbattle（预言阵容） | get_watch_battle_info |
-| 观战截图 | open_watch_stream → frames → close |
+| 观战截图与首次阵容 | capture_watch_frame(on_battle_info=...) |
 
-预言使用阵容资料；截图使用实时视频，不能用流状态替换原阵容返回结构。SDK负责端点、协议、签名、解密、IM等待和心跳，宿主不维护任何副本。`capture_watch_frame`只返回状态、固定原因或JPEG，不向QQ或Web回传签名URL。命令使用 `asyncio.to_thread`；同一进程的重复截图不会排队请求。
+预言使用阵容资料；截图使用直播视频，不能用流状态替换原阵容返回结构。SDK负责端点、协议、签名、解密、IM等待、心跳和媒体生命周期，宿主不维护任何副本。公开 `capture_watch_frame` 返回状态、固定原因、JPEG、原始阵容快照及复用标记，不返回签名URL。命令使用 `asyncio.to_thread`；同一进程的并发截图立即拒绝，不排队。
+
+`on_battle_info` 在目标身份校验后、等待媒体就绪前收到已有 `battleInfo`，不新增资料查询。宿主首次在当前会话发送该局阵容；复用底蕴/预言模板，只填昵称、英雄/玩家头像、英雄战力及已有英雄胜负场次之和，其他指标留空，不调用完整底蕴采集流程。头像最多等待4秒，缓存7天。阵容与截图依次入队，阵容失败不丢弃直播；Redis原子去重一天，QQ明确失败才允许后续手动请求重发，结果未知不重发。
+
+SDK持续解码同一目标的直播，仅保存最新JPEG。重复截图等待本次请求之后的新帧，不重新申请；结束、错误、目标变化、凭据变化及关闭时清理，旧读取器未退出不新建。进程退出通过既有客户端关闭入口清理。首帧可能仍在加载或追赶，本地帧年龄不能推断真实直播延迟。
 
 ## 对局走势与回顾接口
 

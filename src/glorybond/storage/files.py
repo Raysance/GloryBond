@@ -1012,7 +1012,7 @@ def battle_report_fonts():
     return fonts
 
 
-def load_battle_report_image(url, *, max_cache_age=None):
+def load_battle_report_image(url, *, max_cache_age=None, download_timeout=None):
     """Reuse original decoded assets across sizes; persist public thumbnails through IO."""
     import hashlib
     from PIL import Image
@@ -1039,7 +1039,8 @@ def load_battle_report_image(url, *, max_cache_age=None):
         except (OSError, ValueError):
             pass
     try:
-        content = wzry_battle_image_bytes(url)
+        options = {"timeout": download_timeout} if download_timeout is not None else {}
+        content = wzry_battle_image_bytes(url, **options)
         image = pil_image_from_bytes(content, max_pixels=8_000_000).convert("RGBA")
     except Exception:
         if cached_image is not None:
@@ -1091,6 +1092,38 @@ def save_watch_frame(jpeg):
     path = directory / f"watch_frame_{uuid.uuid4().hex}.jpg"
     path.write_bytes(jpeg)
     return str(path.resolve())
+
+
+def load_watch_lineup_images(data):
+    """Bound the loading-card delay; missing artwork keeps a placeholder."""
+    from concurrent.futures import ThreadPoolExecutor, wait
+
+    players = [player for team in data["teams"] for player in team["players"]]
+    urls = list(dict.fromkeys(player[key] for key in ("hero_icon", "role_icon")
+                              for player in players if player.get(key)))
+    if not urls:
+        return {}
+    pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="watch-artwork")
+    futures = {pool.submit(load_battle_report_image, url, max_cache_age=604800, download_timeout=3): url
+               for url in urls[:40]}
+    try:
+        done, _ = wait(futures, timeout=4)
+        images = {}
+        for future in done:
+            try:
+                images[futures[future]] = future.result()
+            except Exception:
+                pass
+        return images
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
+def save_watch_lineup_image(image):
+    import uuid
+
+    path = os.path.join(temp_path, "temp_files", f"watch_lineup_{uuid.uuid4().hex}.png")
+    return save_pil_image(image, path, format="PNG")
 
 
 def save_player_client_report(image):

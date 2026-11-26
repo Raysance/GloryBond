@@ -59,6 +59,29 @@ class LiveWatchEventTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(ADAPTER,'wzry_watch_frame',return_value={'state':'pending'}):
             self.assertIn('超时',(await WATCH.run_watch_request(prepared))['text'])
 
+    async def test_lineup_precedes_frame_and_rendering_failure_keeps_frame(self):
+        prepared = WATCH.prepare_watch_request(Event('#观战我'))
+        order = []
+        raw = {'battleID': 'synthetic-battle', 'camp1': [{'roleId': 22, 'heroName': '赵云',
+                                                       'roleInfo': {'roleName': '玩家'}}], 'camp2': []}
+        def capture(*args, on_battle_info):
+            on_battle_info(raw)
+            order.append('frame')
+            return {'state': 'ready', 'jpeg': b'JPEG'}
+        def lineup(data):
+            self.assertEqual(data['battle_id'], 'synthetic-battle')
+            order.append('lineup')
+        with patch.object(ADAPTER, 'wzry_watch_frame', side_effect=capture), \
+             patch.object(ZFILE, 'save_watch_frame', return_value='/tmp/watch.jpg'):
+            result = await WATCH.run_watch_request(prepared, on_lineup=lineup)
+            self.assertEqual(order, ['lineup', 'frame'])
+            errors = Mock()
+            result = await WATCH.run_watch_request(prepared, on_lineup=Mock(side_effect=OSError('PRIVATE')),
+                                                   on_error=errors)
+        self.assertEqual(result['kind'], 'image')
+        errors.assert_called_once()
+        self.assertNotIn('PRIVATE', str(errors.call_args))
+
     def test_unique_artifact_names(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(ZFILE,'temp_path',directory):
             first,second=ZFILE.save_watch_frame(b'JPEG'),ZFILE.save_watch_frame(b'JPEG')
@@ -69,36 +92,32 @@ class LiveWatchEventTests(unittest.IsolatedAsyncioTestCase):
 class WatchSdkBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.client=Mock()
-        self.live=MagicMock()
-        self.live.__enter__.return_value=self.live
-        self.live.result={'state':'ready','stream_url':'rtmp://PRIVATE'}
-        self.client.open_watch_stream.return_value=self.live
-        self.frames=MagicMock()
-        self.frames.__next__.return_value=b'JPEG'
-        self.live.frames.return_value=self.frames
+        self.client.capture_watch_frame.return_value={'state':'ready','jpeg':b'JPEG','stream_url':'rtmp://PRIVATE'}
         self.patcher=patch.object(camp,'_get_client',return_value=self.client)
         self.patcher.start();self.addCleanup(self.patcher.stop)
 
-    def test_first_frame_and_failure_close_all_resources(self):
+    def test_capture_delegates_reuse_and_keeps_session_open(self):
         result=camp.capture_watch_frame('/private/session.json',11,22)
         self.assertEqual(result,{'state':'ready','jpeg':b'JPEG'})
-        self.client.open_watch_stream.assert_called_once_with(11,22,wait_timeout=60)
-        self.frames.close.assert_called_once()
-        self.live.__exit__.assert_called_once()
-        self.frames.__next__.side_effect=CampError('video_decode','PRIVATE')
+        self.client.capture_watch_frame.assert_called_once_with(11,22,wait_timeout=60)
+        callback = Mock()
+        result = camp.capture_watch_frame('/private/session.json',11,22,on_battle_info=callback)
+        self.client.capture_watch_frame.assert_called_with(11,22,wait_timeout=60,on_battle_info=callback)
+        self.client.close.assert_not_called()
+        self.client.close_watch_stream.assert_not_called()
+        self.client.capture_watch_frame.side_effect=CampError('video_decode','PRIVATE')
         with self.assertRaises(CampError):
             camp.capture_watch_frame('/private/session.json',11,22)
-        self.assertEqual(self.live.__exit__.call_count,2)
-        self.assertEqual(self.frames.close.call_count,2)
+        self.assertTrue(camp._watch_lock.acquire(blocking=False))
+        camp._watch_lock.release()
 
     def test_pending_and_concurrent_request_do_not_read_media_or_queue_login(self):
-        self.live.result={'state':'pending','reason':'stream_wait_timeout','stream_url':'PRIVATE'}
+        self.client.capture_watch_frame.return_value={'state':'pending','reason':'stream_wait_timeout','stream_url':'PRIVATE'}
         self.assertEqual(camp.capture_watch_frame('/private/session.json',11,22),
                          {'state':'pending','reason':'stream_wait_timeout'})
-        self.live.frames.assert_not_called()
-        self.client.open_watch_stream.reset_mock()
+        self.client.capture_watch_frame.reset_mock()
         with camp._watch_lock:
             with self.assertRaises(CampError) as caught:
                 camp.capture_watch_frame('/private/session.json',11,22)
         self.assertEqual(caught.exception.code,'watch_active')
-        self.client.open_watch_stream.assert_not_called()
+        self.client.capture_watch_frame.assert_not_called()

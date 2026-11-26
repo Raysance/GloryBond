@@ -2297,7 +2297,7 @@
       "id": "metrics_live_watch",
       "title": "当前对局观战截图",
       "parent": "metrics",
-      "summary": "通过观战命令获取指定玩家的一张直播图片",
+      "summary": "首次观战先展示已有资料的双方阵容，同目标复用直播并获取新截图",
       "keywords": [
         "观战",
         "截图",
@@ -2313,6 +2313,14 @@
         {
           "path": "src/glorybond/integrations/camp.py",
           "symbol": "capture_watch_frame"
+        },
+        {
+          "path": "src/glorybond/features/game/watch_lineup.py",
+          "symbol": "prepare_watch_lineup"
+        },
+        {
+          "path": "src/glorybond/storage/watch_lineups.py",
+          "symbol": "enqueue_once"
         }
       ],
       "document": {

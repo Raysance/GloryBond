@@ -35,6 +35,8 @@ B站与 X 定时订阅的连续失败通知由 `apps/qq/interval_jobs.py` 管理
 
 戳一戳文字由 `apps/qq/handlers/poke.py` 绑定可信群、用户与时间，经 `features/facade.py` 读取有时间边界的本群聊天和本人历史。`features/chat/prompts.py` 在一次模型请求中选题并生成正文；`storage/poke_history.py` 用 Redis 保存有界、短期的生成话题及素材ID，已用旧素材在选题前排除，当前群聊保留；不充当送达回执或事实来源。
 
+观战由 `apps/qq/handlers/live_watch.py` 调用共享营地适配层；SDK管理唯一的持续直播和最新帧，`features/game/watch_lineup.py` 只投影观战响应，复用 `rendering/gen_coplayer_analyses.py` 的底蕴/预言模板。图片IO归 `storage/files.py`，阵容的会话/对局去重与实际回执归 `storage/watch_lineups.py`，统一沿 QQ 队列交付。
+
 根目录只保留项目说明、统一依赖、启动脚本及这些职责明确的目录：
 
 | 目录 | 内容 |

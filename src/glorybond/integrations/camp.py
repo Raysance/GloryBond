@@ -71,24 +71,21 @@ def query(state_file, reqtype, userid=-1, roleid=0, gameseq=-1, gameSvrId=-1,
                 raise ValueError(f"unsupported wzry reqtype: {reqtype}")
 
 
-def capture_watch_frame(state_file, userid, roleid, *, wait_timeout=60):
-    """One screenshot through public SDK APIs; never expose the stream URL."""
+def capture_watch_frame(state_file, userid, roleid, *, wait_timeout=60, on_battle_info=None):
+    """Read the SDK's advancing watch session without exposing its media URL."""
     if not _watch_lock.acquire(blocking=False):
         raise CampError("watch_active", "A screenshot request is already running")
     try:
         with _lock:
             client = _get_client(state_file)
-            with client.open_watch_stream(userid, roleid, wait_timeout=wait_timeout) as live:
-                result = live.result
-                if result["state"] != "ready":
-                    return {"state": result["state"], "reason": result.get("reason")}
-                frames = live.frames()
-                try:
-                    jpeg = next(frames)
-                except StopIteration:
-                    raise CampError("video_decode", "No video frame received") from None
-                finally:
-                    frames.close()
-                return {"state": "ready", "jpeg": jpeg}
+            options = {"wait_timeout": wait_timeout}
+            if on_battle_info is not None:
+                options["on_battle_info"] = on_battle_info
+            result = client.capture_watch_frame(userid, roleid, **options)
+            safe = {"state": result["state"]}
+            for key in ("jpeg", "reason", "battle_info", "reused"):
+                if key in result:
+                    safe[key] = result[key]
+            return safe
     finally:
         _watch_lock.release()

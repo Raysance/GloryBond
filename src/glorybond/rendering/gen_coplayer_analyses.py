@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import io
 import urllib.request
 from datetime import datetime
-from typing import List, Optional, Tuple, Iterable, cast
+from typing import Callable, List, Mapping, Optional, Tuple, Iterable, cast
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
@@ -49,6 +49,7 @@ class PlayerInfo:
     # 评分（优先使用 single_level 作为“底蕴/实力评分”）
     single_level: Optional[float] = None
     score: Optional[float] = None
+    hero_name: Optional[str] = None
 
     def normalized_win_rate(self) -> Optional[float]:
         if self.win_rate is None:
@@ -160,8 +161,14 @@ class CoPlayerProcess:
         return list(self._players)
 
     # 便捷实例方法：基于当前实例内的玩家列表直接生成图片
-    def gen(self, output_path: str, *, title: str = "COMPARISON", subtitle: Optional[str] = None) -> Tuple[str, bool]:
-        return generate_player_strength_image(output_path, players=self.players(), title=title, subtitle=subtitle)
+    def gen(self, output_path: str, *, title: str = "COMPARISON", subtitle: Optional[str] = None,
+            partial_data: bool = False, images: Optional[Mapping] = None,
+            font_loader: Optional[Callable] = None,
+            team_labels: Tuple[str, str] = ("我方", "对方")) -> Tuple[str, bool]:
+        return generate_player_strength_image(
+            output_path, players=self.players(), title=title, subtitle=subtitle,
+            partial_data=partial_data, images=images, font_loader=font_loader, team_labels=team_labels,
+        )
 
 
 # 提供一个默认的全局收集器，满足“我会在 coplayer_process 中创建并多次加入玩家信息”的使用习惯
@@ -426,24 +433,32 @@ def _safe_text(draw, xy, text: str, font, fill):
         draw.text(xy, text.encode("utf-8", "ignore").decode("utf-8"), font=font, fill=fill)
 
 
-def generate_player_strength_image(
-    output_path: str,
+def render_player_strength_image(
     players: Optional[List[PlayerInfo]] = None,
     *,
     title: str = "Comparison",
     subtitle: Optional[str] = None,
-) -> Tuple[str, bool]:
-    """
-    生成玩家实力信息图片。
+    partial_data: bool = False,
+    images: Optional[Mapping] = None,
+    font_loader: Optional[Callable] = None,
+    team_labels: Tuple[str, str] = ("我方", "对方"),
+):
+    """Return the existing strength template as a Pillow image without saving it.
 
-    参数：
-      - output_path: 输出图片路径（会自动创建父目录）
-      - players: 可选，若为空则使用全局 coplayer_process 中的玩家列表
-      - title: 图片标题
-
-    返回：(输出路径, 是否生成成功)
+    In partial-data mode missing values stay blank and no fallback strength score
+    is calculated. Assets come only from ``images`` (URL/path -> Pillow image),
+    including when the mapping is empty. ``font_loader(size, bold=False)`` can
+    supply the host's font loader. Legacy mode retains existing asset loading.
     """
     _ensure_pillow()
+
+    loaded_fonts = {}
+
+    def font(size, bold=False):
+        key = size, bold
+        if key not in loaded_fonts:
+            loaded_fonts[key] = (font_loader or _try_load_font)(size, bold=bold)
+        return loaded_fonts[key]
 
     data = players if players is not None else coplayer_process.players()
     my_list = [p for p in data if p.side == 'my']
@@ -489,8 +504,8 @@ def generate_player_strength_image(
     _rounded_rectangle(draw, panel_xy, radius=24, fill=PANEL, outline=BORDER, width=2)
 
     # 标题区
-    title_font = _try_load_font(44, bold=True)
-    sub_font = _try_load_font(22)
+    title_font = font(44, bold=True)
+    sub_font = font(22)
     _safe_text(draw, (margin + 32, margin + 28), title, title_font, TEXT_PRIMARY)
     if subtitle:
         _safe_text(draw, (margin + 32, margin + 88), subtitle, sub_font, TEXT_SECONDARY)
@@ -502,17 +517,17 @@ def generate_player_strength_image(
 
     # 无数据占位
     if len(data) == 0:
-        empty_font = _try_load_font(28)
+        empty_font = font(28)
         _safe_text(
             draw,
             (margin + 32, margin + header_h + 16),
-            "暂无玩家数据，可通过 coplayer_process.add_player(...) 添加",
+            "暂无玩家数据" if partial_data else "暂无玩家数据，可通过 coplayer_process.add_player(...) 添加",
             empty_font,
             TEXT_SECONDARY,
         )
     else:
         # 统计最大分/平均分/最大偏差/最大场次，用于着色与对比
-        scores = [_calc_display_score(p) for p in data]
+        scores = [] if partial_data else [_calc_display_score(p) for p in data]
         max_score = max(scores) if scores else 1
         max_score = max(max_score, 1)
         totals = [p.derived_matches() or 0 for p in data]
@@ -533,11 +548,11 @@ def generate_player_strength_image(
             max_hero_power = 1
 
         # 列标题
-        title_font2 = _try_load_font(26, bold=True)
+        title_font2 = font(26, bold=True)
         base_y = margin + header_h
         if use_two_cols:
-            _safe_text(draw, (left_col_x + 28, base_y + 8), "我方", title_font2, ACCENT)
-            _safe_text(draw, (right_col_x + 28, base_y + 8), "对方", title_font2, ACCENT_RED)
+            _safe_text(draw, (left_col_x + 28, base_y + 8), team_labels[0], title_font2, ACCENT)
+            _safe_text(draw, (right_col_x + 28, base_y + 8), team_labels[1], title_font2, ACCENT_RED)
         else:
             _safe_text(draw, (left_col_x + 28, base_y + 8), "玩家", title_font2, ACCENT)
 
@@ -572,9 +587,22 @@ def generate_player_strength_image(
             hero_sources = [(idx, p.hero_avatar_url) for idx, p in enumerate(players_list)]
             avatar_sources = [(idx, p.avatar_path if p.auth is not False else None) for idx, p in enumerate(players_list)]
             
-            # 并行加载
-            hero_images = _batch_load_hero_icons(hero_sources, (avatar_d, avatar_d))
-            avatar_images = _batch_load_avatars(avatar_sources, small_d)
+            if partial_data or images is not None:
+                # Watch mode never falls back to local files or network requests.
+                supplied_images = images if images is not None else {}
+                hero_images = {}
+                avatar_images = {}
+                for idx, src in hero_sources:
+                    source = supplied_images.get(src) if src else None
+                    if isinstance(source, Image.Image):
+                        hero_images[idx] = source.convert('RGBA')
+                for idx, src in avatar_sources:
+                    source = supplied_images.get(src) if src else None
+                    if isinstance(source, Image.Image):
+                        avatar_images[idx] = _circle_crop(source, small_d)
+            else:
+                hero_images = _batch_load_hero_icons(hero_sources, (avatar_d, avatar_d))
+                avatar_images = _batch_load_avatars(avatar_sources, small_d)
             
             for idx, p in enumerate(players_list):
                 card_top = start_y + idx * (card_h + gap)
@@ -586,7 +614,7 @@ def generate_player_strength_image(
                 # 未授权检查
                 unauthorized = (p.auth is False)
                 
-                if unauthorized:
+                if unauthorized or partial_data:
                     # 未授权：使用灰色背景
                     fill_color = (240, 243, 248)
                 else:
@@ -618,11 +646,12 @@ def generate_player_strength_image(
                     # 占位：浅灰圆角矩形
                     _rounded_rectangle(draw, (avatar_x, avatar_y, avatar_x + avatar_d, avatar_y + avatar_d), radius=14, fill=(238, 241, 248))
                     # 放一个英雄字样首字母占位
-                    _safe_text(draw, (avatar_x + 28, avatar_y + 30), "H", _try_load_font(28, True), ACCENT)
+                    if not partial_data:
+                        _safe_text(draw, (avatar_x + 28, avatar_y + 30), "H", font(28, True), ACCENT)
 
                 # 最大英雄标（显示在英雄头像上方，从卡片顶部开始）
                 if getattr(p, 'max_hero_tag', None):
-                    top_font = _try_load_font(18)
+                    top_font = font(18)
                     max_tag_width = card_right - avatar_x
                     max_tag_lines = _wrap_text_local(str(p.max_hero_tag), top_font, max_tag_width)
                     # 从卡片顶部 + 8px 开始放置，每行 20px
@@ -638,9 +667,10 @@ def generate_player_strength_image(
                             _safe_text(draw, (tx, ty), t, top_font, TEXT_SECONDARY)
 
                 # 英雄标（位于英雄头像正下方，自动换行）
-                small_font = _try_load_font(18)
-                if getattr(p, 'hero_tag', None):
-                    tag_lines = _wrap_text_local(str(p.hero_tag), small_font, avatar_d)
+                small_font = font(18)
+                hero_caption = p.hero_tag or p.hero_name
+                if hero_caption:
+                    tag_lines = _wrap_text_local(str(hero_caption), small_font, avatar_d)
                     tag_y0 = avatar_y + avatar_d + 6
                     line_h = 20
                     # 计算可绘制行数，避免越过卡片底部
@@ -655,8 +685,8 @@ def generate_player_strength_image(
                         _safe_text(draw, (tx, ty), t, small_font, TEXT_SECONDARY)
 
                 # 文本信息
-                name_font = _try_load_font(30, bold=True)
-                small_font = _try_load_font(18)
+                name_font = font(30, bold=True)
+                small_font = font(18)
                 text_x = avatar_x + avatar_d + 20
                 text_y = avatar_y
                 # 在名字左侧放置小的玩家头像（圆形）；未授权不显示该玩家头像
@@ -672,7 +702,12 @@ def generate_player_strength_image(
                         small_y = text_y + max(0, (30 - small_d) // 2)
                         draw.ellipse((text_x, small_y, text_x + small_d, small_y + small_d), fill=(238, 241, 248))
                         name_x = text_x + small_d + 8
-                _safe_text(draw, (name_x, text_y), p.name, name_font, TEXT_PRIMARY)
+                name_text = p.name
+                if partial_data:
+                    available = card_right - 24 - right_col_w - 12 - name_x
+                    while name_text and draw.textlength(name_text, font=name_font) > available:
+                        name_text = name_text[:-2] + "…" if len(name_text) > 1 else ""
+                _safe_text(draw, (name_x, text_y), name_text, name_font, TEXT_PRIMARY)
 
                 # 信息两行：
                 # 行1：段位 · 星级 · Lv
@@ -724,13 +759,15 @@ def generate_player_strength_image(
                 # 右侧竖状条（胜率 / 场次 / MVP率）- 未授权则不渲染
                 if not unauthorized:
                     right_x_end = card_xy[2] - 24
-                    total_matches = p.derived_matches() or 0
-                    mvp_rate = p.derived_mvp_rate() or 0.0
-                    wr = p.normalized_win_rate() or 0.0
+                    total_matches = p.derived_matches()
+                    mvp_rate = p.derived_mvp_rate()
+                    if not partial_data:
+                        total_matches = total_matches or 0
+                        mvp_rate = mvp_rate or 0.0
 
                     v_area_left = right_x_end - right_col_w
                     v_top = card_top + 26
-                    v_bottom = card_top + card_h - 44
+                    v_bottom = card_top + card_h - (60 if partial_data else 44)
                     v_h = max(40, v_bottom - v_top)
                     bar_w_v = 22  # 加宽竖条以匹配更高的卡片
                     gap_v = 40  # 增大条形间距
@@ -738,19 +775,29 @@ def generate_player_strength_image(
                     start_x = v_area_left + (right_col_w - tot_w) // 2
 
                     # 英雄战力条替换原"英雄胜率"位置；显示值为原始战力，条高按本图最大战力归一
-                    hero_pow_val = p.hero_power if p.hero_power is not None else 0
-                    hero_pow_ratio = min(1.0, max(0.0, float(hero_pow_val) / float(max_hero_power)))
+                    hero_pow_val = p.hero_power
+                    if not partial_data and hero_pow_val is None:
+                        hero_pow_val = 0
+                    hero_pow_ratio = (min(1.0, max(0.0, float(hero_pow_val) / float(max_hero_power)))
+                                      if hero_pow_val is not None else None)
+                    if partial_data:
+                        hero_pow_text = "" if hero_pow_val is None else str(hero_pow_val)
+                    else:
+                        hero_pow_text = str(hero_pow_val if hero_pow_val > 0 else "-")
                     items = [
-                        ("英雄\n战力", hero_pow_ratio, ACCENT, str(hero_pow_val if hero_pow_val > 0 else "-")),
-                        ("英雄\n场次", min(1.0, max(0.0, total_matches / max_total_matches)), ACCENT, str(total_matches)),
-                        ("总MVP率", mvp_rate, (255, 158, 27), _format_percent(mvp_rate)),
+                        ("英雄\n战力", hero_pow_ratio, ACCENT, hero_pow_text),
+                        ("英雄\n场次", min(1.0, max(0.0, total_matches / max_total_matches)) if total_matches is not None else None,
+                         ACCENT, str(total_matches) if total_matches is not None else ""),
+                        ("总MVP率", mvp_rate, (255, 158, 27), _format_percent(mvp_rate) if mvp_rate is not None else ""),
                     ]
                     for i, (lab, ratio, color, txt) in enumerate(items):
                         x0 = start_x + i * (bar_w_v + gap_v)
                         _rounded_rectangle(draw, (x0, v_top, x0 + bar_w_v, v_top + v_h), radius=9, fill=(240, 243, 248))
-                        h = int(v_h * ratio)
-                        y_fill = v_top + v_h - h
-                        _rounded_rectangle(draw, (x0, y_fill, x0 + bar_w_v, v_top + v_h), radius=9, fill=color)
+                        if ratio is not None:
+                            h = int(v_h * ratio)
+                            y_fill = v_top + v_h - h
+                            if h > 0 or not partial_data:
+                                _rounded_rectangle(draw, (x0, y_fill, x0 + bar_w_v, v_top + v_h), radius=9, fill=color)
                         lab_bbox = draw.textbbox((0, 0), lab, font=small_font)
                         _safe_text(draw, (x0 + (bar_w_v - (lab_bbox[2]-lab_bbox[0]))//2, v_top + v_h + 4), lab, small_font, TEXT_SECONDARY)
                         val_bbox = draw.textbbox((0, 0), txt, font=small_font)
@@ -778,7 +825,25 @@ def generate_player_strength_image(
         TEXT_SECONDARY,
     )
 
-    # 输出
+    return im
+
+
+def generate_player_strength_image(
+    output_path: str,
+    players: Optional[List[PlayerInfo]] = None,
+    *,
+    title: str = "Comparison",
+    subtitle: Optional[str] = None,
+    partial_data: bool = False,
+    images: Optional[Mapping] = None,
+    font_loader: Optional[Callable] = None,
+    team_labels: Tuple[str, str] = ("我方", "对方"),
+) -> Tuple[str, bool]:
+    """Save the existing strength template; return (output_path, success)."""
+    im = render_player_strength_image(
+        players, title=title, subtitle=subtitle, partial_data=partial_data,
+        images=images, font_loader=font_loader, team_labels=team_labels,
+    )
     try:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         im.save(output_path, format="PNG")
@@ -791,5 +856,6 @@ __all__ = [
     "PlayerInfo",
     "CoPlayerProcess",
     "coplayer_process",
+    "render_player_strength_image",
     "generate_player_strength_image",
 ]

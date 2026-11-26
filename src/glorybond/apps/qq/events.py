@@ -692,7 +692,7 @@ async def f_watchbattle(bot,event):
 
 @_live_watch.handle()
 async def f_live_watch(event):
-    from glorybond.apps.qq.handlers.live_watch import prepare_watch_request, run_watch_request
+    from glorybond.apps.qq.handlers.live_watch import prepare_watch_request, run_watch_request, send_watch_lineup
     from glorybond.apps.qq.message_sender import add_text_image_msg
 
     prepared = prepare_watch_request(event)
@@ -700,7 +700,9 @@ async def f_live_watch(event):
         add_msg(prepared["text"], event=event)
         return
     add_msg(prepared["status"], event=event)
-    result = await run_watch_request(prepared, on_error=lambda error: report_exception(error, operation="观战截图", event=event))
+    result = await run_watch_request(prepared,
+        on_lineup=lambda lineup: send_watch_lineup(lineup, event=event),
+        on_error=lambda error: report_exception(error, operation="观战截图", event=event))
     if result["kind"] == "reported":
         return
     if result["kind"] == "image":
