@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import subprocess
 import shutil
+import sys
+import asyncio
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -21,6 +23,8 @@ ZFUNC = import_project_module("glorybond.features.facade")
 BUSINESS = import_project_module("glorybond.features.subscriptions.bilibili")
 BV = "BV1xx411c7mD"
 URL = "https://www.bilibili.com/video/" + BV
+METADATA = {"title": "标题 [CQ:at,qq=all]", "author": "示例UP", "published_at": 1704067200,
+            "duration": 301, "page": 1, "page_count": 1, "part": "正片"}
 
 
 def event(segments, text="", *, group_id=20001, user_id=10001):
@@ -89,16 +93,28 @@ class BiliCacheTests(unittest.TestCase):
                 calls.append(reference)
                 path = Path(directory) / "video.mp4"
                 path.write_bytes(b"synthetic video")
+                (Path(directory) / "metadata.json").write_text(json.dumps(METADATA))
                 return path
             with patch.object(ZAPI, "download_bili_video", side_effect=download):
                 first = FILES.cached_bili_video(URL)
                 second = FILES.cached_bili_video(URL)
             self.assertEqual(first, second)
             self.assertEqual(calls, [URL])
+            self.assertEqual(FILES.read_bili_video_metadata(first), METADATA)
             with patch.object(ZAPI, "download_bili_video", side_effect=API.BiliVideoError("timeout")):
                 with self.assertRaises(API.BiliVideoError):
                     FILES.cached_bili_video(URL + "?p=2")
-            self.assertEqual([path.resolve() for path in (Path(root) / "bili_videos").iterdir()], [first])
+            self.assertEqual(set(path.resolve() for path in (Path(root) / "bili_videos").iterdir()), {first, first.with_suffix(".json")})
+
+    def test_missing_metadata_does_not_publish_an_incomplete_cache_entry(self):
+        with TemporaryDirectory() as root, patch.object(FILES, "data_root", root):
+            def download(reference, directory, **kwargs):
+                path = Path(directory) / "video.mp4"
+                path.write_bytes(b"synthetic video")
+                return path
+            with patch.object(ZAPI, "download_bili_video", side_effect=download), self.assertRaises(API.BiliVideoError):
+                FILES.cached_bili_video(URL)
+            self.assertEqual(list((Path(root) / "bili_videos").iterdir()), [])
 
     def test_timeout_kills_worker_process_group(self):
         process = Mock(pid=123, returncode=-9)
@@ -130,6 +146,42 @@ class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
         for duration in [0, -1, float("nan"), float("inf")]:
             with self.assertRaises(ValueError):
                 WORKER.video_budget(duration, request)
+
+    async def test_worker_metadata_matches_the_selected_page_and_uses_public_video_object(self):
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "source.mp4"
+            source.write_bytes(b"synthetic video")
+            credential = asyncio.get_running_loop().create_future()
+            credential.set_result(None)
+            stream = SimpleNamespace(url="https://cdn.example/video", backup_url=[])
+            parser = SimpleNamespace(credential=credential, headers={}, aclose=AsyncMock(),
+                                     get_download_streams=AsyncMock(return_value=(stream, None)))
+            downloader = SimpleNamespace(head_size=AsyncMock(return_value=15), aclose=AsyncMock(),
+                                         download_video=AsyncMock(return_value=source))
+            item = SimpleNamespace(get_info=AsyncMock(return_value=SimpleNamespace(
+                arc=SimpleNamespace(title="实际标题", author=SimpleNamespace(name="实际作者"), pubdate=1704067200),
+                pages=[SimpleNamespace(page=SimpleNamespace(part="第一集", duration=100)),
+                       SimpleNamespace(page=SimpleNamespace(part="第二集", duration=301))])))
+            video = Mock(return_value=item)
+            modules = {
+                "nonebot_plugin_parser_lite": SimpleNamespace(configure=Mock()),
+                "nonebot_plugin_parser_lite.parsers.bilibili": SimpleNamespace(BilibiliParser=lambda: parser),
+                "nonebot_plugin_parser_lite.download": SimpleNamespace(StreamDownloader=lambda: downloader),
+                "nonebot_plugin_parser_lite.exception": SimpleNamespace(SizeLimitException=type("SizeLimitException", (Exception,), {})),
+                "nonebot_plugin_parser_lite.utils.bilibili.video": SimpleNamespace(Video=video),
+            }
+            request = {"url": "https://www.bilibili.com/video/av170001?p=2", "directory": directory,
+                       "max_height": 480, "max_size_mb": 90}
+            with patch.dict(sys.modules, modules), patch.object(WORKER, "prepare_video", return_value={"ok": True}):
+                result = await WORKER.download(request)
+            self.assertTrue(result["ok"])
+            video.assert_called_once_with(aid=170001, credential=None)
+            parser.get_download_streams.assert_awaited_once_with(video=item, page_index=1)
+            metadata = json.loads((Path(directory) / "metadata.json").read_text())
+            self.assertEqual(metadata, {"title": "实际标题", "author": "实际作者", "published_at": 1704067200,
+                                        "duration": 301, "page": 2, "page_count": 2, "part": "第二集"})
+            parser.aclose.assert_awaited_once()
+            downloader.aclose.assert_awaited_once()
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
     async def test_compression_reduces_size_caps_resolution_and_keeps_audio(self):
@@ -241,12 +293,24 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
             download.side_effect = None
             self.assertEqual(ZFUNC.bili_video_share_message(URL, scope="group:3"), "video")
 
-    def test_native_video_message_contains_no_cover_or_link(self):
+    def test_native_video_keeps_metadata_separate_without_cover_or_link(self):
         from nonebot.adapters.onebot.v11 import Message
-        with patch.object(FILES, "cached_bili_video", return_value=Path("/tmp/video.mp4")):
-            message = Message(ZFUNC.bili_video_download_message(URL))
+        with patch.object(FILES, "cached_bili_video", return_value=Path("/tmp/video.mp4")), \
+             patch.object(FILES, "read_bili_video_metadata", return_value=METADATA):
+            result = ZFUNC.bili_video_download_message(URL)
+            message = Message(result.video)
         self.assertEqual([segment.type for segment in message], ["video"])
         self.assertEqual(message[0].data["file"], "file:///tmp/video.mp4")
+        self.assertIn("标题：" + METADATA["title"], result.text)
+        self.assertIn("作者：示例UP", result.text)
+        self.assertIn("2024-01-01 08:00:00（北京时间）", result.text)
+        self.assertIn("时长：5:01", result.text)
+
+    def test_missing_publication_time_stays_unknown_and_pages_are_identified(self):
+        text = BUSINESS.format_video_metadata({**METADATA, "published_at": 0, "page": 2, "page_count": 3, "part": "第二集"})
+        self.assertIn("发布时间：未知", text)
+        self.assertIn("分P：2/3 · 第二集", text)
+        self.assertNotIn("1970", text)
 
     def test_failed_download_or_rejected_queue_keeps_subscription_pending(self):
         from tests.test_bili_video_subscription import FakeRedis

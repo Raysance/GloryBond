@@ -1955,7 +1955,9 @@ def _bili_video_send_group_message(message, *, metadata=None):
 
 def bili_video_download_message(reference):
     from glorybond.integrations.api import BiliVideoError, resolve_video_reference
-    from glorybond.storage.files import cached_bili_video
+    from glorybond.storage.files import cached_bili_video, read_bili_video_metadata
+    from glorybond.apps.qq.messages import VideoWithMetadata
+    from glorybond.features.subscriptions.bilibili import format_video_metadata
     from nonebot.adapters.onebot.v11 import MessageSegment
 
     config = confs.get("BiliVideo", {})
@@ -1971,7 +1973,8 @@ def bili_video_download_message(reference):
     path = cached_bili_video(canonical, max_size_mb=size, timeout_seconds=timeout,
                              max_height=height, target_size_mb_per_5min=budget,
                              max_output_size_mb=output_size)
-    return str(MessageSegment.video(path.as_uri()))
+    return VideoWithMetadata(format_video_metadata(read_bili_video_metadata(path)),
+                             str(MessageSegment.video(path.as_uri())))
 
 
 def bili_video_share_message(reference, *, scope):

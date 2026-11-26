@@ -214,6 +214,30 @@ def _bili_video_page_link(up_name, video):
     })
 
 
+def format_video_metadata(metadata):
+    from glorybond.time import epoch_to_text
+
+    def label(value, fallback):
+        return " ".join(str(value or "").split()) or fallback
+
+    published = metadata.get("published_at")
+    try:
+        time_text = epoch_to_text(published, timezone_name="Asia/Shanghai") if published and published > 0 else None
+    except (ValueError, TypeError, OverflowError, OSError):
+        time_text = None
+    lines = ["标题：" + label(metadata.get("title"), "未知"),
+             "作者：" + label(metadata.get("author"), "未知"),
+             "发布时间：" + (time_text + "（北京时间）" if time_text else "未知")]
+    duration = metadata.get("duration", 0)
+    if type(duration) is int and duration > 0:
+        hours, remainder = divmod(duration, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        lines.append("时长：" + (f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"))
+    if metadata.get("page_count", 0) > 1:
+        lines.append(f"分P：{metadata['page']}/{metadata['page_count']} · " + label(metadata.get("part"), "未命名"))
+    return "\n".join(lines)
+
+
 def _bili_video_format_video_message(up_name, video):
     return _zfunc_attr("bili_video_download_message")(video.get("bvid") or video.get("url"))
 

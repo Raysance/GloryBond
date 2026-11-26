@@ -302,9 +302,10 @@ async def _handle_forward_msg(bot, payload):
             _report_delivery_error(error, payload, operation="简略回复入队")
 
 
-async def _send_queued_message(bot, payload):
+async def _send_queued_message(bot, payload, *, observe=True):
     try:
-        payload = await _automation_before_send(payload)
+        if observe:
+            payload = await _automation_before_send(payload)
     except Exception as error:
         log_message(f"AUTOMATION_BEFORE_SEND_FAILED: error_type={type(error).__name__}")
     msg_type, to_id = payload.get("type"), payload.get("toid")
@@ -318,11 +319,23 @@ async def _send_queued_message(bot, payload):
         else:
             raise ValueError("Invalid queued message channel")
     except BaseException as error:
-        await _automation_sent(payload, status="failed" if isinstance(error, ActionFailed) else "unknown")
+        if observe:
+            await _automation_sent(payload, status="failed" if isinstance(error, ActionFailed) else "unknown")
         raise
-    await _automation_sent(payload, result)
-    await _record_task_receipt(payload, result)
+    if observe:
+        await _automation_sent(payload, result)
+        await _record_task_receipt(payload, result)
     return result
+
+
+async def _send_video_with_metadata(bot, payload):
+    # Both parts are reserved in one queue item, so other queued messages cannot
+    # interleave. Only the video receipt publishes the subscription event.
+    caption = {**payload, "content": payload["caption"]}
+    result = await _send_queued_message(bot, caption, observe=False)
+    if _confirmed_message_id(result) is None:
+        raise RuntimeError("视频说明发送结果未确认，未继续发送视频。")
+    return await _send_queued_message(bot, payload)
 
 
 async def _record_task_receipt(payload, result):
@@ -380,6 +393,8 @@ async def message_sender_loop():
                 await _handle_group_poke(bot, msg_json)
             elif msg_json.get("kind") in {"group_forward", "private_forward"}:
                 await _handle_forward_msg(bot, msg_json)
+            elif msg_json.get("kind") == "video_with_metadata":
+                await _send_video_with_metadata(bot, msg_json)
             else:
                 await _send_queued_message(bot, msg_json)
         except Exception as exc:
@@ -398,6 +413,7 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None, met
 
 
 def _message_payload(content, *, event=None, msg_type=None, to_id=None, task_id=None, metadata=None):
+    from glorybond.apps.qq.messages import VideoWithMetadata
     resolved_type, resolved_id = _resolve_destination(event=event, msg_type=msg_type, to_id=to_id)
     resolved_id = _normalize_target_id(resolved_id)
     if resolved_type not in {"group", "private"} or resolved_id is None:
@@ -405,8 +421,10 @@ def _message_payload(content, *, event=None, msg_type=None, to_id=None, task_id=
     payload = {
         "type": resolved_type,
         "toid": resolved_id,
-        "content": _stringify_message_content(content),
+        "content": _stringify_message_content(content.video if isinstance(content, VideoWithMetadata) else content),
     }
+    if isinstance(content, VideoWithMetadata):
+        payload.update(kind="video_with_metadata", caption=str(MessageSegment.text(content.text)))
     if metadata:
         payload["automation_metadata"] = dict(metadata)
     return _bind_task_id(payload, task_id)

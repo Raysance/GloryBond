@@ -18,10 +18,11 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
 
     root = Path(data_root) / "bili_videos"
     root.mkdir(parents=True, exist_ok=True, mode=0o750)
-    profile = f"{reference}\ncompressed-v2:{max_height}:{target_size_mb_per_5min}:{max_output_size_mb}"
+    profile = f"{reference}\ncompressed-v3:{max_height}:{target_size_mb_per_5min}:{max_output_size_mb}"
     output_limit = min(max_size_mb * 1024 * 1024, max_output_size_mb * 1_000_000)
     digest = hashlib.sha256(profile.encode()).hexdigest()
     destination = root / (digest + ".mp4")
+    metadata_path = destination.with_suffix(".json")
     lock = _bili_video_cache_locks[int(digest[:8], 16) % len(_bili_video_cache_locks)]
     if not lock.acquire(timeout=30):
         raise BiliVideoError("busy")
@@ -29,8 +30,10 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
         now = current_epoch_seconds()
         if destination.is_file() and not destination.is_symlink():
             stat = destination.stat()
-            if now - stat.st_mtime < 86400 and 0 < stat.st_size <= output_limit:
+            if (now - stat.st_mtime < 86400 and 0 < stat.st_size <= output_limit
+                    and _read_bili_metadata(metadata_path) is not None):
                 destination.touch()
+                metadata_path.touch()
                 return destination.resolve()
         if not _bili_video_download_slots.acquire(blocking=False):
             raise BiliVideoError("busy")
@@ -40,7 +43,7 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
                     continue
                 try:
                     if now - path.stat().st_mtime >= 86400:
-                        if path.is_file() and path.suffix == ".mp4":
+                        if path.is_file() and path.suffix in {".mp4", ".json"}:
                             path.unlink(missing_ok=True)
                         elif path.is_dir() and path.name.startswith(".download-"):
                             shutil.rmtree(path)
@@ -55,12 +58,47 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
                                              timeout_seconds=timeout_seconds, max_height=max_height,
                                              target_size_mb_per_5min=target_size_mb_per_5min,
                                              max_output_size_mb=max_output_size_mb)
+                source_metadata = Path(temporary) / "metadata.json"
+                if _read_bili_metadata(source_metadata) is None:
+                    raise BiliVideoError("unavailable")
+                source_metadata.replace(metadata_path)
                 source.replace(destination)
             return destination.resolve()
         finally:
             _bili_video_download_slots.release()
     finally:
         lock.release()
+
+
+def _read_bili_metadata(path):
+    from pathlib import Path
+    path = Path(path)
+    try:
+        if path.is_symlink() or path.stat().st_size > 8192:
+            return None
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            return None
+        if not all(isinstance(value.get(key), str) for key in ("title", "author", "part")):
+            return None
+        if not all(type(value.get(key)) is int and value[key] >= 0
+                   for key in ("published_at", "duration", "page", "page_count")):
+            return None
+        return {key: value[key] for key in ("title", "author", "published_at", "duration", "page", "page_count", "part")}
+    except (OSError, ValueError, UnicodeError):
+        return None
+
+
+def read_bili_video_metadata(path):
+    from pathlib import Path
+    from glorybond.integrations.api import BiliVideoError
+    path = Path(path)
+    if path.parent.resolve() != (Path(data_root) / "bili_videos").resolve():
+        raise BiliVideoError("invalid")
+    value = _read_bili_metadata(path.with_suffix(".json"))
+    if value is None:
+        raise BiliVideoError("unavailable")
+    return value
 
 
 def read_deployed_commit():

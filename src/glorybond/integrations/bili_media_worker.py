@@ -79,14 +79,23 @@ async def download(request):
     from nonebot_plugin_parser_lite.parsers.bilibili import BilibiliParser
     from nonebot_plugin_parser_lite.download import StreamDownloader
     from nonebot_plugin_parser_lite.exception import SizeLimitException
+    from nonebot_plugin_parser_lite.utils.bilibili.video import Video
 
     parsed = urlsplit(request["url"])
     identifier = parsed.path.rstrip("/").rsplit("/", 1)[-1]
     page = int(parse_qs(parsed.query).get("p", ["1"])[0])
     parser, downloader = BilibiliParser(), StreamDownloader()
     try:
-        kwargs = {"bvid": identifier} if identifier.startswith("BV") else {"avid": int(identifier[2:])}
-        video, audio = await parser.get_download_streams(**kwargs, page_index=page - 1)
+        kwargs = {"bvid": identifier} if identifier.startswith("BV") else {"aid": int(identifier[2:])}
+        item = Video(**kwargs, credential=await parser.credential)
+        info = await item.get_info()
+        if not 1 <= page <= len(info.pages):
+            return {"ok": False, "code": "invalid"}
+        selected = info.pages[page - 1].page
+        metadata = {"title": info.arc.title[:500], "author": info.arc.author.name[:100],
+                    "published_at": int(info.arc.pubdate), "duration": int(selected.duration),
+                    "page": page, "page_count": len(info.pages), "part": selected.part[:300]}
+        video, audio = await parser.get_download_streams(video=item, page_index=page - 1)
         streams = [video, audio] if audio else [video]
         sizes = await asyncio.gather(*(downloader.head_size(stream.url, ext_headers=parser.headers) for stream in streams))
         if sum(size or 0 for size in sizes) > request["max_size_mb"] * 1024 * 1024:
@@ -105,7 +114,10 @@ async def download(request):
         source = Path(str(path))
         if not 0 < source.stat().st_size <= request["max_size_mb"] * 1024 * 1024:
             return {"ok": False, "code": "size"}
-        return await prepare_video(source, request)
+        result = await prepare_video(source, request)
+        if result.get("ok"):
+            (Path(request["directory"]) / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+        return result
     except SizeLimitException:
         return {"ok": False, "code": "size"}
     finally:

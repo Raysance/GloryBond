@@ -35,6 +35,7 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 ## 运行入口与公共边界
 
 - QQ 的显式插件入口是 `glorybond.apps.qq.plugin`；事件、路由、归档、处理器、消息出口和任务注册分别位于同目录的 `events.py`、`rules.py`、`ingress.py`、`handlers/`、`message_sender.py`、`scheduler.py`。普通包导入不注册机器人生命周期。
+- B站视频交付使用 `apps/qq/messages.py` 的 `VideoWithMetadata`，元数据由下载 worker 的公开 Video 接口读取，并与成片在 `storage/files.py` 配对缓存。说明包含标题、作者、原发布时间（北京时间）、时长及分P信息；元数据缺失不以当前时间补造。文字与视频以一个队列项连续发送，文字采用原生 text 段，避免 CQ 注入；订阅自动化只观察视频交付，不因说明重复触发，失败不重发已交付部分。
 - QQ 终止性异常统一由 `apps/qq/errors.py` 组装可读原因、异常链、脱敏诊断位置与报告编号。群命令回实际群、群后台任务回既定群，原私聊仍留私聊，管理员同时收到通知；原生合并转发全部使用文字段，不解释 CQ。未捕获的本项目 matcher/定时任务有兜底，订阅及部分成功结果通过回调报告失败部分；已恢复的内部重试不另报。诊断不触发自动化、不报告自身发送失败；重复后台故障限频5分钟，状态有界且线程安全。发送结果未知不重发原动作，AI 撤回取消及既有详细失败转发保持原流程。服务端原始正文、凭据、签名URL与私有路径不进入群报告。
 - Web 通过 `python -m glorybond.apps.web` 启动，本地聊天控制台通过 `python -m glorybond.apps.console` 启动。业务和共享模块不得通过导入应用入口启动服务。
 - 跨模块编排、外部协议、文件/数据库访问与图片绘制分别复用 `features/facade.py`、`integrations/api.py`、`storage/files.py` / `storage/database.py` 与 `rendering/`；时间和通用日志复用 `time.py`、`common.py`。本次目录迁移不同时改变业务规则。
