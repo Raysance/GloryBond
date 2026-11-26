@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from PIL import Image
 
-from agent_console.image_inputs import ImageLimits, ImageStore
-from agent_console.provider import DeepSeekModel
+from glorybond.agent.image_inputs import ImageLimits, ImageStore
+from glorybond.agent.provider import DeepSeekModel
 
 
 def animation():
@@ -81,7 +81,7 @@ class AnimationProviderTests(unittest.IsolatedAsyncioTestCase):
             saved = store.save(animation())
             model = DeepSeekModel(api_key="test", base_url="https://example.invalid", model="text",
                                   vision_model="deepseek-v4-flash", image_store=store)
-            with patch("agent_console.provider.httpx.AsyncClient", side_effect=lambda **kw: client_type(transport=httpx.MockTransport(respond), **kw)):
+            with patch("glorybond.agent.provider.httpx.AsyncClient", side_effect=lambda **kw: client_type(transport=httpx.MockTransport(respond), **kw)):
                 await model.complete([{"role":"user", "content":[store.inputs([saved["id"]])[0].content_part()]}], [], AsyncMock())
         self.assertEqual(requests[0]["model"], "deepseek-v4-flash")
         user = next(message for message in requests[0]["messages"] if message['role'] == 'user')

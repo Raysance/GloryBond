@@ -5,11 +5,11 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from agent_console import remote_worker as worker
-from agent_console.capabilities import remote_chat_identity
-from agent_console.tools.memory import search_history_records
-from agent_console.tools.sql_validation import validate_readonly_sql
-from qq_agent.service import qq_principal
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.capabilities import remote_chat_identity
+from glorybond.agent.tools.memory import search_history_records
+from glorybond.agent.tools.sql_validation import validate_readonly_sql
+from glorybond.apps.qq.agent.service import qq_principal
 from tests.test_agent_recent_history import Database
 
 
@@ -43,7 +43,7 @@ class AdminScopeTests(unittest.TestCase):
         self.assertEqual(result['group_id'], '2000000001')
 
     def test_chat_sql_uses_default_or_explicit_selection_before_connection(self):
-        catalog = json.loads((Path(__file__).parents[1] / 'shared/agent/chat_sql/catalog.json').read_text())
+        catalog = json.loads((Path(__file__).parents[1] / 'resources/agent/chat_sql/catalog.json').read_text())
         context = {'cfg': {}, 'catalogs': {'chat_sql': catalog}, 'validation': {'validate_readonly_sql': validate_readonly_sql}}
         for selected, expected in [(None, '2000000001'), ('300', '300'), ('*', '*')]:
             with self.subTest(selected=selected), patch.dict(worker.CONTEXT, context, clear=True), \

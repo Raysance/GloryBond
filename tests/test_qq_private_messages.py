@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, Mock, patch
 from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.tools.diagnostics import DiagnosticToolRegistry
-from local_debugger import import_hok_module
-from qq_agent.private_messages import register_private_message_tool
-from qq_agent.service import qq_principal
+from glorybond.agent.tools.diagnostics import DiagnosticToolRegistry
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.private_messages import register_private_message_tool
+from glorybond.apps.qq.agent.service import qq_principal
 
 
 def tool_call(**arguments):
@@ -135,9 +135,9 @@ class PrivateToolTests(unittest.IsolatedAsyncioTestCase):
 class PrivateOutletTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-            self.outlet = import_hok_module('utils.message_sender')
-        self.profiles = import_hok_module('utils.qq_profiles')
-        self.funcs = import_hok_module('zfunc')
+            self.outlet = import_project_module('glorybond.apps.qq.message_sender')
+        self.profiles = import_project_module('glorybond.apps.qq.profiles')
+        self.funcs = import_project_module('glorybond.features.facade')
         self.bot = Mock(self_id=str(self.outlet.confs['QQBot']['bot_qid']),
             send_private_msg=AsyncMock(return_value={'message_id': -42}))
         self.member = AsyncMock(return_value={'group_id': '200', 'user_id': '102'})

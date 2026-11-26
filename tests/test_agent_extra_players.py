@@ -9,15 +9,15 @@ from unittest.mock import MagicMock, patch
 
 from sqlglot import parse_one
 
-from agent_console import remote_worker as worker
-from agent_console.tools import sql_validation as validation
-from agent_console.tools.reference_data import ReferenceData
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.tools import sql_validation as validation
+from glorybond.agent.tools.reference_data import ReferenceData
 
 
 ROOT = Path(__file__).parents[1]
-CATALOG = json.loads((ROOT / 'shared/agent/hok_sql/catalog.json').read_text())
-DEFINITIONS = json.loads((ROOT / 'shared/agent/hok_sql/views.json').read_text())
-MANIFEST = json.loads((ROOT / 'shared/agent/reference_data/manifest.json').read_text())
+CATALOG = json.loads((ROOT / 'resources/agent/hok_sql/catalog.json').read_text())
+DEFINITIONS = json.loads((ROOT / 'resources/agent/hok_sql/views.json').read_text())
+MANIFEST = json.loads((ROOT / 'resources/agent/reference_data/manifest.json').read_text())
 RECORDED_COLUMNS = {
     'snapshot_date': 'text', 'player_key': 'text', 'player_index': 'integer',
     'detail_index': 'integer', 'user_id': 'bigint', 'role_id': 'bigint',

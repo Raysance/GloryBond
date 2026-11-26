@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-AI_PROMPTS = import_hok_module("business.ai_prompts")
-ZFUNC = import_hok_module("zfunc")
+AI_PROMPTS = import_project_module("glorybond.features.chat.prompts")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class AiPromptTests(unittest.TestCase):

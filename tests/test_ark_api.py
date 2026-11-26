@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZAPI = import_hok_module("zapi")
-AI_ADAPTER = import_hok_module("api_adapters.ai")
+ZAPI = import_project_module("glorybond.integrations.api")
+AI_ADAPTER = import_project_module("glorybond.integrations.ai")
 
 
 class ArkApiTests(unittest.TestCase):

@@ -9,17 +9,17 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from PIL import Image, ImageDraw
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-BUSINESS = import_hok_module("business.hero_statistics")
-HANDLER = import_hok_module("event_handlers.player_client")
-STATIC = import_hok_module("zstatic")
-ZFUNC = import_hok_module("zfunc")
-ZFILE = import_hok_module("zfile")
-ZTIME = import_hok_module("ztime")
-RENDER = import_hok_module("tools.gen_player_summary")
+BUSINESS = import_project_module("glorybond.features.game.hero_statistics")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.player_client")
+STATIC = import_project_module("glorybond.config.settings")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZFILE = import_project_module("glorybond.storage.files")
+ZTIME = import_project_module("glorybond.time")
+RENDER = import_project_module("glorybond.rendering.gen_player_summary")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 
 
 def games():
@@ -155,7 +155,7 @@ class HistoryImageTests(unittest.TestCase):
 
 class TwoImageDeliveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_normal_hero_summary_sends_two_images_in_order_through_the_unified_exit(self):
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         entry = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "f_player_client")
         entry.decorator_list = []
         namespace = {"__package__": "hok", "MessageEvent": object, "add_msg": Mock()}

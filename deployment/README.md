@@ -25,8 +25,13 @@ The portable filesystem layout is:
 ├── pyproject.toml           One dependency manifest
 ├── .env / config.yaml       Shared configuration
 ├── .venv/                   Shared runtime
-├── hok/                     NoneBot business core
-└── web/                     FastAPI package
+└── src/glorybond/           Application package
+    ├── apps/qq/             NoneBot entry and QQ transport
+    ├── apps/web/            FastAPI pages and templates
+    ├── apps/console/        Local chat console
+    ├── features/            Game, subscriptions and chat workflows
+    ├── integrations/       External protocols and SDK adapters
+    └── storage/            Files, database access and SQL
 /var/lib/hok-qqbot/
 ├── data/                    emergency JSON and static district data
 ├── file_transfer/           NBot/Web shared public artifacts
@@ -38,7 +43,7 @@ The legacy renderers keep regenerable image caches below
 `resources/wzry_images`. Bundle builds omit generated, KPL, temporary, and
 hero-avatar cache contents.
 
-Bot and Web share one checkout, one dependency manifest and one virtualenv. Start Web from the project root with `.venv/bin/python -m web`. The application processes are:
+Bot and Web share one checkout, one dependency manifest and one virtualenv. Start Web from the project root with `.venv/bin/python -m glorybond.apps.web`. The application processes are:
 
 - `hok-nbot.service`: NoneBot runtime using the project-local virtualenv.
 - `hok-web.service`: FastAPI runtime bound to `127.0.0.1:8000` by default.
@@ -102,7 +107,7 @@ and enables selected units. It does not start them unless `--start` is supplied.
 After installation:
 
 1. Review `/opt/hok-qqbot/.env` and `config.yaml`.
-2. Initialize PostgreSQL once with `database/schema.sql`.
+2. Initialize PostgreSQL once with `src/glorybond/storage/sql/schema.sql`.
 3. Install NapCat separately when needed and set `NapCat.command` in
    `config.yaml`.
 4. Run checks, then restart the selected services.
@@ -132,7 +137,7 @@ Image-bearing QQ and local Web requests can use an independent `VisionAPI`
 endpoint with the `ark` protocol. The selected Doubao Seed 2.1 Lite model must be
 opened in the Ark account before switching live traffic. Its named key stays in
 the existing `.env` and worker private settings; text-provider fallback does not
-handle vision errors. See [Doubao setup](../agent_console/README.md#豆包识图接入).
+handle vision errors. See [Doubao setup](../src/glorybond/agent/README.md#豆包识图接入).
 
 Chat web search uses the configured DeepSeek search adapter. Its endpoint and limits are under `DeepSeekSearch` in `config.yaml`; credentials come from `.env`.
 
@@ -156,10 +161,10 @@ rolling back.
 ## Shared QQ agent
 
 QQ chat now uses the independent runtime pinned in `vendor/react-agent-runtime`.
-See [QQ adapter](../qq_agent/README.md) for input/output, memory, roles and tasks.
+See [QQ adapter](../src/glorybond/apps/qq/agent/README.md) for input/output, memory, roles and tasks.
 `QQAgent` in the existing `config.yaml` controls budgets, image limits and default
 role. Credentials still come from the existing environment and `.env`; SQL
-catalogs and tools are defined under `shared/agent` and `agent_console`.
+catalogs and tools are defined under `resources/agent` and `glorybond.agent`.
 
 The main-branch deployment workflow restores application code, backs up the old
 copied `agent_runtime` directory under ignored `log/deployment-backups`, restores
@@ -224,14 +229,14 @@ SDK 在每次 `login()` 中自动查询应用更新配置并采用服务端声�
 同机执行：
 
 ```bash
-local_debugger/.venv/bin/python scripts/resolve_player_client.py --apply
+local_debugger/.venv/bin/python tools/maintenance/resolve_player_client.py --apply
 ```
 
 从本机读取服务器数据库时，先在独立终端建立仅本机可访问的 SSH 转发，再运行脚本：
 
 ```bash
 ssh -N -L 127.0.0.1:16379:127.0.0.1:6379 Aliyun
-local_debugger/.venv/bin/python scripts/resolve_player_client.py --ssh Aliyun --redis-port 16379 --apply
+local_debugger/.venv/bin/python tools/maintenance/resolve_player_client.py --ssh Aliyun --redis-port 16379 --apply
 ```
 
 不带 `--apply` 仍会登录及搜索，但只预览结果；`--players` 可限制账号键；`--refresh` 对已绑定账号也执行双端搜索，保留已验证身份。

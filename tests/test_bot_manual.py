@@ -9,16 +9,16 @@ from unittest.mock import AsyncMock, patch
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.bot_manual import BotManual, handbook_text, load_manual_documents
-from agent_console.capabilities import Capabilities, application_prompt, load_catalogs
-from agent_console.remote import RemoteBridge
-from agent_console import remote_worker
-from agent_console.tools.application import register_application_tools
+from glorybond.agent.bot_manual import BotManual, handbook_text, load_manual_documents
+from glorybond.agent.capabilities import Capabilities, application_prompt, load_catalogs
+from glorybond.agent.remote import RemoteBridge
+from glorybond.agent import remote_worker
+from glorybond.agent.tools.application import register_application_tools
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 ROOT = Path(__file__).parents[1]
-SHARED = ROOT / 'shared/agent'
-CATALOG = json.loads((SHARED / 'manual/catalog.json').read_text())
+SHARED = ROOT / 'resources/agent'
+CATALOG = json.loads((ROOT / 'docs/manual/catalog.json').read_text())
 DOCUMENTS = load_manual_documents(ROOT, CATALOG)
 
 
@@ -53,7 +53,7 @@ class ManualTests(unittest.TestCase):
             self.assertEqual([i['node_id'] for i in result['breadcrumb']], path)
 
     def test_other_subtree_growth_does_not_change_feature_search(self):
-        path = 'shared/agent/manual/chapters/emoji.md'
+        path = 'docs/manual/chapters/emoji.md'
         self.documents[path] += '\n底蕴怎么算，MVP战斗力评分。' * 500
         expanded = BotManual(ROOT, self.catalog, self.documents)
         original = self.manual.read(action='search', node_id='metrics', query='底蕴怎么算')
@@ -103,11 +103,11 @@ class ManualTests(unittest.TestCase):
     def test_documents_reject_private_paths_and_symlinks(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            directory = root/'shared/agent/manual/chapters'
+            directory = root/'docs/manual/chapters'
             directory.mkdir(parents=True)
             (root/'.env').write_text('must-not-read')
             (directory/'redirect.md').symlink_to(root/'.env')
-            for path in ['.env','config.yaml','../private.md','/tmp/private.md','shared/agent/manual/chapters/redirect.md']:
+            for path in ['.env','config.yaml','../private.md','/tmp/private.md','docs/manual/chapters/redirect.md']:
                 catalog = copy.deepcopy(CATALOG)
                 catalog['topics'] = [{'document': {'path': path}}]
                 with self.subTest(path=path), patch.object(Path, 'open', side_effect=AssertionError('private file read')), self.assertRaises(ValueError):
@@ -155,7 +155,7 @@ class ManualTests(unittest.TestCase):
     def test_images_and_fenced_headings_are_not_search_evidence(self):
         example='![秘密图片关键词](https://media.invalid/one.png)\n<img src="https://media.invalid/two.png" alt="私密图"/>\n```text\n### 虚假的新章节\n```\n可见说明'
         self.assertNotIn('media.invalid',handbook_text(example))
-        path='shared/agent/manual/chapters/metrics_power_formula.md'
+        path='docs/manual/chapters/metrics_power_formula.md'
         self.documents[path]+='\n'+example
         reader=BotManual(ROOT,self.catalog,self.documents)
         result=reader.read(action='read',node_id='metrics_power_formula')

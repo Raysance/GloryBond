@@ -9,16 +9,16 @@ from PIL import Image
 from agent_runtime import RunRequest
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.image_inputs import ImageStore
-from agent_console.tools.diagnostics import DiagnosticToolRegistry
-from agent_console.tools.application import register_application_tools
-from local_debugger import import_hok_module
-from qq_agent.avatar import register_bot_avatar_tool
-from qq_agent.service import qq_principal
+from glorybond.agent.image_inputs import ImageStore
+from glorybond.agent.tools.diagnostics import DiagnosticToolRegistry
+from glorybond.agent.tools.application import register_application_tools
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.avatar import register_bot_avatar_tool
+from glorybond.apps.qq.agent.service import qq_principal
 
-ADAPTER = import_hok_module('utils.qq_profiles')
-FILES = import_hok_module('zfile')
-FUNCS = import_hok_module('zfunc')
+ADAPTER = import_project_module('glorybond.apps.qq.profiles')
+FILES = import_project_module('glorybond.storage.files')
+FUNCS = import_project_module('glorybond.features.facade')
 
 
 class AvatarTests(unittest.IsolatedAsyncioTestCase):

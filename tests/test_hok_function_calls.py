@@ -13,13 +13,12 @@ from pydantic import Field
 from agent_runtime import AgentRuntime, Principal, RunRequest
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.capabilities import Capabilities
-from agent_console.function_calls import (FunctionArgs, FunctionCatalog, FunctionOutput,
-    SearchFunctionsArgs, assert_outside_function, register_function_tools)
-from agent_console.tasks import TaskScheduler
-from agent_console.tools.application import register_application_tools
-from agent_console.tools.diagnostics import DiagnosticToolRegistry
-from qq_agent.business_functions import build_hok_function_catalog
+from glorybond.agent.capabilities import Capabilities
+from glorybond.agent.function_calls import FunctionArgs, FunctionCatalog, FunctionOutput, SearchFunctionsArgs, assert_outside_function, register_function_tools
+from glorybond.agent.tasks import TaskScheduler
+from glorybond.agent.tools.application import register_application_tools
+from glorybond.agent.tools.diagnostics import DiagnosticToolRegistry
+from glorybond.apps.qq.agent.business_functions import build_hok_function_catalog
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 
@@ -121,7 +120,7 @@ class FunctionTests(unittest.IsolatedAsyncioTestCase):
         bridge.call.assert_awaited_once()
 
     async def test_qq_task_creation_override_cannot_bypass_background_or_reentry_guard(self):
-        from qq_agent.mentions import QQCapabilities, ReplyMentions
+        from glorybond.apps.qq.agent.mentions import QQCapabilities, ReplyMentions
         bridge = SimpleNamespace(call=AsyncMock())
         capabilities = QQCapabilities(bridge, bridge, ReplyMentions())
         with self.assertRaises(PermissionError):

@@ -8,15 +8,15 @@ import requests
 import yaml
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
 
-from agent_console.capabilities import Capabilities, load_catalogs
-from agent_console.kpl_client import query_kpl_data
-from agent_console.remote import RemoteBridge
-from agent_console import remote_worker
-from agent_console.tools.application import register_application_tools
+from glorybond.agent.capabilities import Capabilities, load_catalogs
+from glorybond.agent.kpl_client import query_kpl_data
+from glorybond.agent.remote import RemoteBridge
+from glorybond.agent import remote_worker
+from glorybond.agent.tools.application import register_application_tools
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 ROOT = Path(__file__).parents[1]
-CATALOG = json.loads((ROOT / 'shared/agent/kpl/catalog.json').read_text())
+CATALOG = json.loads((ROOT / 'resources/agent/kpl/catalog.json').read_text())
 CONFIG = yaml.safe_load((ROOT / 'config.yaml').read_text())['AgentKPL']
 
 
@@ -143,7 +143,7 @@ class ProtocolTests(unittest.TestCase):
             self.query(Response({'data': [{'name': 'x' * 500}]}), config={**CONFIG, 'max_observation_chars': 100}, action='leagues')
 
     def test_portable_bootstrap_contains_latest_client_and_only_public_settings(self):
-        bridge = RemoteBridge('test', str(ROOT), 'python', ROOT / 'shared/agent')
+        bridge = RemoteBridge('test', str(ROOT), 'python', ROOT / 'resources/agent')
         arguments = bridge._bootstrap_arguments()
         namespace = {}
         exec(compile(arguments['kpl_client'], 'portable_kpl', 'exec'), namespace)
@@ -165,7 +165,7 @@ class ProtocolTests(unittest.TestCase):
 
 class ToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_react_discovery_rpc_source_observation_and_plot_resource(self):
-        catalogues = load_catalogs(ROOT / 'shared/agent', kpl_config=CONFIG)
+        catalogues = load_catalogs(ROOT / 'resources/agent', kpl_config=CONFIG)
         registry = ToolRegistry()
         observed = []
         def client(catalog, config, args):

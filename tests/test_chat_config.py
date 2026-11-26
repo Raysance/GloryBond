@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 def load_environment_function():
     """Load only the environment helper, without importing private Bot config."""
-    source_path = Path(__file__).resolve().parents[1] / "hok" / "zstatic.py"
+    source_path = Path(__file__).resolve().parents[1] / 'src/glorybond/config/settings.py'
     tree = ast.parse(source_path.read_text(encoding="utf-8-sig"))
     function = next(
         node for node in tree.body
@@ -23,7 +23,7 @@ ENVIRONMENT_FUNCTION = load_environment_function()
 
 
 def load_chat_config_function():
-    source_path = Path(__file__).resolve().parents[1] / "hok" / "zstatic.py"
+    source_path = Path(__file__).resolve().parents[1] / 'src/glorybond/config/settings.py'
     tree = ast.parse(source_path.read_text(encoding="utf-8-sig"))
     function = next(
         node for node in tree.body
@@ -36,7 +36,7 @@ CHAT_CONFIG_FUNCTION = load_chat_config_function()
 
 
 def load_secret_config_function():
-    source_path = Path(__file__).resolve().parents[1] / "hok" / "zstatic.py"
+    source_path = Path(__file__).resolve().parents[1] / 'src/glorybond/config/settings.py'
     tree = ast.parse(source_path.read_text(encoding="utf-8-sig"))
     function = next(
         node for node in tree.body

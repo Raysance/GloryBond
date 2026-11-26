@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 from fastapi.testclient import TestClient
 
-from agent_console.document_inputs import DeepSeekDocuments, project_documents
-from agent_console.provider import DeepSeekModel
-from agent_console.server import create_app
+from glorybond.agent.document_inputs import DeepSeekDocuments, project_documents
+from glorybond.agent.provider import DeepSeekModel
+from glorybond.apps.console.server import create_app
 from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
-from local_debugger import import_hok_module
-from qq_agent.documents import QQDocuments
-from qq_agent.history_images import HistoryImageArgs, register_history_image_tool
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.documents import QQDocuments
+from glorybond.apps.qq.agent.history_images import HistoryImageArgs, register_history_image_tool
 
 
 REMOTE = {"public": {"base_url": "https://api.deepseek.com", "model": "deepseek-flash"},
@@ -73,7 +73,7 @@ class DocumentTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("signed-url", str(bad))
 
     def test_group_file_quote_requires_verified_group(self):
-        chat = import_hok_module("event_handlers.chat")
+        chat = import_project_module("glorybond.apps.qq.handlers.chat")
         event = Mock(group_id=1, self_id=2)
         reply = {"message_id": 4, "message_type": "group", "sender": {"user_id": 3},
                  "message": [{"type": "file", "data": {"file": "文档.pdf", "file_id": "qq-id"}}]}

@@ -4,13 +4,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-BUSINESS = import_hok_module("business.player_client")
-HANDLER = import_hok_module("event_handlers.player_client")
-HERO = import_hok_module("event_handlers.hero")
-ZFUNC = import_hok_module("zfunc")
-STATIC = import_hok_module("zstatic")
+BUSINESS = import_project_module("glorybond.features.game.player_client")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.player_client")
+HERO = import_project_module("glorybond.apps.qq.handlers.hero")
+ZFUNC = import_project_module("glorybond.features.facade")
+STATIC = import_project_module("glorybond.config.settings")
 
 
 class TextReportTests(unittest.TestCase):

@@ -7,19 +7,19 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from agent_console import remote_worker as worker
-from agent_console.capabilities import Capabilities
-from agent_console.task_timing import normalized_task_action, next_task_time
-from agent_console.tools.application import ListTasksArgs
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.capabilities import Capabilities
+from glorybond.agent.task_timing import normalized_task_action, next_task_time
+from glorybond.agent.tools.application import ListTasksArgs
 from agent_runtime import Principal, RunRequest
 from agent_runtime.models import ToolContext
-from local_debugger import import_hok_module
-from qq_agent.output import QQOutput
-from qq_agent.service import qq_principal
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.output import QQOutput
+from glorybond.apps.qq.agent.service import qq_principal
 from tests.test_qq_agent_transport import Store
 
 
-FUNC = import_hok_module("zfunc")
+FUNC = import_project_module("glorybond.features.facade")
 
 
 def principal(user="101", group="200"):
@@ -194,7 +194,7 @@ class TaskDeliveryTests(unittest.IsolatedAsyncioTestCase):
 
     def sender(self):
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-            return import_hok_module("utils.message_sender")
+            return import_project_module("glorybond.apps.qq.message_sender")
 
     async def test_queue_send_saves_real_receipt_and_never_infers_one_or_replays(self):
         sender = self.sender()

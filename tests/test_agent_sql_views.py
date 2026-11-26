@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 from sqlglot import exp, parse_one
 
-from agent_console import remote_worker as worker
+from glorybond.agent import remote_worker as worker
 
 
-DEFINITIONS = json.loads((Path(__file__).parents[1] / 'shared/agent/hok_sql/views.json').read_text())
+DEFINITIONS = json.loads((Path(__file__).parents[1] / 'resources/agent/hok_sql/views.json').read_text())
 
 
 class SemanticCompilerTests(unittest.TestCase):
@@ -95,7 +95,7 @@ class SemanticCompilerTests(unittest.TestCase):
 
 class RosterSemanticsTests(unittest.TestCase):
     def test_boolean_mvp_flags_are_typed_and_unknown_values_stay_unknown(self):
-        catalog = json.loads((Path(__file__).parents[1] / 'shared/agent/hok_sql/catalog.json').read_text())
+        catalog = json.loads((Path(__file__).parents[1] / 'resources/agent/hok_sql/catalog.json').read_text())
         columns = [name for name in catalog['tables']['chat_player_battles']['columns'] if name != 'is_mvp']
         db = sqlite3.connect(':memory:')
         self.addCleanup(db.close)

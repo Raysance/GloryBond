@@ -1,7 +1,7 @@
 import unittest
 
 
-from agent_console.tools import memory as MEMORY
+from glorybond.agent.tools import memory as MEMORY
 
 
 class ChatHistoryRetrievalTests(unittest.TestCase):

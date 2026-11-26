@@ -1,12 +1,12 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-BATTLE_DETAIL = import_hok_module("business.battle_detail")
-GEN_BATTLE = import_hok_module("tools.gen_battle_res")
-ZFILE = import_hok_module("zfile")
-ZFUNC = import_hok_module("zfunc")
+BATTLE_DETAIL = import_project_module("glorybond.features.game.battle_detail")
+GEN_BATTLE = import_project_module("glorybond.rendering.gen_battle_res")
+ZFILE = import_project_module("glorybond.storage.files")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeAnalyses:

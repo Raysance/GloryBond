@@ -5,10 +5,10 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-CHAT = import_hok_module("event_handlers.chat")
+CHAT = import_project_module("glorybond.apps.qq.handlers.chat")
 
 
 def segment(kind, **data):

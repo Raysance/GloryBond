@@ -8,56 +8,45 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - 日常开发沿用现有目录、模块边界、技术栈和框架。结构与框架调整以用户明确要求为前提。
 - 新能力优先复用已有接口，业务逻辑归入对应模块，调试代码与线上逻辑分开维护。迁移和维护验证通过后清理旧副本、过期备份与一次性材料，恢复点按用户要求保留。工作目录保留当前源码与运行所需资源。
 
-## 项目索引
+## 项目结构与模块职责
 
-| 文件或目录 | 职责 |
+应用源码统一使用 `src/glorybond` 与 `glorybond.*` 导入。`src` 为源码位置，`glorybond` 为项目包名。完整目录说明见[项目结构](docs/ARCHITECTURE.md)。根目录不再新增独立应用包。
+
+| 目录 | 职责 |
 | --- | --- |
-| [README.md](README.md) | 功能总览、使用方式与说明导航 |
-| [docs](docs) | 开发说明与发布记录 |
-| [hok](hok) | Bot 入口、业务流程与领域实现 |
-| [web](web) | 页面、管理后台与模板；模块规范见 [Web AGENTS](web/AGENTS.md) |
-| [agent_console](agent_console) | QQ/Web 共用的模型协议、[上下文组装](agent_console/chat_context.py)、工具、角色、记忆、任务与运行记录适配 |
-| [qq_agent](qq_agent) | QQ 身份、输入输出、工具授权与消息交付 |
-| [login_console](login_console) | 账号认证、登录会话与凭据管理 |
-| [shared](shared) | 共享工具目录、数据说明与[功能手册](shared/agent/manual/handbook.md)；[camp.py](shared/camp.py) 仅映射宿主业务调用到营地 SDK 公开接口 |
-| [vendor](vendor) | 三个私有 SDK 的 submodule 引用 |
-| `agent_runtime`、`hok_research`、`hok_camp_client` | 私有 SDK 的 Python 导入入口 |
-| [resources](resources)、[assets](assets) | 长期资源、字体与公开演示素材 |
-| [database](database) | 数据结构与只读访问授权 |
-| [tests](tests)、[Web tests](web/tests) | 业务、共享能力与页面验证 |
-| [deployment](deployment)、[GitHub workflows](.github/workflows) | 部署、服务管理、发布检查与自动化工作流 |
-| [scripts](scripts)、[tools](tools) | 数据维护、迁移与公开发布检查 |
-| [local_debugger](local_debugger)、[examples](examples) | 本地调试环境与独立调用示例 |
-| [pyproject.toml](pyproject.toml) | 统一依赖清单 |
-| [deploy_runner.sh](deploy_runner.sh) | Bot 启动入口 |
-| [.gitignore](.gitignore) | 全项目忽略规则 |
-| `.env`、`config.yaml` | 私有凭据、登录态、业务参数与身份映射 |
+| [apps/qq](src/glorybond/apps/qq) | NoneBot 插件、事件路由、命令处理器、QQ AI 适配与消息交付 |
+| [apps/web](src/glorybond/apps/web) | FastAPI 页面、管理后台与原有模板；见 [Web AGENTS](src/glorybond/apps/web/AGENTS.md) |
+| [apps/console](src/glorybond/apps/console) | 本地聊天网页入口及静态资源 |
+| [features](src/glorybond/features) | 游戏、订阅、聊天与赛事业务；`facade.py` 保留既有业务门面和跨模块编排 |
+| [agent](src/glorybond/agent) | QQ/Web 共用的模型协议、上下文、工具、角色、记忆、任务与运行记录适配 |
+| [accounts](src/glorybond/accounts) | 账号认证、登录会话与凭据管理 |
+| [integrations](src/glorybond/integrations) | 外部 API、平台协议及私有 SDK 的宿主适配；`camp.py` 仅调用营地 SDK 公开接口 |
+| [storage](src/glorybond/storage) | 文件与缓存、PostgreSQL 数据访问、SQL 定义与只读授权说明 |
+| [rendering](src/glorybond/rendering) | 图片与图表渲染 |
+| [config](src/glorybond/config) | 配置投影和运行路径；[runtime.py](src/glorybond/runtime.py) 保存进程内状态与服务引用 |
+| [resources](resources) | 长期资源、字体、公开演示素材与 AI 参考目录；[功能手册](docs/manual/handbook.md) 位于 `docs/manual` |
+| [tests](tests) | 业务、共享能力及 `tests/web` 页面验证 |
+| [tools](tools) | 本地调试、维护脚本、发布检查与独立示例；实验约定见[调试规范](tools/debugger/experiments/AGENTS.md) |
+| [deployment](deployment)、[workflows](.github/workflows) | 部署、服务管理和自动化发布 |
+| [vendor](vendor) | 三个私有 SDK 的固定 submodule 引用；`src` 下只保留对应导入链接 |
+| [pyproject.toml](pyproject.toml)、[deploy_runner.sh](deploy_runner.sh) | 统一依赖清单与 Bot 启动入口 |
 
-## Bot 模块索引
+## 运行入口与公共边界
 
-| 模块 | 职责 |
-| --- | --- |
-| [__init__.py](hok/__init__.py)、[config.py](hok/config.py) | 插件入口与配置模型 |
-| [zevent.py](hok/zevent.py) | 事件注册、消息解析与业务分发 |
-| [event_rules.py](hok/event_rules.py)、[event_ingress.py](hok/event_ingress.py) | 路由和权限判定、原始消息归档 |
-| [event_handlers](hok/event_handlers) | 独立于框架的命令解析与处理器 |
-| [zfunc.py](hok/zfunc.py) | 业务门面、跨模块编排与 Redis 访问 |
-| [business](hok/business) | 领域计算、数据分析与业务结果组装 |
-| [zapi.py](hok/zapi.py)、[api_adapters](hok/api_adapters) | 外部 API 门面、协议适配与请求处理 |
-| [zfile.py](hok/zfile.py)、[zdb.py](hok/zdb.py) | 文件和产物管理、PostgreSQL 数据访问 |
-| [zstatic.py](hok/zstatic.py)、[zdynamic.py](hok/zdynamic.py) | 静态配置、动态初始状态与进程内服务引用 |
-| [ztime.py](hok/ztime.py)、[zscheduler.py](hok/zscheduler.py) | 时间处理、服务生命周期与定时任务注册 |
-| [message_sender.py](hok/utils/message_sender.py)、[qq_profiles.py](hok/utils/qq_profiles.py) | 统一消息出口与 QQ 资料读取 |
-| [tools](hok/tools)、[zutil.py](hok/zutil.py) | 图片渲染、数据转换与通用工具 |
-| [zkpl.py](hok/zkpl.py)、[zdiy.py](hok/zdiy.py) | KPL 数据入口与自定义扩展 |
-| [debug_tools](hok/debug_tools) | 调试和实验工具；组织约定见[调试规范](hok/debug_tools/AGENTS.md) |
+- QQ 的显式插件入口是 `glorybond.apps.qq.plugin`；事件、路由、归档、处理器、消息出口和任务注册分别位于同目录的 `events.py`、`rules.py`、`ingress.py`、`handlers/`、`message_sender.py`、`scheduler.py`。普通包导入不注册机器人生命周期。
+- Web 通过 `python -m glorybond.apps.web` 启动，本地聊天控制台通过 `python -m glorybond.apps.console` 启动。业务和共享模块不得通过导入应用入口启动服务。
+- 跨模块编排、外部协议、文件/数据库访问与图片绘制分别复用 `features/facade.py`、`integrations/api.py`、`storage/files.py` / `storage/database.py` 与 `rendering/`；时间和通用日志复用 `time.py`、`common.py`。本次目录迁移不同时改变业务规则。
+- `agent_runtime`、`hok_research`、`hok_camp_client` 保留 SDK 公开包名，由 `src/` 下的精确链接指向私有 submodule。公开边界检查只接受这三个指定链接，不允许复制 SDK 实现。
+- 功能手册的源码索引随模块移动同步维护，使用 `tools/maintenance/validate_agent_manual.py` 验证。开发工具与测试不进入线上应用包。
+- `.env`、`config.yaml`、运行数据、登录会话、公开产物和日志路径继续沿用，发布不得因源码移动重建存储。原有 `local_debugger/.venv` 是私有环境，调试代码改由 `tools/debugger/` 管理。
+
 
 ## 架构与数据约定
 
 - Bot 的文件、数据库、HTTP、缓存、时间和消息操作遵循上述统一入口；业务层专注领域逻辑。共享适配层管理自身的协议、进程和存储边界。
 - Web 与共享模块独立导入。Bot 启动和后台任务由现有生命周期入口管理，定时任务集中注册，外部请求与写入由明确调用触发。
 - `react-agent-runtime`、`hok-player-client`、`hok-camp-client` 保持私有，通过 submodule 调用公开接口。渠道身份、业务工具和交付逻辑由主项目适配层负责。
-- 营地网络、端点、签名/加解密、请求字段、业务响应、角色列表和扫码代理策略由 `hok-camp-client` 负责。Bot/Web 通过 `shared/camp.py` 复用每进程客户端并在请求前通过SDK重新加载私有会话；宿主只负责路径配置、授权、产物保存、日志和业务展示；营地token/完整会话由SDK管理，不投影到业务配置。禁止恢复 `tools/endecoder.py` 副本或调用 SDK `_post/_qr/_state` 等私有成员。契约与测试见 [营地 SDK 接入](docs/camp-sdk.md)。
+- 营地网络、端点、签名/加解密、请求字段、业务响应、角色列表和扫码代理策略由 `hok-camp-client` 负责。Bot/Web 通过 `src/glorybond/integrations/camp.py` 复用每进程客户端并在请求前通过SDK重新加载私有会话；宿主只负责路径配置、授权、产物保存、日志和业务展示；营地token/完整会话由SDK管理，不投影到业务配置。禁止恢复 `tools/endecoder.py` 副本或调用 SDK `_post/_qr/_state` 等私有成员。契约与测试见 [营地 SDK 接入](docs/camp-sdk.md)。
 - 对局胜率、经济/经验走势和完整回顾由营地 SDK 的三个独立命名接口提供，按需获取并保留原始字段。回顾玩家标识来自该局详情，不以 QQ、营地用户或角色 ID 替代；位置采样、事件时间单位和阵营转换遵循 SDK 文档，缺失记录不补造。本次接口扩展不自动增加 Bot/Web 请求或回放入口。
 - 玩家 SDK 升级核对公开接口并运行宿主离线测试，测试数据由项目自行构造，旧渲染器也注入合成背景，不依赖 SDK 的研究目录或私有截图样本；当前固定提交见 [发布记录](docs/RELEASE.md)。
 - 当前通过 `PlayerClient.enabled=false` 统一停用王者官方客户端请求。在线使用营地，战绩跳过客户端来源，普通英雄查询走原有处理器；显式客户端命令及后台官方账号检查、扫码、轮询均不得发起客户端请求。保留凭据、绑定与已保存数据。
@@ -85,13 +74,13 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - 群消息归档从 original_message 保留原生 @，仅 @ 无正文也入库。payload.mentions 保存去重 QQ、当时可读取的 nickname/group_card/display_name，plain_text 保留纯文本；text 按消息段顺序写入可读 @ 与 QQ，供现有检索和只读 SQL 使用。昵称快照经 QQ 资料适配层限时读取，失败保留 QQ 和未知名称，@全体成员单独标记；不从引用内容提取、不以当前名称回填旧记录或授予身份权限。
 - 临时网页链接统一使用 Redis.REDIS_TEXT_EXPIRE_SECONDS=86400（1天），运行记录不再单设有效期；访问不续期。Redis载荷及运行索引沿用同一时限，文件直连的受益分析页按文件生成时间校验。链接失效与底层文件异步清理分别管理，不删除业务归档或私有运行日志。
 - 应用配置统一由 `.env` 和 `config.yaml` 提供。用户信息、登录态、密钥、原始输入和运行数据保存在私有配置及存储中，公开内容与运行记录经过脱敏。
-- QQ 与本地 Web 的聊天附件由 agent_console/document_inputs.py 上传到官方 DeepSeek Files API。只有本轮或入选历史含有效文档时，主模型才使用同账号 deepseek-flash（包括混合图片和工具续轮）。服务端保存引用、来源与有效期，Web 上传句柄绑定会话，QQ 下载限定当前消息或已验证会话的显式引用。
+- QQ 与本地 Web 的聊天附件由 src/glorybond/agent/document_inputs.py 上传到官方 DeepSeek Files API。只有本轮或入选历史含有效文档时，主模型才使用同账号 deepseek-flash（包括混合图片和工具续轮）。服务端保存引用、来源与有效期，Web 上传句柄绑定会话，QQ 下载限定当前消息或已验证会话的显式引用。
 - QQ 前台群聊可按需通过 read_recent_group_images 获取当前群近期图片。范围由入口和提问时间绑定，平台返回的群、时间与同秒顺序必须核对，实际取到的像素走工具图片预算。群历史窗口与 PostgreSQL 文字归档分别读取。
 
 - AI 识图通过共享 `VisionAPI` 独立配置模型、端点、密钥变量及代理，供 QQ 与本地 Web 复用；当前目标为豆包 Seed 2.1 Lite。附件解析和图片预算裁剪后，实际含像素的当前、历史及工具图片请求才路由到视觉供应商，文字及回复整理沿用渠道文字模型。视觉密钥仅通过 worker private 设置交付并参与脱敏，视觉错误不触发文字供应商回退；方舟图片 detail 仅在请求副本中适配。Seed 2.1 的流式加密思考原样保留并回传工具后续轮次，切回其他供应商时仅从请求副本移除该专用字段，保留原图、历史和真实执行状态。模型须在方舟账号开通后才能调用。
 - 公开产物采用独立读取权限并继承公开目录的权限约定，与私有配置、登录态和业务存储分别管理。
 - 戳一戳与默认表情生成的三张角色参考图位于 `resources/wzry_images/emoji_template/`，作为必需静态资源随源码发布，公开边界检查同时校验三张图片已进入暂存树。默认随机不扩大到其他素材目录；戳一戳遇到模板缺失时记录诊断并沿用文字回复，不调用生图接口。自定义素材与生成记录仍按各自存储边界管理。
-- Web 个人战绩隐藏时，由 web/battle_list_data.py 只提取目标角色可展示的资料。战局列表读取失败与玩家设置隐藏采用独立提示，区间统计只纳入开放日期。
+- Web 个人战绩隐藏时，由 src/glorybond/apps/web/battle_list_data.py 只提取目标角色可展示的资料。战局列表读取失败与玩家设置隐藏采用独立提示，区间统计只纳入开放日期。
 
 - 管理页面校验管理员身份，账号认证和会话更新通过既有登录适配层管理。数据采集保留已有记录、有效结果和未知值，迁移与清理按明确需求执行。
 

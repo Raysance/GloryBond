@@ -1,10 +1,10 @@
 import unittest
 from types import SimpleNamespace
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-EMOJI = import_hok_module("event_handlers.emoji")
+EMOJI = import_project_module("glorybond.apps.qq.handlers.emoji")
 
 
 class EmojiEventHandlerTests(unittest.TestCase):

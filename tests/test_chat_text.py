@@ -1,9 +1,9 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-normalize = import_hok_module("tools.chat_text").normalize_qq_text
-format_reply = import_hok_module("tools.chat_text").format_chat_reply
+normalize = import_project_module("glorybond.agent.text").normalize_qq_text
+format_reply = import_project_module("glorybond.agent.text").format_chat_reply
 
 
 class PlainChatTextTests(unittest.TestCase):

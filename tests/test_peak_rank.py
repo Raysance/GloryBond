@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZFILE = import_hok_module("zfile")
-ZFUNC = import_hok_module("zfunc")
+ZFILE = import_project_module("glorybond.storage.files")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class PeakRankTests(unittest.TestCase):

@@ -4,12 +4,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-EVENT_RULES = import_hok_module("event_rules")
-EVENT_INGRESS = import_hok_module("event_ingress")
-ZFUNC = import_hok_module("zfunc")
+EVENT_RULES = import_project_module("glorybond.apps.qq.rules")
+EVENT_INGRESS = import_project_module("glorybond.apps.qq.ingress")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class EventStub:
@@ -25,7 +25,7 @@ class EventStub:
 
 class EventRoutingTests(unittest.IsolatedAsyncioTestCase):
     def test_clear_memory_only_matches_complete_commands_not_questions_about_the_feature(self):
-        source = (Path(__file__).parents[1] / 'hok/zevent.py').read_text()
+        source = (Path(__file__).parents[1] / 'src/glorybond/apps/qq/events.py').read_text()
         tree = ast.parse(source)
         declaration = next(node.value for node in tree.body if isinstance(node, ast.Assign)
                            and any(isinstance(target, ast.Name) and target.id == '_forget_me' for target in node.targets))

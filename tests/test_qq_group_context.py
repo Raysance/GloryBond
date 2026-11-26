@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, patch
 
 from agent_runtime import RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
-from agent_console import remote_worker as worker
-from agent_console.tools.memory import recent_history_limits
-from qq_agent.context import group_context
-from qq_agent.mentions import ReplyMentions, register_reply_mention_tool
-from qq_agent.output import QQOutput
-from qq_agent.service import qq_principal
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.tools.memory import recent_history_limits
+from glorybond.apps.qq.agent.context import group_context
+from glorybond.apps.qq.agent.mentions import ReplyMentions, register_reply_mention_tool
+from glorybond.apps.qq.agent.output import QQOutput
+from glorybond.apps.qq.agent.service import qq_principal
 from tests.test_qq_agent import REFERENCES
 
 
@@ -56,7 +56,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recent.kwargs['limit'], 2)
         self.assertNotIn('window_minutes', recent.kwargs)
         bridge.call.side_effect = [OSError('database unavailable'), {'messages': []}]
-        with self.assertLogs('qq_agent.context', 'WARNING'):
+        with self.assertLogs('glorybond.apps.qq.agent.context', 'WARNING'):
             context = await group_context(bridge, principal(), '42')
         self.assertIn('"available":false', context[0]['content'])
 
@@ -71,7 +71,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
         async def stalled(*args, **kwargs):
             await asyncio.Event().wait()
         bridge.call.side_effect = stalled
-        with self.assertLogs('qq_agent.context', 'WARNING'):
+        with self.assertLogs('glorybond.apps.qq.agent.context', 'WARNING'):
             context = await group_context(bridge, principal(), '42', timeout_seconds=.01)
         self.assertIn('"available":false', context[0]['content'])
         task = asyncio.create_task(group_context(bridge, principal(), '42'))
@@ -86,7 +86,7 @@ class ContextTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.Event().wait()
         business.call.side_effect = stalled
         state.call.return_value = {'messages': [{'text': '可用的机器人回复', 'timestamp': 1}]}
-        with self.assertLogs('qq_agent.context', 'WARNING'):
+        with self.assertLogs('glorybond.apps.qq.agent.context', 'WARNING'):
             context = await group_context(business, principal(), '42', state_bridge=state, timeout_seconds=.01)
         payload = json.loads(context[0]['content'].split('\n', 1)[1])
         self.assertEqual([row['text'] for row in payload['messages']], ['可用的机器人回复'])
@@ -171,7 +171,7 @@ class MentionTests(unittest.IsolatedAsyncioTestCase):
         event = {'id': 'a', 'run_id': 'a', 'session_id': 'qq_g_200_101', 'time': '2026-10-15T15:30:00+08:00',
                  'kind': 'output.message', 'data': {'kind': 'partial', 'text': '已经入队的正文'},
                  'metadata': {'delivery': principal().attributes['delivery']}}
-        with self.assertLogs('qq_agent.output', 'WARNING'):
+        with self.assertLogs('glorybond.apps.qq.agent.output', 'WARNING'):
             await output.publish(event)
         output.sender.assert_awaited_once()
         business.call.assert_not_called()

@@ -7,15 +7,15 @@ from unittest.mock import MagicMock, patch
 
 from PIL import ImageDraw
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-BUSINESS = import_hok_module("business.skin_votes")
-API = import_hok_module("api_adapters.tianyuanzhiyi")
-RENDER = import_hok_module("tools.gen_skin_votes")
-ZFILE = import_hok_module("zfile")
-ZFUNC = import_hok_module("zfunc")
-HANDLER = import_hok_module("event_handlers.skin_votes")
+BUSINESS = import_project_module("glorybond.features.game.skin_votes")
+API = import_project_module("glorybond.integrations.tianyuanzhiyi")
+RENDER = import_project_module("glorybond.rendering.gen_skin_votes")
+ZFILE = import_project_module("glorybond.storage.files")
+ZFUNC = import_project_module("glorybond.features.facade")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.skin_votes")
 
 
 def payload():
@@ -194,7 +194,7 @@ class SkinVotesHandlerTests(unittest.IsolatedAsyncioTestCase):
     async def test_entry_sends_deprecation_text_to_original_event(self):
         from nonebot.adapters.onebot.v11 import MessageSegment
 
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         matcher = next(node.value for node in tree.body if isinstance(node, ast.Assign)
                        and any(isinstance(t, ast.Name) and t.id == "_skin_votes" for t in node.targets))
         commands = ast.literal_eval(matcher.args[0])

@@ -2,8 +2,8 @@
 import json
 import unittest
 from unittest.mock import patch
-from agent_console import remote_worker as worker
-from agent_console.tools import memory
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.tools import memory
 
 
 class Store:
@@ -139,7 +139,7 @@ class MemoryToolIntegrationTests(unittest.IsolatedAsyncioTestCase):
         from agent_runtime import Principal, RunRequest, ToolRegistry
         from agent_runtime.models import ToolContext
         from agent_runtime.tools.executor import execute
-        from agent_console.tools.application import register_application_tools
+        from glorybond.agent.tools.application import register_application_tools
         from unittest.mock import AsyncMock
         service = AsyncMock()
         registry = ToolRegistry()
@@ -157,8 +157,8 @@ class MemoryToolIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_implicit_correction_tools_update_owned_facts_and_log_replacements(self):
         from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
-        from agent_console.capabilities import Capabilities, application_prompt
-        from agent_console.tools.application import register_application_tools
+        from glorybond.agent.capabilities import Capabilities, application_prompt
+        from glorybond.agent.tools.application import register_application_tools
         from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
         store = Store()
         with patch.dict(worker.CONTEXT, store=store, memory=memory.__dict__):

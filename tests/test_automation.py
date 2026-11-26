@@ -14,22 +14,22 @@ from unittest.mock import AsyncMock, Mock, patch
 from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.automation import Action, ActionCatalog, Args, EventCondition, RuleDefinition, matches
-from qq_agent.automation import register_automation_tools
-from qq_agent.service import qq_principal
-from local_debugger import import_hok_module
+from glorybond.agent.automation import Action, ActionCatalog, Args, EventCondition, RuleDefinition, matches
+from glorybond.apps.qq.agent.automation import register_automation_tools
+from glorybond.apps.qq.agent.service import qq_principal
+from tools.debugger import import_project_module
 
 try:
     import fakeredis
 except ImportError:
     fakeredis = None
 
-ZFUNC = import_hok_module("zfunc")
-ZTIME = import_hok_module("ztime")
-INGRESS = import_hok_module("event_ingress")
-BUSINESS = import_hok_module("business.automation")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZTIME = import_project_module("glorybond.time")
+INGRESS = import_project_module("glorybond.apps.qq.ingress")
+BUSINESS = import_project_module("glorybond.features.automation")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 
 REFERENCES = {"context": {"catalogs": {"players": []}}}
 
@@ -423,7 +423,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
             "automation_metadata": {"source": "bili_video", "author_id": "123", "author_name": "UP"}})
         self.assertEqual(first["definition"]["condition"]["author_id"], "123")
         reader = AsyncMock(side_effect=lambda group, user: {"group_id": group, "user_id": user})
-        with patch.object(import_hok_module("utils.qq_profiles"), "load_group_member_profile", reader):
+        with patch.object(import_project_module("glorybond.apps.qq.profiles"), "load_group_member_profile", reader):
             bot = SimpleNamespace(send_group_msg=AsyncMock(return_value={"message_id": 50}))
             await SENDER._send_queued_message(bot, payload)
         message = bot.send_group_msg.call_args.kwargs["message"]
@@ -472,7 +472,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         ZFUNC._x_send_message("X新帖", metadata={"source": "x_subscription", "author_id": "321", "author_name": "renamed"})
         payload = json.loads(self.store.rpop(ZFUNC.REDIS_KEY_MESSAGE_OUTBOUND_QUEUE))
         reader = AsyncMock(return_value={"group_id": "200", "user_id": "100"})
-        with patch.object(import_hok_module("utils.qq_profiles"), "load_group_member_profile", reader):
+        with patch.object(import_project_module("glorybond.apps.qq.profiles"), "load_group_member_profile", reader):
             bot = SimpleNamespace(send_group_msg=AsyncMock(return_value={"message_id": 60}))
             await SENDER._send_queued_message(bot, payload)
         self.assertIn("[CQ:at,qq=100]", str(bot.send_group_msg.call_args.kwargs["message"]))
@@ -484,8 +484,8 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_react_discovers_saves_and_triggers_rule_with_same_tool_loop(self):
         from agent_runtime import AgentRuntime
-        from agent_console.capabilities import Capabilities
-        from agent_console.tools.application import register_application_tools
+        from glorybond.agent.capabilities import Capabilities
+        from glorybond.agent.tools.application import register_application_tools
         from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
         registry = ToolRegistry()
@@ -547,7 +547,7 @@ class IngressTests(unittest.IsolatedAsyncioTestCase):
             await INGRESS.observe_automation_message(stub, "100", None, "开黑")
             self.assertEqual(publish.call_args.args[0]["scope"], "private:100")
         with patch.object(ZFUNC, "automation_publish_event", return_value=[]) as publish:
-            from hok.zstatic import confs
+            from glorybond.config.settings import confs
             await INGRESS.observe_automation_message(stub, str(confs["QQBot"]["bot_qid"]), 200, "开黑")
             publish.assert_not_called()
 
@@ -564,7 +564,7 @@ class IngressTests(unittest.IsolatedAsyncioTestCase):
 class AgentActionTests(unittest.IsolatedAsyncioTestCase):
     async def test_agent_uses_owner_current_scope_and_cannot_manage_rules_tasks_or_avatar(self):
         from agent_runtime import AgentRuntime
-        from qq_agent.service import QQAgentService
+        from glorybond.apps.qq.agent.service import QQAgentService
         from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
         captured = []
@@ -603,9 +603,9 @@ class AgentActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(service.automation_runs)
 
     async def test_discovery_and_execution_share_automation_tool_policy(self):
-        from agent_console.tools.application import register_application_tools
-        from agent_console.tools.diagnostics import DiagnosticToolRegistry
-        from agent_console.capabilities import Capabilities
+        from glorybond.agent.tools.application import register_application_tools
+        from glorybond.agent.tools.diagnostics import DiagnosticToolRegistry
+        from glorybond.agent.capabilities import Capabilities
         from tests.test_agent_runtime import call
         registry = DiagnosticToolRegistry()
         register_application_tools(registry, service=Capabilities(Mock()), catalogs={})

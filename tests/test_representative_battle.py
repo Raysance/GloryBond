@@ -7,7 +7,7 @@ import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = PROJECT_ROOT / "hok" / "tools" / "representative_battle.py"
+MODULE_PATH = PROJECT_ROOT / 'src/glorybond/features/game/representative.py'
 SPEC = importlib.util.spec_from_file_location("representative_battle", MODULE_PATH)
 REPRESENTATIVE_BATTLE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(REPRESENTATIVE_BATTLE)

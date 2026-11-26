@@ -7,15 +7,15 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-API = import_hok_module("api_adapters.aihot")
-BUSINESS = import_hok_module("business.ai_daily")
-FACADE = import_hok_module("zfunc")
-ZAPI = import_hok_module("zapi")
+API = import_project_module("glorybond.integrations.aihot")
+BUSINESS = import_project_module("glorybond.features.chat.daily")
+FACADE = import_project_module("glorybond.features.facade")
+ZAPI = import_project_module("glorybond.integrations.api")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 
 
 def report_fixture():
@@ -348,7 +348,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(args[4]), {"kind": "group_forward"})
 
     async def test_scheduler_registers_single_beijing_cron_and_runs_business_off_loop(self):
-        source = Path("hok/zscheduler.py").read_text()
+        source = Path("src/glorybond/apps/qq/scheduler.py").read_text()
         tree = ast.parse(source)
         job = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "ai_daily_push")
         from apscheduler.triggers.cron import CronTrigger
@@ -359,7 +359,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
         scope = {"__package__": "hok", "ai_daily_config": BUSINESS.ai_daily_config,
                  "scheduler": SimpleNamespace(scheduled_job=register), "asyncio": asyncio,
                  "confs": BUSINESS.confs, "log_message": MagicMock(), "add_msg": MagicMock()}
-        exec(compile(ast.Module(body=[job], type_ignores=[]), "hok/zscheduler.py", "exec"), scope)
+        exec(compile(ast.Module(body=[job], type_ignores=[]), "src/glorybond/apps/qq/scheduler.py", "exec"), scope)
         args, kwargs = registered[0]
         trigger = CronTrigger(hour=kwargs["hour"], minute=kwargs["minute"], timezone=kwargs["timezone"])
         self.assertEqual(str(trigger.timezone), "Asia/Shanghai")

@@ -4,12 +4,12 @@ import json
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-PLAYER_DATA = import_hok_module("business.player_data")
-ZFUNC = import_hok_module("zfunc")
-ZTIME = import_hok_module("ztime")
+PLAYER_DATA = import_project_module("glorybond.features.game.player_data")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZTIME = import_project_module("glorybond.time")
 
 
 def battle(sequence, time_text):

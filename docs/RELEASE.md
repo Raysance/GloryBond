@@ -22,6 +22,26 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Application source layout — 2026-11-26
+
+Application code now lives under `src/glorybond`, grouped into QQ/Web/local
+console entry points, business features, shared agent capabilities, accounts,
+integrations, storage, rendering and configuration. Private SDKs retain their
+public import names through exact links under `src`; their implementations remain
+in private submodules. Tests, development tools, manuals and reference resources
+are kept outside the application package. See [architecture](ARCHITECTURE.md).
+
+Imports, subprocess entries, templates, handbook source indexes, packaging and
+deployment checks were migrated together. The managed Web unit changes to
+`python -m glorybond.apps.web`; migration preserves its user, environment file,
+port and other host settings and saves the previous unit before replacement.
+QQ commands, Web URLs, database/Redis schemas, private configuration, login
+sessions and runtime data retain their existing behavior and locations.
+
+Validation covers 1,283 host tests including Web and source-layout migration,
+deployment/publication checks, frontend scripts, all 114 handbook source
+locations, package imports and NoneBot plugin registration without startup hooks.
+
 ## Native Bilibili video delivery — 2026-11-26
 
 Current-message video URLs, BV/av IDs and native JSON/XML share cards now use the
@@ -207,7 +227,7 @@ key also passed an image request. Only `VisionAPI` was added under the credentia
 lock, with a private configuration backup and existing credentials and other
 settings preserved. This confirms API wiring, not comparative recognition accuracy.
 API Key creation and activation instructions are documented in the
-[adapter guide](../agent_console/README.md#豆包识图接入).
+[adapter guide](../src/glorybond/agent/README.md#豆包识图接入).
 
 ## Conversational judgment and social response — 2026-11-11
 

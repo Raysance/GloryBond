@@ -4,10 +4,10 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
-from agent_console import remote_worker as worker
-from agent_console.capabilities import Capabilities, application_prompt
-from agent_console.tools.application import register_application_tools
-from agent_console.tools.memory import recent_history_limits
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.capabilities import Capabilities, application_prompt
+from glorybond.agent.tools.application import register_application_tools
+from glorybond.agent.tools.memory import recent_history_limits
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 

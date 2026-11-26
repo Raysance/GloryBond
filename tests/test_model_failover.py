@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import httpx
 
-from agent_console.provider import DeepSeekModel, ModelUnavailable, remote_model_options
+from glorybond.agent.provider import DeepSeekModel, ModelUnavailable, remote_model_options
 
 
 def frame(delta=None, finish=None):
@@ -27,7 +27,7 @@ class FailoverTests(unittest.IsolatedAsyncioTestCase):
         deltas = []
         async def delta(kind, text):
             deltas.append((kind, text))
-        with patch('agent_console.provider.httpx.AsyncClient', side_effect=lambda **kw: original(
+        with patch('glorybond.agent.provider.httpx.AsyncClient', side_effect=lambda **kw: original(
                 transport=httpx.MockTransport(handler), **kw)):
             result = await (model or self.model()).complete(messages or [{'role': 'user', 'content': 'hi'}],
                                                            tools or [], delta, tool_choice=choice)
@@ -127,7 +127,7 @@ class FailoverTests(unittest.IsolatedAsyncioTestCase):
         async def delta(kind, text):
             deltas.append(text)
         original = httpx.AsyncClient
-        with patch('agent_console.provider.httpx.AsyncClient', side_effect=lambda **kw: original(
+        with patch('glorybond.agent.provider.httpx.AsyncClient', side_effect=lambda **kw: original(
                 transport=httpx.MockTransport(respond), **kw)):
             with self.assertRaises(httpx.ReadError):
                 # This case starts after visible output, not during first-token

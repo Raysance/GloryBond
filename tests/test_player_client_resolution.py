@@ -1,6 +1,6 @@
 """Binding decisions retain verified identity and never guess between platforms."""
 import unittest
-from scripts.resolve_player_client import select_candidate
+from tools.maintenance.resolve_player_client import select_candidate
 
 
 class BindingSelectionTests(unittest.TestCase):

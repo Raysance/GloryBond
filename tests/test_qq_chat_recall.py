@@ -8,12 +8,12 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from nonebot.adapters.onebot.v11.event import FriendRecallNoticeEvent, GroupRecallNoticeEvent
-from local_debugger import import_hok_module
-from qq_agent.inflight import ChatRollouts
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.inflight import ChatRollouts
 
 
-CHAT = import_hok_module("event_handlers.chat")
-FUNCS = import_hok_module("zfunc")
+CHAT = import_project_module("glorybond.apps.qq.handlers.chat")
+FUNCS = import_project_module("glorybond.features.facade")
 
 
 def message(**changes):
@@ -67,14 +67,14 @@ class RecallTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_recall_before_registration_skips_all_preparation_and_is_bounded(self):
         operation = AsyncMock()
-        with patch("qq_agent.inflight.time", SimpleNamespace(monotonic=lambda: 10)):
+        with patch("glorybond.apps.qq.agent.inflight.time", SimpleNamespace(monotonic=lambda: 10)):
             CHAT.cancel_recalled_chat(recall())
             await self.rollouts.run(CHAT.chat_message_key(message()), operation)
             operation.assert_not_awaited()
             for identifier in range(3000):
                 self.rollouts.recall(("other", identifier))
             self.assertEqual(len(self.rollouts.recalled), 2048)
-        with patch("qq_agent.inflight.time", SimpleNamespace(monotonic=lambda: 311)):
+        with patch("glorybond.apps.qq.agent.inflight.time", SimpleNamespace(monotonic=lambda: 311)):
             await self.rollouts.run(CHAT.chat_message_key(message()), operation)
             operation.assert_awaited_once()
             self.assertEqual(self.rollouts.recalled, {})
@@ -162,7 +162,7 @@ class RecallTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_production_handlers_cancel_during_quote_preparation_without_error_reply(self):
         # Execute the real handlers without starting NoneBot or network services.
-        source = Path(__file__).parents[1] / "hok/zevent.py"
+        source = Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py"
         tree = ast.parse(source.read_text())
         handlers = [node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
                     and node.name in {"f_chat", "f_chat_recall"}]

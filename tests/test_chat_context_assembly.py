@@ -8,10 +8,9 @@ from unittest.mock import AsyncMock
 
 from agent_runtime import AgentRuntime, ImageInput, ModelRequest, Principal, RunRequest, ToolRegistry
 from agent_runtime.core.context import build_messages
-from agent_console.chat_context import (ChatContextPolicy, ChatModel, active_turn, chat_metadata,
-    current_message, estimated_tokens, observe_chat_event, prepare_request, reference_projection)
-from agent_console.remote import RemoteState
-from agent_console.capabilities import Capabilities
+from glorybond.agent.chat_context import ChatContextPolicy, ChatModel, active_turn, chat_metadata, current_message, estimated_tokens, observe_chat_event, prepare_request, reference_projection
+from glorybond.agent.remote import RemoteState
+from glorybond.agent.capabilities import Capabilities
 from tests.test_agent_runtime import Clock, Sink
 
 

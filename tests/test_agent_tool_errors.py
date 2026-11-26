@@ -14,10 +14,10 @@ import requests
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolResult
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console import remote_worker
-from agent_console.remote import BridgeUnavailable
-from agent_console.tool_errors import exception_details, redact_error, RemoteToolError
-from agent_console.tools.diagnostics import DiagnosticToolRegistry
+from glorybond.agent import remote_worker
+from glorybond.agent.remote import BridgeUnavailable
+from glorybond.agent.tool_errors import exception_details, redact_error, RemoteToolError
+from glorybond.agent.tools.diagnostics import DiagnosticToolRegistry
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 
@@ -75,7 +75,7 @@ class DetailsTests(unittest.TestCase):
         connection.cursor.side_effect = [MagicMock(__enter__=Mock(return_value=first)),
                                          MagicMock(__enter__=Mock(return_value=second))]
         database = MagicMock(__enter__=Mock(return_value=connection))
-        from agent_console import tool_errors
+        from glorybond.agent import tool_errors
         context = {'cfg': {}, 'catalogs': {'hok_sql': {'schema': 'hok', 'tables': [], 'version': 1}},
                    'validation': {'validate_readonly_sql': lambda sql, *a, **kw: sql},
                    'env': {'TEST_KEY': 'test-secret-value'}, 'error_reporting': tool_errors.__dict__}
@@ -95,7 +95,7 @@ class DetailsTests(unittest.TestCase):
         self.assertEqual(success['rows'], [[9]])
 
     def test_worker_wire_retains_error_type_cause_and_stderr_without_secrets(self):
-        from agent_console import tool_errors
+        from glorybond.agent import tool_errors
         def fail(args):
             try:
                 raise KeyError('missing score, test-secret-value')

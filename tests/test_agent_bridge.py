@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from fastapi.testclient import TestClient
 
-from agent_console.remote import BridgeUnavailable, RemoteBridge
-from agent_console.tool_errors import RemoteToolError
-from agent_console.server import create_app
-from agent_console import remote_worker
+from glorybond.agent.remote import BridgeUnavailable, RemoteBridge
+from glorybond.agent.tool_errors import RemoteToolError
+from glorybond.apps.console.server import create_app
+from glorybond.agent import remote_worker
 
 
 WORKER = r'''
@@ -72,7 +72,7 @@ class WorkerBootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'config.yaml').write_text(json.dumps({'Redis': {'REDIS_HOST': 'test', 'REDIS_PORT': 6379}}))
-            shared = Path(__file__).parents[1] / 'shared/agent'
+            shared = Path(__file__).parents[1] / 'resources/agent'
             bridge = RemoteBridge('test', str(root), sys.executable, shared)
             bridge.kpl_config = {'enabled': True, 'api_base_url': 'https://example.invalid/api',
                 'site_url': 'https://example.invalid', 'timeout_seconds': 1, 'max_response_bytes': 1024,
@@ -160,7 +160,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_only_image_rpc_uses_longer_deadline(self):
         self.bridge.response_timeout = 0.02
-        with patch('agent_console.remote.IMAGE_RPC_TIMEOUT_SECONDS', 0.3):
+        with patch('glorybond.agent.remote.IMAGE_RPC_TIMEOUT_SECONDS', 0.3):
             result = await self.bridge.call('image', delay=0.05, value='picture')
             self.assertEqual(result['value'], 'picture')
             with self.assertRaises(BridgeUnavailable):
@@ -168,7 +168,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_sql_rpc_leaves_room_for_all_six_statement_deadlines(self):
         self.bridge.response_timeout = 0.02
-        with patch('agent_console.remote.SQL_RPC_TIMEOUT_SECONDS', 0.3):
+        with patch('glorybond.agent.remote.SQL_RPC_TIMEOUT_SECONDS', 0.3):
             result = await self.bridge.call('analyze', delay=0.05, value='rows')
         self.assertEqual(result['value'], 'rows')
 

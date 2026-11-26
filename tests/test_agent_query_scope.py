@@ -9,13 +9,13 @@ from unittest.mock import patch
 
 from sqlglot import parse_one
 
-from agent_console import remote_worker as worker
-from agent_console.tools import sql_validation as validation
-from agent_console.tools.application import GameScope
-from agent_console.tools.observations import numeric_column_totals, project_sql_result
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.tools import sql_validation as validation
+from glorybond.agent.tools.application import GameScope
+from glorybond.agent.tools.observations import numeric_column_totals, project_sql_result
 
 
-CATALOG = json.loads((Path(__file__).parents[1] / "shared/agent/hok_sql/catalog.json").read_text())
+CATALOG = json.loads((Path(__file__).parents[1] / "resources/agent/hok_sql/catalog.json").read_text())
 
 
 class GameScopeTests(unittest.TestCase):

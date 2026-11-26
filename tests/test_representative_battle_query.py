@@ -1,11 +1,11 @@
 import datetime
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZFUNC = import_hok_module("zfunc")
-ZTIME = import_hok_module("ztime")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZTIME = import_project_module("glorybond.time")
 
 
 class RepresentativeBattleQueryTests(unittest.TestCase):

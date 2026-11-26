@@ -9,14 +9,14 @@ from unittest.mock import AsyncMock, patch
 from agent_runtime import RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.identity import LOCAL_SCOPES
-from local_debugger import import_hok_module
-from qq_agent.ignored_users import ChatIgnoreArgs, register_chat_ignore_tool
-from qq_agent.service import qq_principal
+from glorybond.agent.identity import LOCAL_SCOPES
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.ignored_users import ChatIgnoreArgs, register_chat_ignore_tool
+from glorybond.apps.qq.agent.service import qq_principal
 
 
-ZFUNC = import_hok_module("zfunc")
-CHAT = import_hok_module("event_handlers.chat")
+ZFUNC = import_project_module("glorybond.features.facade")
+CHAT = import_project_module("glorybond.apps.qq.handlers.chat")
 REFERENCES = {"context": {"catalogs": {}}}
 
 
@@ -163,7 +163,7 @@ class ChatIgnoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(service.chat.await_count, 3)
 
     async def test_business_functions_cannot_reenter_ignore_management(self):
-        from agent_console.function_calls import FunctionArgs, FunctionCatalog
+        from glorybond.agent.function_calls import FunctionArgs, FunctionCatalog
 
         async def recursive(args, ctx):
             return await ZFUNC.agent_chat_ignore_operation({"action": "list"}, ctx)

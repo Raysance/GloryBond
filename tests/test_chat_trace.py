@@ -5,14 +5,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from qq_agent.trace import build_trace
+from glorybond.apps.qq.agent.trace import build_trace
 from PIL import Image
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-TRACE = import_hok_module("business.chat_trace")
-HANDLER = import_hok_module("event_handlers.chat")
-FILES = import_hok_module("zfile")
-FUNC = import_hok_module("zfunc")
+TRACE = import_project_module("glorybond.features.chat.trace")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.chat")
+FILES = import_project_module("glorybond.storage.files")
+FUNC = import_project_module("glorybond.features.facade")
 
 
 class TraceTests(unittest.TestCase):
@@ -225,7 +225,7 @@ class CollageTests(unittest.TestCase):
 class ChatMessageTests(unittest.TestCase):
     def sender(self):
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda function: function)):
-            return import_hok_module("utils.message_sender")
+            return import_project_module("glorybond.apps.qq.message_sender")
 
     def test_detailed_forward_reuses_the_url_from_existing_trace_publication(self):
         sender = self.sender()
@@ -306,7 +306,7 @@ class ChatMessageTests(unittest.TestCase):
         from nonebot.adapters.onebot.v11 import Message
 
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda function: function)):
-            sender = import_hok_module("utils.message_sender")
+            sender = import_project_module("glorybond.apps.qq.message_sender")
         event = SimpleNamespace(group_id=2)
         with patch.object(sender, "_enqueue_payload") as enqueue:
             sender.add_chat_result_msg({"text": "分析 [CQ:image,file=untrusted]",

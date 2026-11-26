@@ -47,15 +47,12 @@ class WebAnalyzeAiTests(unittest.TestCase):
         self.assertLess(image_offset, commentary_offset)
 
     def test_web_analyze_keeps_lineup_commentary_disabled_by_parameter(self):
-        source_path = Path(__file__).resolve().parents[1] / "hok" / "zscheduler.py"
+        source_path = Path(__file__).resolve().parents[1] / 'src/glorybond/apps/qq/scheduler.py'
         self.assert_entry_disables_lineup_commentary(source_path, "run_web_analyze_btls_processor")
 
     def test_poke_keeps_lineup_commentary_disabled_by_parameter(self):
         source_path = (
-            Path(__file__).resolve().parents[1]
-            / "hok"
-            / "event_handlers"
-            / "poke.py"
+            Path(__file__).resolve().parents[1] / 'src/glorybond/apps/qq/handlers/poke.py'
         )
         source = source_path.read_text(encoding="utf-8-sig")
         tree = ast.parse(source)
@@ -84,7 +81,7 @@ class WebAnalyzeAiTests(unittest.TestCase):
         self.assertIs(ai_keyword.value.value, False)
 
         event_source = (
-            Path(__file__).resolve().parents[1] / "hok" / "zevent.py"
+            Path(__file__).resolve().parents[1] / 'src/glorybond/apps/qq/events.py'
         ).read_text(encoding="utf-8-sig")
         image_offset = event_source.index(
             'MessageSegment.image(result["image_path"])',

@@ -7,13 +7,13 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-REPORT = import_hok_module('business.daily_report')
-DRAW = import_hok_module('tools.gen_daily_report')
-ZFILE = import_hok_module('zfile')
-ZAPI = import_hok_module('zapi')
-STATIC = import_hok_module('zstatic')
+REPORT = import_project_module('glorybond.features.game.daily_report')
+DRAW = import_project_module('glorybond.rendering.gen_daily_report')
+ZFILE = import_project_module('glorybond.storage.files')
+ZAPI = import_project_module('glorybond.integrations.api')
+STATIC = import_project_module('glorybond.config.settings')
 
 
 class DailyReportTests(unittest.TestCase):

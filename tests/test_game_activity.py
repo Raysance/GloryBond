@@ -1,12 +1,12 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-GAME_ACTIVITY = import_hok_module("business.game_activity")
-GEN_GAMETIME = import_hok_module("tools.gen_gametime_table")
-ZAPI = import_hok_module("zapi")
-ZFUNC = import_hok_module("zfunc")
+GAME_ACTIVITY = import_project_module("glorybond.features.game.game_activity")
+GEN_GAMETIME = import_project_module("glorybond.rendering.gen_gametime_table")
+ZAPI = import_project_module("glorybond.integrations.api")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class GameActivityTests(unittest.TestCase):

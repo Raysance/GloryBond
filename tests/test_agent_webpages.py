@@ -10,10 +10,8 @@ import httpx
 from fastapi.testclient import TestClient
 
 from agent_runtime import Principal
-from agent_console.server import create_app
-from agent_console.webpages import (
-    PageError, WebPageFetcher, WebPageLimits, extract_page, message_links, public_address,
-)
+from glorybond.apps.console.server import create_app
+from glorybond.agent.webpages import PageError, WebPageFetcher, WebPageLimits, extract_page, message_links, public_address
 
 
 HTML = """<!doctype html><html><head><title>版本更新 &amp; 分析</title>
@@ -169,7 +167,7 @@ class FetchTests(unittest.IsolatedAsyncioTestCase):
             return response()
         reader, _, factories = fetcher(handler, dns_over_https_url="https://1.1.1.1/dns-query")
         reader.resolver = reader._resolve
-        with patch("agent_console.webpages.public_address", AsyncMock(side_effect=AssertionError("system fake DNS"))):
+        with patch("glorybond.agent.webpages.public_address", AsyncMock(side_effect=AssertionError("system fake DNS"))):
             prepared = await reader.prepare([("message", "https://example.com/")])
         self.assertEqual(prepared.report['pages'][0]['status'], 'ok')
         self.assertEqual([r.url.host for r in requests], ['1.1.1.1', '93.184.216.34'])
@@ -257,7 +255,7 @@ class WebEndpointTests(unittest.TestCase):
         captured = []
         reader, _, _ = fetcher(lambda _: response())
         with patch.dict("os.environ", {"HOK_CLASH_PROXY_URL": "http://clash.test:7891"}), \
-                patch("agent_console.server.WebPageFetcher", return_value=reader) as constructor:
+                patch("glorybond.apps.console.server.WebPageFetcher", return_value=reader) as constructor:
             app = create_app()
         self.assertEqual(constructor.call_args.kwargs["proxy_url"], "http://clash.test:7891")
         runtime = Mock(active={"accepted": Mock()})
@@ -272,7 +270,7 @@ class WebEndpointTests(unittest.TestCase):
         self.addCleanup(client.close)
         client.get("/")
         message = "总结 https://example.com/article"
-        with patch("agent_console.server.time.time", return_value=20):
+        with patch("glorybond.apps.console.server.time.time", return_value=20):
             result = client.post("/api/chat", headers={"X-Local-UI": "1"},
                                  json={"session_id": "page-test", "message": message})
         self.assertEqual(result.status_code, 200)

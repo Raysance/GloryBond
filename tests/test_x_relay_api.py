@@ -11,11 +11,11 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from bs4 import BeautifulSoup
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-API = import_hok_module('api_adapters.x')
-ASSETS = import_hok_module('api_adapters.x_web_assets')
-TRANSACTION = import_hok_module('api_adapters.x_transaction')
+API = import_project_module('glorybond.integrations.x')
+ASSETS = import_project_module('glorybond.integrations.x_web_assets')
+TRANSACTION = import_project_module('glorybond.integrations.x_transaction')
 AUTH_PROVIDER = '__relay_internal__pv__xclientsfeaturesappviewerisloggedinrelayprovider'
 OPTIONAL_PROVIDER = '__relay_internal__pv__optionalpresentationrelayprovider'
 STAMP = int(datetime(2026, 10, 15, 4, tzinfo=timezone.utc).timestamp() * 1000)

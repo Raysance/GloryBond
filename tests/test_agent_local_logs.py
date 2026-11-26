@@ -9,9 +9,9 @@ import unittest
 from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
-from agent_console.local_logs import LocalEventLog
-from agent_console.remote import RemoteBridge, RemoteState
-from agent_console.server import EventBroker, create_app
+from glorybond.agent.local_logs import LocalEventLog
+from glorybond.agent.remote import RemoteBridge, RemoteState
+from glorybond.apps.console.server import EventBroker, create_app
 
 
 def event(identifier, kind="output.message", *, run="run-1", session="session-1", data=None, transient=False):
@@ -89,7 +89,7 @@ class LogTests(unittest.IsolatedAsyncioTestCase):
         blocked.write_text("occupied")
         log = LocalEventLog(blocked)
         broker = EventBroker(self.bridge, local_log=log)
-        with self.assertLogs("agent_console.local_logs", level="WARNING"):
+        with self.assertLogs("glorybond.agent.local_logs", level="WARNING"):
             await broker.publish(event("a"))
         self.assertEqual(broker.events["session-1"][0]["data"]["text"], "测试回复")
         self.assertIn("local_log_error", broker.events["session-1"][0])
@@ -111,7 +111,7 @@ class LogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(lines[2])["id"], "second")
 
     async def test_invalid_paths_and_disabled_logger_create_no_files(self):
-        with self.assertLogs("agent_console.local_logs", level="WARNING"):
+        with self.assertLogs("glorybond.agent.local_logs", level="WARNING"):
             self.assertFalse(await self.log.record(event("escape", session="../escape")))
         disabled = LocalEventLog(self.root / "disabled", enabled=False)
         self.assertTrue(await disabled.record(event("off")))

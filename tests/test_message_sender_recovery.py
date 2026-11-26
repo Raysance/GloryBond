@@ -6,10 +6,10 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module('utils.message_sender')
+    SENDER = import_project_module('glorybond.apps.qq.message_sender')
 
 
 class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
@@ -23,7 +23,7 @@ class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("赛事回顾", payload["content"])
 
     async def run_queue(self, entries, bot, logger):
-        zfunc = import_hok_module('zfunc')
+        zfunc = import_project_module('glorybond.features.facade')
         queue = Mock()
         queue.rpop.side_effect = [*entries, asyncio.CancelledError()]
         with patch.object(zfunc, 'automation_publish_event', return_value=[]), \

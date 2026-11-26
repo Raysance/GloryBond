@@ -2,11 +2,11 @@ import sys
 import types
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-BATTLE_VISIBILITY = import_hok_module("business.battle_visibility")
-ZFUNC = import_hok_module("zfunc")
+BATTLE_VISIBILITY = import_project_module("glorybond.features.game.battle_visibility")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeRedis:
@@ -73,7 +73,7 @@ class BattleVisibilityTests(unittest.TestCase):
             "sameuser": ZFUNC.sameuser,
         }
         calls = []
-        module_name = "hok.utils.message_sender"
+        module_name = "glorybond.apps.qq.message_sender"
         original_message_sender = sys.modules.get(module_name)
         message_sender = types.ModuleType(module_name)
         message_sender.BATTLE_INVISIBLE_MUTE_SECONDS = 60

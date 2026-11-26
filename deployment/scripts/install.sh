@@ -89,7 +89,7 @@ for requested in ${modules//,/ }; do
     esac
 done
 
-if has_module web && [[ ! -f "$nbot_source/web/app.py" ]]; then
+if has_module web && [[ ! -f "$nbot_source/src/glorybond/apps/web/app.py" ]]; then
     printf 'HOK_INSTALL_ERROR: unified web source is missing\n' >&2
     exit 66
 fi
@@ -110,7 +110,7 @@ if ! id "$run_user" >/dev/null 2>&1; then
 fi
 
 nbot_root="$prefix"
-web_root="$prefix/web"
+web_root="$prefix/src/glorybond/apps/web"
 file_transfer_dir="$state_dir/file_transfer"
 find_bin="$(command -v find)"
 
@@ -217,7 +217,7 @@ if [[ "$skip_python" == false ]]; then
         "$python_bin" -m venv "$nbot_root/.venv"
         "$nbot_root/.venv/bin/python" -m pip install --upgrade pip
         "$nbot_root/.venv/bin/python" -m pip install "$nbot_root"
-        "$nbot_root/.venv/bin/python" -c 'from agent_runtime import AgentRuntime, ModelRequest; from qq_agent import QQAgentService'
+        "$nbot_root/.venv/bin/python" -c 'from agent_runtime import AgentRuntime, ModelRequest; from glorybond.apps.qq.agent import QQAgentService'
         if [[ ! -x "$nbot_root/.venv/bin/nb" ]]; then
             printf 'HOK_INSTALL_ERROR: nb-cli did not install %s/.venv/bin/nb\n' "$nbot_root" >&2
             exit 69

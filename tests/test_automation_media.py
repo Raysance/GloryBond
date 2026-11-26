@@ -12,18 +12,18 @@ from PIL import Image
 from agent_runtime import RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.image_inputs import ImageStore
-from local_debugger import import_hok_module
-from qq_agent.automation import register_automation_tools
+from glorybond.agent.image_inputs import ImageStore
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.automation import register_automation_tools
 from tests.test_agent_animations import animation
 from tests.test_automation import principal, definition
 
 
-FILES = import_hok_module("zfile")
-FUNCS = import_hok_module("zfunc")
-BUSINESS = import_hok_module("business.automation")
+FILES = import_project_module("glorybond.storage.files")
+FUNCS = import_project_module("glorybond.features.facade")
+BUSINESS = import_project_module("glorybond.features.automation")
 with patch("nonebot.get_driver", return_value=Mock()):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 
 
 def media_definition(arguments, **changes):

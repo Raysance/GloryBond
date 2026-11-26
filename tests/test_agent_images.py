@@ -13,9 +13,9 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from agent_runtime import AgentRuntime, ImageInput, Principal, RunRequest, ToolRegistry
-from agent_console.image_inputs import ImageLimits, ImageStore
-from agent_console.provider import DeepSeekModel
-from agent_console.server import create_app
+from glorybond.agent.image_inputs import ImageLimits, ImageStore
+from glorybond.agent.provider import DeepSeekModel
+from glorybond.apps.console.server import create_app
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, Args, call
 
 
@@ -179,7 +179,7 @@ class ImageAPITests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.store = ImageStore(self.tmp.name, ImageLimits(max_image_bytes=1024))
-        with patch("agent_console.server.ImageStore", return_value=self.store):
+        with patch("glorybond.apps.console.server.ImageStore", return_value=self.store):
             self.app = create_app()
         self.client = TestClient(self.app)
         self.addCleanup(self.client.close)
@@ -260,7 +260,7 @@ class ProviderImageTests(unittest.IsolatedAsyncioTestCase):
             kwargs.pop('proxy')
             return client(transport=httpx.MockTransport(lambda request: httpx.Response(
                 200, text='data: ' + json.dumps(frame) + '\n\ndata: [DONE]\n\n')), **kwargs)
-        with patch('agent_console.provider.httpx.AsyncClient', side_effect=factory):
+        with patch('glorybond.agent.provider.httpx.AsyncClient', side_effect=factory):
             for proxy in ('http://configured-proxy.invalid:7890', ''):
                 model = DeepSeekModel(api_key='test-key', base_url='https://model.invalid', model='test', proxy_url=proxy)
                 result = await model.complete([{'role': 'user', 'content': 'test'}], [], AsyncMock())
@@ -303,7 +303,7 @@ class ProviderImageTests(unittest.IsolatedAsyncioTestCase):
             factory = lambda **kw: client_type(
                 transport=httpx.MockTransport(transport), **kw
             )
-            with patch("agent_console.provider.httpx.AsyncClient", side_effect=factory):
+            with patch("glorybond.agent.provider.httpx.AsyncClient", side_effect=factory):
                 delta = AsyncMock()
                 current = [{"role": "user", "content": [image.content_part()]}]
                 result = await model.complete(current, [], delta)

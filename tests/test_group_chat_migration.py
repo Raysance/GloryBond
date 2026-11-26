@@ -3,7 +3,7 @@ import stat
 import tempfile
 import unittest
 
-from scripts import migrate_group_chat_history_to_postgres as migration
+from tools.maintenance import migrate_group_chat_history_to_postgres as migration
 
 
 class FakeRedis:

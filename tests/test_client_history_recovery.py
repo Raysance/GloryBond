@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-ZDB = import_hok_module('zdb')
-ZFILE = import_hok_module('zfile')
+ZDB = import_project_module('glorybond.storage.database')
+ZFILE = import_project_module('glorybond.storage.files')
 
 
 class ClientSnapshotRecoveryTests(unittest.TestCase):

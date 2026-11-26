@@ -3,13 +3,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-POKE = import_hok_module("event_handlers.poke")
-ZTIME = import_hok_module("ztime")
-FUNCS = import_hok_module("zfunc")
-GEN = import_hok_module("tools.gen_emoji_image")
+POKE = import_project_module("glorybond.apps.qq.handlers.poke")
+ZTIME = import_project_module("glorybond.time")
+FUNCS = import_project_module("glorybond.features.facade")
+GEN = import_project_module("glorybond.rendering.gen_emoji_image")
 
 
 class EventStub:

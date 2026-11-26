@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-HERO_HANDLERS = import_hok_module("event_handlers.hero")
-ZFUNC = import_hok_module("zfunc")
+HERO_HANDLERS = import_project_module("glorybond.apps.qq.handlers.hero")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class EventStub:

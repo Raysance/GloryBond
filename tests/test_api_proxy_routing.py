@@ -2,12 +2,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-PROXY = import_hok_module("api_adapters.proxy")
-STEAM = import_hok_module("api_adapters.steam")
-AI = import_hok_module("api_adapters.ai")
+PROXY = import_project_module("glorybond.integrations.proxy")
+STEAM = import_project_module("glorybond.integrations.steam")
+AI = import_project_module("glorybond.integrations.ai")
 
 
 class FakeResponse:

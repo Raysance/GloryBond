@@ -1,9 +1,9 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZFUNC = import_hok_module("zfunc")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 def role(role_id, camp, grade, money, equips=None):

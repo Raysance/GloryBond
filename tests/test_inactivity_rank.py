@@ -3,14 +3,14 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-RANKINGS = import_hok_module("business.rankings")
-ZFILE = import_hok_module("zfile")
-ZDB = import_hok_module("zdb")
-ZFUNC = import_hok_module("zfunc")
-ZTIME = import_hok_module("ztime")
+RANKINGS = import_project_module("glorybond.features.game.rankings")
+ZFILE = import_project_module("glorybond.storage.files")
+ZDB = import_project_module("glorybond.storage.database")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZTIME = import_project_module("glorybond.time")
 
 
 class InactivityRankTests(unittest.TestCase):
@@ -70,7 +70,7 @@ class InactivityRankTests(unittest.TestCase):
             self.assertEqual(RANKINGS.inactivity_duration_text(seconds), text)
 
     def test_command_precedes_general_rank_and_preserves_entry_rule(self):
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         entries = {node.targets[0].id: node.value for node in tree.body
                    if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
         entry = entries["_inactivity_rank"]

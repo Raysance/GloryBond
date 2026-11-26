@@ -1,11 +1,11 @@
 import unittest
 import json
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZFUNC = import_hok_module("zfunc")
-ZAPI = import_hok_module("zapi")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZAPI = import_project_module("glorybond.integrations.api")
 
 
 class FakeRedis:

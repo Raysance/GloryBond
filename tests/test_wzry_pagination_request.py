@@ -1,9 +1,9 @@
 """Pagination is passed unchanged to the SDK application boundary."""
 import unittest
 from unittest.mock import patch
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-ADAPTER = import_hok_module("api_adapters.wzry")
+ADAPTER = import_project_module("glorybond.integrations.wzry")
 
 class WzryPaginationRequestTests(unittest.TestCase):
     def test_page_cursor_is_forwarded_without_local_protocol_generation(self):

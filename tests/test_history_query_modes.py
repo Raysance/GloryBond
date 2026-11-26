@@ -2,11 +2,11 @@ import json
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-HISTORY_QUERY = import_hok_module("business.history_query")
-ZAPI = import_hok_module("zapi")
+HISTORY_QUERY = import_project_module("glorybond.features.game.history_query")
+ZAPI = import_project_module("glorybond.integrations.api")
 
 
 class HistoryQueryModeTests(unittest.TestCase):

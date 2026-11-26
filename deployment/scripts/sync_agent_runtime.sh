@@ -11,10 +11,13 @@ if [[ -d agent_runtime && ! -L agent_runtime ]]; then
     backup_dir="$(mktemp -d log/deployment-backups/agent-runtime.XXXXXX)"
     mv agent_runtime "$backup_dir/agent_runtime"
 fi
-git restore --source="$revision" --worktree -- agent_runtime
+if [[ -L agent_runtime ]]; then
+    rm -- agent_runtime
+fi
+git restore --source="$revision" --worktree -- src/agent_runtime
 export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10"
 git submodule sync --recursive
 git submodule update --init --recursive
 test -f vendor/react-agent-runtime/src/agent_runtime/__init__.py
-test -L agent_runtime
+test -L src/agent_runtime

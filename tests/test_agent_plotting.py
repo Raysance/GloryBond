@@ -10,12 +10,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from agent_console.plot_renderer import render_chart
-from agent_console.tools.plotting import PlotArgs, build_plot_code
+from glorybond.agent.plot_renderer import render_chart
+from glorybond.agent.tools.plotting import PlotArgs, build_plot_code
 
 
 CATALOG = json.loads(
-    (Path(__file__).parents[1] / "shared/agent/plots/catalog.json").read_text()
+    (Path(__file__).parents[1] / "resources/agent/plots/catalog.json").read_text()
 )
 
 

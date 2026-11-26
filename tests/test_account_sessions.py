@@ -8,8 +8,8 @@ from unittest.mock import Mock, patch
 
 import yaml
 
-from login_console import store, providers
-from login_console.manager import Manager, Limited, PREFIX
+from glorybond.accounts import store, providers
+from glorybond.accounts.manager import Manager, Limited, PREFIX
 
 
 class MemoryRedis:
@@ -42,7 +42,7 @@ class LoginTests(unittest.TestCase):
         self.config = self.root / 'config.yaml'
         self.config.write_text(yaml.safe_dump({'Redis': {'REDIS_HOST': 'localhost', 'REDIS_PORT': 6379, 'REDIS_DB': 0}, 'QQBot': {'bot_qid': '12345', 'super_qid': '99999'}, 'PlayerClient': {'enabled': True}}))
         self.redis = MemoryRedis()
-        with patch('login_console.manager.redis.Redis', return_value=self.redis):
+        with patch('glorybond.accounts.manager.redis.Redis', return_value=self.redis):
             self.manager = Manager(self.root, self.env, self.config, self.root / 'data')
         self.addCleanup(self.manager.close)
         self.client = Mock()
@@ -122,7 +122,7 @@ class LoginTests(unittest.TestCase):
 
     def test_disabled_official_constructor_does_not_load_or_write_credentials(self):
         with patch('hok_research.HokClient.from_resources') as factory, \
-             patch('login_console.providers.store.write_json') as write:
+             patch('glorybond.accounts.providers.store.write_json') as write:
             with self.assertRaises(providers.Disabled):
                 providers.Official({'PlayerClient': {'enabled': False}}, {}, self.root, Mock())
             factory.assert_not_called()
@@ -171,7 +171,7 @@ class LoginTests(unittest.TestCase):
         self.manager.record('camp', providers.status(True, 'valid'))
         self.assertEqual(self.manager.start('camp')['state'], 'waiting_scan')
         self.client.start.assert_called_once()
-        with patch('login_console.manager.time.time', return_value=time.time()+301):
+        with patch('glorybond.accounts.manager.time.time', return_value=time.time()+301):
             self.assertIsNone(self.manager.cached('camp')['authenticated'])
 
     def test_second_process_cannot_create_another_qr(self):

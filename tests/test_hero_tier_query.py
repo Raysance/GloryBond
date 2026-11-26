@@ -3,15 +3,15 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZFUNC = import_hok_module("zfunc")
-ZFILE = import_hok_module("zfile")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZFILE = import_project_module("glorybond.storage.files")
 try:
     from PIL import Image
 
-    GEN_HERO_TIER = import_hok_module("tools.gen_hero_tier")
+    GEN_HERO_TIER = import_project_module("glorybond.rendering.gen_hero_tier")
 except ImportError:
     Image = None
     GEN_HERO_TIER = None
@@ -56,14 +56,14 @@ class HeroTierQueryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = os.path.join(temp_dir, "tier.png")
             missing_items = self.payload["tiers"][1:]
-            with patch("hok.zapi.tianyuanzhiyi_tier_api", return_value=self.payload), patch(
-                "hok.zfile.hero_tier_image_path", return_value=output_path
+            with patch("glorybond.integrations.api.tianyuanzhiyi_tier_api", return_value=self.payload), patch(
+                "glorybond.storage.files.hero_tier_image_path", return_value=output_path
             ), patch(
-                "hok.zapi.tianyuanzhiyi_hero_avatars_api", return_value={}
+                "glorybond.integrations.api.tianyuanzhiyi_hero_avatars_api", return_value={}
             ) as avatar_api, patch(
-                "hok.zfile.load_hero_tier_avatar_cache",
+                "glorybond.storage.files.load_hero_tier_avatar_cache",
                 return_value=({"101": b"cached-avatar"}, missing_items),
-            ), patch("hok.zfile.save_hero_tier_avatar_cache") as save_cache:
+            ), patch("glorybond.storage.files.save_hero_tier_avatar_cache") as save_cache:
                 result = ZFUNC.hero_tier_query_process()
 
             self.assertEqual(result, output_path)
@@ -74,14 +74,14 @@ class HeroTierQueryTests(unittest.TestCase):
     def test_each_query_regenerates_image_while_reusing_avatar_cache(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = os.path.join(temp_dir, "tier.png")
-            with patch("hok.zapi.tianyuanzhiyi_tier_api", return_value=self.payload), patch(
-                "hok.zfile.hero_tier_image_path", return_value=output_path
+            with patch("glorybond.integrations.api.tianyuanzhiyi_tier_api", return_value=self.payload), patch(
+                "glorybond.storage.files.hero_tier_image_path", return_value=output_path
             ), patch(
-                "hok.zfile.load_hero_tier_avatar_cache", return_value=({}, [])
+                "glorybond.storage.files.load_hero_tier_avatar_cache", return_value=({}, [])
             ), patch(
-                "hok.zapi.tianyuanzhiyi_hero_avatars_api"
+                "glorybond.integrations.api.tianyuanzhiyi_hero_avatars_api"
             ) as avatar_api, patch(
-                "hok.tools.gen_hero_tier.generate_hero_tier_image"
+                "glorybond.rendering.gen_hero_tier.generate_hero_tier_image"
             ) as generate_image:
                 ZFUNC.hero_tier_query_process()
                 ZFUNC.hero_tier_query_process()
@@ -115,7 +115,7 @@ class HeroTierQueryTests(unittest.TestCase):
         self.assertEqual(groups["T0.5"]["lower"], [heroes[1]])
 
     def test_process_rejects_empty_api_response(self):
-        with patch("hok.zapi.tianyuanzhiyi_tier_api", return_value={}):
+        with patch("glorybond.integrations.api.tianyuanzhiyi_tier_api", return_value={}):
             with self.assertRaisesRegex(Exception, "empty response"):
                 ZFUNC.hero_tier_query_process()
 

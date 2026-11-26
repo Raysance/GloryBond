@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-HISTORY_DATA = import_hok_module("business.history_data")
-ZFUNC = import_hok_module("zfunc")
+HISTORY_DATA = import_project_module("glorybond.features.game.history_data")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class HistoryDataTests(unittest.TestCase):

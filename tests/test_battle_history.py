@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-BATTLE_HISTORY = import_hok_module("business.battle_history")
-ZFUNC = import_hok_module("zfunc")
+BATTLE_HISTORY = import_project_module("glorybond.features.game.battle_history")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 def _role(role_id, user_id, name, camp, hero, result_stats):

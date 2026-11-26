@@ -6,17 +6,17 @@ from unittest.mock import Mock, patch
 from PIL import ImageDraw
 from hok_research import PlayerRef, Profile
 from hok_research.player_pages import battle_display
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 from tests.test_hero_history_cards import history_report
 from tests.test_player_client_pages import battle_row
 from tests.test_player_client_summary import profile_result
 
-ADAPTER = import_hok_module('api_adapters.player_client')
-CARDS = import_hok_module('business.player_client')
-MODELS = import_hok_module('business.player_client_profile')
-RENDER = import_hok_module('tools.gen_player_summary')
-STATIC = import_hok_module('zstatic')
-ZFILE = import_hok_module('zfile')
+ADAPTER = import_project_module('glorybond.integrations.player_client')
+CARDS = import_project_module('glorybond.features.game.player_client')
+MODELS = import_project_module('glorybond.features.game.player_client_profile')
+RENDER = import_project_module('glorybond.rendering.gen_player_summary')
+STATIC = import_project_module('glorybond.config.settings')
+ZFILE = import_project_module('glorybond.storage.files')
 
 
 def sections(report):

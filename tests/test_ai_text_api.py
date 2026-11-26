@@ -3,10 +3,10 @@ import json
 import unittest
 from unittest.mock import patch
 import httpx
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-API=import_hok_module('api_adapters.ai')
-ZAPI=import_hok_module('zapi')
+API=import_project_module('glorybond.integrations.ai')
+ZAPI=import_project_module('glorybond.integrations.api')
 
 
 class TextAPITests(unittest.TestCase):

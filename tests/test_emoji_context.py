@@ -1,11 +1,11 @@
 """Emoji input moves to scoped archives; no passive chat cache is needed."""
 import unittest
 from unittest.mock import Mock, patch
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-FUNCS=import_hok_module('zfunc')
-DB=import_hok_module('zdb')
-GEN=import_hok_module('tools.gen_emoji_image')
+FUNCS=import_project_module('glorybond.features.facade')
+DB=import_project_module('glorybond.storage.database')
+GEN=import_project_module('glorybond.rendering.gen_emoji_image')
 
 
 class EmojiContextTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class EmojiContextTests(unittest.TestCase):
         context.recent.return_value=[{'text':'今天赢了'}]
         context.get_action.return_value={'action':'use','text':'今天赢了'}
         context.used.return_value=False
-        with patch.object(import_hok_module('tools.emoji_context'),'EmojiContext',return_value=context) as factory:
+        with patch.object(import_project_module('glorybond.features.chat.emoji_context'),'EmojiContext',return_value=context) as factory:
             result=GEN._emoji_pick_one_refined_message('101','200')
         factory.assert_called_once_with('101','200')
         self.assertEqual(result['text'],'今天赢了')

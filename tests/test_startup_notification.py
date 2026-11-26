@@ -8,12 +8,12 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from nonebot.adapters.onebot.v11 import Message
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-FILES = import_hok_module("zfile")
+FILES = import_project_module("glorybond.storage.files")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 
 
 class DeployedCommitTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class DeployedCommitTests(unittest.TestCase):
         message = "fix: report deployed version\n\nInclude the full commit message."
         with patch.object(subprocess, "run", return_value=SimpleNamespace(stdout="\0".join([commit_hash, committed_at, message]) + "\n")) as run:
             self.assertEqual(FILES.read_deployed_commit(), {"hash": commit_hash, "committed_at": committed_at, "message": message})
-        self.assertEqual(run.call_args.kwargs["cwd"], Path(FILES.__file__).resolve().parents[1])
+        self.assertEqual(run.call_args.kwargs["cwd"], Path(__file__).resolve().parents[1])
         self.assertEqual(run.call_args.args[0][-1], "HEAD")
         self.assertNotIn("fetch", run.call_args.args[0])
 

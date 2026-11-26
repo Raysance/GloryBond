@@ -2,10 +2,10 @@ import datetime
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZTIME = import_hok_module("ztime")
+ZTIME = import_project_module("glorybond.time")
 
 
 class TimeBoundaryTests(unittest.TestCase):

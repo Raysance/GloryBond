@@ -3,15 +3,15 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 from hok_research import FriendList, PlayerPresence, PlayerRef, QueryTimeout
 
-HANDLER = import_hok_module("event_handlers.player_client")
-ADAPTER = import_hok_module("api_adapters.player_client")
-BUSINESS = import_hok_module("business.player_client")
-STATIC = import_hok_module("zstatic")
-ZFUNC = import_hok_module("zfunc")
-RULES = import_hok_module("event_rules")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.player_client")
+ADAPTER = import_project_module("glorybond.integrations.player_client")
+BUSINESS = import_project_module("glorybond.features.game.player_client")
+STATIC = import_project_module("glorybond.config.settings")
+ZFUNC = import_project_module("glorybond.features.facade")
+RULES = import_project_module("glorybond.apps.qq.rules")
 
 
 def presence(name="游戏昵称", uid=7, world=8, online=1, **fields):

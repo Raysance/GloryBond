@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from shared import camp
+from glorybond.integrations import camp
 
 
 class CampBoundaryTests(unittest.TestCase):
@@ -52,13 +52,13 @@ class CampBoundaryTests(unittest.TestCase):
 
     def test_wire_protocols_and_crypto_have_no_host_copies(self):
         root = Path(__file__).resolve().parents[1]
-        for name in ("hok/api_adapters/wzry.py", "web/utils.py", "shared/camp.py"):
+        for name in ("src/glorybond/integrations/wzry.py", "src/glorybond/apps/web/utils.py", "src/glorybond/integrations/camp.py"):
             text = (root/name).read_text()
             for literal in ("kohcamp.qq.com", "kohsocialapp.qq.com", "encodeParam", "decrypt_game_data"):
                 self.assertNotIn(literal, text, name)
-        for name in ("hok/tools/endecoder.py", "web/tools/endecoder.py"):
+        for name in ("src/glorybond/rendering/endecoder.py", "tools/maintenance/web/endecoder.py"):
             self.assertFalse((root/name).exists())
-        source = (root/"login_console/providers.py").read_text()
+        source = (root/"src/glorybond/accounts/providers.py").read_text()
         tree = ast.parse(source)
         provider = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Camp")
         segment = ast.get_source_segment(source, provider)

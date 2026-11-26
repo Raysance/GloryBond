@@ -3,12 +3,12 @@ import unittest
 from unittest.mock import patch
 
 from hok_research import PlayerPresence, PlayerRef
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-ONLINE = import_hok_module("business.online_status")
-ZFUNC = import_hok_module("zfunc")
-ZAPI = import_hok_module("zapi")
-ZTIME = import_hok_module("ztime")
+ONLINE = import_project_module("glorybond.features.game.online_status")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZAPI = import_project_module("glorybond.integrations.api")
+ZTIME = import_project_module("glorybond.time")
 
 
 def state(uid, name, *, world=100, game=2, sub=3, map_type=3, map_id=1,

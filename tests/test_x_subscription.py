@@ -4,15 +4,15 @@ from contextlib import contextmanager
 from copy import deepcopy
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZAPI = import_hok_module("zapi")
-ZFUNC = import_hok_module("zfunc")
-BUSINESS = import_hok_module("business.x_subscription")
-HANDLERS = import_hok_module("event_handlers.x_subscription")
-RULES = import_hok_module("event_rules")
-RENDER = import_hok_module("tools.gen_x_post")
+ZAPI = import_project_module("glorybond.integrations.api")
+ZFUNC = import_project_module("glorybond.features.facade")
+BUSINESS = import_project_module("glorybond.features.subscriptions.x")
+HANDLERS = import_project_module("glorybond.apps.qq.handlers.x_subscription")
+RULES = import_project_module("glorybond.apps.qq.rules")
+RENDER = import_project_module("glorybond.rendering.gen_x_post")
 
 
 class Event:
@@ -118,7 +118,7 @@ class XBusinessTests(unittest.TestCase):
         self.assertEqual(self.state.cursors['2']['since_id'], '11')
 
     def test_fresh_post_waits_for_replies_without_advancing_cursor(self):
-        time = import_hok_module('ztime')
+        time = import_project_module('glorybond.time')
         with patch.object(ZAPI, "x_get_posts", return_value=[{'id':'11', 'text':'fresh', 'created_at':time.utc_timestamp_text()}]):
             result = BUSINESS.x_check_and_push()
         self.assertEqual(result['pushed'], 0)
@@ -127,7 +127,7 @@ class XBusinessTests(unittest.TestCase):
     def test_web_parse_failure_keeps_cursor_and_other_account_still_runs(self):
         self.state.records.append({"id":"2", "username":"other", "name":"Other", "user_qid":"10001"})
         self.state.cursors['2'] = {'since_id':'10'}
-        error = import_hok_module('api_adapters.x').XWebError('X 网页帖子结果缺失，本次保留游标')
+        error = import_project_module('glorybond.integrations.x').XWebError('X 网页帖子结果缺失，本次保留游标')
         with patch.object(ZAPI, 'x_get_posts', side_effect=[error, [{'id':'11','text':'new'}]]):
             result = BUSINESS.x_check_and_push()
         self.assertEqual(result['pushed'], 1)
@@ -204,7 +204,7 @@ class RedisStub:
 class XMessageTests(unittest.TestCase):
     def test_long_message_is_shortened_without_changing_the_full_card_source(self):
         from nonebot.adapters.onebot.v11 import Message
-        files = import_hok_module('zfile')
+        files = import_project_module('glorybond.storage.files')
         original = 'A sentence with useful details. ' * 300 + 'END_OF_ORIGINAL'
         post = {'id': '11', 'name': 'Tibo', 'username': 'thsottiaux', 'text': original}
         with patch.object(RENDER, 'render_x_post_images', return_value=[]) as render, \
@@ -228,8 +228,8 @@ class XMessageTests(unittest.TestCase):
 
     def test_push_uses_translated_preview_and_post_time_without_interpreting_cq_segments(self):
         from nonebot.adapters.onebot.v11 import Message
-        files = import_hok_module('zfile')
-        clock = import_hok_module('ztime')
+        files = import_project_module('glorybond.storage.files')
+        clock = import_project_module('glorybond.time')
         post = {'id': '11', 'name': 'Tibo', 'username': 'thsottiaux',
                 'created_at': '2026-10-13T23:32:43Z',
                 'text': 'We propose a new function.',
@@ -340,7 +340,7 @@ class XRouteTests(unittest.IsolatedAsyncioTestCase):
         from pathlib import Path
         from tempfile import TemporaryDirectory
         import os
-        files = import_hok_module('zfile')
+        files = import_project_module('glorybond.storage.files')
         previous = os.getcwd()
         try:
             with TemporaryDirectory() as directory:

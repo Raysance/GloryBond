@@ -11,22 +11,18 @@ from pydantic import ValidationError
 from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.roleplay import RoleplayService
-from agent_console.reply_style import default_assistant_instruction
-from agent_console.identity import local_principal
-from agent_console.roleplay_models import RoleDefinition
-from agent_console.roleplay_store import roleplay_operation
-from agent_console.tools.roleplay import (
-    AddArgs,
-    PreferencesArgs,
-    register_roleplay_tools,
-)
-from agent_console.tasks import TaskScheduler
+from glorybond.agent.roleplay import RoleplayService
+from glorybond.agent.reply_style import default_assistant_instruction
+from glorybond.agent.identity import local_principal
+from glorybond.agent.roleplay_models import RoleDefinition
+from glorybond.agent.roleplay_store import roleplay_operation
+from glorybond.agent.tools.roleplay import AddArgs, PreferencesArgs, register_roleplay_tools
+from glorybond.agent.tasks import TaskScheduler
 from tests.test_agent_runtime import State, Sink, Clock
 
 
 BUILTINS = [
-    json.loads(p.read_text()) for p in sorted(Path("shared/agent/roles").glob("*.json"))
+    json.loads(p.read_text()) for p in sorted(Path("resources/agent/roles").glob("*.json"))
 ]
 
 

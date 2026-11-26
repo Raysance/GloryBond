@@ -5,19 +5,19 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-HISTORY = import_hok_module('business.player_client_history')
-DATA = import_hok_module('business.player_data')
-PRESENT = import_hok_module('business.player_client_screens')
-HANDLER = import_hok_module('event_handlers.player_client')
-ADAPTER = import_hok_module('api_adapters.player_client')
-ZFUNC = import_hok_module('zfunc')
-STATIC = import_hok_module('zstatic')
-ZTIME = import_hok_module('ztime')
-ZFILE = import_hok_module('zfile')
-METRICS = import_hok_module('business.battle_metrics')
-ZDB = import_hok_module('zdb')
+HISTORY = import_project_module('glorybond.features.game.player_client_history')
+DATA = import_project_module('glorybond.features.game.player_data')
+PRESENT = import_project_module('glorybond.features.game.player_client_screens')
+HANDLER = import_project_module('glorybond.apps.qq.handlers.player_client')
+ADAPTER = import_project_module('glorybond.integrations.player_client')
+ZFUNC = import_project_module('glorybond.features.facade')
+STATIC = import_project_module('glorybond.config.settings')
+ZTIME = import_project_module('glorybond.time')
+ZFILE = import_project_module('glorybond.storage.files')
+METRICS = import_project_module('glorybond.features.game.battle_metrics')
+ZDB = import_project_module('glorybond.storage.database')
 
 PLAYER = dict(uid=2**61+3, logic_world_id=8, fake_description_id=9)
 START = ZTIME.parse_chat_time_bound('2026-10-23 12:00:00')

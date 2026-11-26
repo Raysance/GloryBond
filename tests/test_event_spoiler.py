@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-SPOILER = import_hok_module("event_handlers.spoiler")
-ZFUNC = import_hok_module("zfunc")
+SPOILER = import_project_module("glorybond.apps.qq.handlers.spoiler")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeEvent:

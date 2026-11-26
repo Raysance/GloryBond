@@ -9,11 +9,11 @@ try:
 except ImportError:
     fakeredis = None
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-WEB_ARTIFACTS = import_hok_module("business.web_artifacts")
-ZFUNC = import_hok_module("zfunc")
+WEB_ARTIFACTS = import_project_module("glorybond.apps.web.artifacts")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeRedis:

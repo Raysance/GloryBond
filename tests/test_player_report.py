@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import Mock
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-PLAYER_REPORT = import_hok_module("business.player_report")
-ZFUNC = import_hok_module("zfunc")
+PLAYER_REPORT = import_project_module("glorybond.features.game.player_report")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeAnalyses:

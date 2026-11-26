@@ -3,8 +3,10 @@
 /local_debugger/.venv/
 /build/
 /agent_runtime/build/
+/src/agent_runtime/build/
 /dist/
 /web/html/
+/src/glorybond/apps/web/html/
 *.egg-info/
 
 # TEMP LOG
@@ -40,6 +42,8 @@ __MACOSX/
 /redis-migration-backups/
 /hok/debug_tools/*/
 !/hok/debug_tools/AGENTS.md
+/tools/debugger/experiments/*/
+/tools/debugger/.venv/
 emojiref.json
 
 /data/player_client/

@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-HISTORY_HANDLER = import_hok_module("event_handlers.history_query")
-ZFUNC = import_hok_module("zfunc")
+HISTORY_HANDLER = import_project_module("glorybond.apps.qq.handlers.history_query")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class EventStub:

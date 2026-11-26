@@ -6,9 +6,9 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-GEN = import_hok_module('tools.gen_battle_res')
+GEN = import_project_module('glorybond.rendering.gen_battle_res')
 
 
 class BattleImageNumberTests(unittest.TestCase):

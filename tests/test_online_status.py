@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ONLINE_STATUS = import_hok_module("business.online_status")
-ZAPI = import_hok_module("zapi")
-ZFUNC = import_hok_module("zfunc")
+ONLINE_STATUS = import_project_module("glorybond.features.game.online_status")
+ZAPI = import_project_module("glorybond.integrations.api")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class OnlineStatusTests(unittest.TestCase):

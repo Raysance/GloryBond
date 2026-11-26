@@ -14,13 +14,13 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `shared/camp.py` | 计算会话路径，复用SDK客户端，转发业务查询；截图只取首帧并关闭所有连接 |
-| `hok/api_adapters/wzry.py` | Bot调用入口，记录不含服务端正文的错误类型 |
-| `web/utils.py` | 保持网页业务签名，传SDK会话路径 |
-| `login_console/providers.py` | 登录页面编排，只接收状态和角色标签；SDK保存会话 |
-| `login_console/manager.py` | 授权、限速、挑战期限与租约，成功后触发SDK提交 |
-| `hok/event_handlers/live_watch.py` | 解析观战目标，线程中获取首帧，映射安全提示 |
-| `hok/zfile.py` | `save_watch_frame`为每次图片创建独立产物文件名 |
+| `src/glorybond/integrations/camp.py` | 计算会话路径，复用SDK客户端，转发业务查询；截图只取首帧并关闭所有连接 |
+| `src/glorybond/integrations/wzry.py` | Bot调用入口，记录不含服务端正文的错误类型 |
+| `src/glorybond/apps/web/utils.py` | 保持网页业务签名，传SDK会话路径 |
+| `src/glorybond/accounts/providers.py` | 登录页面编排，只接收状态和角色标签；SDK保存会话 |
+| `src/glorybond/accounts/manager.py` | 授权、限速、挑战期限与租约，成功后触发SDK提交 |
+| `src/glorybond/apps/qq/handlers/live_watch.py` | 解析观战目标，线程中获取首帧，映射安全提示 |
+| `src/glorybond/storage/files.py` | `save_watch_frame`为每次图片创建独立产物文件名 |
 | `tests/test_camp_sdk_boundary.py` | 路径式调用、实例复用、公开接口及协议隔离 |
 | `tests/test_event_live_watch.py` | 玩家解析、单张截图、失败关闭、并发拒绝与安全输出 |
 

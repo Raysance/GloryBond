@@ -8,13 +8,13 @@ from unittest.mock import patch
 
 from agent_runtime import Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
-from agent_console.tools.application import register_application_tools
+from glorybond.agent.tools.application import register_application_tools
 from agent_runtime.tools.executor import execute
-from agent_console.tools.reference_data import ReferenceData, account_id_binding
+from glorybond.agent.tools.reference_data import ReferenceData, account_id_binding
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = json.loads((ROOT / "shared/agent/reference_data/manifest.json").read_text())
+MANIFEST = json.loads((ROOT / "resources/agent/reference_data/manifest.json").read_text())
 
 
 def values():
@@ -146,7 +146,7 @@ class ReferenceTests(unittest.TestCase):
         )
 
     def test_remote_source_refreshes_without_opening_database(self):
-        from agent_console import remote_worker
+        from glorybond.agent import remote_worker
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "static_variable.json"

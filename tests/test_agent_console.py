@@ -8,21 +8,18 @@ from pydantic import BaseModel
 
 from agent_runtime import Principal, ToolRegistry
 from agent_runtime.models import RunRequest, ToolContext
-from agent_console.capabilities import remote_chat_identity
-from agent_console.tasks import task_request
-from agent_console.tools.application import register_application_tools
-from agent_console.tools.observations import project_sql_result
-from agent_console.tools.sql_validation import (
-    ChatSQLValidationError,
-    validate_readonly_sql,
-)
+from glorybond.agent.capabilities import remote_chat_identity
+from glorybond.agent.tasks import task_request
+from glorybond.agent.tools.application import register_application_tools
+from glorybond.agent.tools.observations import project_sql_result
+from glorybond.agent.tools.sql_validation import ChatSQLValidationError, validate_readonly_sql
 
 
 class SQLTests(unittest.TestCase):
     def setUp(self):
         root = Path(__file__).parents[1]
         self.catalog = json.loads(
-            (root / "shared/agent/hok_sql/catalog.json").read_text()
+            (root / "resources/agent/hok_sql/catalog.json").read_text()
         )
 
     def validate(self, sql, params=None):
@@ -78,7 +75,7 @@ class SQLTests(unittest.TestCase):
                 self.validate("SELECT player_key FROM hok.chat_player_battles WHERE player_key=" + placeholder, params)
 
     def test_batch_validation_failure_opens_no_connection(self):
-        from agent_console import remote_worker
+        from glorybond.agent import remote_worker
 
         with patch.dict(
             remote_worker.CONTEXT,
@@ -161,7 +158,7 @@ class AdapterTests(unittest.TestCase):
         self.assertNotIn("attributes", task["principal"])
 
     def test_scope_and_cross_group_permission_are_still_both_required(self):
-        from agent_console.remote_worker import trusted_scope
+        from glorybond.agent.remote_worker import trusted_scope
 
         ordinary = Principal(
             "user",

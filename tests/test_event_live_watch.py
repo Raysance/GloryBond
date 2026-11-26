@@ -4,13 +4,13 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from hok_camp_client import CampError
-from local_debugger import import_hok_module
-from shared import camp
+from tools.debugger import import_project_module
+from glorybond.integrations import camp
 
-WATCH = import_hok_module('event_handlers.live_watch')
-ZFUNC = import_hok_module('zfunc')
-ZFILE = import_hok_module('zfile')
-ADAPTER = import_hok_module('api_adapters.wzry')
+WATCH = import_project_module('glorybond.apps.qq.handlers.live_watch')
+ZFUNC = import_project_module('glorybond.features.facade')
+ZFILE = import_project_module('glorybond.storage.files')
+ADAPTER = import_project_module('glorybond.integrations.wzry')
 
 
 class Event:

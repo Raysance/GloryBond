@@ -25,7 +25,7 @@ while (($#)); do
     esac
 done
 
-if [[ ! -f "$nbot_source/web/app.py" ]]; then
+if [[ ! -f "$nbot_source/src/glorybond/apps/web/app.py" ]]; then
     printf 'HOK_BUNDLE_ERROR: unified web source is missing\n' >&2
     exit 66
 fi

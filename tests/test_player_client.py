@@ -2,13 +2,13 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-HANDLER = import_hok_module('event_handlers.player_client')
-ADAPTER = import_hok_module('api_adapters.player_client')
-ZFUNC = import_hok_module('zfunc')
-DYNAMIC = import_hok_module('zdynamic')
-PRESENTATION = import_hok_module('business.player_client')
+HANDLER = import_project_module('glorybond.apps.qq.handlers.player_client')
+ADAPTER = import_project_module('glorybond.integrations.player_client')
+ZFUNC = import_project_module('glorybond.features.facade')
+DYNAMIC = import_project_module('glorybond.runtime')
+PRESENTATION = import_project_module('glorybond.features.game.player_client')
 
 
 class CommandTests(unittest.TestCase):
@@ -124,7 +124,7 @@ class AdapterTests(unittest.TestCase):
         from hok_research import PlayerRef
         adapter,fake=self.make()
         fake.game.return_value={'value':[1]}
-        clock=import_hok_module('ztime')
+        clock=import_project_module('glorybond.time')
         with patch.object(clock,'monotonic_seconds',return_value=0):
             first=adapter._read('game',PlayerRef(1,2,3))
         first['value'].append(9)
@@ -171,7 +171,7 @@ class AdapterTests(unittest.TestCase):
         error = LobbyLoginLimited(codec.decode(codec.encode(1042, body)))
         adapter, fake = self.make()
         fake.refresh_friend_states.side_effect = error
-        util = import_hok_module('zutil')
+        util = import_project_module('glorybond.common')
         with patch.object(util, 'log_message') as log:
             with self.assertRaises(LobbyLoginLimited):
                 adapter.query('friend_states')
@@ -183,8 +183,8 @@ class AdapterTests(unittest.TestCase):
 
     def test_incomplete_response_logs_only_counts_and_stage_timing_without_caching_or_retry(self):
         from hok_research import QueryTimeout
-        clock = import_hok_module('ztime')
-        util = import_hok_module('zutil')
+        clock = import_project_module('glorybond.time')
+        util = import_project_module('glorybond.common')
         error = QueryTimeout(records=[{'private': 'PRIVATE_SENTINEL'}],
                              chunks=[{'secret': 'PRIVATE_SENTINEL'}, {'secret': 'PRIVATE_SENTINEL'}])
         adapter, fake = self.make()
@@ -243,7 +243,7 @@ class RateTests(unittest.TestCase):
     def test_short_minute_quota_wait_does_not_abort_batch(self):
         redis = Mock()
         redis.eval.side_effect = [[0, 5000, 3], [1, 0, 0]]
-        ztime = import_hok_module("ztime")
+        ztime = import_project_module("glorybond.time")
         with patch.object(DYNAMIC, "redis_deamon", redis), patch.object(ZFUNC, "player_client_config", self.settings), \
              patch.object(ztime, "sleep_seconds") as sleep:
             ZFUNC.player_client_rate_gate("query")
@@ -277,7 +277,7 @@ class RateTests(unittest.TestCase):
     def test_project_default_failure_cooldowns_persist_one_minute(self):
         from hok_research import QueryRejected
 
-        settings = import_hok_module('zstatic').player_client_config
+        settings = import_project_module('glorybond.config.settings').player_client_config
         redis = Mock()
         with patch.object(DYNAMIC, 'redis_deamon', redis), patch.object(ZFUNC, 'player_client_config', settings):
             for error, login in ((TimeoutError(), True), (QueryRejected(262034, {}), False),
@@ -291,8 +291,8 @@ class RateTests(unittest.TestCase):
     def test_query_timeout_discards_connection_and_releases_slot_without_relogin_or_replay(self):
         import threading
         from hok_research import QueryTimeout
-        zapi = import_hok_module('zapi')
-        zfile = import_hok_module('zfile')
+        zapi = import_project_module('glorybond.integrations.api')
+        zfile = import_project_module('glorybond.storage.files')
         adapter, factory, lock = Mock(), Mock(), threading.Lock()
         factory.return_value = adapter
         adapter.query.side_effect = QueryTimeout()
@@ -316,7 +316,7 @@ class RateTests(unittest.TestCase):
     def test_normal_minute_queue_wait_preserves_limits_without_driving_sdk(self):
         self.settings['rate_limit']['max_wait_seconds']=65
         redis=Mock();redis.eval.side_effect=[[0,50000,3],[1,0,0]]
-        adapter=Mock();clock=import_hok_module('ztime')
+        adapter=Mock();clock=import_project_module('glorybond.time')
         with patch.object(DYNAMIC,'redis_deamon',redis),patch.object(DYNAMIC,'player_client_adapter',adapter), \
              patch.object(ZFUNC,'player_client_config',self.settings),patch.object(clock,'sleep_seconds') as sleep:
             ZFUNC.player_client_rate_gate('query')
@@ -337,7 +337,7 @@ class RateTests(unittest.TestCase):
         adapter.on_error = ZFUNC.player_client_request_error
         redis, factory, lock = Mock(), Mock(), threading.Lock()
         redis.eval.side_effect = [[0, 5000, 3], [1, 0, 0], None]
-        clock = import_hok_module('ztime')
+        clock = import_project_module('glorybond.time')
         with patch.object(DYNAMIC, 'player_client_lock', lock), \
              patch.object(DYNAMIC, 'player_client_adapter', adapter), \
              patch.object(DYNAMIC, 'player_client_session_fingerprint', 'account'), \
@@ -345,7 +345,7 @@ class RateTests(unittest.TestCase):
              patch.object(ZFUNC, 'player_client_config', {**self.settings, 'enabled': True}), \
              patch.object(ZFUNC, '_player_client_account_fingerprint', return_value='account'), \
              patch.object(ZFUNC, 'log_message'), \
-             patch.object(import_hok_module('zapi'), 'PlayerClientAdapter', factory), \
+             patch.object(import_project_module('glorybond.integrations.api'), 'PlayerClientAdapter', factory), \
              patch.object(clock, 'sleep_seconds') as sleep:
             with self.assertRaises(ServerControl) as caught:
                 ZFUNC.player_client_query('history',

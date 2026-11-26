@@ -6,9 +6,9 @@ from unittest.mock import patch
 import httpx
 
 from agent_runtime import ModelRequest
-from agent_console.provider import DeepSeekModel
-from agent_console import remote_worker as worker
-from agent_console.task_timing import normalized_task_action, next_task_time
+from glorybond.agent.provider import DeepSeekModel
+from glorybond.agent import remote_worker as worker
+from glorybond.agent.task_timing import normalized_task_action, next_task_time
 
 
 class ProviderTests(unittest.IsolatedAsyncioTestCase):
@@ -43,7 +43,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         registry.register(name='lookup', description='查询数据', args_model=EmptyArgs, handler=lambda args, ctx: {'value': 7})
         model = DeepSeekModel(api_key='secret', base_url='https://example.invalid', model='test', thinking=True)
         runtime = AgentRuntime(model=model, registry=registry, state=State(), output=Sink(), clock=Clock())
-        with patch('agent_console.provider.httpx.AsyncClient', side_effect=client):
+        with patch('glorybond.agent.provider.httpx.AsyncClient', side_effect=client):
             result = await runtime.run(RunRequest('读数据', 'session', Principal('user')))
         self.assertEqual(result['text'], '7')
         self.assertEqual(len(requests), 2)
@@ -66,7 +66,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         model = DeepSeekModel(api_key="secret", base_url="https://example.invalid", model="test", thinking=True)
         tools = [{"type": "function", "function": {"name": "lookup", "parameters": {"type": "object"}}}]
         forced = {"type": "function", "function": {"name": "lookup"}}
-        with patch("agent_console.provider.httpx.AsyncClient", side_effect=client):
+        with patch("glorybond.agent.provider.httpx.AsyncClient", side_effect=client):
             await model.complete_request(ModelRequest([{"role": "user", "content": "hi"}], tools, forced), delta)
             chain = [{"role": "assistant", "content": "", "reasoning_content": "已有推理必须原样保留", "tool_calls": [{"id": "call"}]},
                      {"role": "assistant", "content": "旧版无思考的回答"}]

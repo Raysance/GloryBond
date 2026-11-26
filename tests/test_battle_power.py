@@ -1,13 +1,13 @@
 import json
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-BATTLE_POWER = import_hok_module("business.battle_power")
-GEN_COPLAYER = import_hok_module("tools.gen_coplayer_analyses")
-ZFILE = import_hok_module("zfile")
-ZFUNC = import_hok_module("zfunc")
+BATTLE_POWER = import_project_module("glorybond.features.game.battle_power")
+GEN_COPLAYER = import_project_module("glorybond.rendering.gen_coplayer_analyses")
+ZFILE = import_project_module("glorybond.storage.files")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeEvaluatorPool:

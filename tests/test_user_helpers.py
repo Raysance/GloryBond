@@ -2,11 +2,11 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-USER_HELPERS = import_hok_module("business.user_helpers")
-ZFUNC = import_hok_module("zfunc")
+USER_HELPERS = import_project_module("glorybond.features.game.user_helpers")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class UserHelperTests(unittest.TestCase):

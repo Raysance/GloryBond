@@ -7,21 +7,14 @@ from pathlib import Path
 import unittest
 from unittest.mock import AsyncMock, patch
 import httpx
-from agent_console.provider import DeepSeekModel
+from glorybond.agent.provider import DeepSeekModel
 
 from agent_runtime import FinalizationContext, Principal, RunRequest
-from agent_console.replies import (
-    ReplyComposer,
-    ReplyPolicy,
-    DeliveryHistory,
-    expression_role,
-    source_packet,
-    validate_chat,
-)
+from glorybond.agent.replies import ReplyComposer, ReplyPolicy, DeliveryHistory, expression_role, source_packet, validate_chat
 from tests.test_agent_runtime import ScriptedModel
 
 
-ROLE = json.loads(Path("shared/agent/roles/makise_kurisu.json").read_text())
+ROLE = json.loads(Path("resources/agent/roles/makise_kurisu.json").read_text())
 DETAIL = "这8场拿下5胜，胜率62.5%，这段战绩整体表现不错。统计范围为这8场。" + "这些记录只描述当前样本，比较实力仍需要相同口径和充分依据。" * 12
 CHAT = "这8场拿下5胜，胜率62.5%，这段表现不错。"
 
@@ -251,7 +244,7 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
             response_format={"type": "json_object"},
         )
         with patch(
-            "agent_console.provider.httpx.AsyncClient",
+            "glorybond.agent.provider.httpx.AsyncClient",
             side_effect=lambda **kw: client_type(
                 transport=httpx.MockTransport(transport), **kw
             ),
@@ -293,7 +286,7 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
     async def test_latest_role_is_used_even_when_original_task_prompt_has_old_role(
         self,
     ):
-        neutral = json.loads(Path("shared/agent/roles/assistant.json").read_text())
+        neutral = json.loads(Path("resources/agent/roles/assistant.json").read_text())
         model = ScriptedModel(
             [response(chat="8场5胜，胜率62.5%。样本较少，暂时不足以判断实力。")]
         )
@@ -430,7 +423,7 @@ class ComposerTests(unittest.IsolatedAsyncioTestCase):
 class StagedDeliveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_web_delivery_history_keeps_parts_out_of_expression_input_and_variants(self):
         from types import SimpleNamespace
-        from agent_console.server import EventBroker
+        from glorybond.apps.console.server import EventBroker
         ctx = context()
         broker = EventBroker(SimpleNamespace(redact=lambda value: value))
         part = '第一部分：统计的适用范围有限。'

@@ -1,12 +1,12 @@
 import json
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-TODAY_HERO = import_hok_module("business.today_hero")
-ZFUNC = import_hok_module("zfunc")
-ZTIME = import_hok_module("ztime")
+TODAY_HERO = import_project_module("glorybond.features.game.today_hero")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZTIME = import_project_module("glorybond.time")
 
 
 class FakeHeroPool:

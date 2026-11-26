@@ -3,12 +3,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-HANDLER = import_hok_module("event_handlers.player_client")
-RULES = import_hok_module("event_rules")
-STATIC = import_hok_module("zstatic")
-ZFUNC = import_hok_module("zfunc")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.player_client")
+RULES = import_project_module("glorybond.apps.qq.rules")
+STATIC = import_project_module("glorybond.config.settings")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class ShortcutTests(unittest.IsolatedAsyncioTestCase):

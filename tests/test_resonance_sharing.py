@@ -8,13 +8,13 @@ import unittest
 from unittest.mock import Mock, patch
 
 from PIL import Image
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 from tests.test_player_client_integration import HISTORY, STATIC, PLAYER, match, client_result
 
-ZFILE = import_hok_module('zfile')
-ZFUNC = import_hok_module('zfunc')
-DETAIL = import_hok_module('business.battle_detail')
-GEN = import_hok_module('tools.gen_battle_res')
+ZFILE = import_project_module('glorybond.storage.files')
+ZFUNC = import_project_module('glorybond.features.facade')
+DETAIL = import_project_module('glorybond.features.game.battle_detail')
+GEN = import_project_module('glorybond.rendering.gen_battle_res')
 
 
 def detail_fixture():
@@ -70,7 +70,7 @@ class ResonanceSharingTests(unittest.TestCase):
         api.assert_not_called(); render.assert_called_once()
 
     def test_share_consumer_disables_official_mode_filter_without_sending_a_message(self):
-        source = ast.parse(Path('hok/zscheduler.py').read_text(encoding='utf-8-sig'))
+        source = ast.parse(Path('src/glorybond/apps/qq/scheduler.py').read_text(encoding='utf-8-sig'))
         handler = next(node for node in source.body if isinstance(node, ast.AsyncFunctionDef) and node.name == 'run_web_shared_btls_processor')
         handler.decorator_list = []
         from types import SimpleNamespace
@@ -112,7 +112,7 @@ class ResonanceSharingTests(unittest.TestCase):
     def test_public_image_cache_reuses_original_across_render_sizes_without_another_download(self):
         from io import BytesIO
         stream = BytesIO(); Image.new('RGB', (100, 100), '#4488bb').save(stream, format='PNG')
-        api = import_hok_module('zapi')
+        api = import_project_module('glorybond.integrations.api')
         with tempfile.TemporaryDirectory() as tmp, patch.object(STATIC, 'battle_image_cache_path', tmp), \
              patch.object(api, 'wzry_battle_image_bytes', return_value=stream.getvalue()) as download:
             for size in [(20, 20), (35, 35)]:

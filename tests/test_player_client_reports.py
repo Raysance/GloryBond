@@ -7,17 +7,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-BUSINESS = import_hok_module("business.player_client")
-HANDLER = import_hok_module("event_handlers.player_client")
-RENDER = import_hok_module("tools.gen_player_client")
-SUMMARY_RENDER = import_hok_module("tools.gen_player_summary")
-ZFUNC = import_hok_module("zfunc")
-ZFILE = import_hok_module("zfile")
+BUSINESS = import_project_module("glorybond.features.game.player_client")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.player_client")
+RENDER = import_project_module("glorybond.rendering.gen_player_client")
+SUMMARY_RENDER = import_project_module("glorybond.rendering.gen_player_summary")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZFILE = import_project_module("glorybond.storage.files")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
-STATIC = import_hok_module("zstatic")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
+STATIC = import_project_module("glorybond.config.settings")
 
 
 def hero_result():
@@ -114,7 +114,7 @@ class HeroReportTests(unittest.TestCase):
                 self.assertNotIn("should not be displayed", result["text"])
 
     def test_downloads_only_missing_selected_hero_avatars_and_keeps_cached_bytes(self):
-        api = import_hok_module("zapi")
+        api = import_project_module("glorybond.integrations.api")
         with patch.object(ZFUNC, "player_client_config", self.settings), \
              patch.object(ZFILE, "load_hero_tier_avatar_cache", return_value=({"106": b"cached"}, [{"heroId": "107"}])) as load, \
              patch.object(api, "tianyuanzhiyi_hero_avatars_api", return_value={"107": b"downloaded"}) as fetch, \
@@ -204,7 +204,7 @@ class HeroReportTests(unittest.TestCase):
 
     def test_game_and_single_hero_images_do_not_draw_the_outside_explanation(self):
         from PIL import ImageDraw
-        project = import_hok_module("business.player_client_screens")
+        project = import_project_module("glorybond.features.game.player_client_screens")
         original,drawn = ImageDraw.ImageDraw.text,[]
         def track(draw,xy,text,*args,**kwargs):
             drawn.append(str(text))
@@ -271,7 +271,7 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["image_path"], "/tmp/card.png")
 
     async def test_entry_sends_image_or_fallback_to_the_original_event(self):
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         handler = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "f_player_client")
         handler.decorator_list = []
         namespace = {"__package__": "hok", "MessageEvent": object, "add_msg": MagicMock()}
@@ -290,7 +290,7 @@ class ClientDeliveryTests(unittest.IsolatedAsyncioTestCase):
                 namespace["add_msg"].assert_called_once_with("摘要", event=event)
 
     async def test_original_reply_is_queued_before_client_result_and_survives_client_failure(self):
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         handler = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "f_player_client")
         handler.decorator_list = []
         order = []

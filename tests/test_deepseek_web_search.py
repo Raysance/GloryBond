@@ -4,12 +4,12 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from urllib.parse import urlparse
 
-from local_debugger import import_hok_module
-from agent_console import remote_worker
-from agent_console.tools.application import WebArgs
+from tools.debugger import import_project_module
+from glorybond.agent import remote_worker
+from glorybond.agent.tools.application import WebArgs
 
-AI = import_hok_module("api_adapters.ai")
-ZAPI = import_hok_module("zapi")
+AI = import_project_module("glorybond.integrations.ai")
+ZAPI = import_project_module("glorybond.integrations.api")
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -95,14 +95,14 @@ class DeepSeekSearchTests(unittest.TestCase):
 
     def test_worker_extracts_same_config_and_function_and_routes_only_to_deepseek(self):
         namespace = {"urlparse": urlparse}
-        remote_worker.extracted_functions(ROOT / "hok/zstatic.py", ["_build_deepseek_search_config"], namespace)
+        remote_worker.extracted_functions(ROOT / "src/glorybond/config/settings.py", ["_build_deepseek_search_config"], namespace)
         config = namespace["_build_deepseek_search_config"]({"DeepSeekSearch": self.config,
                    "ChatAPI": {"api_key_env": "OTHER_KEY"}},
                    {"HOK_DEEPSEEK_API_KEY": "search-key", "OTHER_KEY": "wrong-provider-key"})
         self.assertEqual(config["api_key"], "search-key")
         namespace.update(deepseek_search_config=config,
                          direct_request=Mock(return_value=Mock(status_code=200, json=lambda: {"results": []})))
-        remote_worker.extracted_functions(ROOT / "hok/api_adapters/ai.py", ["deepseek_web_search"], namespace)
+        remote_worker.extracted_functions(ROOT / "src/glorybond/integrations/ai.py", ["deepseek_web_search"], namespace)
         old = Mock(side_effect=AssertionError("legacy search must not run"))
         with patch.dict(remote_worker.CONTEXT, {"store": Mock(), "api": {**namespace, "aliyun_web_search": old}}):
             result = remote_worker.dispatch({"op": "web_search", "query": "q", "max_results": 1})

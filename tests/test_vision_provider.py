@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 
-from agent_console.image_inputs import ImageStore
-from agent_console.provider import DeepSeekModel, ModelUnavailable, remote_model_options
+from glorybond.agent.image_inputs import ImageStore
+from glorybond.agent.provider import DeepSeekModel, ModelUnavailable, remote_model_options
 from agent_runtime import AgentRuntime, ImageInput, Principal, RunRequest, ToolRegistry
 from tests.test_agent_images import png
 from tests.test_agent_runtime import Args, Clock, Sink, State
@@ -31,7 +31,7 @@ class VisionProviderTests(unittest.IsolatedAsyncioTestCase):
             self.client_options.append(dict(options))
             options.pop('proxy', None)
             return client(transport=httpx.MockTransport(handler), **options)
-        return patch('agent_console.provider.httpx.AsyncClient', side_effect=factory)
+        return patch('glorybond.agent.provider.httpx.AsyncClient', side_effect=factory)
 
     async def test_current_history_and_tool_images_use_ark_while_text_keeps_its_provider(self):
         requests = []

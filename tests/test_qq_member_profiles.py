@@ -13,17 +13,17 @@ from PIL import Image
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.provider import DeepSeekModel
-from local_debugger import import_hok_module
-from qq_agent.member_profiles import register_member_profile_tool
-from qq_agent.service import QQAgentService, qq_principal
+from glorybond.agent.provider import DeepSeekModel
+from tools.debugger import import_project_module
+from glorybond.apps.qq.agent.member_profiles import register_member_profile_tool
+from glorybond.apps.qq.agent.service import QQAgentService, qq_principal
 from tests.test_agent_runtime import Clock, Sink, State
 
 
-PROFILES = import_hok_module('business.qq_profiles')
-ADAPTER = import_hok_module('utils.qq_profiles')
-API = import_hok_module('api_adapters.qq_profiles')
-FUNCS = import_hok_module('zfunc')
+PROFILES = import_project_module('glorybond.apps.qq.profile_data')
+ADAPTER = import_project_module('glorybond.apps.qq.profiles')
+API = import_project_module('glorybond.integrations.qq_profiles')
+FUNCS = import_project_module('glorybond.features.facade')
 RECORD = {'group_id': 200, 'user_id': 100, 'nickname': '昵称', 'card': '群名片',
           'role': 'admin', 'title': '群头衔', 'level': '7', 'age': 0, 'sex': 'unknown',
           'join_time': 123, 'last_sent_time': 456, 'title_expire_time': -1,
@@ -65,7 +65,7 @@ class QQReadTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bot.get_group_member_info.await_count, 1)
 
     async def test_avatar_failure_keeps_verified_text_and_no_avatar_read_for_nonmember(self):
-        zapi = import_hok_module('zapi')
+        zapi = import_project_module('glorybond.integrations.api')
         with patch.object(ADAPTER, 'load_group_member_profile', AsyncMock(return_value=RECORD)), \
              patch.object(zapi, 'qq_avatar_bytes', side_effect=RuntimeError('unavailable')) as avatar:
             snapshot = await FUNCS.agent_read_group_member_profile(group_id='200', user_id='100')
@@ -195,7 +195,7 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         self.reader.assert_awaited_with(group_id='200', user_id='100', include_avatar=False)
 
     async def test_picture_budget_includes_current_quoted_images_and_keeps_text(self):
-        from agent_console.image_inputs import ImageLimits
+        from glorybond.agent.image_inputs import ImageLimits
         self.service.image_store.limits = ImageLimits(max_images=1)
         saved = self.service.image_store.save(png())
         image = self.service.image_store.inputs([saved['id']])[0]
@@ -244,7 +244,7 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         model = DeepSeekModel(api_key='test', base_url='https://model.invalid', model='text', vision_model='vision',
                               image_store=self.service.image_store)
         client = httpx.AsyncClient
-        with patch('agent_console.provider.httpx.AsyncClient', side_effect=lambda **kw: client(transport=httpx.MockTransport(transport), **kw)):
+        with patch('glorybond.agent.provider.httpx.AsyncClient', side_effect=lambda **kw: client(transport=httpx.MockTransport(transport), **kw)):
             runtime = AgentRuntime(model=model, registry=self.registry, state=state, output=sink, clock=Clock())
             result = await runtime.run(RunRequest('我的资料和头像', 's', self.principal, required_tools=('read_group_member_profile',)))
         self.assertEqual(result['text'], '资料已读取，头像是红色。')

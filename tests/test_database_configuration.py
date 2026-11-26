@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
-from web import database
+from tools.debugger import import_project_module
+from glorybond.apps.web import database
 
 
-ZDB = import_hok_module("zdb")
+ZDB = import_project_module("glorybond.storage.database")
 
 
 class DatabaseConfigurationTests(unittest.TestCase):

@@ -1,10 +1,10 @@
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-REP_HANDLER = import_hok_module("event_handlers.representative")
-ZFUNC = import_hok_module("zfunc")
+REP_HANDLER = import_project_module("glorybond.apps.qq.handlers.representative")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class RepresentativeEventTests(unittest.IsolatedAsyncioTestCase):

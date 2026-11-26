@@ -5,15 +5,15 @@ import unittest
 from unittest.mock import patch
 
 from hok_research import QueryTimeout, QueryRejected
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 from tests.test_client_online_status import state
 
-ZFUNC = import_hok_module('zfunc')
-ZTIME = import_hok_module('ztime')
-ZAPI = import_hok_module('zapi')
-DYNAMIC = import_hok_module('zdynamic')
-ONLINE = import_hok_module('business.online_status')
-ZFILE = import_hok_module('zfile')
+ZFUNC = import_project_module('glorybond.features.facade')
+ZTIME = import_project_module('glorybond.time')
+ZAPI = import_project_module('glorybond.integrations.api')
+DYNAMIC = import_project_module('glorybond.runtime')
+ONLINE = import_project_module('glorybond.features.game.online_status')
+ZFILE = import_project_module('glorybond.storage.files')
 
 
 def snapshot(name='玩家'):

@@ -5,16 +5,16 @@ from unittest.mock import Mock, patch
 from PIL import Image, ImageDraw
 from hok_research import Profile, PlayerRef, HeroExtraStatistics, HeroTitles
 from hok_research.player_pages import battle_display
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-ADAPTER=import_hok_module('api_adapters.player_client')
-SCREENS=import_hok_module('business.player_client_screens')
-CARDS=import_hok_module('business.player_client')
-RENDER=import_hok_module('tools.gen_player_client')
-ZFILE=import_hok_module('zfile')
-STATIC=import_hok_module('zstatic')
-ZFUNC=import_hok_module('zfunc')
-SUMMARY_RENDER=import_hok_module('tools.gen_player_summary')
+ADAPTER=import_project_module('glorybond.integrations.player_client')
+SCREENS=import_project_module('glorybond.features.game.player_client_screens')
+CARDS=import_project_module('glorybond.features.game.player_client')
+RENDER=import_project_module('glorybond.rendering.gen_player_client')
+ZFILE=import_project_module('glorybond.storage.files')
+STATIC=import_project_module('glorybond.config.settings')
+ZFUNC=import_project_module('glorybond.features.facade')
+SUMMARY_RENDER=import_project_module('glorybond.rendering.gen_player_summary')
 
 
 def battle_row(count=104,score=7370):
@@ -140,7 +140,7 @@ class PlayerPageTests(unittest.TestCase):
         self.assertTrue(cards['heroes'])
         self.assertEqual(honors['hero_id'],106)
         self.assertEqual(game['scope'],'season')
-        models=import_hok_module('business.player_client_profile')
+        models=import_project_module('glorybond.features.game.player_client_profile')
         self.assertEqual(CARDS.hero_report('配置昵称',cards,STATIC.player_client_config,STATIC.HeroList)['label'],'LYG.未央')
         self.assertEqual(models.hero_summary_report(honors,STATIC.HeroList)['label'],'LYG.未央')
         self.assertEqual(models.statistics_report('配置昵称',game)['label'],'LYG.未央')

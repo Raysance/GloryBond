@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, Mock, patch
 from nonebot.adapters.onebot.v11 import GroupMessageEvent
 from nonebot.adapters.onebot.v11.bot import _check_at_me
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-INGRESS = import_hok_module("event_ingress")
-PROFILES = import_hok_module("utils.qq_profiles")
-FUNCS = import_hok_module("zfunc")
-DB = import_hok_module("zdb")
+INGRESS = import_project_module("glorybond.apps.qq.ingress")
+PROFILES = import_project_module("glorybond.apps.qq.profiles")
+FUNCS = import_project_module("glorybond.features.facade")
+DB = import_project_module("glorybond.storage.database")
 
 
 def event(segments):

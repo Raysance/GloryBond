@@ -7,11 +7,11 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-GEN = import_hok_module("tools.gen_emoji_image")
-API = import_hok_module("zapi")
+GEN = import_project_module("glorybond.rendering.gen_emoji_image")
+API = import_project_module("glorybond.integrations.api")
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = ROOT / "resources/wzry_images/emoji_template"
 DEFAULT_NAMES = ("001_asuka_明日香.webp", "002_kurisu_牧濑红莉栖.jpg", "003_kaguya_辉夜.webp")

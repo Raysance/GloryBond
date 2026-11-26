@@ -6,17 +6,17 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from local_debugger import import_hok_module
-from agent_console.capabilities import application_prompt
-from agent_console.replies import ReplyPolicy, reply_instruction
-from agent_console.reply_style import reply_style_instruction
-from agent_console.remote import RemoteBridge
-from qq_agent.output import QQOutput
+from tools.debugger import import_project_module
+from glorybond.agent.capabilities import application_prompt
+from glorybond.agent.replies import ReplyPolicy, reply_instruction
+from glorybond.agent.reply_style import reply_style_instruction
+from glorybond.agent.remote import RemoteBridge
+from glorybond.apps.qq.agent.output import QQOutput
 
-ZFUNC = import_hok_module("zfunc")
-TEXT = import_hok_module("tools.chat_text")
+ZFUNC = import_project_module("glorybond.features.facade")
+TEXT = import_project_module("glorybond.agent.text")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 
 
 def forward_text(payload):

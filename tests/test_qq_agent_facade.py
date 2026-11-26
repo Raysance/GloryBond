@@ -4,18 +4,18 @@ from pathlib import Path
 import tempfile
 from unittest.mock import AsyncMock, Mock, patch
 from types import SimpleNamespace
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-FUNCS = import_hok_module("zfunc")
+FUNCS = import_project_module("glorybond.features.facade")
 
 
 class FacadeTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_service_callbacks_use_real_facade_io_and_message_sender(self):
-        files = import_hok_module("zfile")
+        files = import_project_module("glorybond.storage.files")
         with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda function: function)):
-            sender = import_hok_module("utils.message_sender")
+            sender = import_project_module("glorybond.apps.qq.message_sender")
         received = {}
 
         class Service:
@@ -32,7 +32,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
         store = Mock(return_value={"path": "trusted.png"})
         send = Mock(return_value=True)
         with patch.object(FUNCS.dmc, "qq_agent_service", None), \
-                patch("qq_agent.QQAgentService", Service), \
+                patch("glorybond.apps.qq.agent.QQAgentService", Service), \
                 patch.object(FUNCS, "chat_prepare_reply", prepare), \
                 patch.object(files, "store_agent_artifact", store), \
                 patch.object(sender, "add_chat_result_msg", send):
@@ -58,7 +58,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(FUNCS.dmc.qq_agent_service)
 
     async def test_registered_business_function_cannot_reenter_chat_or_scheduler(self):
-        from agent_console.function_calls import FunctionArgs, FunctionCatalog
+        from glorybond.agent.function_calls import FunctionArgs, FunctionCatalog
         from tests.test_hok_function_calls import context
         for operation in (FUNCS.agent_chat, FUNCS.agent_runtime_start, FUNCS.agent_task_tick, FUNCS.agent_runtime_stop):
             async def recursive(args, ctx):
@@ -73,7 +73,7 @@ class FacadeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_business_image_snapshot_validates_pixels_and_rejects_path_escape(self):
         from PIL import Image
-        files = import_hok_module("zfile")
+        files = import_project_module("glorybond.storage.files")
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
             image = Path(directory) / "business.png"
             Image.new("RGB", (24, 16), "red").save(image)

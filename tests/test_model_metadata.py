@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
-from agent_console.model_metadata import metadata_messages, model_metadata, observe_model_event
-from agent_console.provider import DeepSeekModel
-from agent_console.replies import ReplyComposer
-from agent_console.server import EventBroker
-from qq_agent.output import QQOutput
+from glorybond.agent.model_metadata import metadata_messages, model_metadata, observe_model_event
+from glorybond.agent.provider import DeepSeekModel
+from glorybond.agent.replies import ReplyComposer
+from glorybond.apps.console.server import EventBroker
+from glorybond.apps.qq.agent.output import QQOutput
 from tests.test_agent_replies import Roles
 from tests.test_agent_roleplay import BUILTINS
 from tests.test_agent_runtime import Args, Clock, State
@@ -61,7 +61,7 @@ class ModelMetadataTests(unittest.IsolatedAsyncioTestCase):
 
     def transport(self, handler):
         original = httpx.AsyncClient
-        return patch("agent_console.provider.httpx.AsyncClient", side_effect=lambda **kw: original(
+        return patch("glorybond.agent.provider.httpx.AsyncClient", side_effect=lambda **kw: original(
             transport=httpx.MockTransport(handler), **kw))
 
     def runtime(self, *, finalizer=None):

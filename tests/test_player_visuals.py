@@ -2,12 +2,12 @@ import sys
 import types
 import unittest
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-PLAYER_VISUALS = import_hok_module("business.player_visuals")
-ZFILE = import_hok_module("zfile")
-ZFUNC = import_hok_module("zfunc")
+PLAYER_VISUALS = import_project_module("glorybond.features.game.player_visuals")
+ZFILE = import_project_module("glorybond.storage.files")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class FakeListener:
@@ -53,7 +53,7 @@ class PlayerVisualTests(unittest.TestCase):
             "fetch": ZFUNC.fetch_history,
             "paths": ZFILE.grade_chart_output_paths,
         }
-        module_name = "hok.tools.gen_grade_chart"
+        module_name = "glorybond.rendering.gen_grade_chart"
         original_module = sys.modules.get(module_name)
         grade_chart = types.ModuleType(module_name)
         calls = []
@@ -88,7 +88,7 @@ class PlayerVisualTests(unittest.TestCase):
             "runtime_listener": PLAYER_VISUALS.dmc.RTMPListener,
             "stream": PLAYER_VISUALS.dmc.streamurl,
         }
-        module_name = "hok.tools.gen_battle_shot"
+        module_name = "glorybond.rendering.gen_battle_shot"
         original_module = sys.modules.get(module_name)
         battle_shot = types.ModuleType(module_name)
         battle_shot.RTMPListener = FakeListener

@@ -10,19 +10,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-API = import_hok_module("api_adapters.service_health")
-BUSINESS = import_hok_module("business.service_health")
-FUNCS = import_hok_module("zfunc")
-ZAPI = import_hok_module("zapi")
-ZDB = import_hok_module("zdb")
-ZFILE = import_hok_module("zfile")
-QQ = import_hok_module("utils.qq_profiles")
-RULES = import_hok_module("event_rules")
+API = import_project_module("glorybond.integrations.service_health")
+BUSINESS = import_project_module("glorybond.features.health")
+FUNCS = import_project_module("glorybond.features.facade")
+ZAPI = import_project_module("glorybond.integrations.api")
+ZDB = import_project_module("glorybond.storage.database")
+ZFILE = import_project_module("glorybond.storage.files")
+QQ = import_project_module("glorybond.apps.qq.profiles")
+RULES = import_project_module("glorybond.apps.qq.rules")
 with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-    SENDER = import_hok_module("utils.message_sender")
+    SENDER = import_project_module("glorybond.apps.qq.message_sender")
 CLIENT = httpx.AsyncClient
 
 
@@ -210,7 +210,7 @@ class ServiceCheckTests(unittest.IsolatedAsyncioTestCase):
             bot.call_api.assert_not_awaited()
 
     async def test_only_explicit_admin_command_routes_to_handler(self):
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         declaration = next(node.value for node in tree.body if isinstance(node, ast.Assign)
                            and any(isinstance(target, ast.Name) and target.id == "_service_health" for target in node.targets))
         self.assertEqual(declaration.func.id, "on_fullmatch")
@@ -314,12 +314,12 @@ class HealthReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(nodes[1]), 2800)
 
     async def test_health_entry_queues_one_forward_with_two_ordered_nodes(self):
-        tree = ast.parse((Path(__file__).parents[1] / "hok/zevent.py").read_text())
+        tree = ast.parse((Path(__file__).parents[1] / "src/glorybond/apps/qq/events.py").read_text())
         handler = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "f_service_health")
         handler.decorator_list = []
         namespace = {"__package__": "hok", "MessageEvent": object, "add_msg": MagicMock(), "log_message": MagicMock()}
         exec(compile(ast.Module(body=[handler], type_ignores=[]), "health-handler", "exec"), namespace)
-        command = import_hok_module("event_handlers.service_health")
+        command = import_project_module("glorybond.apps.qq.handlers.service_health")
         event = SimpleNamespace(group_id=123, user_id=456)
         with patch.object(command, "command_reply", AsyncMock(return_value=["问题服务", "正常服务"])), \
              patch.object(SENDER, "add_forward_msg") as forward:

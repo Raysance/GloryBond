@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, Mock, patch
 from agent_runtime import Principal, RunRequest
 from agent_runtime.models import ToolContext
 from agent_runtime.tools.executor import execute
-from agent_console.capabilities import Capabilities
-from agent_console import remote_worker
-from agent_console.tasks import TaskScheduler, task_request
-from agent_console.timeouts import application_budget
-from agent_console.tools.application import register_application_tools
-from agent_console.tools.diagnostics import DiagnosticToolRegistry
+from glorybond.agent.capabilities import Capabilities
+from glorybond.agent import remote_worker
+from glorybond.agent.tasks import TaskScheduler, task_request
+from glorybond.agent.timeouts import application_budget
+from glorybond.agent.tools.application import register_application_tools
+from glorybond.agent.tools.diagnostics import DiagnosticToolRegistry
 from tests.test_agent_runtime import call
 
 
@@ -45,7 +45,7 @@ class ImageGenerationTests(unittest.IsolatedAsyncioTestCase):
             return {"artifact_id": "a" * 32, "mime": "image/png"}
 
         self.setup_tool(generate)
-        with patch("agent_console.tools.application.IMAGE_PROGRESS_INTERVAL_SECONDS", 0.01):
+        with patch("glorybond.agent.tools.application.IMAGE_PROGRESS_INTERVAL_SECONDS", 0.01):
             pending = asyncio.create_task(self.image_call())
             await asyncio.wait_for(self.progress.wait(), 1)
             ready.set()
@@ -64,7 +64,7 @@ class ImageGenerationTests(unittest.IsolatedAsyncioTestCase):
             raise TimeoutError("upstream timed out")
 
         self.setup_tool(generate)
-        with patch("agent_console.tools.application.IMAGE_PROGRESS_INTERVAL_SECONDS", 0.01):
+        with patch("glorybond.agent.tools.application.IMAGE_PROGRESS_INTERVAL_SECONDS", 0.01):
             result = await self.image_call()
             count = len(self.events)
             await asyncio.sleep(0.03)
@@ -85,7 +85,7 @@ class ImageGenerationTests(unittest.IsolatedAsyncioTestCase):
                 stopped.set()
 
         self.setup_tool(generate)
-        with patch("agent_console.tools.application.IMAGE_PROGRESS_INTERVAL_SECONDS", 0.01):
+        with patch("glorybond.agent.tools.application.IMAGE_PROGRESS_INTERVAL_SECONDS", 0.01):
             pending = asyncio.create_task(self.image_call())
             await asyncio.wait_for(self.progress.wait(), 1)
             pending.cancel()

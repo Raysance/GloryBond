@@ -6,10 +6,10 @@ import json
 import unittest
 
 from agent_runtime import AgentRuntime, Principal, RunRequest, ToolRegistry
-from agent_console.capabilities import Capabilities, chat_required_tools
-from agent_console.task_timing import normalized_task_action, next_task_time
-from agent_console.tasks import TaskScheduler
-from agent_console.tools.application import TaskArgs, register_application_tools
+from glorybond.agent.capabilities import Capabilities, chat_required_tools
+from glorybond.agent.task_timing import normalized_task_action, next_task_time
+from glorybond.agent.tasks import TaskScheduler
+from glorybond.agent.tools.application import TaskArgs, register_application_tools
 from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, call
 
 

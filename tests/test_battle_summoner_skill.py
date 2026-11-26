@@ -1,10 +1,10 @@
 import unittest
 from unittest.mock import patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
 
-ZFUNC = import_hok_module("zfunc")
+ZFUNC = import_project_module("glorybond.features.facade")
 
 
 class BattleSummonerSkillTests(unittest.TestCase):
@@ -28,7 +28,7 @@ class BattleSummonerSkillTests(unittest.TestCase):
             "blueRoles": [],
         }
 
-        with patch("hok.zfile.read_battle_detail", return_value=detail):
+        with patch("glorybond.storage.files.read_battle_detail", return_value=detail):
             ZFUNC._enrich_battle_list_skills_from_cache(payload, "42")
 
         self.assertEqual(payload["btlist"]["list"][0]["skill"]["skillName"], "闪现")
@@ -43,7 +43,7 @@ class BattleSummonerSkillTests(unittest.TestCase):
             "btlist": {"list": [{"gameSeq": "123", "skill": original_skill.copy()}]},
         }
 
-        with patch("hok.zfile.read_battle_detail") as read_detail:
+        with patch("glorybond.storage.files.read_battle_detail") as read_detail:
             ZFUNC._enrich_battle_list_skills_from_cache(payload, "42")
 
         read_detail.assert_not_called()

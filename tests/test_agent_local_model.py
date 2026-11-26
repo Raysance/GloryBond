@@ -3,7 +3,7 @@
 import copy
 import unittest
 
-from agent_console.server import local_model_settings
+from glorybond.apps.console.server import local_model_settings
 
 
 class LocalModelTests(unittest.TestCase):

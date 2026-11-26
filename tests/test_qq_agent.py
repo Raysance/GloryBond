@@ -13,13 +13,13 @@ from PIL import Image
 
 from agent_runtime import AgentRuntime, RunRequest
 from agent_runtime.models import ToolContext
-from qq_agent.service import QQAgentService, qq_principal
-from qq_agent.member_profiles import register_member_profile_tool
-from agent_console.remote import RemoteBridge
+from glorybond.apps.qq.agent.service import QQAgentService, qq_principal
+from glorybond.apps.qq.agent.member_profiles import register_member_profile_tool
+from glorybond.agent.remote import RemoteBridge
 
 
 ROOT = Path(__file__).parents[1]
-ROLE = json.loads((ROOT / "shared/agent/roles/makise_kurisu.json").read_text())
+ROLE = json.loads((ROOT / "resources/agent/roles/makise_kurisu.json").read_text())
 REFERENCES = {"directory": {}, "context": {"catalogs": {"players": [
     {"player_key": "example_user_10", "name": "示例玩家65", "qq": ["100"]}
 ]}}}
@@ -36,7 +36,7 @@ class IdentityTests(unittest.TestCase):
             ordinary = qq_principal("101", group, "超级管理员999", admin_id="999", references=REFERENCES)
             self.assertIn("roleplay.manage_others", admin.scopes)
             self.assertNotIn("roleplay.manage_others", ordinary.scopes)
-        from agent_console.identity import LOCAL_SCOPES
+        from glorybond.agent.identity import LOCAL_SCOPES
         self.assertNotIn("roleplay.manage_others", LOCAL_SCOPES)
 
     def test_inherited_qq_reference_keeps_the_real_senders_main_identity(self):
@@ -197,7 +197,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_recall_cancels_model_tool_and_reply_and_preserves_cancelled_trace(self):
         from pydantic import BaseModel
-        from qq_agent.inflight import ChatRollouts
+        from glorybond.apps.qq.agent.inflight import ChatRollouts
 
         class EmptyArgs(BaseModel):
             pass
@@ -426,7 +426,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_super_role_change_uses_target_store_and_admin_reply_role_and_destination(self):
         from tests.test_agent_roleplay import Store, BUILTINS
-        from agent_console.roleplay_store import roleplay_operation
+        from glorybond.agent.roleplay_store import roleplay_operation
         store = Store()
         original = self.gateway.state_bridge.call
         async def dispatch(op, **args):
@@ -455,7 +455,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(row["kind"] == "roleplay.user_changed" for row in self.events["qq_g_200_999"]))
 
     async def test_lazy_business_image_uses_trusted_local_output_and_bound_destination(self):
-        from agent_console.function_calls import FunctionArgs, FunctionCatalog, FunctionOutput
+        from glorybond.agent.function_calls import FunctionArgs, FunctionCatalog, FunctionOutput
         await self.gateway.close()
         catalog = FunctionCatalog()
         catalog.register(name="query_chart", description="查询图表", category="visuals",
@@ -482,12 +482,12 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.gateway.output.local_artifacts)
 
     async def test_quoted_reminder_can_be_attributed_and_cancelled_by_another_group_member(self):
-        from agent_console import remote_worker as worker
-        from agent_console.task_timing import normalized_task_action, next_task_time
+        from glorybond.agent import remote_worker as worker
+        from glorybond.agent.task_timing import normalized_task_action, next_task_time
         from tests.test_agent_task_scope import TaskStore, principal
-        from local_debugger import import_hok_module
+        from tools.debugger import import_project_module
         from types import SimpleNamespace
-        funcs = import_hok_module("zfunc")
+        funcs = import_project_module("glorybond.features.facade")
         store = TaskStore()
         original_call = self.gateway.state_bridge.call
 
@@ -508,7 +508,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                  "metadata": {"origin": "background", "task_id": task["task_id"]}})
             sender_packet, destination = self.sent.pop()
             with patch("nonebot.get_driver", return_value=SimpleNamespace(on_startup=lambda fn: fn)):
-                sender = import_hok_module("utils.message_sender")
+                sender = import_project_module("glorybond.apps.qq.message_sender")
             with patch.object(sender, "_enqueue_payload") as queue:
                 sender.add_chat_result_msg(sender_packet, destination=destination, task_id=sender_packet["task_id"])
                 payload = queue.call_args.args[0]
@@ -584,7 +584,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recent['exclude_message_id'], '42')
 
     async def test_selected_native_mention_is_inherited_by_task_without_changing_owner(self):
-        from qq_agent.mentions import register_reply_mention_tool
+        from glorybond.apps.qq.agent.mentions import register_reply_mention_tool
         reader = AsyncMock(return_value={'profile': {'group_id': '200', 'user_id': '100'}})
         register_reply_mention_tool(self.gateway.runtime.registry, mentions=self.gateway.mentions, reader=reader)
         self.reply_text = '示例玩家65别卷了。'
@@ -610,8 +610,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('[CQ:at', json.dumps(self.dialogue))
 
     async def test_no_mention_task_retains_explicit_null_after_restart(self):
-        from agent_console.tasks import task_request
-        from qq_agent.mentions import register_reply_mention_tool
+        from glorybond.agent.tasks import task_request
+        from glorybond.apps.qq.agent.mentions import register_reply_mention_tool
         register_reply_mention_tool(self.gateway.runtime.registry, mentions=self.gateway.mentions, reader=AsyncMock())
         self.reply_text = '已设置。'
         self.script = [
@@ -632,8 +632,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_daily_absolute_time_all_members_task_restores_native_mention_without_mentioning_creator(self):
         from types import SimpleNamespace
-        from local_debugger import import_hok_module
-        from qq_agent.mentions import register_reply_mention_tool
+        from tools.debugger import import_project_module
+        from glorybond.apps.qq.agent.mentions import register_reply_mention_tool
         from nonebot.adapters.onebot.v11 import Message
         reader = AsyncMock()
         register_reply_mention_tool(self.gateway.runtime.registry, mentions=self.gateway.mentions, reader=reader)
@@ -659,7 +659,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         packet, destination = self.sent[-1]
         self.assertEqual(destination['mention_user_id'], 'all')
         with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda function: function)):
-            sender = import_hok_module('utils.message_sender')
+            sender = import_project_module('glorybond.apps.qq.message_sender')
         with patch.object(sender, '_enqueue_payload') as enqueue:
             sender.add_chat_result_msg(packet, destination=destination, task_id=task['task_id'])
         payload = enqueue.call_args.args[0]
@@ -668,11 +668,11 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('[CQ:at', json.dumps(self.dialogue))
 
     async def test_final_reply_passes_existing_two_variants_to_both_qq_channels(self):
-        from local_debugger import import_hok_module
+        from tools.debugger import import_project_module
         from types import SimpleNamespace
         from nonebot.adapters.onebot.v11 import Message
         with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda function: function)):
-            sender = import_hok_module('utils.message_sender')
+            sender = import_project_module('glorybond.apps.qq.message_sender')
         composer = self.gateway.runtime.finalizer.composer
         composer.policy = composer.policy.model_copy(update={'select_delivery_variant': True})
         draft = '事实底稿：机器人支持查询近期群聊，但只读取授权范围。' + '不同会话的资料应当保持各自的来源和权限。' * 12
@@ -882,7 +882,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         Image.new("RGB", (16, 16), "red").save(buffer, "PNG")
         raw = buffer.getvalue()
         real_client = httpx.AsyncClient
-        with patch("qq_agent.service.httpx.AsyncClient", side_effect=lambda **kw: real_client(
+        with patch("glorybond.apps.qq.agent.service.httpx.AsyncClient", side_effect=lambda **kw: real_client(
             transport=httpx.MockTransport(lambda request: httpx.Response(200, content=raw)), **kw)):
             images = await self.gateway.input_images(["https://gchat.qpic.cn/test"])
         self.assertEqual(len(images), 1)
@@ -892,8 +892,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_forwarded_quote_reaches_native_context_without_following_children_or_saving_history(self):
         from types import SimpleNamespace
-        from local_debugger import import_hok_module
-        handler = import_hok_module("event_handlers.chat")
+        from tools.debugger import import_project_module
+        handler = import_project_module("glorybond.apps.qq.handlers.chat")
         event = SimpleNamespace(self_id=10, group_id=None, get_user_id=lambda: "101",
             original_message=[{"type": "reply", "data": {"id": "9"}}],
             reply={"message_id": 9, "message_type": "private", "sender": {"user_id": 101},
@@ -967,7 +967,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         from tests.test_agent_animations import animation
         raw = animation()
         real_client = httpx.AsyncClient
-        with patch("qq_agent.service.httpx.AsyncClient", side_effect=lambda **kw: real_client(
+        with patch("glorybond.apps.qq.agent.service.httpx.AsyncClient", side_effect=lambda **kw: real_client(
             transport=httpx.MockTransport(lambda request: httpx.Response(200, content=raw)), **kw)):
             images = await self.gateway.input_images(["https://gxh.vip.qq.com/club/item/parcel/item/ab/test/raw300.gif"])
         source_id = images[0].url.removeprefix("attachment://")
@@ -1012,7 +1012,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("原生表情数量超限", json.dumps(self.gateway.model.requests[0].messages, ensure_ascii=False))
 
     async def test_fixed_background_messages_emit_once_and_keep_bound_destination(self):
-        from agent_console.tasks import task_request
+        from glorybond.agent.tasks import task_request
         principal = qq_principal("101", "200", "B", admin_id="999", references=REFERENCES)
         from dataclasses import asdict
         for count in range(3):

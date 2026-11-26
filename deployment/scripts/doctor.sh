@@ -31,7 +31,7 @@ set -a
 set +a
 
 BOT_PATH="${BOT_PATH:-$bot_path}"
-WEB_PATH="${WEB_PATH:-$BOT_PATH/web}"
+WEB_PATH="${WEB_PATH:-$BOT_PATH/src/glorybond/apps/web}"
 HOK_CONFIG_FILE="${HOK_CONFIG_FILE:-$BOT_PATH/config.yaml}"
 HOK_DATA_DIR="${HOK_DATA_DIR:-$BOT_PATH/data}"
 HOK_FILE_TRANSFER_DIR="${HOK_FILE_TRANSFER_DIR:-$BOT_PATH/file_transfer}"

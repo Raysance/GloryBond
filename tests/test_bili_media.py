@@ -9,16 +9,16 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-API = import_hok_module("api_adapters.bili_media")
-WORKER = import_hok_module("api_adapters.bili_media_worker")
-HANDLERS = import_hok_module("event_handlers.bili_video")
-RULES = import_hok_module("event_rules")
-FILES = import_hok_module("zfile")
-ZAPI = import_hok_module("zapi")
-ZFUNC = import_hok_module("zfunc")
-BUSINESS = import_hok_module("business.bili_video")
+API = import_project_module("glorybond.integrations.bili_media")
+WORKER = import_project_module("glorybond.integrations.bili_media_worker")
+HANDLERS = import_project_module("glorybond.apps.qq.handlers.bili_video")
+RULES = import_project_module("glorybond.apps.qq.rules")
+FILES = import_project_module("glorybond.storage.files")
+ZAPI = import_project_module("glorybond.integrations.api")
+ZFUNC = import_project_module("glorybond.features.facade")
+BUSINESS = import_project_module("glorybond.features.subscriptions.bilibili")
 BV = "BV1xx411c7mD"
 URL = "https://www.bilibili.com/video/" + BV
 

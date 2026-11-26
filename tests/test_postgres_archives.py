@@ -2,11 +2,11 @@ import os
 import tempfile
 import unittest
 
-from local_debugger import import_hok_module, project_root
+from tools.debugger import import_project_module, project_root
 
 
-ZDB = import_hok_module("zdb")
-ZFILE = import_hok_module("zfile")
+ZDB = import_project_module("glorybond.storage.database")
+ZFILE = import_project_module("glorybond.storage.files")
 
 
 class PostgresArchiveTests(unittest.TestCase):

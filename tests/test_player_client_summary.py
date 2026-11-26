@@ -7,17 +7,17 @@ from unittest.mock import Mock, patch
 from PIL import Image, ImageDraw
 from hok_research import PlayerRef, Profile
 from hok_research.player_pages import battle_display
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 from tests.test_player_client_pages import battle_row
 
-HANDLER = import_hok_module("event_handlers.player_client")
-RULES = import_hok_module("event_rules")
-ADAPTER = import_hok_module("api_adapters.player_client")
-MODELS = import_hok_module("business.player_client_profile")
-RENDER = import_hok_module("tools.gen_player_summary")
-STATIC = import_hok_module("zstatic")
-ZFUNC = import_hok_module("zfunc")
-ZFILE = import_hok_module("zfile")
+HANDLER = import_project_module("glorybond.apps.qq.handlers.player_client")
+RULES = import_project_module("glorybond.apps.qq.rules")
+ADAPTER = import_project_module("glorybond.integrations.player_client")
+MODELS = import_project_module("glorybond.features.game.player_client_profile")
+RENDER = import_project_module("glorybond.rendering.gen_player_summary")
+STATIC = import_project_module("glorybond.config.settings")
+ZFUNC = import_project_module("glorybond.features.facade")
+ZFILE = import_project_module("glorybond.storage.files")
 
 
 def profile_result():
@@ -146,7 +146,7 @@ class AdapterTests(unittest.TestCase):
 
 class ModelAndImageTests(unittest.TestCase):
     def test_ten_hero_rows_keep_titles_styles_and_numbers_inside_their_rows(self):
-        cards = import_hok_module("business.player_client")
+        cards = import_project_module("glorybond.features.game.player_client")
         result = {"scope": "season", "player_name": "LYG.未央", "heroes": [
             {"hero_id": 106 + i, "name": f"英雄{i}", "games": 1020, "win_rate_percent": 56.3,
              "fight_value": 4000, "highest_fight_value": 5000 - i,
@@ -174,7 +174,7 @@ class ModelAndImageTests(unittest.TestCase):
         self.assertLess(image.width * image.height, 8_000_000)
 
     def test_hero_cards_use_real_game_names_and_icons_without_template_backgrounds(self):
-        cards = import_hok_module("business.player_client")
+        cards = import_project_module("glorybond.features.game.player_client")
         source = {"player_name": {"text": "LYG.未央"}, "hero_id": 106, "scope": "all",
                   "highest_fight_value": 4300, "display": battle_display([battle_row()]),
                   "medals": {"top": 0, "gold": 24, "silver": 28, "bronze": 12}, "mvp": 46, "losing_mvp": 8,
@@ -207,7 +207,7 @@ class ModelAndImageTests(unittest.TestCase):
         self.assertFalse(any(word in text for text in drawn for word in ("配置昵称", "暂缺", "未取得", "说明", "raw", "UID")))
 
     def test_missing_game_name_never_falls_back_to_a_configured_alias(self):
-        cards = import_hok_module("business.player_client")
+        cards = import_project_module("glorybond.features.game.player_client")
         self.assertEqual(MODELS.statistics_report("配置昵称", {})["label"], "—")
         self.assertEqual(MODELS.profile_report("配置昵称", {})["name"], "—")
         self.assertEqual(MODELS.hero_summary_report({}, {})["label"], "—")

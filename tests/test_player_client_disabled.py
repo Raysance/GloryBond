@@ -3,17 +3,17 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from local_debugger import import_hok_module
+from tools.debugger import import_project_module
 
-ONLINE = import_hok_module('business.online_status')
-DATA = import_hok_module('business.player_data')
-HANDLER = import_hok_module('event_handlers.player_client')
-HERO = import_hok_module('event_handlers.hero')
-RULES = import_hok_module('event_rules')
-STATIC = import_hok_module('zstatic')
-ZFUNC = import_hok_module('zfunc')
-ZAPI = import_hok_module('zapi')
-ZTIME = import_hok_module('ztime')
+ONLINE = import_project_module('glorybond.features.game.online_status')
+DATA = import_project_module('glorybond.features.game.player_data')
+HANDLER = import_project_module('glorybond.apps.qq.handlers.player_client')
+HERO = import_project_module('glorybond.apps.qq.handlers.hero')
+RULES = import_project_module('glorybond.apps.qq.rules')
+STATIC = import_project_module('glorybond.config.settings')
+ZFUNC = import_project_module('glorybond.features.facade')
+ZAPI = import_project_module('glorybond.integrations.api')
+ZTIME = import_project_module('glorybond.time')
 
 
 class DisabledQueriesTests(unittest.TestCase):

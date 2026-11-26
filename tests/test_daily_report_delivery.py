@@ -8,12 +8,12 @@ import unittest
 from unittest.mock import patch, Mock
 
 from nonebot.adapters.onebot.v11 import MessageSegment
-from local_debugger import import_hok_module, project_root
+from tools.debugger import import_project_module, project_root
 
-ZFUNC = import_hok_module('zfunc')
-REPORTS = import_hok_module('event_handlers.player_reports')
-STATIC = import_hok_module('zstatic')
-UTIL = import_hok_module('zutil')
+ZFUNC = import_project_module('glorybond.features.facade')
+REPORTS = import_project_module('glorybond.apps.qq.handlers.player_reports')
+STATIC = import_project_module('glorybond.config.settings')
+UTIL = import_project_module('glorybond.common')
 
 
 def handler(path, name, namespace=None):
@@ -35,9 +35,9 @@ class ReportDeliveryTests(unittest.IsolatedAsyncioTestCase):
             messages = [('', str(image)), {'admin_error': 'source failed'}, ('Representative', str(image), 'Commentary')]
             send = Mock()
             with patch.object(ZFUNC, 'notify_msg_impl', return_value=messages), \
-                 patch.dict(sys.modules, {'hok.utils.message_sender': SimpleNamespace(add_msg=send)}), patch.object(UTIL, 'log_message'), \
+                 patch.dict(sys.modules, {'glorybond.apps.qq.message_sender': SimpleNamespace(add_msg=send)}), patch.object(UTIL, 'log_message'), \
                  patch.object(STATIC, 'confs', {'QQBot': {'super_qid': 1, 'group_qid': 2}}):
-                await handler('hok/zscheduler.py', 'notify_msg')()
+                await handler('src/glorybond/apps/qq/scheduler.py', 'notify_msg')()
             calls = send.call_args_list
             self.assertEqual(len(calls), 3)
             self.assertEqual([segment.type for segment in calls[0].args[0]], ['image'])
@@ -55,7 +55,7 @@ class ReportDeliveryTests(unittest.IsolatedAsyncioTestCase):
             namespace = {'log_message': Mock(), 'add_msg': send, 'MessageSegment': MessageSegment}
             with patch.object(REPORTS, 'ranking_reply', new=AsyncMock(return_value={
                 'text': '', 'image_path': str(image), 'error_report': ''})):
-                await handler('hok/zevent.py', 'f_rnk', namespace)(None, event)
+                await handler('src/glorybond/apps/qq/events.py', 'f_rnk', namespace)(None, event)
             send.assert_called_once()
             self.assertEqual(send.call_args.args[0].type, 'image')
             self.assertEqual(send.call_args.kwargs['event'], event)
