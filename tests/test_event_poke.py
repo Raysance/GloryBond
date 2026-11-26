@@ -37,6 +37,12 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         context = patch.object(FUNCS, "poke_chat_context", return_value=[])
         self.context = context.start()
         self.addCleanup(context.stop)
+        recent = patch.object(FUNCS, "recent_poke_topics", return_value=[])
+        self.recent = recent.start()
+        self.addCleanup(recent.stop)
+        record = patch.object(FUNCS, "record_poke_topic")
+        self.record = record.start()
+        self.addCleanup(record.stop)
         service = patch.object(POKE.dmc, "qq_agent_service", None)
         service.start()
         self.addCleanup(service.stop)
@@ -67,7 +73,7 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         event.group_id = 200
         with patch.object(POKE.random, "random", side_effect=[0.5, 0.0]), \
              patch.object(GEN, "generate_user_emoji_image", return_value={"image_path": "/tmp/emoji.png"}) as generate, \
-             patch.object(FUNCS, "ai_parser") as text:
+             patch.object(FUNCS, "generate_poke_reply") as text:
             self.assertEqual(await POKE.group_poke_reply(event), {"kind": "image", "image_path": "/tmp/emoji.png"})
         generate.assert_called_once_with(user_qid="10001", group_id=200)
         text.assert_not_called()
@@ -76,17 +82,17 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         POKE.dmc.EmojiImageProb = 1
         with patch.object(POKE.random, "random", side_effect=[0.5, 0.0]), \
              patch.object(GEN, "generate_user_emoji_image", side_effect=GEN.EmojiTemplatesUnavailable()), \
-             patch.object(FUNCS, "ai_parser", return_value="别戳啦。") as text, \
+             patch.object(FUNCS, "generate_poke_reply", return_value={"topic": "测试话题", "text": "别戳啦。"}) as text, \
              patch.object(FUNCS, "qid2nick", return_value="示例玩家"), \
              self.assertLogs(POKE.__name__, level="WARNING"):
             self.assertEqual(await POKE.group_poke_reply(EventStub()), {"kind": "text", "text": "别戳啦。"})
-        self.assertEqual(text.call_args.args[1], "poke")
+        self.assertEqual(text.call_args.args[0], "示例玩家")
 
     async def test_other_generation_errors_keep_the_existing_diagnostics(self):
         POKE.dmc.EmojiImageProb = 1
         with patch.object(POKE.random, "random", side_effect=[0.5, 0.0]), \
              patch.object(GEN, "generate_user_emoji_image", side_effect=RuntimeError("provider unavailable")), \
-             patch.object(FUNCS, "ai_parser") as text:
+             patch.object(FUNCS, "generate_poke_reply") as text:
             result = await POKE.group_poke_reply(EventStub())
         self.assertEqual(result["kind"], "error")
         self.assertEqual(result["text"], "emoji_gen_error: provider unavailable")
@@ -99,7 +105,7 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(probability=probability), \
                  patch.object(POKE.random, "random", return_value=probability) as draw, \
                  patch.object(GEN, "generate_user_emoji_image", return_value={"image_path": "/tmp/emoji.png"}), \
-                 patch.object(FUNCS, "ai_parser", return_value="你来了。"):
+                 patch.object(FUNCS, "generate_poke_reply", return_value={"topic": "测试话题", "text": "你来了。"}):
                 result = await POKE.group_poke_reply(EventStub())
                 self.assertEqual(result["kind"], expected)
                 draw.assert_called_once()
@@ -111,25 +117,47 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         role = {"selected": {"role_id": "assistant", "name": "助手"}, "preferences": {"length": "concise"}}
         roles = SimpleNamespace(manage=AsyncMock(return_value=role))
         with patch.object(POKE.dmc, "qq_agent_service", SimpleNamespace(roles=roles)), \
-             patch.object(FUNCS, "ai_parser", return_value="饭选好了吗？") as generate:
+             patch.object(FUNCS, "generate_poke_reply", return_value={"topic": "测试话题", "text": "饭选好了吗？"}) as generate:
             result = await POKE.group_poke_reply(event)
         self.assertEqual(result, {"kind": "text", "text": "饭选好了吗？"})
         self.context.assert_called_once_with("10001", 200, as_of=1234567890)
         self.assertEqual(roles.manage.call_args.args[0].user_id, "10001")
-        self.assertEqual(generate.call_args.args[0][2:], [self.context.return_value, role])
+        self.assertEqual(list(generate.call_args.args[2:]), [self.context.return_value, role, []])
+        self.recent.assert_called_once_with(200, as_of=1234567890)
+        self.record.assert_called_once_with(200, "测试话题", as_of=1234567890, source_message_ids=())
+
+    async def test_recent_generations_are_available_for_variety_and_cache_failure_keeps_reply(self):
+        self.recent.return_value = [{"timestamp": 1234, "topic": "刚生成过的话题"}]
+        self.record.side_effect = RuntimeError("cache offline")
+        with patch.object(FUNCS, "generate_poke_reply", return_value={"topic": "测试话题", "text": "另一个话题"}) as generate, \
+             self.assertLogs(POKE.__name__, level="WARNING"):
+            result = await POKE.group_poke_reply(EventStub())
+        self.assertEqual(result, {"kind": "text", "text": "另一个话题"})
+        self.assertEqual(generate.call_args.args[4], self.recent.return_value)
+
+    async def test_variety_read_failure_preserves_available_chat_context(self):
+        self.recent.side_effect = RuntimeError("cache offline")
+        self.context.return_value = [{"text": "真实话题", "speaker": "戳人者"}]
+        with patch.object(FUNCS, "generate_poke_reply", return_value={"topic": "话题", "text": "回复"}) as generate, \
+             self.assertLogs(POKE.__name__, level="WARNING"):
+            result = await POKE.group_poke_reply(EventStub())
+        self.assertEqual(result["text"], "回复")
+        self.assertEqual(generate.call_args.args[2], self.context.return_value)
+        self.assertEqual(generate.call_args.args[4], [])
 
     async def test_context_failures_still_reply_without_invented_history(self):
         self.context.side_effect = RuntimeError("history offline")
-        with patch.object(FUNCS, "ai_parser", return_value="收到，戳一下就上线。") as generate, \
+        with patch.object(FUNCS, "generate_poke_reply", return_value={"topic": "测试话题", "text": "收到，戳一下就上线。"}) as generate, \
              self.assertLogs(POKE.__name__, level="WARNING"):
             self.assertEqual((await POKE.group_poke_reply(EventStub()))["kind"], "text")
-        self.assertEqual(generate.call_args.args[0][2], [])
+        self.assertEqual(generate.call_args.args[2], [])
 
     async def test_text_provider_failure_uses_diagnostics_instead_of_raw_text(self):
-        with patch.object(FUNCS, "ai_parser", side_effect=RuntimeError("provider failed")):
+        with patch.object(FUNCS, "generate_poke_reply", side_effect=RuntimeError("provider failed")):
             result = await POKE.group_poke_reply(EventStub())
         self.assertEqual(result["kind"], "error")
         self.assertIsInstance(result["error"], RuntimeError)
+        self.record.assert_not_called()
 
 
 if __name__ == "__main__":

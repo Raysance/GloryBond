@@ -33,6 +33,8 @@ QQ 异常统一在 `apps/qq/errors.py` 组装诊断，事件入口绑定会话�
 
 B站与 X 定时订阅的连续失败通知由 `apps/qq/interval_jobs.py` 管理，检查与异步投递分别计数。调度上下文将任务来源绑定到消息队列，投递按实际 QQ 回执确认；`storage/notification_state.py` 用 Redis 原子保存失败次数和本次连续故障是否已通知。
 
+戳一戳文字由 `apps/qq/handlers/poke.py` 绑定可信群、用户与时间，经 `features/facade.py` 读取有时间边界的本群聊天和本人历史。`features/chat/prompts.py` 在一次模型请求中选题并生成正文；`storage/poke_history.py` 用 Redis 保存有界、短期的生成话题及素材ID，已用旧素材在选题前排除，当前群聊保留；不充当送达回执或事实来源。
+
 根目录只保留项目说明、统一依赖、启动脚本及这些职责明确的目录：
 
 | 目录 | 内容 |

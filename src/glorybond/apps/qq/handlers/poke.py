@@ -10,7 +10,7 @@ from glorybond import runtime as dmc
 
 async def _text_reply(event, user_qid):
     from agent_runtime import Principal
-    from glorybond.features.facade import ai_parser, poke_chat_context, qid2nick
+    from glorybond.features.facade import generate_poke_reply, poke_chat_context, qid2nick, recent_poke_topics, record_poke_topic
     from glorybond.time import current_epoch_seconds, epoch_to_text
 
     now = current_epoch_seconds()
@@ -18,19 +18,27 @@ async def _text_reply(event, user_qid):
     boundary = min(now, int(event_time)) if isinstance(event_time, (int, float)) and event_time > 0 else now
     context_call = asyncio.wait_for(asyncio.to_thread(
         poke_chat_context, user_qid, getattr(event, "group_id", None), as_of=boundary), timeout=3)
-    calls = [context_call]
     roles = getattr(getattr(dmc, "qq_agent_service", None), "roles", None)
-    if roles is not None:
-        calls.append(asyncio.wait_for(roles.manage(Principal(user_qid, frozenset({"roleplay.use"}))), timeout=3))
-    results = await asyncio.gather(*calls, return_exceptions=True)
+    role_call = (asyncio.wait_for(roles.manage(Principal(user_qid, frozenset({"roleplay.use"}))), timeout=3)
+                 if roles is not None else asyncio.sleep(0, result=None))
+    recent_call = asyncio.wait_for(asyncio.to_thread(
+        recent_poke_topics, getattr(event, "group_id", None), as_of=boundary), timeout=3)
+    results = await asyncio.gather(context_call, role_call, recent_call, return_exceptions=True)
     for result in results:
         if isinstance(result, Exception):
             logging.getLogger(__name__).warning("Poke context unavailable: error_type=%s", type(result).__name__)
     messages = results[0] if isinstance(results[0], list) else []
     role = results[1] if len(results) > 1 and isinstance(results[1], dict) else None
-    text = await asyncio.to_thread(ai_parser,
-        [qid2nick(user_qid), epoch_to_text(boundary, timezone_name="Asia/Shanghai"), messages, role], "poke")
-    return {"kind": "text", "text": text}
+    recent = results[2] if isinstance(results[2], list) else []
+    reply = await asyncio.to_thread(generate_poke_reply,
+        qid2nick(user_qid), epoch_to_text(boundary, timezone_name="Asia/Shanghai"), messages, role, recent)
+    try:
+        await asyncio.wait_for(asyncio.to_thread(record_poke_topic,
+            getattr(event, "group_id", None), reply["topic"], as_of=boundary,
+            source_message_ids=reply.get("source_message_ids", ())), timeout=1)
+    except Exception as error:
+        logging.getLogger(__name__).warning("Poke variety history unavailable: error_type=%s", type(error).__name__)
+    return {"kind": "text", "text": reply["text"]}
 
 
 async def group_poke_reply(event):

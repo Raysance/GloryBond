@@ -160,3 +160,14 @@ class GroupChatHistoryBusinessTests(unittest.TestCase):
                                             json.dumps({"group_id": "300", "message_id": "2", "text": "wrong metadata"})]
         records = ZFUNC.load_group_chat_history("200")
         self.assertEqual([record["group_id"] for record in records], ["200", "200"])
+
+    def test_personal_window_filters_legacy_rows_and_limits_sql_before_merging(self):
+        rows = [{"group_id": "200", "user_id": user, "message_id": str(i),
+                 "timestamp": stamp, "text": "发言"} for i, (user, stamp) in enumerate([
+                     ("100", 9), ("100", 10), ("101", 12), ("100", 20), ("100", 21)])]
+        key = ZFUNC._group_chat_history_key("200")
+        ZFUNC.dmc.redis_deamon.values[key] = [json.dumps(row) for row in rows]
+        with patch.object(ZDB, "load_group_chat_messages", return_value=[]) as query:
+            result = ZFUNC.load_group_chat_history("200", limit=1, time_start=10, time_end=20, user_id="100")
+        query.assert_called_once_with("200", limit=1, time_start=10, time_end=20, user_id="100")
+        self.assertEqual([row["timestamp"] for row in result], [20])

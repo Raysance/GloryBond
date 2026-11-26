@@ -637,9 +637,11 @@ def poke_chat_context(user_id, group_id, *, as_of):
     if not all(value.isascii() and value.isdecimal() and int(value) > 0 for value in (user, group)):
         raise ValueError("Poke context requires trusted QQ and group IDs")
     boundary = int(as_of)
-    records = load_group_chat_history(group, limit=40, time_start=boundary - 3600, time_end=boundary)
-    speakers, selected = {}, []
-    for row in records:
+    group_records = load_group_chat_history(group, limit=100, time_start=boundary - 86400, time_end=boundary)
+    own_records = load_group_chat_history(group, limit=40, time_start=boundary - 7 * 86400,
+                                          time_end=boundary, user_id=user)
+    speakers, current, earlier_group, earlier_own, seen = {}, [], [], [], set()
+    for row in [*group_records, *own_records]:
         if str(row.get("group_id")) != group:
             continue
         try:
@@ -648,21 +650,43 @@ def poke_chat_context(user_id, group_id, *, as_of):
             continue
         text = str(row.get("text") or "").strip()
         author = str(row.get("user_id") or "")
-        if not boundary - 3600 <= timestamp <= boundary or not text or text.startswith(("#", "＃")):
+        age = boundary - timestamp
+        if not 0 <= age <= 7 * 86400 or not text or text.startswith(("#", "＃")):
             continue
-        if not author:
+        if not author or (age > 86400 and author != user):
             continue
-        if boundary - timestamp > 900 and author != user:
+        key = (str(row.get("message_id") or ""), author, timestamp, text)
+        if key in seen:
             continue
+        seen.add(key)
+        scope = "current_group" if age <= 900 else "earlier_poker" if author == user else "earlier_group"
         speaker = speakers.setdefault(author, f"群成员{len(speakers) + 1}")
-        selected.append({"message_id": str(row.get("message_id") or ""),
+        target = current if scope == "current_group" else earlier_own if scope == "earlier_poker" else earlier_group
+        target.append({"message_id": str(row.get("message_id") or ""),
                          "reply_to_message_id": row.get("reply_to_message_id"),
                          "speaker": "戳人者" if author == user else speaker,
                          "is_poking_user": author == user, "timestamp": timestamp,
-                         "seconds_before_poke": boundary - timestamp,
-                         "context_scope": "current_group" if boundary - timestamp <= 900 else "earlier_poker",
+                         "seconds_before_poke": age,
+                         "context_scope": scope,
                          "text": text[:500], "text_truncated": len(text) > 500})
-    return selected[-20:]
+    for records in (current, earlier_group, earlier_own):
+        records.sort(key=lambda row: row["timestamp"])
+    return sorted([*current[-12:], *earlier_group[-8:], *earlier_own[-8:]], key=lambda row: row["timestamp"])
+
+
+def recent_poke_topics(group_id, *, as_of):
+    from glorybond.storage.poke_history import recent_generated
+    return recent_generated(group_id, as_of=as_of)
+
+
+def record_poke_topic(group_id, topic, *, as_of, source_message_ids=()):
+    from glorybond.storage.poke_history import record_generated
+    record_generated(group_id, topic, as_of=as_of, source_message_ids=source_message_ids)
+
+
+def generate_poke_reply(*args):
+    from glorybond.features.chat.prompts import generate_poke_reply as generate
+    return generate(*args)
 
 
 def emoji_message_state(user_id, group_id, action, message_hash, value=None):
@@ -909,8 +933,13 @@ def record_group_chat_message(group_id, user_id, text, *, message_id=None, reply
     return record
 
 
-def load_group_chat_history(group_id, limit=None, time_start=None, time_end=None):
+def load_group_chat_history(group_id, limit=None, time_start=None, time_end=None, *, user_id=None):
     """Read SQL history plus any not-yet-migrated Redis records."""
+    if limit is not None:
+        try:
+            limit = max(1, int(limit))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be a positive integer") from exc
     try:
         legacy = _load_group_chat_history_redis(group_id)
     except Exception as error:
@@ -922,7 +951,7 @@ def load_group_chat_history(group_id, limit=None, time_start=None, time_end=None
     try:
         from glorybond.storage import database as zdb
         sql_records = zdb.load_group_chat_messages(
-            str(group_id), time_start=time_start, time_end=time_end)
+            str(group_id), limit=limit, time_start=time_start, time_end=time_end, user_id=user_id)
     except Exception as error:
         log_message(
             f"GROUP_CHAT_POSTGRES_READ_FALLBACK: group_id={group_id} error={type(error).__name__}",
@@ -949,11 +978,9 @@ def load_group_chat_history(group_id, limit=None, time_start=None, time_end=None
         records = [record for record in records if int(record.get("timestamp") or 0) >= int(time_start)]
     if time_end is not None:
         records = [record for record in records if int(record.get("timestamp") or 0) <= int(time_end)]
+    if user_id is not None:
+        records = [record for record in records if str(record.get("user_id")) == str(user_id)]
     if limit is not None:
-        try:
-            limit = max(1, int(limit))
-        except (TypeError, ValueError) as exc:
-            raise ValueError("limit must be a positive integer") from exc
         records = records[-limit:]
     return records
 
