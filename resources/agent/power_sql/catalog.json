@@ -13,7 +13,10 @@
         "is_official": "boolean",
         "evaluated_at": "text",
         "player_keys": "text[]",
-        "payload": "jsonb"
+        "payload": "jsonb",
+        "my_side_is_bot": "boolean",
+        "opponent_side_is_bot": "boolean",
+        "match_average_level": "numeric"
       }
     },
     "chat_battle_power_players": {
@@ -39,7 +42,14 @@
         "participant_result": "text",
         "snapshot_date": "date",
         "game_time_epoch": "bigint",
-        "is_official": "boolean"
+        "is_official": "boolean",
+        "participant_side_is_bot": "boolean",
+        "rival_side_is_bot": "boolean",
+        "match_average_level": "numeric",
+        "previous_game_time_epoch": "bigint",
+        "gap_since_previous_game_seconds": "bigint",
+        "activity_record_source": "text",
+        "previous_game_record_source": "text"
       }
     }
   },
@@ -69,6 +79,8 @@
     "JSON保留原始mySide/opSide及gameResult的采集视角；必须按目标玩家side解释。participants的participant_side_level/rival_side_level、participant_side_tier/rival_side_tier和participant_result已转换为该参赛者视角；side未知时结果为NULL。",
     "同局分析以game_seq连接同一参赛者关系，先选目标player_key；排除相同participant_index。双方side都明确时，相同为队友、不同为对手；不要过滤掉player_key为NULL的路人。多人目标会产生多个视角；物理对局用COUNT(DISTINCT game_seq)，参赛者样本用(game_seq,participant_index)去重。",
     "single_level是个人底蕴；未授权可能为0，结合participant_payload的isAuth和requestErrorCount解释。双方level已按授权人数折算为5人，不能把个人值求和代替。底蕴旧榜口径为每局(己方level+对方level)/2再跨局平均。",
+    "项目人机局识别口径：一侧完整5人、5人的isAuth均明确为false/0，且该侧团队底蕴为0或缺失（原图显示unknown），才标记该侧为人机队。人数不足或授权状态缺失返回NULL；有人授权或团队底蕴有效则为false。未登记player_key、昵称unknown、请求错误均不能单独判人机。此为项目分析口径，不是营地官方人机标签。目标玩家遇到人机用rival_side_is_bot；整局my_side_is_bot/opponent_side_is_bot仍为采集视角。",
+    "人机局单独报告场次/比例，不把unknown团队底蕴当真实0混入普通对局底蕴均值；分组比较应报告总样本、人机样本、标记未知样本与指标有效样本，均值与比例分别使用各自分母。",
     "JSON含英雄战力、历史胜率/均分、累计场次、巅峰分、MVP率及近期表现等。它们是评估时资料，部分缺字段由旧评估算法使用预设值，不能当该局KDA/评分或现在的状态；胜率0到1，累计值不跨局相加。只统计已评估样本并报告场次、覆盖时间、未知/授权情况。",
     "先按game_seq或玩家和时间筛少量JSON看字段及值域，再在数据库完成统计；不要把LIMIT样本或被截断JSON当全量。NULL保留未知，column_totals不是自动识别的业务合计。",
     "JSON保留全部业务字段，包括原有aiAnalysis与matchup；私有账号/服务器ID、头像URL、requestErrors/error正文不交给模型。requestErrorCount保留采集失败数量。未重新生成分析。"
@@ -152,7 +164,37 @@
       "params": {
         "game": 123
       }
+    },
+    {
+      "purpose": "统计所选玩家遭遇人机局的比例，缺失标记单列",
+      "scope": {
+        "start_at": "2026-11-01T00:00:00+08:00",
+        "end_at": "2026-12-01T00:00:00+08:00"
+      },
+      "sql": "SELECT player_key, COUNT(*) AS evaluated_games, COUNT(*) FILTER (WHERE rival_side_is_bot IS TRUE) AS bot_games, COUNT(*) FILTER (WHERE rival_side_is_bot IS NULL) AS unknown_team_games, AVG(rival_side_level) FILTER (WHERE rival_side_is_bot IS FALSE AND rival_side_level > 0) AS avg_non_bot_rival_power FROM hok.chat_battle_power_players WHERE player_key IN (:p1,:p2) GROUP BY player_key",
+      "params": {
+        "p1": "player_key_1",
+        "p2": "player_key_2"
+      }
     }
   ],
-  "version": "607900e1e02421f9"
+  "field_semantics": {
+    "participant_side_is_bot": "按项目口径识别本人所在一侧，NULL表示人数或授权信息不足",
+    "rival_side_is_bot": "按项目口径识别本人对手；用于分析遇到人机局的比例",
+    "my_side_is_bot": "原始采集mySide的人机队标记",
+    "opponent_side_is_bot": "原始采集opSide的人机队标记",
+    "match_average_level": "双方团队底蕴之和/2；任一侧为0或缺失时NULL，人机局比例另外统计",
+    "previous_game_time_epoch": "完整已收录战绩（含未评估底蕴与其他模式）的前一局开局时间，先于筛选计算",
+    "gap_since_previous_game_seconds": "当前开局到前一局开局的秒数，非确证离线时长；NULL表示没有已知前一局",
+    "activity_record_source": "当前活动锚点battle_record或battle_participant",
+    "previous_game_record_source": "前一局活动锚点来源；同局投影样本不能当完整个人历史"
+  },
+  "guidance": {
+    "authoritative_schema": "tables.columns是唯一列白名单，禁止猜列名，禁止SELECT *或别名.*（COUNT(*)除外）。JSON键不是列；例如equivStar必须写(participant_payload->>'equivStar')::numeric。只读取目录列或JSON键。",
+    "analysis_metrics": "对局底蕴使用match_average_level（双方团队平均），对手底蕴使用rival_side_level；single_level仅为本人个人底蕴。不能用个人底蕴替代用户问的匹配对局强度。",
+    "activity_intervals": "gap_since_previous_game_seconds为目标玩家距离上一次已收录对局的秒数，从全模式去重战绩计算，包含未评估底蕴的对局，窗口先于本轮时间/模式/人机筛选。评估行的LAG仅表示评估采样间隔，不能替代此字段。首次记录或关联缺失为NULL，不归入最长间隔。它是归档间隔，缺档不能证明真实离线。",
+    "sample_grain": "每个(game_seq,participant_index)是一条评估采样。同一物理对局有多个玩家视角；玩家-对局样本数不等于独立比赛数。对评估行做ROW_NUMBER只得到第n个评估样本，不是实际第n局。连续过程、事件边界和前后顺序需先在game_data完整已收录战绩上定义，再按(player_key,game_seq)匹配评估；未评估记录不能从过程或事件识别中消失。",
+    "statistical_evidence": "原始分组、玩家内比较和其他筛选子集分别保留实际样本量与计算口径，不把不同样本集的统计拼成同一组结果。分组均值仅反映归档样本的关联；机制或因果需要独立证据，显著性和置信区间需要实际计算。"
+  },
+  "version": "a5844b9338a22057"
 }

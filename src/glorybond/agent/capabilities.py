@@ -163,7 +163,7 @@ def application_prompt():
         "未知能力先发现，不把未披露、未调用、失败或空结果混为不存在。"
         "独立调用可同轮提交，依赖调用等待结果；按error_details有限修复，写操作或OUTCOME_UNKNOWN先核对状态，不自动重放。"
         "功能用法发现bot_info并从read_bot_manual目录查到叶节点；说明不足才用带fallback_reason的code读取。"
-        "KPL赛事发现kpl；战绩统计发现game_data；底蕴、整局power JSON及同局玩家评估发现power_data，使用analyze_power_database；两者统一scope、模式及自然时间边界；"
+        "KPL赛事发现kpl；战绩统计发现game_data；底蕴、整局power JSON、同局玩家评估指标、营地授权和人机队标记发现power_data，使用analyze_power_database；两者统一scope、模式及自然时间边界；"
         "数字取自SQL、column_totals或Python，均分、比率和ID不可相加；样本同现不证明责任或因果。"
         "绘图按需读取plots，用户索取作品时交付作品，工具查询和图表服务于该交付。"
         "当前‘我’由入口身份绑定；references使用权威映射，歧义保留，不按旧聊天猜人。"

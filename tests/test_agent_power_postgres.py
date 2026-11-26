@@ -42,6 +42,21 @@ def fixture_cases():
         powers.append((game, mode, '2026-11-05', 50, 60, 2, 3, '胜利', payload))
         participants.extend((game,i,11+i,21+i,p['nickname'],p['side'],'hero',1000+i,.6,8,10+i,p)
                             for i,p in enumerate(players))
+    for game, size, authorizations, level in [
+        (105,5,[False]*5,0), (106,5,[True,False,False,False,False],0),
+        (107,4,[False]*4,0), (108,5,[None,False,False,False,False],0),
+        (109,5,[False]*5,60), (110,5,[False]*5,None), (111,5,[True]*5,60),
+    ]:
+        team = [dict(players[0])]
+        for i in range(size):
+            item = dict(roleId=100+i,userId=200+i,nickname='unknown',side='op',singleLevel=0)
+            if authorizations[i] is not None:
+                item['isAuth'] = authorizations[i]
+            team.append(item)
+        payload = dict(GameSeq=str(game),mySide={'level':50},opSide={'level':level},players=team)
+        powers.append((game,'排位赛','2026-11-05',50,level,2,3,'胜利',payload))
+        participants.extend((game,i,p['roleId'],p['userId'],p['nickname'],p['side'],'hero',1000,.6,8,p['singleLevel'],p)
+                            for i,p in enumerate(team))
     definitions = {**DEFINITIONS,
         'battle_power': fixture_relation(powers, [('game_seq','bigint'),('map_name','text'),('evaluated_at','text'),
             ('my_side_level','numeric'),('opponent_side_level','numeric'),('my_side_tier','numeric'),
@@ -50,6 +65,13 @@ def fixture_cases():
             ('role_id','bigint'),('user_id','bigint'),('nickname','text'),('side','text'),('hero_name','text'),
             ('hero_power','integer'),('hero_win_rate','numeric'),('hero_average_score','numeric'),('single_level','numeric'),('payload','jsonb')]),
         'chat_recorded_battle_source': 'SELECT 101::bigint AS game_seq, 11::bigint AS role_id, \'main\'::text AS player_key',
+        # The immediately preceding match has no power assessment and lies
+        # outside the requested day. It must still define the activity gap.
+        'chat_player_battle_facts': fixture_relation([
+            ('main',90,epoch-30*86400,'battle_record'), ('main',100,epoch-3600,'battle_record'),
+            ('main',101,epoch,'battle_record'), ('main',103,epoch+86400,'battle_record'),
+            ('extra',50,epoch-8*86400,'battle_participant'), ('extra',101,epoch,'battle_participant')],
+            [('player_key','text'),('game_seq','bigint'),('game_time_epoch','bigint'),('record_source','text')]),
         'chat_battle_record_keys': fixture_relation([(101,'2026-11-01',epoch),(101,'2026-11-01',epoch),
             (103,'2026-11-02',epoch+86400),(104,'2026-11-01',epoch)],
             [('game_seq','bigint'),('snapshot_date','date'),('game_time_epoch','bigint')]),
@@ -69,6 +91,16 @@ def fixture_cases():
         ('undated_excluded', 'SELECT game_seq FROM hok.chat_battle_power WHERE game_seq=102',scope,[]),
         ('json_expand', "SELECT p->>'playerKey' AS player, p->>'customMetric' AS metric FROM hok.chat_battle_power CROSS JOIN LATERAL jsonb_array_elements(payload->'players') p WHERE p->>'playerKey' = 'extra'",scope,[{'player':'extra','metric':'43'}]),
         ('end_boundary', 'SELECT game_seq FROM hok.chat_battle_power',{'start_at':'2026-11-02T00:00:00+08:00','end_at':'2026-11-02T00:10:00+08:00'},[]),
+        ('complete_history_gap', "SELECT gap_since_previous_game_seconds, previous_game_record_source, match_average_level::int AS power FROM hok.chat_battle_power_players WHERE game_seq=101 AND player_key='main'",scope,
+         [{'gap_since_previous_game_seconds':3600,'previous_game_record_source':'battle_record','power':55}]),
+        ('extra_history_gap', "SELECT gap_since_previous_game_seconds, activity_record_source FROM hok.chat_battle_power_players WHERE game_seq=101 AND player_key='extra'",scope,
+         [{'gap_since_previous_game_seconds':8*86400,'activity_record_source':'battle_participant'}]),
+        ('bot_team_rule', "SELECT game_seq, rival_side_is_bot, match_average_level::int AS power FROM hok.chat_battle_power_players WHERE player_key='main' AND game_seq>=105 ORDER BY game_seq",{},
+         [{'game_seq':g,'rival_side_is_bot':flag,'power':p} for g,flag,p in
+          [(105,True,None),(106,False,None),(107,None,None),(108,None,None),(109,False,55),(110,True,None),(111,False,55)]]),
+        ('full_json_bot_flags', 'SELECT game_seq, opponent_side_is_bot FROM hok.chat_battle_power WHERE game_seq>=105 ORDER BY game_seq',{},
+         [{'game_seq':g,'opponent_side_is_bot':flag} for g,flag in
+          [(105,True),(106,False),(107,None),(108,None),(109,False),(110,True),(111,False)]]),
     ]
     cases = []
     with patch.dict(worker.CONTEXT, {'definitions': definitions, 'catalogs': {'hok_sql':GAME_CATALOG,'power_sql':CATALOG},'validation':validation.__dict__}, clear=True):

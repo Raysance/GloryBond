@@ -95,4 +95,8 @@ QQ 消息、图片和轨迹沿用现有出口。trace 请求/响应及工具结�
 
 原始 `mySide/opSide` 和 `gameResult` 保留采集视角；整局 `players` 追加可信 `playerKey` 与 `participantIndex`。参赛者视图直接提供本人/对手底蕴、梯度和转换后的胜负，未知阵营不猜测。内部账号与服务器 ID、头像 URL、原始错误正文不公开，`requestErrorCount` 保留错误数量；其他业务字段，包括已有 `matchup`、`aiAnalysis` 和将来新增业务字段，继续保留。不会调用营地或重新评估。
 
-模型发现 `power_data` 时获得字段说明、统计口径及四个完整参数/SQL示例。先用少量 JSON 样本核对字段和值域，再在数据库聚合；结果可复用原有 dataset、绘图和沙箱工具。QQ/Web 共用此工具；不新增数据库表、授权或迁移。验证使用 `tests.test_agent_power_sql`、`tests.test_agent_extra_players`；PostgreSQL JSON 验证可通过 `HOK_TEST_POSTGRES_DSN` 启用 `tests.test_agent_power_postgres`，只执行合成数据 SELECT。
+模型发现 `power_data` 时获得字段说明、统计口径及完整参数/SQL示例。能力目录同时说明同局历史指标、授权和人机标记的来源。先用少量 JSON 样本核对字段和值域，再在数据库聚合；结果可复用原有 dataset、绘图和沙箱工具。QQ/Web 共用此工具；不新增数据库表、授权或迁移。验证使用 `tests.test_agent_power_sql`、`tests.test_agent_extra_players`；PostgreSQL JSON 验证可通过 `HOK_TEST_POSTGRES_DSN` 启用 `tests.test_agent_power_postgres`，只执行合成数据 SELECT。
+
+`match_average_level` 为双方底蕴平均，任一侧无有效值时返回 NULL。参赛者的 `previous_game_time_epoch`、`gap_since_previous_game_seconds` 与前后 `record_source` 来自全模式 `chat_player_battle_facts`，在本轮范围筛选前计算窗口，避免筛掉未评估局、其他模式或区间前一局后制造活动断档。此间隔只反映已收录记录；评估行序不是完整比赛序列。
+
+内部 `chat_power_team_flags` 按 `(game_seq,side)` 聚合完整阵容。人数为5、授权字段全部明确false/0且团队底蕴0/NULL时，项目人机队标记为true；人数或授权信息不全为NULL，有授权者或有效团队底蕴则为false。`participant_side_is_bot` / `rival_side_is_bot` 提供个人视角，整局 `my_side_is_bot` / `opponent_side_is_bot` 保留采集视角。标记不使用player_key、昵称或错误次数。统计分别报告标记未知、人机样本及有效底蕴分母。

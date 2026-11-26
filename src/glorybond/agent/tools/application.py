@@ -370,7 +370,7 @@ def register_application_tools(registry, *, service, catalogs):
     specs = [
         (
             "discover_tools",
-            "按任务需要披露能力。类别：chat_history、chat_data、game_data、power_data（整局底蕴JSON及同局玩家数据）、kpl（KPL职业赛数据）、references、internet、python、plots、images、memory、tasks。",
+            "按任务需要披露能力。类别：chat_history、chat_data、game_data、power_data（整局底蕴JSON、同局玩家历史指标、营地授权与人机队标记）、kpl（KPL职业赛数据）、references、internet、python、plots、images、memory、tasks。",
             DiscoverArgs,
             discover,
             "core",
@@ -423,7 +423,7 @@ def register_application_tools(registry, *, service, catalogs):
         ),
         (
             "analyze_power_database",
-            "按独立power目录查询已保存的整局底蕴JSON、双方及所有参赛玩家数据，可自定义筛选、统计与比较。"
+            "按独立power目录查询已保存的整局底蕴JSON、双方及所有参赛玩家数据，包括历史指标、营地授权和人机队标记，可自定义筛选、统计与比较。"
             "玩家用player_key；scope按实际开局时间统一筛选，日期填含时区的左闭右开边界。字段与SQL示例见power_data目录；不重新评估或请求营地。",
             GameSQLArgs,
             power_sql,
