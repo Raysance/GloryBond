@@ -22,6 +22,12 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Clarify the automatic battle report heading — 2026-11-27
+
+Automatic post-watch reports now start with “观战对局战绩” instead of “最后一局”.
+They still identify the watched battle and reuse its existing body, link and
+image. Manual player-query headings keep their current wording.
+
 ## Match signed relay identifiers in watch reports — 2026-11-27
 
 Watch metadata and completed history can represent the same 32-bit relay server

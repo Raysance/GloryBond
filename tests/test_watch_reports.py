@@ -205,7 +205,8 @@ class WatchReportTests(unittest.IsolatedAsyncioTestCase):
         payloads = self.queue()
         self.assertEqual(len(payloads), 1)
         payload = payloads[0]
-        self.assertEqual(payload['content'], str(sender.battle_reply_message(battle)))
+        expected = {**battle, 'text': battle['text'].replace('最后一局 ', '观战对局战绩 ', 1)}
+        self.assertEqual(payload['content'], str(sender.battle_reply_message(expected)))
         self.assertEqual((payload['type'], payload['toid']), ('group', 8))
         job = json.loads(self.db.get(payload['watch_report_key']))
         self.assertEqual(job['state'], 'queued')

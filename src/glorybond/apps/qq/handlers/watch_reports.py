@@ -104,6 +104,8 @@ async def check_pending_reports():
             if battle is None:
                 # A history row may appear before the detail is available.
                 continue
+            if battle["text"].startswith("最后一局 "):
+                battle = {**battle, "text": "观战对局战绩 " + battle["text"].removeprefix("最后一局 ")}
             await asyncio.to_thread(add_watch_report_msg, job, battle)
         except Exception as error:
             safe = error if isinstance(error, ReportStopped) else RuntimeError(
