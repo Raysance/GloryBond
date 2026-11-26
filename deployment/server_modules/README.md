@@ -25,6 +25,7 @@ GloryBond 的 Bot 与 Web 共用一个代码检出、运行环境和私有配置
 | [sync_operations.py](sync_operations.py) | 预览或同步 HOK 维护工具，备份并移除过时入口 |
 | [security_updates.sh](security_updates.sh) | 手动检查与安装官方系统补丁、服务检查、私有恢复点及必要重启 |
 | [update_node_runtime.py](update_node_runtime.py) | 独立 Node 运行时同主版本更新及下载校验 |
+| [clash_watchdog.py](clash_watchdog.py) | 共享代理连通性检测、故障切换和订阅刷新；见[维护说明](CLASH_WATCHDOG.md) |
 
 主机安全维护覆盖共享服务，使用独立的 root 配置，不属于 HOK 模块导出或应用部署流程。当前更新和重启由管理员手动执行，日常更新、重启与 DNF 元数据预取定时器保持关闭，仅保留开机健康检查。安装位置、手动命令、空间清理和失败处理见[主机安全维护说明](SECURITY_UPDATES.md)。
 

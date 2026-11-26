@@ -100,6 +100,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 长期运行的进程可能掩盖磁盘上的过期配置；维护前同时校验实际配置文件。共享 Clash 使用模块内已有面板资源，启用其离线配置检查，不能仅凭当前进程仍在运行认定下次启动可用。
 
+共享 Clash 的原生 fallback 组与独立 `clash-watchdog.timer` 每5分钟检测连通性，按备用地区切换。订阅正常每天刷新，全线路失效时可提前刷新但至少间隔1小时；地址读取模块私有环境文件。维护脚本只替换节点及组成员，保留本机规则、端口、密钥与面板，先离线校验再热加载，失败回滚并保留私有恢复副本。此定时器不启用主机安全自动更新，具体边界见[代理维护](deployment/server_modules/CLASH_WATCHDOG.md)。
+
 Bot 启动通知沿用统一消息队列私发管理员，附实际运行检出目录的前8位 HEAD hash、含时区的提交者提交时间（Git %cI）与完整 commit message；Git 读取由 zfile 管理并限制时限，无版本元数据时明确标注不可用，不阻止启动。
 
 部署说明见[开发与部署](docs/DEVELOPMENT.md)、[部署说明](deployment/README.md)和[公开发布约定](deployment/PUBLICATION.md)。

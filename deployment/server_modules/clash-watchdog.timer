@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Clash proxy every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=15s
+Unit=clash-watchdog.service
+
+[Install]
+WantedBy=timers.target
