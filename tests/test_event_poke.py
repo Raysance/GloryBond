@@ -99,9 +99,9 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("RuntimeError", result["traceback"])
         text.assert_not_called()
 
-    async def test_twenty_five_percent_image_boundary_uses_one_draw(self):
-        POKE.dmc.EmojiImageProb = .25
-        for probability, expected in ((.249, "image"), (.25, "text"), (.99, "text")):
+    async def test_eighty_percent_image_boundary_uses_one_draw(self):
+        POKE.dmc.EmojiImageProb = .8
+        for probability, expected in ((.799, "image"), (.8, "text"), (.99, "text")):
             with self.subTest(probability=probability), \
                  patch.object(POKE.random, "random", return_value=probability) as draw, \
                  patch.object(GEN, "generate_user_emoji_image", return_value={"image_path": "/tmp/emoji.png"}), \

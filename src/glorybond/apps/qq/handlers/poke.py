@@ -87,7 +87,7 @@ async def group_poke_reply(event):
         return {"kind": "none"}
 
     user_qid = event.get_user_id()
-    if random.random() < getattr(dmc, "EmojiImageProb", 0.25):
+    if random.random() < getattr(dmc, "EmojiImageProb", 0.8):
         from glorybond.rendering.gen_emoji_image import EmojiTemplatesUnavailable, generate_user_emoji_image
 
         try:
