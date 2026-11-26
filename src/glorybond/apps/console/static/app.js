@@ -23,6 +23,7 @@ const toolNames = {
   search_chat_history: "检索群聊历史",
   analyze_chat_database: "查询聊天数据",
   analyze_game_database: "查询王者数据",
+  analyze_power_database: "查询底蕴数据",
   list_reference_catalogs: "读取参考目录",
   lookup_reference_data: "查询名称与 ID 对应关系",
   web_search: "联网搜索",

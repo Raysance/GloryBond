@@ -64,7 +64,7 @@ class Capabilities:
             **({"group_id": group_id} if group_id is not None else {}),
             **({"scope": scope} if scope is not None else {}),
             **({"as_of": ctx.request.metadata["message_timestamp"]}
-               if domain == "game" and "message_timestamp" in ctx.request.metadata else {}),
+               if domain in {"game", "power"} and "message_timestamp" in ctx.request.metadata else {}),
         )
 
     async def web_search(self, query, max_results):
@@ -163,7 +163,7 @@ def application_prompt():
         "未知能力先发现，不把未披露、未调用、失败或空结果混为不存在。"
         "独立调用可同轮提交，依赖调用等待结果；按error_details有限修复，写操作或OUTCOME_UNKNOWN先核对状态，不自动重放。"
         "功能用法发现bot_info并从read_bot_manual目录查到叶节点；说明不足才用带fallback_reason的code读取。"
-        "KPL赛事发现kpl；游戏统计发现game_data，统一scope、模式及自然时间边界；"
+        "KPL赛事发现kpl；战绩统计发现game_data；底蕴、整局power JSON及同局玩家评估发现power_data，使用analyze_power_database；两者统一scope、模式及自然时间边界；"
         "数字取自SQL、column_totals或Python，均分、比率和ID不可相加；样本同现不证明责任或因果。"
         "绘图按需读取plots，用户索取作品时交付作品，工具查询和图表服务于该交付。"
         "当前‘我’由入口身份绑定；references使用权威映射，歧义保留，不按旧聊天猜人。"
@@ -192,6 +192,7 @@ def load_catalogs(shared_path, *, recent_limits=None, kpl_config=None):
     result = {
         "chat_history": {"recent_limits": recent_history_limits(recent_limits)},
         "game_data": json.loads((root / "hok_sql/catalog.json").read_text()),
+        "power_data": json.loads((root / "power_sql/catalog.json").read_text()),
         "chat_data": json.loads((root / "chat_sql/catalog.json").read_text()),
         "plots": json.loads((root / "plots/catalog.json").read_text()),
         "bot_info": {"limits": manual["limits"], "root": manual["root"],

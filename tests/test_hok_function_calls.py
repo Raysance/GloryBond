@@ -261,7 +261,9 @@ class BindingsTests(unittest.IsolatedAsyncioTestCase):
         functions = Functions()
         functions["extract_name"] = lambda name: "player" if name == "有效别名" else None
         catalog = build_hok_function_catalog(functions, player_keys=("player",), player_aliases={"player": ["有效别名"]})
-        self.assertEqual(len(catalog.functions), 17)
+        self.assertEqual(len(catalog.functions), 15)
+        self.assertNotIn("recent_power_process", catalog.functions)
+        self.assertNotIn("power_rank_process", catalog.functions)
         ctx = context()
         catalog.describe("heropower_process", ctx)
         self.assertEqual((await catalog.call("heropower_process", {"realname": "invented"}, ctx)).code, "INVALID_ARGUMENTS")

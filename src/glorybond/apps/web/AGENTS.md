@@ -65,6 +65,8 @@
 - Aliyun `/srv/modules/hok/nginx/site.conf` 的 FastAPI 路由白名单必须包含 `chat-trace`；修改前备份，`nginx -t` 通过后 reload。先发布 Web 路由与反向代理，再发布 NBot 链接生产端。
 - 本功能用户说明维护在 `docs/web/chat.md`，并从根 `README.md` 链接；不向仓库外新建文档。
 
+运行记录的数据库工具图标包含独立底蕴查询 `analyze_power_database`；查询与字段解释由共享 agent 的 `power_data` 目录管理，Web 不另建数据接口。
+
 ## Git 提交规范
 
 - 所有代码修改和提交都必须直接在 `main` 分支上完成。

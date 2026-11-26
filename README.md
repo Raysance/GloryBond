@@ -33,6 +33,8 @@ AI 聊天中设置的消息触发规则暂仅限原设置者修改、暂停、�
 
 AI 聊天数据库查询支持额外成员（`extra_useridlist` / `extra_roleidlist` / `extra_namenick`）。可以按已配置昵称询问表现、装备和同局关系，也能查询已保存的个人快照与底蕴评估。没有本人战绩时，使用已归档同局详情中的本人数据；统计仅覆盖已收录样本，不代表该成员的全部战绩。详见 [AI 聊天说明](docs/manual/chapters/chat.md)。
 
+AI 底蕴查询使用独立的 `analyze_power_database`（`power_data`）。可指定玩家、日期或精确时间段，读取整局 power 业务 JSON、双方及全部参赛者资料，并自定义汇总、排行或同局对比；未登记队友和对手的数据也保留。说明与示例见[底蕴查询](docs/manual/chapters/metrics_power_scope.md)。原有 `#我的底蕴`、`#底蕴排行` 命令继续使用。
+
 AI SQL 支持 PostgreSQL 的布尔聚合、数组包含及交集判断；参数使用不加引号的 `:name` 或 `%(name)s`，并与 `params` 一一对应。查询先复用轻量战绩与身份事实，再按需读取详情，减少阵容分析的重复扫描；单条 SQL 默认30秒，可配置为1至60秒。查询授权和只读校验保持独立，详见 [数据库查询说明](src/glorybond/storage/sql/CHAT_AGENT.md)。
 
 DeepSeek 聊天将每轮变化的运行统计与稳定上下文分开，改善 prefix cache 复用；完整历史、推理与工具结果仍会保留。缓存收益体现在输入费用和延迟，实际命中量可在运行记录中查看。

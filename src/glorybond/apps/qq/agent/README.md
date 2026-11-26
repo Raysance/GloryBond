@@ -341,34 +341,35 @@ QQ 前台聊天及定时 `agent` 任务共用 `hok_business` 类别。模型先�
 三个通用工具，不为每个业务函数注入独立定义，也不在创建任务时保存完整定义。
 后台执行仍由同一 ReAct 模型选择工具；这不是绕过模型的确定性函数调度任务。
 
-`src/glorybond/apps/qq/agent/business_functions.py` 初始显式登记17个现有函数，覆盖在线状态、单日战报、
-巅峰排名、英雄战力/常用英雄/统计/梯度、本人今日英雄、评分趋势、观战截图、底蕴、
+`src/glorybond/apps/qq/agent/business_functions.py` 显式登记15个现有函数，覆盖在线状态、单日战报、
+巅峰排名、英雄战力/常用英雄/统计/梯度、本人今日英雄、评分趋势、观战截图、
 游戏时长及代表局。只返回正式结果，旧接口的调试载荷、玩家内部参数和本地图片路径
 不进入 observation。图片经 zfile 校验、快照为标准 PNG，沿用原运行记录和统一消息
 出口。本人今日英雄绑定真实调用者，不允许指定他人或绕过每日限制。当前本地 Web
 没有注入该业务目录，不会为此在 worker 中初始化 NoneBot 或使用业务写数据库账号。
+
+底蕴改用共享的独立 `analyze_power_database`（`power_data`），直接查询整局 JSON 和全部参赛玩家，不再登记 `recent_power_process` / `power_rank_process`；QQ 固定底蕴命令保留。本地 Web 同样可使用新查询工具。
 
 扩展默认绑定可在 `build_hok_function_catalog()` 增加一个 `add()`，声明已有 zfunc
 函数、参数、结果投影及必要的可信参数绑定。稳定扩展也可在服务启动后、现有启动
 hook 中登记，不需要增加模型工具或修改内核。例如：
 
 ```python
-from pydantic import Field
 from glorybond.agent.function_calls import FunctionArgs, FunctionOutput
-from hok import zfunc
+from glorybond.features import facade
 
-class PowerSummaryArgs(FunctionArgs):
-    days: int = Field(default=7, ge=1, le=30, strict=True)
+class ActivitySummaryArgs(FunctionArgs):
+    pass
 
-def power_summary(args, context):
+def activity_summary(args, context):
     player = context.principal.attributes.get("identity", {}).get("player_key")
-    if player not in zfunc.userlist:
+    if player not in facade.userlist:
         raise ValueError("当前用户没有唯一绑定玩家")
-    return FunctionOutput(text=zfunc.recent_power_process(player, days=args.days))
+    return FunctionOutput(text=facade.recentgames_process(player))
 
-zfunc.agent_register_function(
-    name="my_power_summary", description="查询本人最近若干天的底蕴摘要",
-    category="power", args_model=PowerSummaryArgs, handler=power_summary,
+facade.agent_register_function(
+    name="my_activity_summary", description="查询本人近期游戏时长",
+    category="activity", args_model=ActivitySummaryArgs, handler=activity_summary,
     scopes=("game.read",), effect="read",
 )
 ```

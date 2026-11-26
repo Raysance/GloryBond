@@ -115,16 +115,19 @@ def game_scope_column_usage(scope, tables):
         if {"snapshot_date", "game_time_epoch"} <= set(table["columns"])}
 
 
-def game_scope_predicates(scope, columns):
+def game_scope_predicates(scope, columns, *, include_undated=False):
     """Build trusted filters inside semantic relations, before model aggregation."""
-    # Daily profiles and evaluated-power data have different clocks and no
-    # battle cohort. Their own documented fields remain queryable as before.
+    # Profile snapshots retain their own clock. Power relations explicitly
+    # expose the archived match clock, independently of their evaluation time.
     if "game_time_epoch" not in columns:
         return []
     predicates = []
     if scope.get("as_of") is not None:
         bound = datetime.datetime.fromisoformat(scope["as_of"])
-        predicates.append(exp.LTE(this=exp.column("game_time_epoch"), expression=exp.convert(bound.timestamp())))
+        predicate = exp.LTE(this=exp.column("game_time_epoch"), expression=exp.convert(bound.timestamp()))
+        if include_undated and not scope.get("start_at") and not scope.get("end_at"):
+            predicate = exp.or_(exp.column("game_time_epoch").is_(exp.null()), predicate)
+        predicates.append(predicate)
     if scope["mode"] == "official" and "is_official" in columns:
         predicates.append(exp.column("is_official").is_(exp.true()))
     for key, operator in (("start_at", exp.GTE), ("end_at", exp.LT)):

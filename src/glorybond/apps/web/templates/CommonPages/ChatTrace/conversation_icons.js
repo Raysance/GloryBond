@@ -53,7 +53,7 @@ const ChatTraceIcons = (() => {
   const groups = [
     ['search', '搜索', ['web_search', 'search_chat_history', 'search_hok_functions']],
     ['read', '读取', ['read_recent_chat_history', 'read_recent_group_images', 'read_bot_manual', 'list_reference_catalogs', 'describe_hok_function']],
-    ['database', '查询', ['analyze_chat_database', 'analyze_game_database', 'lookup_reference_data', 'query_kpl']],
+    ['database', '查询', ['analyze_chat_database', 'analyze_game_database', 'analyze_power_database', 'lookup_reference_data', 'query_kpl']],
     ['code', '运行代码', ['execute_python']],
     ['plot', '绘图', ['list_plot_templates', 'render_plot']],
     ['image', '图像', ['generate_image', 'set_bot_avatar']],

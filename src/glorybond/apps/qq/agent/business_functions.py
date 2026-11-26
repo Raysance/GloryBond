@@ -88,10 +88,6 @@ def build_hok_function_catalog(functions, *, player_keys, player_aliases=None, p
         FunctionOutput(images=[value]) if value else _text(None))
     add("gradeanalyze_process", "生成玩家评分和星数趋势图与分析", "visuals", {"realname": player_field}, project=_image_text)
     add("watchbattle_process", "获取玩家当前对局观战截图与说明", "visuals", {"realname": player_field}, project=_image_text)
-    add("recent_power_process", "查询玩家近期底蕴历史与统计", "power",
-        {"realname": player_field, "days": (int, Field(default=7, ge=1, le=366, strict=True))})
-    add("power_rank_process", "生成近期底蕴排行榜图片", "power",
-        {"days": (int, Field(default=7, ge=1, le=366, strict=True))}, project=_text_image)
     add("recentgames_process", "查询玩家最近两周的王者和Steam游戏时长", "activity", {"realname": player_field})
     add("gametime_rank_process", "生成游戏时长排行图片；Steam来源固定近两周，王者使用days", "activity",
         {"days": (int, Field(default=14, ge=1, le=366, strict=True))}, project=_text_image)

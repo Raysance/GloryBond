@@ -1,0 +1,158 @@
+{
+  "dialect": "postgresql",
+  "schema": "hok",
+  "timezone": "Asia/Shanghai",
+  "tables": {
+    "chat_battle_power": {
+      "description": "每个game_seq一行的整局power业务JSON，包含双方及全部参赛玩家；player_keys列列出已关联的配置成员。JSON保留业务字段，去掉内部账号/服务器ID、头像URL及原始错误正文；players追加playerKey和participantIndex。",
+      "columns": {
+        "game_seq": "bigint",
+        "snapshot_date": "date",
+        "game_time_epoch": "bigint",
+        "map_name": "text",
+        "is_official": "boolean",
+        "evaluated_at": "text",
+        "player_keys": "text[]",
+        "payload": "jsonb"
+      }
+    },
+    "chat_battle_power_players": {
+      "description": "已评估对局全部参赛者，每个(game_seq,participant_index)一行；含未配置路人，player_key可为NULL。主/额外成员精确关联；阵营指标和胜负为该参赛者视角。支持同一关系自连接查询某成员的队友/对手。",
+      "columns": {
+        "game_seq": "bigint",
+        "player_key": "text",
+        "map_name": "text",
+        "evaluated_at": "text",
+        "participant_index": "integer",
+        "nickname": "text",
+        "side": "text",
+        "hero_name": "text",
+        "hero_power": "integer",
+        "hero_win_rate": "numeric",
+        "hero_average_score": "numeric",
+        "single_level": "numeric",
+        "participant_payload": "jsonb",
+        "participant_side_level": "numeric",
+        "rival_side_level": "numeric",
+        "participant_side_tier": "numeric",
+        "rival_side_tier": "numeric",
+        "participant_result": "text",
+        "snapshot_date": "date",
+        "game_time_epoch": "bigint",
+        "is_official": "boolean"
+      }
+    }
+  },
+  "query_contract": {
+    "one_relation_per_query": true,
+    "rule": "每条SQL只选一个目录关系；同一关系可自连接/CTE/JSON展开。不同关系分别查询。",
+    "scope": {
+      "applies_to": [
+        "chat_battle_power",
+        "chat_battle_power_players"
+      ],
+      "defaults": {
+        "mode": "official",
+        "time_basis": "calendar"
+      },
+      "time_range": "scope.start_at含起点、scope.end_at不含终点，ISO日期时间必须含时区。统一应用在每个语义关系聚合前，不要各条SQL重复编写不同条件。",
+      "calendar": "今天/本周/本月均按Asia/Shanghai实际开局时间；本周为周一零点起。本轮空结果不改变用户要求的时期。",
+      "business": "仅用户明确业务日战报时使用time_basis=business；时间边界为北京时间零点，按snapshot_date筛选。"
+    }
+  },
+  "semantics": [
+    "这是analyze_power_database的专用目录（发现power_data），不使用analyze_game_database或固定近期底蕴函数。仅查询已保存评估，不访问营地、不重新评估或补造缺失数据。",
+    "先按参考目录解析已配置昵称到player_key；主成员与extra成员都支持。不得用nickname、QQ或猜测身份；路人player_key为NULL，但同局业务数据仍可统计。",
+    "整局用chat_battle_power，个人及队友/对手统计用chat_battle_power_players。参数写:name，params只传与占位符一一对应的JSON标量；多个玩家用IN (:p1,:p2)或player_keys && ARRAY[:p1,:p2]。",
+    "指定日期用scope.start_at当天北京时间零点，end_at次日零点；时间段用含时区的准确时刻，左闭右开。scope在聚合前统一作用于两种关系，默认正式5v5。自然时间按归档开局game_time_epoch，不用评估时间或gameTime代替；业务日才用snapshot_date。",
+    "评估时间evaluated_at与开局时间不同，只有明确查询评估批次时才按evaluated_at筛选。开局时间缺失的评估在指定时间范围时排除；不指定时间可读取并报告未知。保存评估缺档或无结果不能推断未玩。",
+    "JSON保留原始mySide/opSide及gameResult的采集视角；必须按目标玩家side解释。participants的participant_side_level/rival_side_level、participant_side_tier/rival_side_tier和participant_result已转换为该参赛者视角；side未知时结果为NULL。",
+    "同局分析以game_seq连接同一参赛者关系，先选目标player_key；排除相同participant_index。双方side都明确时，相同为队友、不同为对手；不要过滤掉player_key为NULL的路人。多人目标会产生多个视角；物理对局用COUNT(DISTINCT game_seq)，参赛者样本用(game_seq,participant_index)去重。",
+    "single_level是个人底蕴；未授权可能为0，结合participant_payload的isAuth和requestErrorCount解释。双方level已按授权人数折算为5人，不能把个人值求和代替。底蕴旧榜口径为每局(己方level+对方level)/2再跨局平均。",
+    "JSON含英雄战力、历史胜率/均分、累计场次、巅峰分、MVP率及近期表现等。它们是评估时资料，部分缺字段由旧评估算法使用预设值，不能当该局KDA/评分或现在的状态；胜率0到1，累计值不跨局相加。只统计已评估样本并报告场次、覆盖时间、未知/授权情况。",
+    "先按game_seq或玩家和时间筛少量JSON看字段及值域，再在数据库完成统计；不要把LIMIT样本或被截断JSON当全量。NULL保留未知，column_totals不是自动识别的业务合计。",
+    "JSON保留全部业务字段，包括原有aiAnalysis与matchup；私有账号/服务器ID、头像URL、requestErrors/error正文不交给模型。requestErrorCount保留采集失败数量。未重新生成分析。"
+  ],
+  "json_fields": {
+    "chat_battle_power.payload": {
+      "GameSeq": "对局ID",
+      "gameTime": "原始来源时间，仅展示；筛选用game_time_epoch",
+      "gameResult": "采集视角胜负",
+      "evaluatedAt": "评估时间",
+      "mySide": "采集方团队level、tier、authCnt、requestErrorCount",
+      "opSide": "另一方同类指标",
+      "players": "全部参赛者业务JSON，追加playerKey/participantIndex，可展开",
+      "matchup": "英雄对位winRate、sampleMatches、queryMode、queryCount；缺失不补造",
+      "aiAnalysis": "已保存分析，可能为空"
+    },
+    "chat_battle_power_players.participant_payload": {
+      "isAuth": "营地授权布尔值",
+      "starNum": "折算总星数",
+      "peakScore": "评估时巅峰分",
+      "equivStar": "用于底蕴公式的折算星级",
+      "powerNum": "评估时总战斗力",
+      "mvpRate": "历史MVP率（0到1）",
+      "recentWinRate": "评估时近期正式场次胜率（0到1）",
+      "recentAvgScore": "评估时近期均分",
+      "heroShowCnt": "该英雄历史总场次",
+      "winNum": "该英雄历史胜场",
+      "loseNum": "该英雄历史败场",
+      "maxHeroPower": "最高英雄战力",
+      "betterHeroPower": "底蕴计算采用的高战力英雄基准",
+      "nickname": "评估时游戏昵称，不用于定位配置成员",
+      "side": "原始采集视角my或op，只用于同局阵营关系",
+      "position": "分路，先查实际值",
+      "singleLevel": "个人底蕴；未授权可能为0",
+      "heroPower": "评估时该英雄战力",
+      "heroWinRate": "该英雄历史胜率0到1",
+      "heroAvgScore": "该英雄历史均分",
+      "rankName": "段位名称",
+      "rankStar": "段位内星数",
+      "totalCnt": "累计场次，不跨局求和",
+      "mvpCnt": "历史MVP次数，不跨局求和",
+      "heroTag": "该英雄荣耀称号",
+      "maxHeroTag": "最高英雄称号",
+      "requestErrorCount": "采集错误数量；正文不公开，NULL表示旧数据未保存错误列表"
+    }
+  },
+  "examples": [
+    {
+      "purpose": "指定玩家一天的整局JSON，先看少量样本",
+      "scope": {
+        "start_at": "2026-11-01T00:00:00+08:00",
+        "end_at": "2026-11-02T00:00:00+08:00"
+      },
+      "sql": "SELECT game_seq, game_time_epoch, player_keys, payload FROM hok.chat_battle_power WHERE player_keys @> ARRAY[:player] ORDER BY game_time_epoch, game_seq LIMIT 2",
+      "params": {
+        "player": "参考目录中的player_key"
+      }
+    },
+    {
+      "purpose": "自定义多玩家区间的个人底蕴及近期表现",
+      "scope": {
+        "start_at": "2026-11-01T18:00:00+08:00",
+        "end_at": "2026-11-10T23:00:00+08:00"
+      },
+      "sql": "SELECT player_key, COUNT(*) AS evaluated_games, MIN(game_time_epoch) AS first_game, MAX(game_time_epoch) AS last_game, AVG(single_level) AS avg_power, AVG((participant_payload->>'recentWinRate')::numeric) AS avg_recent_win_rate FROM hok.chat_battle_power_players WHERE player_key IN (:p1,:p2) AND participant_payload->>'isAuth' = 'true' GROUP BY player_key",
+      "params": {
+        "p1": "player_key_1",
+        "p2": "player_key_2"
+      }
+    },
+    {
+      "purpose": "目标玩家同局的全部队友/对手资料，包含未配置玩家",
+      "sql": "SELECT me.game_seq, me.player_key, other.participant_index, other.player_key AS participant_player_key, other.nickname, CASE WHEN me.side = other.side THEN 'teammate' ELSE 'opponent' END AS relation, other.hero_name, other.single_level, other.participant_payload FROM hok.chat_battle_power_players AS me JOIN hok.chat_battle_power_players AS other ON other.game_seq = me.game_seq AND other.participant_index <> me.participant_index WHERE me.player_key = :player AND me.side IN ('my','op') AND other.side IN ('my','op') ORDER BY me.game_seq DESC, other.participant_index LIMIT 20",
+      "params": {
+        "player": "参考目录中的player_key"
+      }
+    },
+    {
+      "purpose": "按对局ID读取已保存英雄对位及分析",
+      "sql": "SELECT game_seq, payload->'matchup' AS matchup, payload->>'aiAnalysis' AS analysis FROM hok.chat_battle_power WHERE game_seq = :game",
+      "params": {
+        "game": 123
+      }
+    }
+  ],
+  "version": "607900e1e02421f9"
+}

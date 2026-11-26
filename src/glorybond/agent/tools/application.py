@@ -54,7 +54,7 @@ class SQLArgs(Args):
 
 class GameScope(Args):
     mode: Literal["official", "all"] = Field(default="official",
-        description="本批对局/装备/阵容统一模式；默认正式5v5，明确查询娱乐、匹配或全部时选all，再按需要筛选")
+        description="本批比赛统一模式；默认正式5v5，明确查询娱乐、匹配或全部时选all，再按需要筛选")
     time_basis: Literal["calendar", "business"] = Field(default="calendar",
         description="今天/本周/本月默认calendar按实际开局时间；仅明确业务日战报时选business按snapshot_date")
     start_at: str | None = Field(default=None,
@@ -236,7 +236,7 @@ def register_application_tools(registry, *, service, catalogs):
         ]
         selected_group = getattr(args, "group_id", None)
         options = {"group_id": selected_group} if selected_group else {}
-        if domain == "game":
+        if domain in {"game", "power"}:
             options["scope"] = args.scope.model_dump()
         data = await service.analyze(domain, queries, ctx, **options)
         for observation in data["observations"]:
@@ -254,6 +254,9 @@ def register_application_tools(registry, *, service, catalogs):
 
     async def game_sql(args, ctx):
         return await sql(args, ctx, "game")
+
+    async def power_sql(args, ctx):
+        return await sql(args, ctx, "power")
 
     async def chat_sql(args, ctx):
         return await sql(args, ctx, "chat")
@@ -367,7 +370,7 @@ def register_application_tools(registry, *, service, catalogs):
     specs = [
         (
             "discover_tools",
-            "按任务需要披露能力。类别：chat_history、chat_data、game_data、kpl（KPL职业赛数据）、references、internet、python、plots、images、memory、tasks。",
+            "按任务需要披露能力。类别：chat_history、chat_data、game_data、power_data（整局底蕴JSON及同局玩家数据）、kpl（KPL职业赛数据）、references、internet、python、plots、images、memory、tasks。",
             DiscoverArgs,
             discover,
             "core",
@@ -415,6 +418,17 @@ def register_application_tools(registry, *, service, catalogs):
             chat_sql,
             "chat_data",
             ("chat.read",),
+            SQL_TOOL_TIMEOUT_SECONDS,
+            "read",
+        ),
+        (
+            "analyze_power_database",
+            "按独立power目录查询已保存的整局底蕴JSON、双方及所有参赛玩家数据，可自定义筛选、统计与比较。"
+            "玩家用player_key；scope按实际开局时间统一筛选，日期填含时区的左闭右开边界。字段与SQL示例见power_data目录；不重新评估或请求营地。",
+            GameSQLArgs,
+            power_sql,
+            "power_data",
+            ("game.read",),
             SQL_TOOL_TIMEOUT_SECONDS,
             "read",
         ),
@@ -615,6 +629,6 @@ def register_application_tools(registry, *, service, catalogs):
             if name == "discover_tools"
             else None,
             result_projector=project_sql_result
-            if name in {"analyze_game_database", "analyze_chat_database"}
+            if name in {"analyze_game_database", "analyze_power_database", "analyze_chat_database"}
             else None,
         )

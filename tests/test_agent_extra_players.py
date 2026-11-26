@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import re
 from pathlib import Path
 import sqlite3
 import unittest
@@ -16,7 +17,9 @@ from glorybond.agent.tools.reference_data import ReferenceData
 
 ROOT = Path(__file__).parents[1]
 CATALOG = json.loads((ROOT / 'resources/agent/hok_sql/catalog.json').read_text())
+POWER_CATALOG = json.loads((ROOT / 'resources/agent/power_sql/catalog.json').read_text())
 DEFINITIONS = json.loads((ROOT / 'resources/agent/hok_sql/views.json').read_text())
+DEFINITIONS.update(json.loads((ROOT / 'resources/agent/power_sql/views.json').read_text()))
 MANIFEST = json.loads((ROOT / 'resources/agent/reference_data/manifest.json').read_text())
 RECORDED_COLUMNS = {
     'snapshot_date': 'text', 'player_key': 'text', 'player_index': 'integer',
@@ -62,7 +65,17 @@ class ExtraPlayerSQLTests(unittest.TestCase):
             assist_count integer, game_grade numeric, gold integer, payload jsonb)''')
         self.bindings = references().game_identity_rows()
         definitions = {**DEFINITIONS, 'chat_recorded_battle_source': 'SELECT * FROM hok.recorded'}
-        context = {'definitions': definitions, 'catalogs': {'hok_sql': CATALOG},
+        # These SQLite fixtures exercise identity and clocks; PostgreSQL JSON
+        # projections are covered by the dedicated power-query tests.
+        power_view = parse_one(definitions['chat_battle_power_players'], read='postgres')
+        for selection in power_view.selects:
+            if selection.alias == 'participant_payload':
+                selection.replace(parse_one('participant.payload AS participant_payload', read='postgres'))
+        definitions['chat_battle_power_players'] = power_view.sql(dialect='postgres')
+        definitions['chat_power_match_clock'] = ('SELECT game_seq, MIN(snapshot_date) AS snapshot_date, '
+            'MIN(game_time_epoch) AS game_time_epoch FROM hok.recorded GROUP BY game_seq')
+        self.db.create_function('REGEXP', 2, lambda pattern, value: re.search(pattern, value or '') is not None)
+        context = {'definitions': definitions, 'catalogs': {'hok_sql': CATALOG, 'power_sql': POWER_CATALOG},
                    'validation': validation.__dict__}
         patcher = patch.dict(worker.CONTEXT, context, clear=True)
         patcher.start()
@@ -102,7 +115,8 @@ class ExtraPlayerSQLTests(unittest.TestCase):
             (game, index, camp, role, user, '不用于身份匹配', 11, '额外成员英雄', 2, 9, 4, 3, 5000, json.dumps(payload)))
 
     def query(self, sql, scope=None):
-        normalized = validation.validate_readonly_sql(sql, allowed_tables=CATALOG['tables'], schema_name='hok')
+        catalog = POWER_CATALOG if 'chat_battle_power' in sql else CATALOG
+        normalized = validation.validate_readonly_sql(sql, allowed_tables=catalog['tables'], schema_name='hok')
         compiled = worker.expand_semantic_views(normalized, validation.normalize_game_scope(scope or {}), self.bindings)
         return [dict(row) for row in self.db.execute(parse_one(compiled, read='postgres').sql(dialect='sqlite'))]
 
@@ -171,12 +185,14 @@ class ExtraPlayerSQLTests(unittest.TestCase):
         self.db.execute("INSERT INTO hok.battle_power_players VALUES (99,0,103,1003,'游戏昵称','op','英雄',100,0.5,8,15,'{}')")
         self.assertEqual(self.query("SELECT player_key,participant_result,participant_side_level FROM hok.chat_battle_power_players"),
                          [{'player_key': 'extra', 'participant_result': '失败', 'participant_side_level': 20}])
-        # Power's own evaluation clock must not inherit battle time/mode filters,
-        # including for old archived accounts absent from today's configuration.
+        # Identity survives mode filtering of the match anchor; the requested
+        # match clock now applies independently of evaluated_at.
         self.add_record('archived_only', 99, 999, 9, is_official=False, map_name='大乱斗')
         self.db.execute("INSERT INTO hok.battle_power_players VALUES (99,9,999,9999,'旧账号','my','英雄',100,0.5,8,15,'{}')")
         self.assertEqual(self.query("SELECT player_key FROM hok.chat_battle_power_players WHERE participant_index=9",
-                                   {'start_at': '2027-01-01T00:00:00+08:00'}), [{'player_key': 'archived_only'}])
+                                   {'start_at': '2027-01-01T00:00:00+08:00'}), [])
+        self.assertEqual(self.query("SELECT player_key FROM hok.chat_battle_power_players WHERE participant_index=9"),
+                         [{'player_key': 'archived_only'}])
 
     def test_analysis_refreshes_mapping_once_per_validated_batch(self):
         conn = MagicMock()

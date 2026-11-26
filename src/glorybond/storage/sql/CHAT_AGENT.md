@@ -4,7 +4,7 @@ QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工�
 外部 `glorybond.agent` / `glorybond.apps.qq.agent`，不再维护 Hok 专属工具注册器或 schema。
 
 模型权威目录为 `resources/agent/hok_sql/catalog.json` 与
-`resources/agent/chat_sql/catalog.json`；语义视图定义为 `hok_sql/views.json`。
+`resources/agent/power_sql/catalog.json`、`resources/agent/chat_sql/catalog.json`；战绩和底蕴语义定义分别为 `hok_sql/views.json`、`power_sql/views.json`。
 目录同时用于模型披露和 `src/glorybond/agent/tools/sql_validation.py` 的 AST 校验。
 
 ## 查询流程
@@ -12,8 +12,8 @@ QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工�
 1. 入口绑定真实用户和可信群范围。群聊仅当前群，普通私聊无群聊权限，已验证管理员
    私聊允许跨群。模型不能改变授权。
 2. 资料足够时直接回答；需要历史资料时才检索，需要其他能力时按类别发现。首轮已授权检索与发现可同轮调用，不设置固定聊天前置工具；重复发现不重传已有目录。
-3. 发现 `game_data` / `chat_data` 后，模型动态生成 SQL，调用
-   `analyze_game_database` / `analyze_chat_database`。
+3. 发现 `game_data` / `power_data` / `chat_data` 后，模型读取各自目录并生成 SQL，调用
+   `analyze_game_database` / `analyze_power_database` / `analyze_chat_database`。三个目录分别校验，不能跨域查询。
 4. worker 先整批 AST 校验，再在独立只读账号/事务中执行。整批任一项无效时不访问
    数据库。每项保留状态、截断说明和 dataset_id；游戏查询只允许目录语义视图。
 
@@ -57,7 +57,8 @@ SQL 返回的 coverage 明示归档边界；空结果或末条记录时间不能
 `mode=official,time_basis=calendar`。`start_at/end_at` 是含时区的左闭右开边界，
 由程序转换为开局秒值；自然时间口径禁止按 `snapshot_date` 过滤、分组或排序对局。
 只有明确业务日查询才使用 `time_basis=business`，边界为北京时间零点。
-资料快照与底蕴评估关系保留自身时钟，不套用对局范围。范围随 observation 批次返回，
+资料快照保留自身时钟。独立底蕴工具的两种关系统一使用归档开局时间；`evaluated_at` 仅表示评估时间。
+开局时间未知的底蕴不进入指定时间区间；无时间筛选时可读取并明确未知。范围随 observation 批次返回，
 模型不能将不同时间或模式的诊断结果当作同一比较样本。
 对局读取另受可信入口时间 `as_of` 上界约束，模型指定更晚的结束时间也不能读到本轮之后的对局。
 
@@ -87,3 +88,11 @@ Python 只在关闭网络、清空凭据环境的 Linux bubblewrap 中执行。�
 QQ 消息、图片和轨迹沿用现有出口。trace 请求/响应及工具结果脱敏保存，并生成可查看
 的运行记录；原生输入图片与本地调试日志按忽略目录保存。代码清理不执行数据库迁移
 或删除旧持久数据。
+
+## 底蕴 JSON 查询
+
+`analyze_power_database` 使用现有 `GameSQLArgs`，同批最多6条只读 SQL，`scope` 与战绩工具一致。`chat_battle_power` 每局一行，`payload` 包含完整业务 JSON；`player_keys @> ARRAY[:player]` 筛选包含某成员的对局，多成员用数组交集。`chat_battle_power_players` 每个 `(game_seq,participant_index)` 一行，`participant_payload` 保留个人业务字段。按 `player_key IN (:p1,:p2)` 可查询指定成员；同一关系自连接可分析该成员的全部队友和对手，包括 `player_key IS NULL` 的未登记玩家。不同关系不可在一条 SQL 中混接。
+
+原始 `mySide/opSide` 和 `gameResult` 保留采集视角；整局 `players` 追加可信 `playerKey` 与 `participantIndex`。参赛者视图直接提供本人/对手底蕴、梯度和转换后的胜负，未知阵营不猜测。内部账号与服务器 ID、头像 URL、原始错误正文不公开，`requestErrorCount` 保留错误数量；其他业务字段，包括已有 `matchup`、`aiAnalysis` 和将来新增业务字段，继续保留。不会调用营地或重新评估。
+
+模型发现 `power_data` 时获得字段说明、统计口径及四个完整参数/SQL示例。先用少量 JSON 样本核对字段和值域，再在数据库聚合；结果可复用原有 dataset、绘图和沙箱工具。QQ/Web 共用此工具；不新增数据库表、授权或迁移。验证使用 `tests.test_agent_power_sql`、`tests.test_agent_extra_players`；PostgreSQL JSON 验证可通过 `HOK_TEST_POSTGRES_DSN` 启用 `tests.test_agent_power_postgres`，只执行合成数据 SELECT。

@@ -385,8 +385,11 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
                         # them to project configured participants into matches.
                         scope_name = ("chat_player_battles" if scoped_battles and name == "chat_recorded_battle_source"
                                       else name)
-                        columns = CONTEXT["catalogs"]["hok_sql"]["tables"].get(scope_name, {}).get("columns", {})
-                        filters = CONTEXT["validation"]["game_scope_predicates"](query_scope, columns)
+                        tables = {key: value for catalog_name in ("hok_sql", "power_sql")
+                                  for key, value in CONTEXT["catalogs"].get(catalog_name, {}).get("tables", {}).items()}
+                        columns = tables.get(scope_name, {}).get("columns", {})
+                        filters = CONTEXT["validation"]["game_scope_predicates"](
+                            query_scope, columns, include_undated=name in {"chat_battle_power", "chat_battle_power_players"})
                         if filters:
                             view = exp.select("*").from_(view.subquery("scoped_battles")).where(*filters)
                     required[name] = view
@@ -420,14 +423,17 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
 
 def analyze(args):
     domain = args["domain"]
-    catalog = CONTEXT["catalogs"]["hok_sql" if domain == "game" else "chat_sql"]
+    catalog_name = {"game": "hok_sql", "power": "power_sql", "chat": "chat_sql"}.get(domain)
+    if catalog_name is None:
+        raise ValueError("未知数据库查询范围")
+    catalog = CONTEXT["catalogs"][catalog_name]
     owners = {
         k: {tuple(v) for v in values}
         for k, values in catalog.get("json_root_owners", {}).items()
     }
     normalized = []
     query_scope = (CONTEXT["validation"]["normalize_game_scope"](args["scope"])
-                   if domain == "game" and "scope" in args else None)
+                   if domain in {"game", "power"} and "scope" in args else None)
     column_usage = dict(catalog.get("column_usage", {}))
     if query_scope is not None:
         column_usage.update(CONTEXT["validation"]["game_scope_column_usage"](query_scope, catalog["tables"]))
@@ -448,7 +454,7 @@ def analyze(args):
             )
         )
     scope = trusted_scope(args["principal"], args.get("group_id")) if domain == "chat" else None
-    references = (reference_data() if domain == "game"
+    references = (reference_data() if domain in {"game", "power"}
                   and "chat_configured_players" in CONTEXT.get("definitions", {}) else None)
     player_bindings = references.game_identity_rows() if references is not None else None
     results = []
@@ -462,7 +468,7 @@ def analyze(args):
                     # prevents PostgreSQL from using parallel query plans.
                     with conn.cursor() as cur:
                         executed = (
-                            expand_semantic_views(sql, query_scope, player_bindings) if domain == "game" else sql
+                            expand_semantic_views(sql, query_scope, player_bindings) if domain in {"game", "power"} else sql
                         )
                         cur.execute(
                             f"SELECT * FROM ({executed}) AS agent_result LIMIT {row_limit + 1}"

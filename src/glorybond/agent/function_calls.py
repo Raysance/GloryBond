@@ -93,7 +93,8 @@ class FunctionCatalog:
                 "total": len(matches),
                 "next_offset": args.offset + len(page) if args.offset + len(page) < len(matches) else None,
                 "notice": "这里只列已登记业务函数，空结果不代表数据库没有对应数据或筛选维度；"
-                          "自定义游戏统计可使用game_data语义SQL。先describe_hok_function读取选中函数参数，再调用；未列出的函数不可执行。"}
+                          "自定义战绩统计使用game_data语义SQL，底蕴及同局评估使用power_data独立查询。"
+                          "先describe_hok_function读取选中函数参数，再调用；未列出的函数不可执行。"}
 
     def _state(self, ctx):
         if not hasattr(ctx, "_hok_function_state"):

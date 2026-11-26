@@ -70,9 +70,10 @@ class RemoteBridge:
         manual_catalog = json.loads((self.shared_path.parents[1] / "docs/manual/catalog.json").read_text())
         catalogs = {
             domain: json.loads((self.shared_path / domain / "catalog.json").read_text())
-            for domain in ("hok_sql", "chat_sql")
+            for domain in ("hok_sql", "power_sql", "chat_sql")
         }
         definitions = json.loads((self.shared_path / "hok_sql/views.json").read_text())
+        definitions.update(json.loads((self.shared_path / "power_sql/views.json").read_text()))
         validator = Path(__file__).with_name("tools") / "sql_validation.py"
         return dict(
             root=self.root, catalogs=catalogs, definitions=definitions,

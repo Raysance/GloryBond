@@ -112,7 +112,8 @@
         "add_role_from_web",
         "set_reply_preferences",
         "read_group_member_profile",
-        "query_kpl"
+        "query_kpl",
+        "analyze_power_database"
       ],
       "code": [
         {
@@ -717,7 +718,7 @@
         }
       ],
       "parent": "automation",
-      "summary": "按具体日期时间或延迟二选一创建提醒，可按周期重复；同群成员可查看创建者并取消本群任务，引用定时消息可按真实发送回执查询来源或取消；其他群、私聊及网页会话隔离。群提醒可指定原生@当前群其他成员、@全体成员或不@，选择随新任务保存。实际时间以程序返回的带时区日期时间为准。明确要求时可到时执行群成员私发动作，不改变已有普通任务目的地。 QQ定时查询可按需调用已登记的在线、战报、英雄、底蕴与时长等业务函数并返回图文；同轮调用去重，禁止业务重入AI及后台派生任务。"
+      "summary": "按具体日期时间或延迟二选一创建提醒，可按周期重复；同群成员可查看创建者并取消本群任务，引用定时消息可按真实发送回执查询来源或取消；其他群、私聊及网页会话隔离。群提醒可指定原生@当前群其他成员、@全体成员或不@，选择随新任务保存。实际时间以程序返回的带时区日期时间为准。明确要求时可到时执行群成员私发动作，不改变已有普通任务目的地。 QQ定时查询可按需调用已登记的在线、战报、英雄、时长等业务函数及独立底蕴数据库工具并返回图文；同轮调用去重，禁止业务重入AI及后台派生任务。"
     },
     {
       "id": "tasks_1",
@@ -1548,7 +1549,8 @@
       ],
       "tools": [
         "analyze_game_database",
-        "render_plot"
+        "render_plot",
+        "analyze_power_database"
       ],
       "code": [
         {
@@ -1784,7 +1786,7 @@
       "id": "metrics_power_scope",
       "parent": "metrics",
       "title": "底蕴统计的样本与排行口径",
-      "summary": "#我的底蕴默认查询最近7天。正式对局口径包含排位、巅峰和战队赛，排除1v1/2v2/3v3；不是所有娱乐模式都参加。",
+      "summary": "固定命令默认近7天；AI通过独立底蕴数据库工具按玩家、日期或精确时间段查询整局power JSON和全部参赛者，可自定义统计与比较。",
       "keywords": [
         "底蕴",
         "统计",
@@ -1807,7 +1809,10 @@
       "document": {
         "path": "docs/manual/chapters/metrics_power_scope.md",
         "heading": null
-      }
+      },
+      "tools": [
+        "analyze_power_database"
+      ]
     },
     {
       "id": "metrics_contribution",
