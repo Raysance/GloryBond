@@ -1,5 +1,6 @@
 """Bot configuration/logging boundary for the private Camp SDK."""
 import logging
+from time import monotonic
 
 from hok_camp_client import CampError, download_battle_image
 from glorybond.integrations.camp import query, capture_watch_frame, session_path
@@ -37,9 +38,17 @@ class WzryOfficialAPI:
 
 
 def wzry_watch_frame(userid, roleid, *, on_battle_info=None):
+    started = monotonic()
     try:
         options = {"on_battle_info": on_battle_info} if on_battle_info is not None else {}
-        return capture_watch_frame(session_path(data_root), userid, roleid, **options)
+        result = capture_watch_frame(session_path(data_root), userid, roleid, **options)
+        state = result.get("state")
+        state = state if state in {"ready", "pending", "ended", "unavailable"} else "unknown"
+        reason = "stream_wait_timeout" if result.get("reason") == "stream_wait_timeout" else "other"
+        log_message(f"WATCH_FRAME_RESULT state={state} reason={reason} "
+                    f"reused={result.get('reused') is True} elapsed={monotonic() - started:.3f}",
+                    logging.WARNING if state == "pending" else logging.INFO)
+        return result
     except Exception as exc:
         log_message("WATCH_FRAME_ERROR type=" + type(exc).__name__, logging.WARNING)
         raise

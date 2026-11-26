@@ -22,6 +22,19 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Keep watch preparation responsive — 2026-11-26
+
+Avatar loading and lineup rendering now run on a separate per-request worker.
+The SDK callback returns immediately so live-ready notifications and heartbeats
+can proceed within their existing deadline. The handler joins the image task
+before returning, preserving lineup-before-screenshot queue order even when
+capture completes first. Image failures still leave the live stream available.
+
+Pending results explicitly identify the live-ready notification timeout, separate
+from video decode failures. Diagnostics record only fixed state, timeout status,
+reuse and elapsed time. Offline concurrency tests cover slow rendering, delivery
+order and worker completion on capture errors.
+
 ## Optional post-watch battle reports — 2026-11-26
 
 After a successful screenshot, the requesting viewer is asked whether to receive

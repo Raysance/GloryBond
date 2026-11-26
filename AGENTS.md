@@ -91,7 +91,7 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 - 管理页面校验管理员身份，账号认证和会话更新通过既有登录适配层管理。数据采集保留已有记录、有效结果和未知值，迁移与清理按明确需求执行。
 
-- 观战由 `apps/qq/handlers/live_watch.py` 解析昵称/本人并沿用权限，经 `integrations/wzry.py → integrations/camp.py` 调用SDK公开 `capture_watch_frame`。SDK保留同一目标的直播、心跳与持续解码，重复观战等待本次请求之后的新帧；结束、错误、切换目标、凭据更新或进程关闭时清理。并发截图不排队，失败不重试，首帧不宣称已追上实时。首次观战某局先发阵容图，再发画面；`features/game/watch_lineup.py` 只投影该次 `battle_info`，复用底蕴/预言模板的缺项留白模式，保持原字体、尺寸和头像裁剪，不逐人补查资料、不计算完整底蕴或预测；红绿底色用已有英雄战力、场次和胜率加权，缺失项不参与，仅用于本图相对比较。`storage/files.py` 有界缓存头像并独立保存图片；`storage/watch_lineups.py` 按机器人、会话和对局原子去重一天，入队与QQ回执分别记录，发送结果未知不重发。
+- 观战由 `apps/qq/handlers/live_watch.py` 解析昵称/本人并沿用权限，经 `integrations/wzry.py → integrations/camp.py` 调用SDK公开 `capture_watch_frame`。SDK保留同一目标的直播、心跳与持续解码，重复观战等待本次请求之后的新帧；结束、错误、切换目标、凭据更新或进程关闭时清理。并发截图不排队，失败不重试，首帧不宣称已追上实时。首次观战某局先发阵容图，再发画面；SDK阵容回调只提交后台图片任务，不能阻塞直播就绪通知和心跳，返回截图前等待阵容入队；`features/game/watch_lineup.py` 只投影该次 `battle_info`，复用底蕴/预言模板的缺项留白模式，保持原字体、尺寸和头像裁剪，不逐人补查资料、不计算完整底蕴或预测；红绿底色用已有英雄战力、场次和胜率加权，缺失项不参与，仅用于本图相对比较。`storage/files.py` 有界缓存头像并独立保存图片；`storage/watch_lineups.py` 按机器人、会话和对局原子去重一天，入队与QQ回执分别记录，发送结果未知不重发。
 - 观战成功后由 `apps/qq/handlers/watch_reports.py` 询问是否在本局结束后推送战绩；仅原请求者在原会话两分钟内回复“是”才建立任务，“否”不查询。`storage/watch_reports.py` 用 Redis 保存确认、精确对局参数、目标与目的地，切换观战和进程重启不丢失已确认任务；最多等待两小时，每分钟有界检查已结束战绩列表，绝不将直播 battleID 当 gameSeq 或取最新一局替代。命中后复用个人战绩的单局回复与文字/图片组装，原子入队并分别记录QQ回执，结果未知不重发。后台重新核对绑定与查询权限，战绩隐藏、请求或生成失败沿统一诊断出口回原会话。
 - 营地正式会话为 `HOK_DATA_DIR/account_sessions/camp-session.json`，由SDK读写；Bot/Web共享适配层仅持文件路径，`reload_session`保留限速。管理员扫码用临时SDK文件，租约校验后再带版本检查发布。旧.env中的完整会话仅由部署显式调用SDK迁移工具读取，已有目标文件不覆盖，旧配置不再作为营地凭据来源。
 

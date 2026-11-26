@@ -1,5 +1,6 @@
 """Named live screenshot commands, using the same player directory as predictions."""
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from hok_camp_client import CampError
 from glorybond.config.settings import namenick, roleidlist, userlist
@@ -53,15 +54,21 @@ def _capture(prepared, *, on_lineup=None, on_error=None):
             if on_error:
                 on_error(RuntimeError("观战阵容图片生成或入队失败（" + type(error).__name__ + "）"))
 
+    # The SDK calls back before consuming live-ready notifications. Downloads and
+    # rendering must run separately so they cannot exhaust that wait or delay its
+    # heartbeat. Join before returning to preserve lineup-before-screenshot order.
+    lineup_worker = (ThreadPoolExecutor(max_workers=1, thread_name_prefix="watch-lineup")
+                     if on_lineup is not None else None)
     try:
-        options = {"on_battle_info": show_lineup} if on_lineup is not None else {}
+        options = ({"on_battle_info": lambda info: lineup_worker.submit(show_lineup, info)}
+                   if lineup_worker is not None else {})
         result = wzry_watch_frame(prepared["userid"], prepared["roleid"], **options)
         if result["state"] == "ready":
             from glorybond.features.game.watch_report import battle_reference
             return {"kind": "image", "text": f"【{display}】观战画面",
                     "image_path": save_watch_frame(result["jpeg"]),
                     "battle_reference": battle_reference(result.get("battle_info"), role_id=prepared["roleid"])}
-        text = {"pending": "等待观战画面超时，请稍后再次观战", "ended": "该对局已结束"}.get(
+        text = {"pending": "等待营地直播就绪通知超时，请稍后再次观战", "ended": "该对局已结束"}.get(
             result["state"], "当前对局暂时无法观战")
         return {"kind": "text", "text": text}
     except CampError as error:
@@ -86,6 +93,9 @@ def _capture(prepared, *, on_lineup=None, on_error=None):
             on_error(RuntimeError("暂时无法获取观战截图，本次已停止（" + type(error).__name__ + "）"))
             return {"kind": "reported", "text": "暂时无法获取观战截图，本次已停止"}
         return {"kind": "text", "text": "暂时无法获取观战截图，本次已停止"}
+    finally:
+        if lineup_worker is not None:
+            lineup_worker.shutdown(wait=True)
 
 
 def send_watch_lineup(lineup, *, event):
