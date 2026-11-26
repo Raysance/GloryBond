@@ -13,12 +13,16 @@ def _asset(value):
     value = value.strip()
     try:
         parsed = urlsplit(value)
-        # Only the game's public artwork hosts, without account HTTP credentials.
-        if parsed.scheme not in {"https", "http"} or parsed.username or parsed.password:
+        if parsed.scheme not in {"https", "http"} or not parsed.hostname or parsed.username or parsed.password:
             return None
-        host = parsed.hostname or ""
-        if any(host == domain or host.endswith("." + domain) for domain in ("gtimg.cn", "qpic.cn", "qlogo.cn", "qq.com")):
-            return value
+        from ipaddress import ip_address
+        try:
+            if not ip_address(parsed.hostname).is_global:
+                return None
+        except ValueError:
+            if parsed.hostname == "localhost":
+                return None
+        return value
     except ValueError:
         pass
     return None
@@ -74,9 +78,23 @@ def prepare_watch_lineup(battle_info, *, role_id):
     return {"battle_id": str(battle_id), "map_name": _text(battle_info.get("mapName")), "teams": teams}
 
 
+def available_metric_score(player):
+    """Color-only comparison: average observed metrics, excluding missing terms."""
+    terms = []
+    if player["hero_power"] is not None:
+        power = player["hero_power"]
+        terms.append((2.0, power / (power + 5000)))
+    if player["wins"] is not None and player["losses"] is not None:
+        matches = player["wins"] + player["losses"]
+        terms.append((1.3, matches / (matches + 100)))
+    if player["win_rate"] is not None:
+        terms.append((2.0, player["win_rate"]))
+    return 100 * sum(weight * value for weight, value in terms) / sum(weight for weight, _ in terms) if terms else None
+
+
 def render_watch_lineup_file(data):
     from glorybond.rendering.gen_coplayer_analyses import PlayerInfo, render_player_strength_image
-    from glorybond.storage.files import load_project_font, load_watch_lineup_images, save_watch_lineup_image
+    from glorybond.storage.files import load_watch_lineup_images, save_watch_lineup_image
 
     teams = list(data["teams"])
     target_teams = [team for team in teams if any(player["is_target"] for player in team["players"])]
@@ -88,12 +106,10 @@ def render_watch_lineup_file(data):
         name=player["name"] or "", hero_name=player["hero_name"],
         avatar_path=player["role_icon"], hero_avatar_url=player["hero_icon"],
         hero_power=player["hero_power"], wins=player["wins"], losses=player["losses"],
-        win_rate=player["win_rate"], side="my" if index == 0 else "op",
+        win_rate=player["win_rate"], score=available_metric_score(player), side="my" if index == 0 else "op",
     ) for index, team in enumerate(teams) for player in team["players"]]
     image = render_player_strength_image(
         players, title="本局双方阵容", subtitle=data["map_name"],
         partial_data=True, images=load_watch_lineup_images(data), team_labels=labels,
-        font_loader=lambda size, bold=False: load_project_font(
-            "resources/fonts/noto-sans-sc/NotoSansSC-VF.ttf", size, weight=600 if bold else 400),
     )
     return save_watch_lineup_image(image)

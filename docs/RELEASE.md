@@ -22,6 +22,16 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Preserve the original watch lineup template — 2026-11-26
+
+Watch lineups now use the strength template's original font, geometry and avatar
+resizing. Existing local hero artwork is preferred; all remaining images start
+loading together, with a twelve-second budget and the existing cache. Response
+artwork is no longer discarded solely because its CDN differs from a short list.
+Red/green card shading uses a weighted comparison of available hero combat power,
+match count and win rate; missing terms are omitted and the result is used only
+for color, without filling missing strength or MVP figures.
+
 ## Watch lineup and retained playback — 2026-11-26
 
 The first watch of a battle in each QQ conversation queues a lineup image before

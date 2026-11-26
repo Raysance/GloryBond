@@ -90,7 +90,7 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 - 管理页面校验管理员身份，账号认证和会话更新通过既有登录适配层管理。数据采集保留已有记录、有效结果和未知值，迁移与清理按明确需求执行。
 
-- 观战由 `apps/qq/handlers/live_watch.py` 解析昵称/本人并沿用权限，经 `integrations/wzry.py → integrations/camp.py` 调用SDK公开 `capture_watch_frame`。SDK保留同一目标的直播、心跳与持续解码，重复观战等待本次请求之后的新帧；结束、错误、切换目标、凭据更新或进程关闭时清理。并发截图不排队，失败不重试，首帧不宣称已追上实时。首次观战某局先发阵容图，再发画面；`features/game/watch_lineup.py` 只投影该次 `battle_info`，复用底蕴/预言模板的缺项留白模式，不逐人补查资料、不计算底蕴或预测。`storage/files.py` 有界缓存头像并独立保存图片；`storage/watch_lineups.py` 按机器人、会话和对局原子去重一天，入队与QQ回执分别记录，发送结果未知不重发。
+- 观战由 `apps/qq/handlers/live_watch.py` 解析昵称/本人并沿用权限，经 `integrations/wzry.py → integrations/camp.py` 调用SDK公开 `capture_watch_frame`。SDK保留同一目标的直播、心跳与持续解码，重复观战等待本次请求之后的新帧；结束、错误、切换目标、凭据更新或进程关闭时清理。并发截图不排队，失败不重试，首帧不宣称已追上实时。首次观战某局先发阵容图，再发画面；`features/game/watch_lineup.py` 只投影该次 `battle_info`，复用底蕴/预言模板的缺项留白模式，保持原字体、尺寸和头像裁剪，不逐人补查资料、不计算完整底蕴或预测；红绿底色用已有英雄战力、场次和胜率加权，缺失项不参与，仅用于本图相对比较。`storage/files.py` 有界缓存头像并独立保存图片；`storage/watch_lineups.py` 按机器人、会话和对局原子去重一天，入队与QQ回执分别记录，发送结果未知不重发。
 - 营地正式会话为 `HOK_DATA_DIR/account_sessions/camp-session.json`，由SDK读写；Bot/Web共享适配层仅持文件路径，`reload_session`保留限速。管理员扫码用临时SDK文件，租约校验后再带版本检查发布。旧.env中的完整会话仅由部署显式调用SDK迁移工具读取，已有目标文件不覆盖，旧配置不再作为营地凭据来源。
 
 AI 表达规则集中在 `src/glorybond/agent/reply_style.py`，由 QQ/Web 主模型共享。先给明确结论与关键依据，直接陈述已取得的结果；缺项描述具体缺少的资料，不以自身能力或把握程度作自我保留。结论范围与证据一致，估算随结论交代口径或关键假设，只保留会实质影响答案或行动的具体条件；不追加常识性免责声明或局限清单，不通过回复后的关键词删句改写主模型详细正文。

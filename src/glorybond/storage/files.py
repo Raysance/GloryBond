@@ -1023,7 +1023,10 @@ def load_battle_report_image(url, *, max_cache_age=None, download_timeout=None):
     for marker, extension in (("custom_wzryequip", "png"), ("custom_wzry_E1", "jpg")):
         if marker in url:
             identifier = url.rsplit("/", 1)[-1].split(".")[0]
-            if identifier.isascii() and identifier.isdigit():
+            import re
+            valid_identifier = (identifier.isascii() and identifier.isdigit()) or (
+                marker == "custom_wzry_E1" and re.fullmatch(r"[a-fA-F0-9]{32}", identifier))
+            if valid_identifier:
                 local = os.path.join(project_root, "resources", "wzry_images", marker, identifier + "." + extension)
                 if os.path.isfile(local):
                     with Image.open(local) as image:
@@ -1095,20 +1098,20 @@ def save_watch_frame(jpeg):
 
 
 def load_watch_lineup_images(data):
-    """Bound the loading-card delay; missing artwork keeps a placeholder."""
+    """Reuse the original hero artwork, then load all supplied avatars in parallel."""
     from concurrent.futures import ThreadPoolExecutor, wait
 
     players = [player for team in data["teams"] for player in team["players"]]
+    images = {}
     urls = list(dict.fromkeys(player[key] for key in ("hero_icon", "role_icon")
-                              for player in players if player.get(key)))
+                              for player in players if player.get(key) and player[key] not in images))
     if not urls:
-        return {}
-    pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="watch-artwork")
-    futures = {pool.submit(load_battle_report_image, url, max_cache_age=604800, download_timeout=3): url
+        return images
+    pool = ThreadPoolExecutor(max_workers=min(40, len(urls)), thread_name_prefix="watch-artwork")
+    futures = {pool.submit(load_battle_report_image, url, max_cache_age=604800, download_timeout=8): url
                for url in urls[:40]}
     try:
-        done, _ = wait(futures, timeout=4)
-        images = {}
+        done, _ = wait(futures, timeout=12)
         for future in done:
             try:
                 images[futures[future]] = future.result()

@@ -102,6 +102,47 @@ class WatchStrengthTemplateTests(unittest.TestCase):
             with Image.open(path) as saved:
                 self.assertEqual(saved.size, legacy.size)
 
+    def test_partial_colors_use_supplied_scores_with_original_red_green_palette(self):
+        players = [template.PlayerInfo(name='高', side='my', score=90),
+                   template.PlayerInfo(name='低', side='op', score=10),
+                   template.PlayerInfo(name='未知', side='op')]
+        colors = []
+        original = template._rounded_rectangle
+        def record(draw, xy, radius, **kwargs):
+            if radius == 18:
+                colors.append(kwargs.get('fill'))
+            return original(draw, xy, radius, **kwargs)
+        with patch.object(template, '_rounded_rectangle', record), \
+             patch.object(template, '_calc_display_score', side_effect=AssertionError('invented metric')):
+            template.render_player_strength_image(players, partial_data=True, font_loader=font_loader)
+        self.assertEqual(colors[0], template._blend_with_white(template.ACCENT_GREEN, .24))
+        self.assertEqual(colors[1], template._blend_with_white(template.ACCENT_RED, .24))
+        self.assertEqual(colors[2], (240, 243, 248))
+
+    def test_original_hero_artwork_and_all_avatars_are_loaded_before_rendering(self):
+        from glorybond.storage import files
+        import threading
+        barrier = threading.Barrier(10)
+        with tempfile.TemporaryDirectory() as root:
+            icons = Path(root) / 'resources/wzry_images/custom_wzry_E1'
+            icons.mkdir(parents=True)
+            filename = '00dcf4e2c59503f0bca334e867d05299.jpg'
+            Image.new('RGB', (80, 90), 'green').save(icons / filename)
+            players = [{'hero_id': '107', 'hero_icon': 'https://cdn.example.com/custom_wzry_E1/' + filename,
+                        'role_icon': f'https://cdn.example.com/avatar-{index}'} for index in range(10)]
+            original_loader = files.load_battle_report_image
+            def avatar(url, **kwargs):
+                if 'custom_wzry_E1' in url:
+                    return original_loader(url, **kwargs)
+                self.assertIn('avatar-', url)
+                barrier.wait(timeout=2)
+                return Image.new('RGB', (40, 40), 'orange')
+            with patch.object(files, 'project_root', root), patch.object(files, 'load_battle_report_image', side_effect=avatar) as load:
+                images = files.load_watch_lineup_images({'teams': [{'players': players}]})
+            self.assertEqual(len(images), 11)
+            self.assertEqual(load.call_count, 11)
+            self.assertEqual(images[players[0]['hero_icon']].size, (80, 90))
+
 
 if __name__ == "__main__":
     unittest.main()

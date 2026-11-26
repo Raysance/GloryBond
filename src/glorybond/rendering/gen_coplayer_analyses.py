@@ -445,8 +445,8 @@ def render_player_strength_image(
 ):
     """Return the existing strength template as a Pillow image without saving it.
 
-    In partial-data mode missing values stay blank and no fallback strength score
-    is calculated. Assets come only from ``images`` (URL/path -> Pillow image),
+    In partial-data mode missing values stay blank. An explicit score may color
+    cards, but no fallback strength score is calculated. Assets come only from ``images`` (URL/path -> Pillow image),
     including when the mapping is empty. ``font_loader(size, bold=False)`` can
     supply the host's font loader. Legacy mode retains existing asset loading.
     """
@@ -527,7 +527,8 @@ def render_player_strength_image(
         )
     else:
         # 统计最大分/平均分/最大偏差/最大场次，用于着色与对比
-        scores = [] if partial_data else [_calc_display_score(p) for p in data]
+        scores = ([float(p.score) for p in data if p.score is not None] if partial_data
+                  else [_calc_display_score(p) for p in data])
         max_score = max(scores) if scores else 1
         max_score = max(max_score, 1)
         totals = [p.derived_matches() or 0 for p in data]
@@ -595,7 +596,7 @@ def render_player_strength_image(
                 for idx, src in hero_sources:
                     source = supplied_images.get(src) if src else None
                     if isinstance(source, Image.Image):
-                        hero_images[idx] = source.convert('RGBA')
+                        hero_images[idx] = source.convert('RGBA').resize((avatar_d, avatar_d), Image.LANCZOS)
                 for idx, src in avatar_sources:
                     source = supplied_images.get(src) if src else None
                     if isinstance(source, Image.Image):
@@ -614,12 +615,12 @@ def render_player_strength_image(
                 # 未授权检查
                 unauthorized = (p.auth is False)
                 
-                if unauthorized or partial_data:
+                if unauthorized or (partial_data and p.score is None):
                     # 未授权：使用灰色背景
                     fill_color = (240, 243, 248)
                 else:
                     # 授权：根据评分着色
-                    score = _calc_display_score(p)
+                    score = float(p.score) if partial_data else _calc_display_score(p)
                     dev = score - avg_score_all
                     t = abs(dev) / max_abs_dev
                     tint_factor = 0.08 + 0.16 * t  # 0.08..0.24 更克制
@@ -702,12 +703,7 @@ def render_player_strength_image(
                         small_y = text_y + max(0, (30 - small_d) // 2)
                         draw.ellipse((text_x, small_y, text_x + small_d, small_y + small_d), fill=(238, 241, 248))
                         name_x = text_x + small_d + 8
-                name_text = p.name
-                if partial_data:
-                    available = card_right - 24 - right_col_w - 12 - name_x
-                    while name_text and draw.textlength(name_text, font=name_font) > available:
-                        name_text = name_text[:-2] + "…" if len(name_text) > 1 else ""
-                _safe_text(draw, (name_x, text_y), name_text, name_font, TEXT_PRIMARY)
+                _safe_text(draw, (name_x, text_y), p.name, name_font, TEXT_PRIMARY)
 
                 # 信息两行：
                 # 行1：段位 · 星级 · Lv
@@ -767,7 +763,7 @@ def render_player_strength_image(
 
                     v_area_left = right_x_end - right_col_w
                     v_top = card_top + 26
-                    v_bottom = card_top + card_h - (60 if partial_data else 44)
+                    v_bottom = card_top + card_h - 44
                     v_h = max(40, v_bottom - v_top)
                     bar_w_v = 22  # 加宽竖条以匹配更高的卡片
                     gap_v = 40  # 增大条形间距

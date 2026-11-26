@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from glorybond.features.game.watch_lineup import prepare_watch_lineup
+from glorybond.features.game.watch_lineup import prepare_watch_lineup, available_metric_score
 from glorybond.storage import watch_lineups as store
 from tools.debugger import import_project_module
 
@@ -73,8 +73,25 @@ class LineupProjectionTests(unittest.TestCase):
         self.assertTrue(render.call_args.kwargs['partial_data'])
         self.assertEqual(render.call_args.kwargs['team_labels'], ('我方', '对方'))
         for player in players:
-            for field in ('single_level', 'score', 'avg_score', 'total_cnt', 'mvp_cnt', 'power', 'auth'):
+            for field in ('single_level', 'avg_score', 'total_cnt', 'mvp_cnt', 'power', 'auth'):
                 self.assertIsNone(getattr(player, field), field)
+        self.assertNotIn('font_loader', render.call_args.kwargs)
+        self.assertIsNotNone(players[0].score)
+        self.assertIsNone(players[1].score)
+
+    def test_color_score_uses_only_available_metrics(self):
+        row = dict(hero_power=None, wins=None, losses=None, win_rate=None)
+        self.assertIsNone(available_metric_score(row))
+        self.assertEqual(available_metric_score({**row, 'win_rate': .7}), 70)
+        self.assertEqual(available_metric_score({**row, 'hero_power': 0}), 0)
+        self.assertIsNone(available_metric_score({**row, 'wins': 100}))
+        self.assertGreater(available_metric_score({**row, 'hero_power': 10000}),
+                           available_metric_score({**row, 'hero_power': 1000}))
+
+    def test_response_artwork_can_use_other_public_cdn_hosts(self):
+        row = prepare_watch_lineup({'battleID': 'b', 'camp1': [
+            {'heroIcon': 'https://cdn.example.com/custom_wzry_E1/107.jpg'}]}, role_id=22)['teams'][0]['players'][0]
+        self.assertEqual(row['hero_icon'], 'https://cdn.example.com/custom_wzry_E1/107.jpg')
 
     def test_invalid_metrics_remain_blank(self):
         for value in (True, 'NaN', 'inf', -1, {}, ''):
