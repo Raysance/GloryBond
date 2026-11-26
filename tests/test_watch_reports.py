@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from glorybond.features.game.watch_report import battle_reference, completed_battle
+from glorybond.features.game.watch_report import battle_reference, completed_battle_params
 from glorybond.storage import watch_reports as store
 from tools.debugger import import_project_module
 
@@ -47,12 +47,36 @@ class BattleReferenceTests(unittest.TestCase):
             self.assertIsNone(battle_reference(invalid, role_id=22))
 
     def test_only_the_matching_completed_record_triggers_delivery(self):
-        self.assertFalse(completed_battle({'list': [{**ROW, 'gameSeq': 'next-game'}]}, PARAMS))
-        self.assertFalse(completed_battle({'list': [{**ROW, 'gameSvrId': 'wrong-server'}]}, PARAMS))
-        self.assertFalse(completed_battle({'list': [{**ROW, 'isGaming': True}]}, PARAMS))
-        self.assertTrue(completed_battle({'list': [ROW], 'isGaming': True}, PARAMS))
+        for changed in ({'gameSeq': 'next-game'}, {'gameSvrId': 'wrong-server'}, {'pvpType': 2}, {'relaySvrId': '9'}):
+            self.assertIsNone(completed_battle_params({'list': [{**ROW, **changed}]}, PARAMS))
+        for flag in (True, 1, '1', 'true'):
+            self.assertIsNone(completed_battle_params({'list': [{**ROW, 'isGaming': flag}]}, PARAMS))
+        self.assertEqual(completed_battle_params({'list': [ROW], 'isGaming': True}, PARAMS), PARAMS)
         with self.assertRaises(PermissionError):
-            completed_battle({'list': [ROW], 'invisible': True}, PARAMS)
+            completed_battle_params({'list': [ROW], 'invisible': True}, PARAMS)
+
+    def test_signed_history_relay_matches_unsigned_watch_id(self):
+        # Native response shape with synthetic IDs: the identical 32-bit value
+        # is unsigned in watch metadata and signed in completed history.
+        params = {**PARAMS, 'relaySvrId': '2147483649'}
+        expected = {**PARAMS, 'relaySvrId': '-2147483647'}
+        page = {'list': [{**ROW, 'relaySvrId': -2147483647, 'battleType': 15, 'gameresult': 1}], 'isGaming': True}
+        self.assertEqual(completed_battle_params(page, params), expected)
+        self.assertEqual(completed_battle_params({'list': [{**ROW, 'relaySvrId': '2147483649'}]}, expected), params)
+        self.assertIsNone(completed_battle_params({'list': [{**ROW, 'relaySvrId': '-2147483646'}]}, params))
+        self.assertEqual(PARAMS['relaySvrId'], '4')
+        for relay in (None, '', True, 'PRIVATE', '-2147483649', '4294967296', 4.0, '4294967300'):
+            self.assertIsNone(completed_battle_params({'list': [{**ROW, 'relaySvrId': relay}]}, PARAMS))
+        without_relay = {key: value for key, value in ROW.items() if key != 'relaySvrId'}
+        self.assertIsNone(completed_battle_params({'list': [without_relay]}, PARAMS))
+
+    def test_watch_reference_accepts_signed_relay_and_rejects_out_of_range(self):
+        for relay in ('-2147483647', '2147483649'):
+            raw = {'battleID': 'synthetic', 'battleDetailUrl': ROUTE.replace('relaySvrId=4', 'relaySvrId=' + relay)}
+            self.assertEqual(battle_reference(raw, role_id=22)['params']['relaySvrId'], relay)
+        for relay in ('-2147483649', '4294967296', ''):
+            raw = {'battleID': 'synthetic', 'battleDetailUrl': ROUTE.replace('relaySvrId=4', 'relaySvrId=' + relay)}
+            self.assertIsNone(battle_reference(raw, role_id=22))
 
 
 @unittest.skipUnless(fakeredis, 'Install fakeredis[lua] for durable queue tests')
@@ -199,6 +223,26 @@ class WatchReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0]['reference'], REFERENCE)
         store.release(jobs[0])
+
+    async def test_existing_pending_job_uses_signed_relay_and_sends_once(self):
+        reference = {**REFERENCE, 'params': {**PARAMS, 'relaySvrId': '2147483649'}}
+        self.offer(reference=reference); self.accept(); self.queue()
+        old_reference = json.loads(self.db.get(store.job_key(self.scope, reference, 22)))['reference']
+        battle = {'text': '该局战绩', 'image_path': '/tmp/battle.png'}
+        with patch.object(facade, 'wzry_get_official', return_value={
+                'list': [{**ROW, 'relaySvrId': '-2147483647', 'gameresult': 1}], 'isGaming': True}), \
+             patch.object(reports, 'single_last_battle_reply', new=AsyncMock(return_value=battle)) as render:
+            await handler.check_pending_reports()
+            await handler.check_pending_reports()
+        render.assert_awaited_once_with({'battle_params': {**PARAMS, 'relaySvrId': '-2147483647'}, 'battle_roleid': 22})
+        payloads = self.queue()
+        self.assertEqual(len(payloads), 1)
+        job = json.loads(self.db.get(payloads[0]['watch_report_key']))
+        self.assertEqual(job['reference'], old_reference)
+        self.assertEqual(job['state'], 'queued')
+        sender._record_watch_report_outcome(payloads[0], result={'message_id': 12})
+        self.assertEqual(json.loads(self.db.get(job['key']))['state'], 'sent')
+        self.assertEqual(store.claim_due('1', now=161), [])
 
     async def test_same_conversation_and_target_deduplicate_multiple_viewers(self):
         other = handler.reply_scope(Event(user=10))

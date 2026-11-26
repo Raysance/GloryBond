@@ -22,6 +22,22 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Match signed relay identifiers in watch reports — 2026-11-27
+
+Watch metadata and completed history can represent the same 32-bit relay server
+identifier as an unsigned positive number and a signed negative number. Comparing
+those strings left a completed battle pending despite an already archived report.
+Completion now compares relay identifiers in a common 32-bit representation and
+continues to require the same battle sequence, game server and mode. Missing,
+out-of-range and genuinely different relays do not match. Detail requests use
+the completed row's original representation and reuse archived battle data.
+
+Existing confirmed tasks recover without resetting their identity or delivery
+state. Synthetic regressions cover both numeric representations, invalid and
+mismatched IDs, a new ongoing game and one-time recovery of persisted jobs. A
+read-only comparison using the affected live history confirmed that the old
+comparison failed while the corrected one selected the exact archived battle.
+
 ## Keep watch preparation responsive — 2026-11-26
 
 Avatar loading and lineup rendering now run on a separate per-request worker.

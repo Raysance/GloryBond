@@ -69,7 +69,7 @@ async def check_pending_reports():
     from glorybond.apps.qq.handlers.player_reports import single_last_battle_reply
     from glorybond.apps.qq.message_sender import add_watch_report_msg
     from glorybond.apps.qq.rules import is_battle_visible_qid_enabled
-    from glorybond.features.game.watch_report import completed_battle
+    from glorybond.features.game.watch_report import completed_battle_params
     from glorybond.features.facade import wzry_get_official
 
     jobs = await asyncio.to_thread(store.claim_due, str(confs["QQBot"]["bot_qid"]), now=current_timestamp())
@@ -95,12 +95,12 @@ async def check_pending_reports():
                 raise ReportStopped("战绩查询失败（" + type(pages[key]).__name__ + "），本次结束推送已停止")
             params = job["reference"]["params"]
             try:
-                completed = completed_battle(pages[key], params)
+                completed_params = completed_battle_params(pages[key], params)
             except PermissionError:
                 raise ReportStopped("该玩家战绩不可见，本次结束推送已停止") from None
-            if not completed:
+            if completed_params is None:
                 continue
-            battle = await single_last_battle_reply({"battle_params": params, "battle_roleid": target["roleid"]})
+            battle = await single_last_battle_reply({"battle_params": completed_params, "battle_roleid": target["roleid"]})
             if battle is None:
                 # A history row may appear before the detail is available.
                 continue
