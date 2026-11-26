@@ -1952,6 +1952,51 @@ def _bili_video_send_group_message(message, *, metadata=None):
     return add_msg(message, msg_type="group", to_id=confs["QQBot"]["group_qid"], metadata=metadata)
 
 
+def bili_video_download_message(reference):
+    from .zapi import BiliVideoError, resolve_video_reference
+    from .zfile import cached_bili_video
+    from nonebot.adapters.onebot.v11 import MessageSegment
+
+    config = confs.get("BiliVideo", {})
+    if not config.get("enabled", True):
+        raise BiliVideoError("disabled")
+    size = max(1, min(500, int(config.get("max_size_mb", 90))))
+    timeout = max(30, min(300, int(config.get("timeout_seconds", 180))))
+    height = int(config.get("max_height", 480))
+    height = height if height in {480, 720} else 480
+    budget = max(1, min(50, int(config.get("max_size_mb_per_5min", 10))))
+    canonical = resolve_video_reference(reference)
+    path = cached_bili_video(canonical, max_size_mb=size, timeout_seconds=timeout,
+                             max_height=height, max_size_mb_per_5min=budget)
+    return str(MessageSegment.video(path.as_uri()))
+
+
+def bili_video_share_message(reference, *, scope):
+    """Bind duplicate suppression to the trusted incoming conversation."""
+    import hashlib
+    from .zapi import resolve_video_reference
+    from uuid import uuid4
+
+    canonical = resolve_video_reference(reference)
+    digest = hashlib.sha256((scope + "\n" + canonical).encode()).hexdigest()
+    key = "hok:bili:share:" + digest
+    token = uuid4().hex
+    if not dmc.redis_deamon.set(key, token, nx=True, ex=360):
+        return None
+    try:
+        message = bili_video_download_message(canonical)
+        # Preserve at least a minute of cooldown after a successful download.
+        dmc.redis_deamon.eval(
+            "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('expire',KEYS[1],60) end return 0",
+            1, key, token)
+        return message
+    except Exception:
+        dmc.redis_deamon.eval(
+            "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('del',KEYS[1]) end return 0",
+            1, key, token)
+        raise
+
+
 def _bili_video_subscribed_at_epoch(item):
     return _bili_video_business._bili_video_subscribed_at_epoch(item)
 

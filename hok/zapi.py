@@ -24,6 +24,7 @@ from .api_adapters.bilibili import (
     bilibili_search_videos_by_exact_author,
     bilibili_search_videos_by_mid,
 )
+from .api_adapters.bili_media import BiliVideoError, download_bili_video, resolve_video_reference
 from .api_adapters.steam import steam_api_recent_games, steam_api_user_status
 from .api_adapters.service_health import service_health_http
 from .api_adapters.qq_profiles import qq_avatar_bytes
@@ -39,6 +40,7 @@ from .api_adapters.tianyuanzhiyi import (
 from .api_adapters.wzry import WzryOfficialAPI, wzry_get_official, wzry_battle_image_bytes
 
 __all__ = [
+    "BiliVideoError", "download_bili_video", "resolve_video_reference",
     "service_health_http",
     "aihot_latest_daily",
     "x_get_user", "x_get_posts", "x_get_replies", "x_username", "x_get_media_bytes",

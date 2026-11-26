@@ -22,6 +22,32 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Native Bilibili video delivery — 2026-11-26
+
+Current-message video URLs, BV/av IDs and native JSON/XML share cards now use the
+pinned Parser Lite standalone dependency to download and send native QQ video.
+UP subscriptions and latest-video queries use the same path without cover/link
+cards. The adapter loads only Bilibili stream and download interfaces; it does
+not register the upstream plugin's matchers, live tasks or other platforms.
+
+Private completed-file caching, bounded subprocess downloads and process-group
+timeouts keep partial files out of delivery. Short links are constrained to
+Bilibili hosts, quoted/forwarded contents do not trigger downloads, and existing
+disable/sleep/maintenance checks still apply. Failed downloads or rejected queue
+writes leave subscription items pending; queued messages retain the existing
+receipt/no-replay behavior. Video titles remain available to content-based
+automation rules without adding a separate visible card.
+
+Delivery defaults to 480p and at most 10 decimal MB per five minutes of actual
+duration. Low-resolution streams are preferred; FFmpeg compresses oversized
+results with H.264/AAC while retaining audio. The final byte count is checked
+before enqueueing, and cache keys include the delivery profile.
+
+Validation covered routing, video-only output, cache reuse, duplicate shares,
+failed subscription delivery, automation, sender recovery and deployment checks.
+A real public video downloaded successfully and contained H.264 video and AAC
+audio tracks. No synthetic test video was sent to a QQ group.
+
 ## Camp battle trends and replay reports — 2026-11-26
 
 Camp SDK 0.8.0 adds separate winning-trend, economy/experience and full replay

@@ -18,6 +18,7 @@ dependencies = [
     "nb-cli>=1.4,<2",
     "nonebot-adapter-onebot>=2.4,<3",
     "nonebot-plugin-apscheduler>=0.5,<1",
+    "nonebot-plugin-parser-lite-standalone @ git+https://github.com/sokoko-org/nonebot-plugin-parser-lite.git@2e171fc41fd938aac585512ac3d54c0b1771d473",
     "nonebot2[fastapi,httpx,websockets]>=2.4,<3",
     "numpy>=2,<3",
     "pandas>=2.2,<3",

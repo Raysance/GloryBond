@@ -1,5 +1,64 @@
 
 from .zutil import *
+import threading
+
+_bili_video_download_slots = threading.BoundedSemaphore(2)
+_bili_video_cache_locks = [threading.Lock() for _ in range(32)]
+
+
+def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
+                      max_height=480, max_size_mb_per_5min=10):
+    """Own video files in private storage; publish only complete worker output."""
+    import hashlib
+    from pathlib import Path
+    import tempfile
+    import shutil
+    from .zapi import BiliVideoError, download_bili_video
+    from .ztime import current_epoch_seconds
+
+    root = Path(data_root) / "bili_videos"
+    root.mkdir(parents=True, exist_ok=True, mode=0o750)
+    profile = f"{reference}\ncompressed-v1:{max_height}:{max_size_mb_per_5min}"
+    digest = hashlib.sha256(profile.encode()).hexdigest()
+    destination = root / (digest + ".mp4")
+    lock = _bili_video_cache_locks[int(digest[:8], 16) % len(_bili_video_cache_locks)]
+    if not lock.acquire(timeout=30):
+        raise BiliVideoError("busy")
+    try:
+        now = current_epoch_seconds()
+        if destination.is_file() and not destination.is_symlink():
+            stat = destination.stat()
+            if now - stat.st_mtime < 86400 and 0 < stat.st_size <= max_size_mb * 1024 * 1024:
+                destination.touch()
+                return destination.resolve()
+        if not _bili_video_download_slots.acquire(blocking=False):
+            raise BiliVideoError("busy")
+        try:
+            for path in root.iterdir():
+                if path.is_symlink():
+                    continue
+                try:
+                    if now - path.stat().st_mtime >= 86400:
+                        if path.is_file() and path.suffix == ".mp4":
+                            path.unlink(missing_ok=True)
+                        elif path.is_dir() and path.name.startswith(".download-"):
+                            shutil.rmtree(path)
+                except FileNotFoundError:
+                    pass
+            # Keep media accumulation bounded, without evicting fresh queued files.
+            used = sum(path.stat().st_size for path in root.glob("*.mp4") if path.is_file())
+            if used + max_size_mb * 1024 * 1024 > 1024 ** 3:
+                raise BiliVideoError("busy")
+            with tempfile.TemporaryDirectory(prefix=".download-", dir=root) as temporary:
+                source = download_bili_video(reference, temporary, max_size_mb=max_size_mb,
+                                             timeout_seconds=timeout_seconds, max_height=max_height,
+                                             max_size_mb_per_5min=max_size_mb_per_5min)
+                source.replace(destination)
+            return destination.resolve()
+        finally:
+            _bili_video_download_slots.release()
+    finally:
+        lock.release()
 
 
 def read_deployed_commit():

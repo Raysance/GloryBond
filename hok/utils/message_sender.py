@@ -102,6 +102,8 @@ def _automation_event(payload, kind, message_id=None):
         text = "\n".join(parts)
     else:
         text = Message(payload.get("content", "")).extract_plain_text()
+        if metadata.get("source") == "bili_video" and isinstance(metadata.get("source_text"), str):
+            text = metadata["source_text"]
     return {"id": f"qq:{scope}:{message_id}" if message_id is not None else "outbound:" + payload["delivery_id_internal"],
         "kind": kind, "scope": scope, "sender_id": str(confs["QQBot"]["bot_qid"]),
         "text": text[:12000], "timestamp": current_epoch_seconds(),
@@ -306,11 +308,12 @@ async def _send_queued_message(bot, payload):
         log_message(f"AUTOMATION_BEFORE_SEND_FAILED: error_type={type(error).__name__}")
     msg_type, to_id = payload.get("type"), payload.get("toid")
     message = Message(payload.get("content", ""))
+    send_options = {"_timeout": 180} if any(segment.type == "video" for segment in message) else {}
     try:
         if msg_type == "group":
-            result = await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=message)
+            result = await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=message, **send_options)
         elif msg_type == "private":
-            result = await bot.send_private_msg(user_id=_normalize_target_id(to_id), message=message)
+            result = await bot.send_private_msg(user_id=_normalize_target_id(to_id), message=message, **send_options)
         else:
             raise ValueError("Invalid queued message channel")
     except BaseException as error:

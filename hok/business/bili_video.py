@@ -215,17 +215,7 @@ def _bili_video_page_link(up_name, video):
 
 
 def _bili_video_format_video_message(up_name, video):
-    from ..ztime import epoch_to_text
-
-    pubdate_text = epoch_to_text(video.get("pubdate")) or "未知"
-    page_link = _bili_video_page_link(up_name, video)
-    return (
-        "B站订阅视频推送\n"
-        f"【{video.get('title') or '无标题'}】\n"
-        f"{up_name} · {pubdate_text}\n\n"
-        f"{_bili_video_pic_message_segment(video)}\n\n"
-        f"{page_link}"
-    )
+    return _zfunc_attr("bili_video_download_message")(video.get("bvid") or video.get("url"))
 
 
 def _bili_video_format_push_message(up_name, video, subscribers):
@@ -389,7 +379,15 @@ def bili_video_subscribe_user(user_qid, up_name):
     )
     latest = videos[0]
     prefix = f"订阅成功：{resolved_name}({resolved_mid})\n当前订阅数：{len(current_items)}"
-    return f"{prefix}\n\n{_bili_video_format_latest_message(resolved_name, latest)}"
+    from ..zapi import BiliVideoError
+    try:
+        message = _bili_video_format_latest_message(resolved_name, latest)
+    except BiliVideoError as error:
+        message = str(error)
+    except Exception as error:
+        log_message("BILI_VIDEO_INITIAL_DOWNLOAD_FAILED: error_type=" + type(error).__name__)
+        message = "订阅已保存，本次视频暂时无法下载，可稍后使用 #最新视频 重试。"
+    return [prefix, message]
 
 
 def bili_video_unsubscribe_user(user_qid, query_text=""):
@@ -483,6 +481,8 @@ def _bili_video_latest_for_item(item):
 
 
 def bili_video_latest_for_user(user_qid):
+    from ..zapi import BiliVideoError
+
     items = _bili_video_subscription_items_for_user(
         _zfunc_attr("_bili_video_get_subscriptions")(),
         str(user_qid),
@@ -497,8 +497,9 @@ def bili_video_latest_for_user(user_qid):
             messages.append(_bili_video_latest_for_item(item))
         except Exception as error:
             label = _bili_video_format_subscription_label(item)
-            messages.append(f"{label} 最新视频查询失败：{repr(error)}")
-    return "\n\n——\n\n".join(messages)
+            reason = str(error) if isinstance(error, BiliVideoError) else type(error).__name__
+            messages.append(f"{label} 最新视频查询失败：{reason}")
+    return messages
 
 
 def bili_video_list_subscriptions():
@@ -517,9 +518,11 @@ def bili_video_list_subscriptions():
 
 def bili_video_check_and_push(*, debug=False):
     from .. import zdynamic as dmc
-    from ..zapi import bilibili_get_user_card, bilibili_search_videos_by_mid
+    from ..zapi import BiliVideoError, bilibili_get_user_card, bilibili_search_videos_by_mid
+    from ..ztime import current_epoch_seconds
 
-    if not getattr(dmc, "BiliVideoPushEnabled", True):
+    if (not getattr(dmc, "BiliVideoPushEnabled", True)
+            or not _zfunc_attr("confs").get("BiliVideo", {}).get("enabled", True)):
         return {
             "checked": 0,
             "pushed": 0,
@@ -535,8 +538,12 @@ def bili_video_check_and_push(*, debug=False):
     checked = 0
     pushed = 0
     debug_lines = []
+    deadline = current_epoch_seconds() + 240
     try:
         for identity in sorted(grouped):
+            if current_epoch_seconds() >= deadline:
+                debug_lines.append("BILI_VIDEO_DEFERRED batch time budget reached")
+                break
             checked += 1
             item = grouped[identity]
             up_mid = item.get("up_mid") or ""
@@ -632,9 +639,20 @@ def bili_video_check_and_push(*, debug=False):
             ]
             new_videos.sort(key=lambda item: int(item.get("pubdate") or 0))
             for video in new_videos:
-                message = _bili_video_format_push_message(up_name, video, subscribers)
-                _zfunc_attr("_bili_video_send_group_message")(message, metadata={"source": "bili_video",
-                    "author_id": str(up_mid), "author_name": str(up_name)})
+                if current_epoch_seconds() >= deadline:
+                    debug_lines.append("BILI_VIDEO_DEFERRED batch time budget reached")
+                    return {"checked": checked, "pushed": pushed, "debug": "\n".join(debug_lines)}
+                try:
+                    message = _bili_video_format_push_message(up_name, video, subscribers)
+                    queued = _zfunc_attr("_bili_video_send_group_message")(message, metadata={"source": "bili_video",
+                        "author_id": str(up_mid), "author_name": str(up_name),
+                        "source_text": str(video.get("title") or "")})
+                    if not queued:
+                        raise RuntimeError("Video queue did not accept the message")
+                except Exception as error:
+                    code = error.code if isinstance(error, BiliVideoError) else type(error).__name__
+                    debug_lines.append(f"BILI_VIDEO_PENDING mid={up_mid} bvid={video.get('bvid')} error={code}")
+                    continue
                 _zfunc_attr("_bili_video_mark_seen")(
                     up_mid,
                     up_name,
@@ -642,7 +660,7 @@ def bili_video_check_and_push(*, debug=False):
                 )
                 pushed += 1
                 debug_lines.append(
-                    f"BILI_VIDEO_PUSHED mid={up_mid} up={up_name} bvid={video.get('bvid')}"
+                    f"BILI_VIDEO_QUEUED mid={up_mid} up={up_name} bvid={video.get('bvid')}"
                 )
         return {"checked": checked, "pushed": pushed, "debug": "\n".join(debug_lines)}
     finally:
@@ -659,6 +677,6 @@ def bili_video_admin_command(raw_msg):
         result = bili_video_check_and_push(debug=True)
         return (
             f"B站订阅检查完成：checked={result.get('checked')} "
-            f"pushed={result.get('pushed')}\n{result.get('debug') or ''}"
+            f"queued={result.get('pushed')}\n{result.get('debug') or ''}"
         ).strip()
     return "参数错误，支持：##bili list / ##bili check"

@@ -1,6 +1,71 @@
 """Bilibili subscription command parsing and business dispatch."""
 
 import asyncio
+import json
+import xml.etree.ElementTree as ET
+
+
+def share_references(event):
+    """Read only native text/JSON/XML segments in the current message."""
+    from ..api_adapters.bili_media import video_references
+
+    segments = getattr(event, "original_message", None)
+    if segments is None:
+        segments = getattr(event, "message", ())
+    sources = []
+    url_keys = {"url", "qqdocurl", "jumpurl", "contentjumpurl", "actiondata"}
+
+    def card_urls(node, depth=0):
+        if depth > 8:
+            return
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if str(key).lower() in url_keys and isinstance(value, str):
+                    sources.append(value)
+                elif isinstance(value, (dict, list)):
+                    card_urls(value, depth + 1)
+        elif isinstance(node, list):
+            for value in node[:32]:
+                card_urls(value, depth + 1)
+
+    for segment in list(segments or ())[:64]:
+        kind = segment.get("type") if isinstance(segment, dict) else getattr(segment, "type", None)
+        data = segment.get("data", {}) if isinstance(segment, dict) else getattr(segment, "data", {})
+        if kind == "text":
+            sources.append(str(data.get("text", ""))[:32768])
+        elif kind in {"json", "xml"}:
+            raw = data.get("data", "")
+            if not isinstance(raw, str) or len(raw) > 32768:
+                continue
+            try:
+                if kind == "json":
+                    card_urls(json.loads(raw))
+                elif "<!DOCTYPE" not in raw.upper() and "<!ENTITY" not in raw.upper():
+                    for element in ET.fromstring(raw).iter():
+                        card_urls(element.attrib)
+            except (ValueError, ET.ParseError):
+                continue
+    return video_references("\n".join(sources))
+
+
+async def iter_share_replies(event):
+    from ..zapi import BiliVideoError
+    from ..zfunc import bili_video_share_message
+    from ..zutil import log_message
+
+    group = getattr(event, "group_id", None)
+    scope = ("group:" + str(group)) if group else ("private:" + str(event.get_user_id()))
+    scope = str(getattr(event, "self_id", "")) + ":" + scope
+    for reference in share_references(event):
+        try:
+            reply = await asyncio.to_thread(bili_video_share_message, reference, scope=scope)
+            if reply:
+                yield reply
+        except BiliVideoError as error:
+            yield str(error)
+        except Exception as error:
+            log_message("BILI_VIDEO_SHARE_FAILED: error_type=" + type(error).__name__)
+            yield "B站视频处理暂时失败，请稍后再试。"
 
 
 def strip_bili_video_command(raw_msg, prefixes):

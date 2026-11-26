@@ -86,6 +86,18 @@ async def judge_bili_video_subscribe(event):
     return raw.startswith(("订阅B站", "订阅b站", "订阅"))
 
 
+async def judge_bili_share(event):
+    from .event_handlers.bili_video import share_references
+
+    if not confs.get("BiliVideo", {}).get("enabled", True) or is_bot_request_message(event):
+        return False
+    if str(event.get_user_id()) == str(getattr(event, "self_id", "")) or not share_references(event):
+        return False
+    if await check_sleep(event) or (dmc.repair and await judge_unsuper(event)):
+        return False
+    return is_battle_visible_qid_enabled(event.get_user_id())
+
+
 async def judge_bili_video_unsubscribe(event):
     if await judge_x_subscription(event):
         return False

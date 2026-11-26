@@ -27,6 +27,7 @@ from .event_rules import (
     judge_bili_video_mine,
     judge_bili_video_subscribe,
     judge_bili_video_unsubscribe,
+    judge_bili_share,
     judge_player_client,
     judge_x_subscription,
     judge_x_subscription_admin,
@@ -77,6 +78,7 @@ _x_subscription_admin = on_message(rule=Rule(judge_super_command, judge_x_subscr
 
 _sleep_blocked = on_message(rule=Rule(judge_bot_addressed,check_sleep), priority=2, block=True)
 _blocked=on_message(rule=Rule(judge_bot_addressed,check_repair,judge_unsuper),priority=2, block=True)
+_bili_share = on_message(rule=judge_bili_share, priority=2, block=True)
 
 _player_client = on_message(rule=judge_player_client, priority=3, block=True)
 _live_watch = on_message(rule=Rule(judge_to_me, judge_live_watch), priority=3, block=True)
@@ -144,6 +146,14 @@ _single=on_keyword(set(single_keywords),rule=judge_to_me,priority=5, block=True)
 
 _chat=on_message(rule=judge_to_me,priority=6, block=True)
 # HANDLER
+@_bili_share.handle()
+async def f_bili_share(event: MessageEvent):
+    from .event_handlers.bili_video import iter_share_replies
+
+    async for reply in iter_share_replies(event):
+        add_msg(reply, event=event, metadata={"source": "bili_share"})
+
+
 @_qid_blocked.handle()
 async def f_qid_blocked(event):
     user_qid = event.get_user_id()
@@ -526,7 +536,8 @@ async def f_bili_video_subscribe(event: MessageEvent):
 
     try:
         result = await subscribe_reply(event)
-        add_msg(result, event=event)
+        for reply in result if isinstance(result, list) else [result]:
+            add_msg(reply, event=event)
     except Exception:
         add_msg("B站订阅失败，堆栈已私聊", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
@@ -547,10 +558,14 @@ async def f_bili_video_unsubscribe(event: MessageEvent):
 @_bili_video_latest.handle()
 async def f_bili_video_latest(event: MessageEvent):
     from .event_handlers.bili_video import latest_reply
+    from .zapi import BiliVideoError
 
     try:
         result = await latest_reply(event)
-        add_msg(result, event=event)
+        for reply in result if isinstance(result, list) else [result]:
+            add_msg(reply, event=event)
+    except BiliVideoError as error:
+        add_msg(str(error), event=event)
     except Exception:
         add_msg("B站最新视频查询失败，堆栈已私聊", event=event)
         add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])

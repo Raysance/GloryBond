@@ -77,6 +77,7 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
             "card": ZAPI.bilibili_get_user_card,
             "videos": ZAPI.bilibili_search_videos_by_mid,
             "send": ZFUNC._bili_video_send_group_message,
+            "download": ZFUNC.bili_video_download_message,
             "enabled": getattr(ZFUNC.dmc, "BiliVideoPushEnabled", None),
             "web_service": ZFUNC.confs.get("WebService"),
         }
@@ -107,13 +108,15 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
                 "up_mid": "123",
             }
         ]
-        ZFUNC._bili_video_send_group_message = lambda message, **kwargs: sent.append(message)
+        ZFUNC.bili_video_download_message = lambda reference: "[CQ:video,file=file:///tmp/test.mp4]"
+        ZFUNC._bili_video_send_group_message = lambda message, **kwargs: sent.append(message) or 1
         try:
             result = ZFUNC.bili_video_check_and_push(debug=True)
         finally:
             ZAPI.bilibili_get_user_card = originals["card"]
             ZAPI.bilibili_search_videos_by_mid = originals["videos"]
             ZFUNC._bili_video_send_group_message = originals["send"]
+            ZFUNC.bili_video_download_message = originals["download"]
             if originals["enabled"] is None:
                 delattr(ZFUNC.dmc, "BiliVideoPushEnabled")
             else:
@@ -126,7 +129,7 @@ class BiliVideoSubscriptionTests(unittest.TestCase):
         self.assertEqual(result["checked"], 1)
         self.assertEqual(result["pushed"], 1)
         self.assertEqual(len(sent), 1)
-        self.assertIn("新视频", sent[0])
+        self.assertEqual(sent[0], "[CQ:video,file=file:///tmp/test.mp4]")
         self.assertTrue(self.fake_redis.sismember("hok:bili:seen:123", "BVnew"))
         self.assertNotIn("hok:lock:bili:video_push", self.fake_redis.values)
 
