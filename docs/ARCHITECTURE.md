@@ -31,6 +31,8 @@ src/glorybond/
 
 QQ 异常统一在 `apps/qq/errors.py` 组装诊断，事件入口绑定会话目标，业务层通过回调交付部分失败，消息出口发送原生合并记录并阻止诊断递归及自动化触发。后台错误钩子由 `scheduler.py` 注册，详情见[错误报告](ERROR_REPORTING.md)。
 
+B站与 X 定时订阅的连续失败通知由 `apps/qq/interval_jobs.py` 管理，检查与异步投递分别计数。调度上下文将任务来源绑定到消息队列，投递按实际 QQ 回执确认；`storage/notification_state.py` 用 Redis 原子保存失败次数和本次连续故障是否已通知。
+
 根目录只保留项目说明、统一依赖、启动脚本及这些职责明确的目录：
 
 | 目录 | 内容 |

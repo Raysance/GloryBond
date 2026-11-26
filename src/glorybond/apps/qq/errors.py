@@ -181,6 +181,10 @@ def register_error_hooks(scheduler):
     def unhandled_job_error(event):
         job = scheduler.get_job(event.job_id)
         if job is not None and str(getattr(job.func, "__module__", "")).startswith("glorybond.") and isinstance(event.exception, Exception):
-            report_exception(event.exception, operation="后台任务 " + str(event.job_id))
+            from glorybond.apps.qq.interval_jobs import SUBSCRIPTION_JOBS, record_outcome
+            if event.job_id in SUBSCRIPTION_JOBS:
+                record_outcome(event.job_id, phase="poll", error=event.exception)
+            else:
+                report_exception(event.exception, operation="后台任务 " + str(event.job_id))
 
     scheduler.add_listener(unhandled_job_error, EVENT_JOB_ERROR)

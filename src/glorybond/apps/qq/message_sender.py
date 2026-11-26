@@ -250,6 +250,11 @@ def _report_delivery_error(error, payload, *, operation):
     # The original send is never retried because its outcome may be unknown.
     if payload.get("automation_metadata", {}).get("source") == "diagnostic":
         return
+    from glorybond.apps.qq.interval_jobs import SUBSCRIPTION_JOBS, record_outcome
+    if payload.get("type", "group") == "group" and payload.get("interval_job_id") in SUBSCRIPTION_JOBS:
+        record_outcome(payload["interval_job_id"], phase="delivery", error=error,
+                       group_id=payload.get("toid"))
+        return
     from glorybond.apps.qq.errors import report_exception
     report_exception(error, operation=operation, group_id=payload.get("toid") or payload.get("group_id"),
                      private=payload.get("type", "group") != "group")
@@ -385,6 +390,7 @@ async def message_sender_loop():
             dmc.MessageQueue.rpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, result)
             continue
         msg_json = None
+        receipt = None
         try:
             msg_json = json.loads(result)
             if msg_json.get("kind") == "group_ban":
@@ -394,14 +400,20 @@ async def message_sender_loop():
             elif msg_json.get("kind") in {"group_forward", "private_forward"}:
                 await _handle_forward_msg(bot, msg_json)
             elif msg_json.get("kind") == "video_with_metadata":
-                await _send_video_with_metadata(bot, msg_json)
+                receipt = await _send_video_with_metadata(bot, msg_json)
             else:
-                await _send_queued_message(bot, msg_json)
+                receipt = await _send_queued_message(bot, msg_json)
         except Exception as exc:
             # A timeout can follow a successful QQ send. Never replay the action.
             log_message(f"MESSAGE_SEND_FAILED: error={type(exc).__name__}; delivery unconfirmed; not retried")
             if isinstance(msg_json, dict):
                 _report_delivery_error(exc, msg_json, operation="QQ 消息发送")
+        else:
+            if isinstance(msg_json, dict) and msg_json.get("interval_job_id"):
+                from glorybond.apps.qq.interval_jobs import record_outcome
+                error = None if _confirmed_message_id(receipt) is not None else RuntimeError("QQ投递未返回有效消息回执")
+                record_outcome(msg_json["interval_job_id"], phase="delivery", error=error,
+                               group_id=msg_json.get("toid"))
         finally:
             dmc.last_msg_send_ts = time.time()
 
@@ -414,6 +426,7 @@ def add_msg(content, *, event=None, msg_type=None, to_id=None, task_id=None, met
 
 def _message_payload(content, *, event=None, msg_type=None, to_id=None, task_id=None, metadata=None):
     from glorybond.apps.qq.messages import VideoWithMetadata
+    from glorybond.apps.qq.interval_jobs import current_interval_job
     resolved_type, resolved_id = _resolve_destination(event=event, msg_type=msg_type, to_id=to_id)
     resolved_id = _normalize_target_id(resolved_id)
     if resolved_type not in {"group", "private"} or resolved_id is None:
@@ -427,6 +440,8 @@ def _message_payload(content, *, event=None, msg_type=None, to_id=None, task_id=
         payload.update(kind="video_with_metadata", caption=str(MessageSegment.text(content.text)))
     if metadata:
         payload["automation_metadata"] = dict(metadata)
+    if resolved_type == "group" and current_interval_job.get() and (metadata or {}).get("source") != "diagnostic":
+        payload["interval_job_id"] = current_interval_job.get()
     return _bind_task_id(payload, task_id)
 
 

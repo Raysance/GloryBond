@@ -270,13 +270,9 @@ async def kpl_match_push():
 )
 async def bili_video_push():
     from glorybond.features.facade import bili_video_check_and_push
+    from glorybond.apps.qq.interval_jobs import run_subscription_job
 
-    try:
-        await asyncio.to_thread(bili_video_check_and_push, debug=False,
-                                on_error=lambda error: report_exception(error, operation="B站订阅视频获取", partial=True))
-    except Exception as error:
-        report_exception(error, operation="B站定时推送")
-        raise
+    await run_subscription_job("bili_video_push", bili_video_check_and_push, debug=False)
 
 
 @scheduler.scheduled_job(
@@ -288,10 +284,10 @@ async def bili_video_push():
 )
 async def x_subscription_push():
     from glorybond.features.facade import x_check_and_push
+    from glorybond.apps.qq.interval_jobs import run_subscription_job
 
-    result = await asyncio.to_thread(x_check_and_push,
-                                     on_error=lambda error: report_exception(error, operation="X 定时推送", partial=True))
-    if result.get("errors"):
+    result = await run_subscription_job("x_subscription_push", x_check_and_push)
+    if result and result.get("errors"):
         log_message("X_SUBSCRIPTION_PUSH: " + str(result["errors"]))
 
 
