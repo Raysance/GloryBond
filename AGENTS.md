@@ -88,6 +88,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - 观战截图由 `event_handlers/live_watch.py` 解析 `#观战昵称` / `#观战我` / `#我的观战`，沿用玩家目录和命令权限；`api_adapters/wzry.py → shared/camp.capture_watch_frame` 仅调用SDK公开方法取得首帧。并发截图不排队，失败不重试，成功/失败均关闭读取器与直播。`zfile.save_watch_frame` 用独立文件名保存图片，`zevent` 沿统一消息出口回复。
 - 营地正式会话为 `HOK_DATA_DIR/account_sessions/camp-session.json`，由SDK读写；Bot/Web共享适配层仅持文件路径，`reload_session`保留限速。管理员扫码用临时SDK文件，租约校验后再带版本检查发布。旧.env中的完整会话仅由部署显式调用SDK迁移工具读取，已有目标文件不覆盖，旧配置不再作为营地凭据来源。
 
+AI 表达规则集中在 `src/glorybond/agent/reply_style.py`，由 QQ/Web 主模型共享。估算随结论交代口径或关键假设，只解释会实质影响答案或行动的具体不确定性，不追加泛泛自我保留、常识性免责声明或局限清单；不通过回复后的关键词删句改写主模型详细正文。
+
 ## 服务器与部署
 
 服务器通过 SSH 访问，使用本机 SSH 配置中的 `Aliyun` 连接和密钥认证。连接信息由本机配置管理，服务器维护围绕本项目及其直接依赖开展。
