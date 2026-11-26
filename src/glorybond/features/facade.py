@@ -652,12 +652,15 @@ def poke_chat_context(user_id, group_id, *, as_of):
             continue
         if not author:
             continue
+        if boundary - timestamp > 900 and author != user:
+            continue
         speaker = speakers.setdefault(author, f"群成员{len(speakers) + 1}")
         selected.append({"message_id": str(row.get("message_id") or ""),
                          "reply_to_message_id": row.get("reply_to_message_id"),
                          "speaker": "戳人者" if author == user else speaker,
                          "is_poking_user": author == user, "timestamp": timestamp,
                          "seconds_before_poke": boundary - timestamp,
+                         "context_scope": "current_group" if boundary - timestamp <= 900 else "earlier_poker",
                          "text": text[:500], "text_truncated": len(text) > 500})
     return selected[-20:]
 

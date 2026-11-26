@@ -11,7 +11,7 @@ PROMPTS = import_project_module("glorybond.features.chat.prompts")
 
 class PokeContextTests(unittest.TestCase):
     def test_context_excludes_other_groups_future_old_commands_and_keeps_reply_owner(self):
-        def row(mid, uid="101", group="200", stamp=9000, text="话题", reply=None):
+        def row(mid, uid="101", group="200", stamp=9500, text="话题", reply=None):
             return {"message_id": str(mid), "user_id": uid, "group_id": group,
                     "timestamp": stamp, "text": text, "reply_to_message_id": reply}
         rows = [row(1, text="晚饭吃什么"), row(2, "102", text="面条", reply="1"),
@@ -25,7 +25,17 @@ class PokeContextTests(unittest.TestCase):
         self.assertTrue(result[0]["is_poking_user"])
         self.assertFalse(result[1]["is_poking_user"])
         self.assertEqual(result[1]["reply_to_message_id"], "1")
-        self.assertEqual(result[1]["seconds_before_poke"], 1000)
+        self.assertEqual(result[1]["seconds_before_poke"], 500)
+
+    def test_older_speech_is_only_a_personal_reference_not_the_current_group_topic(self):
+        rows = [{"group_id": "200", "user_id": user, "message_id": str(i),
+                 "timestamp": stamp, "text": text} for i, (user, stamp, text) in enumerate([
+                     ("102", 7000, "别人较早的话"), ("101", 7001, "本人较早的话"),
+                     ("102", 9500, "当前群话题")])]
+        with patch.object(FACADE, "load_group_chat_history", return_value=rows):
+            result = FACADE.poke_chat_context("101", "200", as_of=10000)
+        self.assertEqual([r["text"] for r in result], ["本人较早的话", "当前群话题"])
+        self.assertEqual([r["context_scope"] for r in result], ["earlier_poker", "current_group"])
 
     def test_context_is_bounded_and_requires_trusted_group(self):
         rows = [{"group_id": "200", "user_id": "101", "message_id": str(i),
