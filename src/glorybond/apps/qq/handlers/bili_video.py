@@ -48,7 +48,7 @@ def share_references(event):
     return video_references("\n".join(sources))
 
 
-async def iter_share_replies(event):
+async def iter_share_replies(event, *, on_error=None):
     from glorybond.integrations.api import BiliVideoError
     from glorybond.features.facade import bili_video_share_message
     from glorybond.common import log_message
@@ -62,10 +62,16 @@ async def iter_share_replies(event):
             if reply:
                 yield reply
         except BiliVideoError as error:
-            yield str(error)
+            if on_error:
+                on_error(error)
+            else:
+                yield str(error)
         except Exception as error:
             log_message("BILI_VIDEO_SHARE_FAILED: error_type=" + type(error).__name__)
-            yield "B站视频处理暂时失败，请稍后再试。"
+            if on_error:
+                on_error(error)
+            else:
+                yield "B站视频处理暂时失败，请稍后再试。"
 
 
 def strip_bili_video_command(raw_msg, prefixes):
@@ -77,16 +83,17 @@ def strip_bili_video_command(raw_msg, prefixes):
     return text
 
 
-async def admin_reply(event):
+async def admin_reply(event, *, on_error=None):
     from glorybond.features.facade import bili_video_admin_command
 
     return await asyncio.to_thread(
         bili_video_admin_command,
         event.get_plaintext().strip(),
+        **({"on_error": on_error} if on_error else {}),
     )
 
 
-async def subscribe_reply(event):
+async def subscribe_reply(event, *, on_error=None):
     from glorybond.features.facade import bili_video_subscribe_user
 
     up_name = strip_bili_video_command(
@@ -97,6 +104,7 @@ async def subscribe_reply(event):
         bili_video_subscribe_user,
         event.get_user_id(),
         up_name,
+        **({"on_error": on_error} if on_error else {}),
     )
 
 
@@ -114,12 +122,13 @@ async def unsubscribe_reply(event):
     )
 
 
-async def latest_reply(event):
+async def latest_reply(event, *, on_error=None):
     from glorybond.features.facade import bili_video_latest_for_user
 
     return await asyncio.to_thread(
         bili_video_latest_for_user,
         event.get_user_id(),
+        **({"on_error": on_error} if on_error else {}),
     )
 
 

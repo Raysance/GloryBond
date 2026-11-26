@@ -136,7 +136,7 @@ def x_my_subscription(user_qid):
     return "你的 X 订阅：\n" + "\n".join(_label(row) for row in items) if items else "你当前没有 X 订阅"
 
 
-def x_latest_for_user(user_qid):
+def x_latest_for_user(user_qid, *, on_error=None):
     from glorybond.integrations.api import x_get_posts
 
     items = _mine(user_qid)
@@ -148,11 +148,14 @@ def x_latest_for_user(user_qid):
             posts = x_get_posts(item["id"], latest=True)
             messages.append(post_card(item, posts[0]) if posts else f"{_label(item)} 暂无公开帖子")
         except Exception as error:
-            messages.append(f"{_label(item)} 查询失败：{error}")
+            if on_error:
+                on_error(error)
+            else:
+                messages.append(f"{_label(item)} 查询失败：{error}")
     return "\n\n".join(messages)
 
 
-def x_check_and_push():
+def x_check_and_push(*, on_error=None):
     from glorybond.integrations.api import x_get_posts
     from glorybond.time import has_elapsed_since, utc_timestamp_text
 
@@ -189,17 +192,21 @@ def x_check_and_push():
                             result["pushed"] += 1
                         facade._x_save_cursor(account_id, dict(cursor, since_id=post["id"]))
                 except Exception as error:
+                    if on_error:
+                        on_error(error)
                     result["errors"].append(f"@{item['username']}: {error}")
     except RuntimeError as error:
+        if on_error:
+            on_error(error)
         result["errors"].append(str(error))
     return result
 
 
-def x_admin_command(raw):
+def x_admin_command(raw, *, on_error=None):
     args = str(raw).strip().lstrip("#＃").split()
     action = args[1].lower() if len(args) > 1 else "list"
     if action == "check":
-        return "X 订阅检查：" + json.dumps(x_check_and_push(), ensure_ascii=False)
+        return "X 订阅检查：" + json.dumps(x_check_and_push(on_error=on_error), ensure_ascii=False)
     if action == "list":
         items = _facade()._x_subscriptions()
         return "X 订阅列表：\n" + "\n".join(f"{_label(row)} · QQ {row['user_qid']}" for row in items) if items else "当前没有 X 订阅"

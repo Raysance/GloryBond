@@ -28,22 +28,23 @@ def handler(path, name, namespace=None):
 
 
 class ReportDeliveryTests(unittest.IsolatedAsyncioTestCase):
-    async def test_daily_push_sends_image_then_representative_and_errors_only_to_admin(self):
+    async def test_daily_push_keeps_successful_images_and_reports_partial_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / 'report.png'
             image.write_bytes(b'image')
             messages = [('', str(image)), {'admin_error': 'source failed'}, ('Representative', str(image), 'Commentary')]
             send = Mock()
+            report = Mock()
             with patch.object(ZFUNC, 'notify_msg_impl', return_value=messages), \
                  patch.dict(sys.modules, {'glorybond.apps.qq.message_sender': SimpleNamespace(add_msg=send)}), patch.object(UTIL, 'log_message'), \
                  patch.object(STATIC, 'confs', {'QQBot': {'super_qid': 1, 'group_qid': 2}}):
-                await handler('src/glorybond/apps/qq/scheduler.py', 'notify_msg')()
+                await handler('src/glorybond/apps/qq/scheduler.py', 'notify_msg', {'report_error_text': report})()
             calls = send.call_args_list
-            self.assertEqual(len(calls), 3)
+            self.assertEqual(len(calls), 2)
             self.assertEqual([segment.type for segment in calls[0].args[0]], ['image'])
             self.assertEqual(calls[0].kwargs, {'msg_type': 'group', 'to_id': 2})
-            self.assertEqual(calls[1].kwargs, {'msg_type': 'private', 'to_id': 1})
-            self.assertEqual([segment.type for segment in calls[2].args[0]], ['text', 'image', 'text'])
+            report.assert_called_once_with('source failed', operation='每日战报', partial=True)
+            self.assertEqual([segment.type for segment in calls[1].args[0]], ['text', 'image', 'text'])
 
     async def test_rank_handler_sends_only_the_image(self):
         from unittest.mock import Mock, AsyncMock

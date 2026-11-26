@@ -306,7 +306,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
                 bot.send_group_forward_msg.side_effect = response
             else:
                 bot.send_group_forward_msg.return_value = response
-            with patch.object(FACADE, "finish_forward_delivery") as finish, patch.object(SENDER, "add_msg") as notice:
+            with patch.object(FACADE, "finish_forward_delivery") as finish, patch.object(SENDER, "_report_delivery_error") as notice:
                 await SENDER._handle_forward_msg(bot, {"toid": 123, "messages": [], "delivery_id": "test"})
                 expected = "sent" if response == {"message_id": 123} else "failed"
                 finish.assert_called_once_with("test", expected)
@@ -315,7 +315,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_state_or_admin_notice_failure_never_resends_or_escapes(self):
         bot = SimpleNamespace(send_group_forward_msg=AsyncMock(side_effect=TimeoutError("unknown outcome")))
         with patch.object(FACADE, "finish_forward_delivery", side_effect=RuntimeError("redis unavailable")), \
-             patch.object(SENDER, "add_msg", side_effect=RuntimeError("queue unavailable")):
+             patch.object(SENDER, "_enqueue_payload", side_effect=RuntimeError("queue unavailable")):
             await SENDER._handle_forward_msg(bot, {"toid": 123, "messages": [], "delivery_id": "test"})
         bot.send_group_forward_msg.assert_awaited_once()
 
@@ -358,7 +358,7 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
             return lambda fn: fn
         scope = {"__package__": "hok", "ai_daily_config": BUSINESS.ai_daily_config,
                  "scheduler": SimpleNamespace(scheduled_job=register), "asyncio": asyncio,
-                 "confs": BUSINESS.confs, "log_message": MagicMock(), "add_msg": MagicMock()}
+                 "confs": BUSINESS.confs, "log_message": MagicMock(), "add_msg": MagicMock(), "report_exception": MagicMock()}
         exec(compile(ast.Module(body=[job], type_ignores=[]), "src/glorybond/apps/qq/scheduler.py", "exec"), scope)
         args, kwargs = registered[0]
         trigger = CronTrigger(hour=kwargs["hour"], minute=kwargs["minute"], timezone=kwargs["timezone"])
@@ -372,8 +372,8 @@ class ForwardDeliveryTests(unittest.IsolatedAsyncioTestCase):
             run.assert_awaited_once_with(FACADE.ai_daily_check_and_push)
         with patch.object(asyncio, "to_thread", new_callable=AsyncMock, side_effect=RuntimeError("upstream offline")):
             await scope["ai_daily_push"]()
-        self.assertEqual(scope["add_msg"].call_args.kwargs["msg_type"], "private")
-        self.assertEqual(scope["add_msg"].call_args.kwargs["to_id"], BUSINESS.confs["QQBot"]["super_qid"])
+        scope["report_exception"].assert_called_once()
+        self.assertEqual(scope["report_exception"].call_args.kwargs["operation"], "AI 日报推送")
 
 
 if __name__ == "__main__":

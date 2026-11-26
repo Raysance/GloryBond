@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from tools.debugger import import_project_module
+from glorybond.apps.qq import errors
 
 with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda fn: fn)):
     SENDER = import_project_module('glorybond.apps.qq.message_sender')
@@ -25,6 +26,7 @@ class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def run_queue(self, entries, bot, logger):
         zfunc = import_project_module('glorybond.features.facade')
         queue = Mock()
+        errors._recent.clear()
         queue.rpop.side_effect = [*entries, asyncio.CancelledError()]
         with patch.object(zfunc, 'automation_publish_event', return_value=[]), \
              patch.object(SENDER.dmc, 'MessageQueue', queue), \
@@ -34,7 +36,10 @@ class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
              patch.object(SENDER, 'log_message', logger):
             with self.assertRaises(asyncio.CancelledError):
                 await SENDER.message_sender_loop()
-        queue.lpush.assert_not_called()
+        # Only a diagnostic may be queued; never replay an unconfirmed message.
+        for call in queue.lpush.call_args_list:
+            self.assertEqual(json.loads(call.args[1])["automation_metadata"]["source"], "diagnostic")
+            self.assertNotIn('secret transport body', call.args[1])
         queue.rpush.assert_not_called()
 
     async def test_timeout_does_not_replay_or_stop_next_group_and_private_deliveries(self):

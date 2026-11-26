@@ -1846,19 +1846,19 @@ def x_my_subscription(user_qid):
     return impl(user_qid)
 
 
-def x_latest_for_user(user_qid):
+def x_latest_for_user(user_qid, *, on_error=None):
     from glorybond.features.subscriptions.x import x_latest_for_user as impl
-    return impl(user_qid)
+    return impl(user_qid, on_error=on_error)
 
 
-def x_check_and_push():
+def x_check_and_push(*, on_error=None):
     from glorybond.features.subscriptions.x import x_check_and_push as impl
-    return impl()
+    return impl(on_error=on_error)
 
 
-def x_admin_command(raw):
+def x_admin_command(raw, *, on_error=None):
     from glorybond.features.subscriptions.x import x_admin_command as impl
-    return impl(raw)
+    return impl(raw, on_error=on_error)
 
 
 _BILI_VIDEO_SUBSCRIPTIONS_REDIS_KEY = "hok:bili:subscriptions"
@@ -2074,8 +2074,8 @@ def _bili_video_resolve_best_up(query):
     return _bili_video_business._bili_video_resolve_best_up(query)
 
 
-def bili_video_subscribe_user(user_qid, up_name):
-    return _bili_video_business.bili_video_subscribe_user(user_qid, up_name)
+def bili_video_subscribe_user(user_qid, up_name, *, on_error=None):
+    return _bili_video_business.bili_video_subscribe_user(user_qid, up_name, on_error=on_error)
 
 
 def bili_video_unsubscribe_user(user_qid, query_text=""):
@@ -2090,20 +2090,20 @@ def _bili_video_latest_for_item(item):
     return _bili_video_business._bili_video_latest_for_item(item)
 
 
-def bili_video_latest_for_user(user_qid):
-    return _bili_video_business.bili_video_latest_for_user(user_qid)
+def bili_video_latest_for_user(user_qid, *, on_error=None):
+    return _bili_video_business.bili_video_latest_for_user(user_qid, on_error=on_error)
 
 
 def bili_video_list_subscriptions():
     return _bili_video_business.bili_video_list_subscriptions()
 
 
-def bili_video_check_and_push(*, debug=False):
-    return _bili_video_business.bili_video_check_and_push(debug=debug)
+def bili_video_check_and_push(*, debug=False, on_error=None):
+    return _bili_video_business.bili_video_check_and_push(debug=debug, on_error=on_error)
 
 
-def bili_video_admin_command(raw_msg):
-    return _bili_video_business.bili_video_admin_command(raw_msg)
+def bili_video_admin_command(raw_msg, *, on_error=None):
+    return _bili_video_business.bili_video_admin_command(raw_msg, on_error=on_error)
 
 
 def generate_user_emoji_image(*, user_qid: str, size=None):

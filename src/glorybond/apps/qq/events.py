@@ -3,6 +3,7 @@ from glorybond.common import *
 from glorybond.config.settings import *
 from glorybond import runtime as dmc
 from glorybond.apps.qq.message_sender import add_msg
+from glorybond.apps.qq.errors import report_exception, report_error_text
 from glorybond.apps.qq.message_sender import add_group_poke_task
 from glorybond.apps.qq import scheduler as zscheduler
 
@@ -127,7 +128,7 @@ _chat=on_message(rule=judge_to_me,priority=6, block=True)
 async def f_bili_share(event: MessageEvent):
     from glorybond.apps.qq.handlers.bili_video import iter_share_replies
 
-    async for reply in iter_share_replies(event):
+    async for reply in iter_share_replies(event, on_error=lambda error: report_exception(error, operation="B站视频处理", event=event)):
         add_msg(reply, event=event, metadata={"source": "bili_share"})
 
 
@@ -142,7 +143,7 @@ async def f_qid_blocked(event):
 async def f_exporthistory(event):
     from glorybond.apps.qq.handlers.history_export import export_history_replies
 
-    replies = await export_history_replies(event.get_plaintext())
+    replies = await export_history_replies(event.get_plaintext(), on_error=lambda error: report_exception(error, operation="战绩导出", event=event, partial=True))
     for reply in replies:
         add_msg(reply, event=event)
 
@@ -166,14 +167,8 @@ async def f_representative_battle(event: MessageEvent):
         if result["commentary"]:
             final_msg += MessageSegment.text(f"\n{result['commentary']}")
         add_msg(final_msg, event=event)
-    except ValueError as error:
-        add_msg(str(error), event=event)
     except Exception as error:
-        log_message(
-            "REPRESENTATIVE_BATTLE_QUERY_ERROR: "
-            f"query={raw_msg!r} error={error!r}\n{traceback.format_exc()}"
-        )
-        add_msg(f"代表局查询失败：query={raw_msg!r} error={error!r}", event=event)
+        report_exception(error, operation='代表局查询', event=event)
 
 
 @_dailyrepbattle.handle()
@@ -195,9 +190,8 @@ async def f_dailyrepbattle(event: MessageEvent):
         add_msg(final_msg, event=event)
         add_msg(result["acknowledgement"], event=event)
             
-    except Exception as e:
-        import traceback
-        add_msg(f"调试执行崩溃：\n{traceback.format_exc()}", event=event)
+    except Exception as error:
+        report_exception(error, operation='代表局调试', event=event)
 
 
 @_representative_range_debug.handle()
@@ -208,20 +202,13 @@ async def f_representative_range_debug(event: MessageEvent):
     try:
         for day_report in await representative_range_debug_replies(raw_msg):
             add_msg(day_report, event=event)
-    except ValueError as error:
-        add_msg(str(error), event=event)
     except Exception as error:
-        log_message(
-            "REPRESENTATIVE_BATTLE_RANGE_DEBUG_ERROR: "
-            f"query={raw_msg!r} error={error!r}\n{traceback.format_exc()}"
-        )
-        add_msg(f"代表局区间调试失败：query={raw_msg!r} error={error!r}", event=event)
+        report_exception(error, operation='代表局区间查询', event=event)
 
 
 @_kpl_push.handle()
 async def f_kpl_push(event: MessageEvent):
     from glorybond.features.facade import kpl_check_and_push
-    import traceback
 
     raw_msg = event.get_plaintext().strip()
     args = raw_msg.replace("##kpl", "").strip().split()
@@ -245,20 +232,18 @@ async def f_kpl_push(event: MessageEvent):
                 add_msg("KPL 本轮未发现可推送战局", event=event)
         if debug_text:
             add_msg(debug_text, msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    except Exception:
-        add_msg("KPL 手动触发崩溃，堆栈已私聊", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='KPL 推送', event=event)
 
 @_bili_video_admin.handle()
 async def f_bili_video_admin(event: MessageEvent):
     from glorybond.apps.qq.handlers.bili_video import admin_reply
 
     try:
-        result = await admin_reply(event)
+        result = await admin_reply(event, on_error=lambda error: report_exception(error, operation="B站订阅检查", event=event, partial=True))
         add_msg(result, event=event)
-    except Exception:
-        add_msg("B站订阅管理崩溃，堆栈已私聊", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='B站订阅管理', event=event)
 
 @_blocked.handle()
 async def f_blocked(event):
@@ -286,9 +271,8 @@ async def f_execute(event):
     try:
         ret = str(await asyncio.to_thread(eval, rcv_msg))
         add_msg(Message(ret), event=event)
-    except Exception as e:
-        add_msg(f"Execute Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='管理命令执行', event=event)
     await _execute.finish()
 
 @_update_local.handle()
@@ -300,9 +284,8 @@ async def f_update_local(event):
         vars(dmc).update(varia)
         await asyncio.to_thread(load_yesterday, 1)
         add_msg(Message("变量配置已更新"), event=event)
-    except Exception as e:
-        add_msg(f"Update Local Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='配置更新', event=event)
     await _update_local.finish()
 
 @_test.handle()
@@ -328,9 +311,8 @@ async def f_pure_chat(bot,event):
     try:
         snd_msg += await asyncio.to_thread(ai_parser, [rcv_msg], "pure_chat")
         add_msg(snd_msg, event=event)
-    except Exception as e:
-        add_msg(str(e), event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='AI 简单对话', event=event)
         return
 @_repair.handle()
 async def f_repair(bot,event):
@@ -362,9 +344,8 @@ async def f_emoji_gen(event):
             to_id=confs["QQBot"]["super_qid"],
         )
         add_msg(MessageSegment.image(meta["image_path"]), event=event)
-    except Exception as e:
-        add_msg(f"emoji_gen_error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='表情生成', event=event)
     await _emoji_gen.finish()
 
 @_group_poke.handle()
@@ -380,12 +361,7 @@ async def f_group_poke(bot, event):
         await f_blocked(event)
         return
     if result["kind"] == "error":
-        add_msg(result["text"], event=event)
-        add_msg(
-            result["traceback"],
-            msg_type="private",
-            to_id=confs["QQBot"]["super_qid"],
-        )
+        report_exception(result["error"], operation="戳一戳处理", event=event)
         return
     if result["kind"] == "image":
         snd_msg = MessageSegment.image(result["image_path"])
@@ -415,12 +391,8 @@ async def f_peak_rank(event):
     try:
         result = await asyncio.to_thread(peak_rank_process)
         add_msg(result, event=event)
-    except Exception as e:
-        add_msg(
-            f"巅峰排名失败：location=zevent.f_peak_rank params={{'source': 'local_json'}} error={repr(e)}",
-            event=event,
-        )
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='巅峰排名', event=event)
 
 
 @_inactivity_rank.handle()
@@ -431,8 +403,7 @@ async def f_inactivity_rank(event):
         result = await asyncio.to_thread(inactivity_rank_process)
         add_msg(result, event=event)
     except Exception as error:
-        log_message(f"INACTIVITY_RANK_FAILED: error_type={type(error).__name__}")
-        add_msg("多久没打了排名暂时查询失败，请稍后重试。", event=event)
+        report_exception(error, operation='最近对局排名', event=event)
 
 
 @_hero_tier.handle()
@@ -447,11 +418,7 @@ async def f_hero_tier(event):
             raise Exception(f"hero_tier_image_missing: path={image_path!r}")
         add_msg(MessageSegment.image(f"file://{absolute_path}"), event=event)
     except Exception as error:
-        add_msg(
-            f"梯度查询失败：location=zevent.f_hero_tier params={{'command': '#梯度'}} error={error!r}",
-            event=event,
-        )
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        report_exception(error, operation='英雄梯度查询', event=event)
 
 
 @_skin_votes.handle()
@@ -470,12 +437,7 @@ async def f_skin_votes(event):
                 message += MessageSegment.text("\n返场排行图片未找到，请稍后重试（zevent.f_skin_votes）")
         add_msg(message, event=event)
     except Exception as error:
-        add_msg(
-            f"皮肤返场排行查询失败：location=zevent.f_skin_votes "
-            f"params={{'command': '#皮肤返场'}} error={error!r}",
-            event=event,
-        )
-        log_message("SKIN_VOTES_QUERY_ERROR: " + traceback.format_exc())
+        report_exception(error, operation='皮肤返场排行', event=event)
 
 
 @_x_subscription_admin.handle()
@@ -484,10 +446,11 @@ async def f_x_subscription(event: MessageEvent):
     from glorybond.apps.qq.handlers.x_subscription import command_reply
 
     try:
-        add_msg(await command_reply(event), event=event)
-    except Exception:
-        add_msg("X 订阅处理失败，请稍后重试", event=event)
-        log_message("X_SUBSCRIPTION_ERROR: " + traceback.format_exc())
+        reply = await command_reply(event, on_error=lambda error: report_exception(error, operation="X 订阅查询", event=event, partial=True))
+        if reply:
+            add_msg(reply, event=event)
+    except Exception as error:
+        report_exception(error, operation='X 订阅处理', event=event)
 
 
 @_service_health.handle()
@@ -503,8 +466,7 @@ async def f_service_health(event: MessageEvent):
         else:
             add_msg(replies[0], event=event)
     except Exception as error:
-        add_msg(f"服务连通性检查入口失败（{type(error).__name__}），请查看服务器日志。", event=event)
-        log_message("SERVICE_HEALTH_ERROR: " + type(error).__name__)
+        report_exception(error, operation='服务连通性检查', event=event)
 
 
 @_bili_video_subscribe.handle()
@@ -512,12 +474,11 @@ async def f_bili_video_subscribe(event: MessageEvent):
     from glorybond.apps.qq.handlers.bili_video import subscribe_reply
 
     try:
-        result = await subscribe_reply(event)
+        result = await subscribe_reply(event, on_error=lambda error: report_exception(error, operation="B站订阅视频获取", event=event, partial=True))
         for reply in result if isinstance(result, list) else [result]:
             add_msg(reply, event=event)
-    except Exception:
-        add_msg("B站订阅失败，堆栈已私聊", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='B站订阅', event=event)
 
 
 @_bili_video_unsubscribe.handle()
@@ -527,25 +488,20 @@ async def f_bili_video_unsubscribe(event: MessageEvent):
     try:
         result = await unsubscribe_reply(event)
         add_msg(result, event=event)
-    except Exception:
-        add_msg("B站取消订阅失败，堆栈已私聊", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='B站取消订阅', event=event)
 
 
 @_bili_video_latest.handle()
 async def f_bili_video_latest(event: MessageEvent):
     from glorybond.apps.qq.handlers.bili_video import latest_reply
-    from glorybond.integrations.api import BiliVideoError
 
     try:
-        result = await latest_reply(event)
+        result = await latest_reply(event, on_error=lambda error: report_exception(error, operation="B站最新视频", event=event, partial=True))
         for reply in result if isinstance(result, list) else [result]:
             add_msg(reply, event=event)
-    except BiliVideoError as error:
-        add_msg(str(error), event=event)
-    except Exception:
-        add_msg("B站最新视频查询失败，堆栈已私聊", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='B站最新视频', event=event)
 
 
 @_bili_video_mine.handle()
@@ -555,9 +511,8 @@ async def f_bili_video_mine(event: MessageEvent):
     try:
         result = await my_subscription_reply(event)
         add_msg(result, event=event)
-    except Exception:
-        add_msg("B站订阅查询失败，堆栈已私聊", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='B站订阅查询', event=event)
 
 
 @_manual.handle()
@@ -579,9 +534,8 @@ async def f_atall(bot,event):
     try:
         urge_msg = await asyncio.to_thread(ai_parser, [current_datetime_text(), str(namenick), dmc.today_news], "urge_game")
         add_msg(urge_msg, event=event)
-    except Exception as e:
-        add_msg(f"Urge Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='游戏邀请', event=event)
     return
 @_showonline.handle()
 async def f_showonline(bot,event):
@@ -590,10 +544,9 @@ async def f_showonline(bot,event):
         result = await online_reply()
         add_msg(result["text"], event=event)
         if result["error_report"]:
-            add_msg(result["error_report"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    except Exception as e:
-        add_msg(f"Online Check Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+            report_error_text(result["error_report"], operation="战报数据采集", event=event, partial=True)
+    except Exception as error:
+        report_exception(error, operation='在线状态查询', event=event)
 @_rnk.handle()
 async def f_rnk(bot,event):
     from glorybond.apps.qq.handlers.player_reports import ranking_reply
@@ -605,9 +558,8 @@ async def f_rnk(bot,event):
         add_group_poke_task(event.get_user_id(), group_qid=group_id, source="rank_query")
     try:
         result = await ranking_reply(event)
-    except Exception as e:
-        add_msg(str(e), event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='战报排行', event=event)
         return
     image_path = existing_absolute_path(result["image_path"])
     if image_path:
@@ -615,7 +567,7 @@ async def f_rnk(bot,event):
     else:
         add_msg(result["text"] or "战报图片生成失败，请稍后重试。", event=event)
     if result["error_report"]:
-        add_msg(result["error_report"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        report_error_text(result["error_report"], operation="战报数据采集", event=event, partial=True)
 @_single.handle()
 async def f_single(bot,event):
     from glorybond.apps.qq.handlers.player_reports import single_last_battle_reply, single_summary_reply
@@ -626,18 +578,16 @@ async def f_single(bot,event):
         add_group_poke_task(event.get_user_id(), group_qid=group_id, source="single_query")
     try:
         summary = await single_summary_reply(event)
-    except Exception as e:
-        add_msg(str(e), event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='个人战绩查询', event=event)
         return
     if not summary:
         return
     add_msg(summary["text"], event=event)
     try:
         battle = await single_last_battle_reply(summary)
-    except Exception as e:
-        add_msg(str(e), event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='个人战绩查询', event=event)
         return
     if battle:
         add_msg(MessageSegment.text(battle["text"])+MessageSegment.image(battle["image_path"]), event=event)
@@ -647,9 +597,8 @@ async def f_btlview(bot,event):
     try:
         snd_msg = await battle_view_reply(event)
         add_msg(snd_msg, event=event)
-    except Exception as e:
-        add_msg(f"View Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='战局展示', event=event)
     return
 @_btldetail.handle()
 async def f_btldetail(bot,event):
@@ -657,18 +606,16 @@ async def f_btldetail(bot,event):
     try:
         result = await last_battle_detail_reply()
         add_msg(result["text"], event=event)
-    except Exception as e:
-        add_msg(f"BtlDetail Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='战局详情', event=event)
 @_heropower.handle()
 async def f_heropower(bot,event):
     from glorybond.apps.qq.handlers.hero_visuals import hero_power_reply
     try:
         result = await hero_power_reply(event)
         add_msg(result["text"], event=event)
-    except Exception as e:
-        add_msg(f"HeroPower Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='英雄底蕴', event=event)
 
 
 @_honor_power_query.handle()
@@ -679,13 +626,8 @@ async def f_honor_power_query(bot, event):
     try:
         realname, snd_msg = await honor_power_reply(event)
         add_msg(snd_msg, event=event)
-    except Exception as e:
-        add_msg(
-            f"战力查询失败：location=zevent.f_honor_power_query "
-            f"params={{'realname': {realname!r}}} error={repr(e)}",
-            event=event,
-        )
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='英雄战力查询', event=event)
 
 
 @_herostatistics.handle()
@@ -695,9 +637,8 @@ async def f_herostatistics(bot,event):
     try:
         snd_msg = await hero_statistics_reply(event)
         add_msg(snd_msg, event=event)
-    except Exception as e:
-        add_msg(str(e), event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='英雄统计', event=event)
 @_todayhero.handle()
 async def f_todayhero(bot,event):
     from glorybond.apps.qq.handlers.hero_visuals import today_hero_reply
@@ -711,9 +652,8 @@ async def f_todayhero(bot,event):
             add_msg(message, event=event)
         else:
             add_msg(result["text"], event=event)
-    except Exception as e:
-        add_msg(str(e), event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='今日英雄统计', event=event)
     
 # @_allhero.handle()
 # async def f_allhero(bot,event):
@@ -735,9 +675,8 @@ async def f_gradeanalyze(bot,event):
             add_msg(MessageSegment.image(result["image_path"]), event=event)
         else:
             add_msg(result["text"], event=event)
-    except Exception as e:
-        add_msg(f"GradeAnalyze Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='评分分析', event=event)
 @_watchbattle.handle()
 async def f_watchbattle(bot,event):
     from glorybond.apps.qq.handlers.hero_visuals import watch_battle_reply
@@ -747,9 +686,8 @@ async def f_watchbattle(bot,event):
             add_msg(MessageSegment.image(result["image_path"]), event=event)
         elif result["kind"] == "text":
             add_msg(result["text"], event=event)
-    except Exception as e:
-        add_msg(f"WatchBattle Error: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='观战处理', event=event)
 
 
 @_live_watch.handle()
@@ -762,7 +700,9 @@ async def f_live_watch(event):
         add_msg(prepared["text"], event=event)
         return
     add_msg(prepared["status"], event=event)
-    result = await run_watch_request(prepared)
+    result = await run_watch_request(prepared, on_error=lambda error: report_exception(error, operation="观战截图", event=event))
+    if result["kind"] == "reported":
+        return
     if result["kind"] == "image":
         add_text_image_msg(result["text"], result["image_path"], event=event)
     else:
@@ -774,9 +714,8 @@ async def f_spoiler(bot, event):
 
     try:
         prepared = await prepare_spoiler_request(event)
-    except Exception as e:
-        add_msg(f"获取实时战局失败: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='实时战局分析', event=event)
         return
     if prepared["kind"] == "text":
         add_msg(prepared["text"], event=event)
@@ -787,9 +726,8 @@ async def f_spoiler(bot, event):
         message = MessageSegment.text(result["text"])
         message += MessageSegment.image(result["image_path"])
         add_msg(message, event=event)
-    except Exception as e:
-        add_msg(f"底蕴计算失败: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='实时战局分析', event=event)
 
 @_recentpower.handle()
 async def f_recentpower(bot,event):
@@ -803,10 +741,8 @@ async def f_recentpower(bot,event):
             add_msg(MessageSegment.image(f"file:///{image_path}"), event=event)
         else:
             add_msg(result["text"], event=event)
-    except Exception as e:
-        label = "底蕴排行失败" if is_rank else "底蕴统计失败"
-        add_msg(f"{label}: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='底蕴统计', event=event)
 
 @_diycode.handle()
 async def f_diycode(bot: Bot, event: Event):
@@ -820,8 +756,8 @@ async def f_diycode(bot: Bot, event: Event):
     try:
         result = await asyncio.to_thread(handle_diy_request, event, user_input)
         add_msg(str(result), event=event)
-    except Exception as e:
-        add_msg(f"Error: {str(e)}", event=event)
+    except Exception as error:
+        report_exception(error, operation='自定义任务', event=event)
 
 @_recentgames.handle()
 async def f_recentgames(event):
@@ -835,14 +771,12 @@ async def f_recentgames(event):
             add_msg(MessageSegment.image(f"file:///{image_path}"), event=event)
         else:
             add_msg(result["text"], event=event)
-    except Exception as e:
-        label = "时长排行失败" if is_rank else "获取时长失败"
-        add_msg(f"{label}: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='游戏时长统计', event=event)
 
 @_history_query.handle()
 async def f_history_query(event: Event):
-    from glorybond.apps.qq.handlers.history_query import HistoryQueryDetailError, history_query_reply
+    from glorybond.apps.qq.handlers.history_query import history_query_reply
 
     try:
         result = await history_query_reply(event)
@@ -852,12 +786,8 @@ async def f_history_query(event: Event):
             add_msg(message, event=event)
         else:
             add_msg(result["text"], event=event)
-    except HistoryQueryDetailError as error:
-        add_msg(error.prefix + f"解析局内详情异常: {error}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
-    except Exception as e:
-        add_msg(f"查询错误: {str(e)}", event=event)
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='历史战绩查询', event=event)
 
 @_direct_chat.handle()
 @_chat.handle()
@@ -879,14 +809,8 @@ async def f_chat(bot,event):
 
     try:
         await live_chat_rollouts.run(chat_message_key(event), respond)
-    except Exception as e:
-        add_msg(
-            "AI对话失败：location=zevent.f_chat "
-            f"params={{'user_id': {event.get_user_id()!r}, "
-            f"'group_id': {getattr(event, 'group_id', None)!r}}} error={e!r}",
-            event=event,
-        )
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation='AI 对话准备', event=event)
         return
 
 

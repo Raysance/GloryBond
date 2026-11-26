@@ -39,6 +39,7 @@ async def group_poke_reply(event):
         except Exception as error:
             return {
                 "kind": "error",
+                "error": error,
                 "text": str(error),
                 "traceback": traceback.format_exc(),
             }
@@ -66,6 +67,7 @@ async def group_poke_reply(event):
         except Exception as error:
             return {
                 "kind": "error",
+                "error": error,
                 "text": f"emoji_gen_error: {error}",
                 "traceback": traceback.format_exc(),
             }

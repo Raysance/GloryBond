@@ -321,7 +321,7 @@ def _bili_video_resolve_best_up(query):
     return best, [dict(item[4], match_score=item[0]) for item in ranked]
 
 
-def bili_video_subscribe_user(user_qid, up_name):
+def bili_video_subscribe_user(user_qid, up_name, *, on_error=None):
     from glorybond import runtime as dmc
     from glorybond.integrations.api import bilibili_search_videos_by_mid
     from glorybond.time import time_r, time_to_str
@@ -352,6 +352,9 @@ def bili_video_subscribe_user(user_qid, up_name):
             page_size=getattr(dmc, "BiliVideoApiPageSize", 20),
         )
     except Exception as error:
+        if on_error:
+            on_error(error)
+            return []
         return (
             f"B站视频接口暂时不可用：{resolved_name}({resolved_mid})，"
             f"错误：{repr(error)}"
@@ -382,11 +385,12 @@ def bili_video_subscribe_user(user_qid, up_name):
     from glorybond.integrations.api import BiliVideoError
     try:
         message = _bili_video_format_latest_message(resolved_name, latest)
-    except BiliVideoError as error:
-        message = str(error)
     except Exception as error:
+        if on_error:
+            on_error(error)
+            return [prefix]
         log_message("BILI_VIDEO_INITIAL_DOWNLOAD_FAILED: error_type=" + type(error).__name__)
-        message = "订阅已保存，本次视频暂时无法下载，可稍后使用 #最新视频 重试。"
+        message = str(error) if isinstance(error, BiliVideoError) else "订阅已保存，本次视频暂时无法下载，可稍后使用 #最新视频 重试。"
     return [prefix, message]
 
 
@@ -480,7 +484,7 @@ def _bili_video_latest_for_item(item):
     return _bili_video_format_latest_message(up_name, videos[0])
 
 
-def bili_video_latest_for_user(user_qid):
+def bili_video_latest_for_user(user_qid, *, on_error=None):
     from glorybond.integrations.api import BiliVideoError
 
     items = _bili_video_subscription_items_for_user(
@@ -496,6 +500,9 @@ def bili_video_latest_for_user(user_qid):
         try:
             messages.append(_bili_video_latest_for_item(item))
         except Exception as error:
+            if on_error:
+                on_error(error)
+                continue
             label = _bili_video_format_subscription_label(item)
             reason = str(error) if isinstance(error, BiliVideoError) else type(error).__name__
             messages.append(f"{label} 最新视频查询失败：{reason}")
@@ -516,7 +523,7 @@ def bili_video_list_subscriptions():
     return "\n".join(lines)
 
 
-def bili_video_check_and_push(*, debug=False):
+def bili_video_check_and_push(*, debug=False, on_error=None):
     from glorybond import runtime as dmc
     from glorybond.integrations.api import BiliVideoError, bilibili_get_user_card, bilibili_search_videos_by_mid
     from glorybond.time import current_epoch_seconds
@@ -650,6 +657,8 @@ def bili_video_check_and_push(*, debug=False):
                     if not queued:
                         raise RuntimeError("Video queue did not accept the message")
                 except Exception as error:
+                    if on_error:
+                        on_error(error)
                     code = error.code if isinstance(error, BiliVideoError) else type(error).__name__
                     debug_lines.append(f"BILI_VIDEO_PENDING mid={up_mid} bvid={video.get('bvid')} error={code}")
                     continue
@@ -667,14 +676,14 @@ def bili_video_check_and_push(*, debug=False):
         _zfunc_attr("_bili_video_release_push_lock")()
 
 
-def bili_video_admin_command(raw_msg):
+def bili_video_admin_command(raw_msg, *, on_error=None):
     raw_msg = str(raw_msg or "").strip()
     args = raw_msg.replace("##bili", "", 1).strip().split()
     action = args[0].lower() if args else "list"
     if action == "list":
         return bili_video_list_subscriptions()
     if action == "check":
-        result = bili_video_check_and_push(debug=True)
+        result = bili_video_check_and_push(debug=True, on_error=on_error)
         return (
             f"B站订阅检查完成：checked={result.get('checked')} "
             f"queued={result.get('pushed')}\n{result.get('debug') or ''}"

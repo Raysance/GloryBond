@@ -36,7 +36,7 @@ def prepare_watch_request(event):
             "display_name": display, "status": f"正在获取【{display}】的观战截图，首次加载可能需要约一分钟…"}
 
 
-def _capture(prepared):
+def _capture(prepared, *, on_error=None):
     from glorybond.integrations.wzry import wzry_watch_frame
     from glorybond.storage.files import save_watch_frame
 
@@ -62,10 +62,16 @@ def _capture(prepared):
                     "video_decode": "暂时无法读取观战画面，本次已停止",
                     "video_dependency": "观战组件尚未安装，请联系管理员"}.get(error.code,
                         "暂时无法获取观战截图，本次已停止")
+        if on_error and error.code not in {"watch_unavailable", "watch_active"}:
+            on_error(RuntimeError(text + f"（{error.code}）"))
+            return {"kind": "reported", "text": text}
         return {"kind": "text", "text": text}
-    except Exception:
+    except Exception as error:
+        if on_error:
+            on_error(RuntimeError("暂时无法获取观战截图，本次已停止（" + type(error).__name__ + "）"))
+            return {"kind": "reported", "text": "暂时无法获取观战截图，本次已停止"}
         return {"kind": "text", "text": "暂时无法获取观战截图，本次已停止"}
 
 
-async def run_watch_request(prepared):
-    return await asyncio.to_thread(_capture, prepared)
+async def run_watch_request(prepared, *, on_error=None):
+    return await asyncio.to_thread(_capture, prepared, on_error=on_error)

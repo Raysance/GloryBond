@@ -14,7 +14,7 @@ class StartupCacheTests(unittest.TestCase):
         node = next(node for node in source.body if isinstance(node, ast.FunctionDef)
                     and node.name == "_initialize_business_cache_impl")
         namespace = {"__package__": "hok", "logging": logging,
-                     "log_message": Mock(), "load_yesterday": Mock(), "init_fetch_news": Mock(),
+                     "log_message": Mock(), "report_exception": Mock(), "load_yesterday": Mock(), "init_fetch_news": Mock(),
                      "init_fetch_heroranklist": Mock(side_effect=RuntimeError("private credential text")),
                      "init_fetch_hero_tier": Mock()}
         exec(compile(ast.Module(body=[node], type_ignores=[]), "startup-cache", "exec"), namespace)
@@ -23,6 +23,7 @@ class StartupCacheTests(unittest.TestCase):
         namespace["init_fetch_heroranklist"].assert_called_once()
         namespace["init_fetch_hero_tier"].assert_called_once()
         namespace["log_message"].assert_called_once()
+        namespace["report_exception"].assert_called_once()
         self.assertNotIn("private credential text", namespace["log_message"].call_args.args[0])
 
     def test_plugin_import_has_no_top_level_cache_fetch(self):

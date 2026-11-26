@@ -308,7 +308,7 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(ZFUNC, "agent_record_task_message") as record, \
                  patch.object(SENDER, "_automation_sent", new=AsyncMock()) as observe, \
                  patch.object(SENDER, "_enqueue_payload", return_value=1) as enqueue, \
-                 patch.object(SENDER, "add_msg") as notice, patch.object(SENDER, "log_message"):
+                 patch.object(SENDER, "_report_delivery_error") as notice, patch.object(SENDER, "log_message"):
                 await SENDER._handle_forward_msg(bot, payload)
             bot.send_group_forward_msg.assert_awaited_once()
             record.assert_not_called()
@@ -316,19 +316,23 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
             enqueue.assert_called_once()
             self.assertNotIn("kind", enqueue.call_args.args[0])
             self.assertEqual(SENDER.Message(enqueue.call_args.args[0]["content"]).extract_plain_text().strip(), self.brief)
-            self.assertTrue(all(call.kwargs.get("msg_type") == "private" for call in notice.call_args_list))
+            notice.assert_called_once()
+            self.assertEqual(notice.call_args.args[1], payload)
 
     async def test_brief_queue_failure_keeps_detail_success_without_extra_send(self):
         payload = self.enqueue()
         bot = SimpleNamespace(send_group_forward_msg=AsyncMock(return_value={"message_id": 41}))
         with patch.object(SENDER, "_automation_sent", new=AsyncMock()), \
              patch.object(SENDER, "_enqueue_payload", side_effect=RuntimeError("queue unavailable")) as enqueue, \
+             patch.object(SENDER, "_report_delivery_error") as report, \
              patch.object(SENDER, "add_msg") as notice, patch.object(SENDER, "log_message") as log:
             await SENDER._handle_forward_msg(bot, payload)
         enqueue.assert_called_once()
         bot.send_group_forward_msg.assert_awaited_once()
         notice.assert_not_called()
         self.assertIn("CHAT_BRIEF_QUEUE_FAILED", log.call_args.args[0])
+        report.assert_called_once()
+        self.assertEqual(report.call_args.kwargs["operation"], "简略回复入队")
 
     async def test_cancellation_during_forward_propagates_without_queuing_more_messages(self):
         payload = self.enqueue()

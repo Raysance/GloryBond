@@ -80,7 +80,8 @@ def _prepare_automation_payload(payload):
     payload = dict(payload)
     payload.setdefault("delivery_id_internal", uuid4().hex)
     metadata = {"source": "bot", **payload.get("automation_metadata", {})}
-    metadata.update(delivery_cause.get() or {})
+    if metadata.get("source") != "diagnostic":
+        metadata.update(delivery_cause.get() or {})
     metadata.setdefault("root_id", "outbound:" + payload["delivery_id_internal"])
     metadata.setdefault("depth", 0)
     payload["automation_metadata"] = metadata
@@ -114,7 +115,7 @@ async def _automation_before_send(payload):
     from glorybond.features.facade import automation_publish_event, automation_current_rule, automation_finish
     from glorybond.apps.qq.profiles import load_group_member_profile
     payload = _prepare_automation_payload(payload)
-    if payload.get("type") != "group" or payload.get("kind") in {"group_forward", "private_forward"}:
+    if payload["automation_metadata"].get("source") == "diagnostic" or payload.get("type") != "group" or payload.get("kind") in {"group_forward", "private_forward"}:
         return payload
     jobs = await asyncio.to_thread(automation_publish_event, _automation_event(payload, "message.before_send"))
     message = Message(payload.get("content", ""))
@@ -143,6 +144,8 @@ async def _automation_before_send(payload):
 
 async def _automation_sent(payload, result=None, *, status=None):
     """Observe confirmed receipts; hook failures never replay or break delivery."""
+    if payload.get("automation_metadata", {}).get("source") == "diagnostic":
+        return
     from glorybond.features.facade import automation_publish_event, automation_finish
     identifier = _confirmed_message_id(result)
     confirmed = identifier is not None
@@ -219,12 +222,7 @@ async def _handle_group_ban(bot, msg_json):
     try:
         await bot.set_group_ban(group_id=group_id, user_id=user_id, duration=duration)
     except Exception as e:
-        add_msg(
-            f"GROUP_BAN_TASK_FAILED: action={action} group_id={group_id} user_id={user_id} "
-            f"duration={duration} source={source} error={repr(e)}",
-            msg_type="private",
-            to_id=confs["QQBot"]["super_qid"],
-        )
+        _report_delivery_error(e, {**msg_json, "group_id": group_id}, operation="群禁言操作")
         return
 
 
@@ -242,13 +240,19 @@ async def _handle_group_poke(bot, msg_json):
     try:
         await bot.group_poke(group_id=group_id, user_id=user_id)
     except Exception as e:
-        add_msg(
-            f"GROUP_POKE_TASK_FAILED: group_id={group_id} user_id={user_id} source={source} error={repr(e)}",
-            msg_type="private",
-            to_id=confs["QQBot"]["super_qid"],
-        )
+        _report_delivery_error(e, {**msg_json, "group_id": group_id}, operation="群戳一戳")
         return
 
+
+
+def _report_delivery_error(error, payload, *, operation):
+    # One bounded diagnostic may be queued; diagnostics never report themselves.
+    # The original send is never retried because its outcome may be unknown.
+    if payload.get("automation_metadata", {}).get("source") == "diagnostic":
+        return
+    from glorybond.apps.qq.errors import report_exception
+    report_exception(error, operation=operation, group_id=payload.get("toid") or payload.get("group_id"),
+                     private=payload.get("type", "group") != "group")
 
 
 async def _handle_forward_msg(bot, payload):
@@ -280,18 +284,14 @@ async def _handle_forward_msg(bot, payload):
     except Exception as error:
         status = "failed"
         log_message(f"FORWARD_FAILED: type={payload.get('type', 'group')} target={payload.get('toid')} delivery={delivery_id} error={error!r}")
-        try:
-            add_msg(f"FORWARD_FAILED: type={payload.get('type', 'group')} target={payload.get('toid')} delivery={delivery_id} "
-                    f"error={error!r}；未确认发送成功，请检查机器人日志。",
-                    msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        except Exception as notice_error:
-            log_message(f"FORWARD_NOTICE_FAILED: delivery={delivery_id} error={notice_error!r}")
+        _report_delivery_error(error, payload, operation="合并聊天记录发送")
     if delivery_id:
         try:
             finish_forward_delivery(delivery_id, status)
         except Exception as error:
             # The QQ call may already have succeeded. Never enqueue the report again here.
             log_message(f"FORWARD_STATE_FAILED: delivery={delivery_id} status={status} error={error!r}")
+            _report_delivery_error(error, payload, operation="保存合并转发回执")
     if payload.get("reply_direct"):
         try:
             direct = dict(payload["reply_direct"])
@@ -299,6 +299,7 @@ async def _handle_forward_msg(bot, payload):
             _enqueue_payload(direct)
         except Exception as error:
             log_message(f"CHAT_BRIEF_QUEUE_FAILED: error_type={type(error).__name__}")
+            _report_delivery_error(error, payload, operation="简略回复入队")
 
 
 async def _send_queued_message(bot, payload):
@@ -335,6 +336,7 @@ async def _record_task_receipt(payload, result):
             raise RuntimeError("Task receipt association was not saved")
     except Exception as exc:
         log_message(f"TASK_MESSAGE_RECEIPT_SAVE_FAILED: task_id={payload['task_id']} error={type(exc).__name__}")
+        _report_delivery_error(exc, payload, operation="保存任务发送回执")
 
 
 def _bind_task_id(payload, task_id):
@@ -351,7 +353,13 @@ async def message_sender_loop():
         if time.time() - last_ts < MESSAGE_SEND_INTERVAL:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
-        result = dmc.MessageQueue.rpop(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE)
+        try:
+            result = dmc.MessageQueue.rpop(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE)
+        except Exception as error:
+            from glorybond.apps.qq.errors import report_exception
+            report_exception(error, operation="读取消息队列")
+            await asyncio.sleep(max(1, MESSAGE_CHECK_INTERVAL))
+            continue
         if not result:
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             continue
@@ -363,6 +371,7 @@ async def message_sender_loop():
             await asyncio.sleep(MESSAGE_CHECK_INTERVAL)
             dmc.MessageQueue.rpush(REDIS_KEY_MESSAGE_OUTBOUND_QUEUE, result)
             continue
+        msg_json = None
         try:
             msg_json = json.loads(result)
             if msg_json.get("kind") == "group_ban":
@@ -374,9 +383,10 @@ async def message_sender_loop():
             else:
                 await _send_queued_message(bot, msg_json)
         except Exception as exc:
-            # A timeout can follow a successful QQ send. Do not replay it or
-            # enqueue an error notice through the same failing connection.
+            # A timeout can follow a successful QQ send. Never replay the action.
             log_message(f"MESSAGE_SEND_FAILED: error={type(exc).__name__}; delivery unconfirmed; not retried")
+            if isinstance(msg_json, dict):
+                _report_delivery_error(exc, msg_json, operation="QQ 消息发送")
         finally:
             dmc.last_msg_send_ts = time.time()
 
@@ -477,21 +487,23 @@ def _forward_card_fields(title, preview):
     return fields
 
 
-def add_forward_msg(text_nodes, *, event, sender_name="机器人", title=None, preview=None):
+def add_forward_msg(text_nodes, *, event, sender_name="机器人", title=None, preview=None, metadata=None):
     """Queue native chat records back to the command's group or private sender."""
     msg_type, target = _resolve_destination(event=event)
     target = _normalize_target_id(target)
     if msg_type == "group":
-        return add_group_forward_msg(text_nodes, group_qid=target, sender_name=sender_name, title=title, preview=preview)
+        return add_group_forward_msg(text_nodes, group_qid=target, sender_name=sender_name, title=title, preview=preview, metadata=metadata)
     if msg_type != "private" or type(target) is not int or target <= 0:
         raise ValueError("Invalid private forward target")
     payload = {"kind": "private_forward", "type": "private", "toid": target,
                "messages": _forward_nodes(text_nodes, sender_name)}
     payload.update(_forward_card_fields(title, preview))
+    if metadata:
+        payload["automation_metadata"] = dict(metadata)
     return _enqueue_payload(payload)
 
 
-def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", title=None, preview=None, delivery_id=None, delivery_ttl=604800):
+def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人", title=None, preview=None, delivery_id=None, delivery_ttl=604800, metadata=None):
     """Queue one native merged-forward message; external content stays literal text."""
     group_id = _normalize_target_id(group_qid or confs["QQBot"]["group_qid"])
     if type(group_id) is not int or group_id <= 0:
@@ -499,6 +511,8 @@ def add_group_forward_msg(text_nodes, *, group_qid=None, sender_name="机器人"
     messages = _forward_nodes(text_nodes, sender_name)
     payload = {"kind": "group_forward", "type": "group", "toid": group_id, "messages": messages}
     payload.update(_forward_card_fields(title, preview))
+    if metadata:
+        payload["automation_metadata"] = dict(metadata)
     if delivery_id:
         from glorybond.features.facade import enqueue_forward_message
         payload["delivery_id"] = delivery_id

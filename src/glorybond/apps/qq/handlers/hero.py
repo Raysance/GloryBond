@@ -30,33 +30,30 @@ async def hero_statistics_reply(event, *, as_report=False, player_key=None):
     else:
         hero_id, hero_name = extract_heroname(hero_text, precise=True)
 
-    try:
-        if not player_plural and not hero_plural:
-            return await asyncio.to_thread(
-                single_player_single_hero_process,
-                matching_name,
-                hero_id,
-                hero_name,
-            )
-        if not player_plural and hero_plural:
-            options = {"this_season": this_season}
-            if as_report:
-                options["as_report"] = True
-            return await asyncio.to_thread(
-                single_player_mult_hero_process,
-                matching_name,
-                **options,
-            )
-        if player_plural and not hero_plural:
-            return await asyncio.to_thread(
-                mult_player_single_hero_process,
-                hero_id,
-                hero_name,
-                this_season=this_season,
-            )
+    if not player_plural and not hero_plural:
         return await asyncio.to_thread(
-            mult_player_mult_hero_process,
+            single_player_single_hero_process,
+            matching_name,
+            hero_id,
+            hero_name,
+        )
+    if not player_plural and hero_plural:
+        options = {"this_season": this_season}
+        if as_report:
+            options["as_report"] = True
+        return await asyncio.to_thread(
+            single_player_mult_hero_process,
+            matching_name,
+            **options,
+        )
+    if player_plural and not hero_plural:
+        return await asyncio.to_thread(
+            mult_player_single_hero_process,
+            hero_id,
+            hero_name,
             this_season=this_season,
         )
-    except Exception as error:
-        return str(error)
+    return await asyncio.to_thread(
+        mult_player_mult_hero_process,
+        this_season=this_season,
+    )

@@ -3,6 +3,7 @@ from glorybond.common import *
 from glorybond.config.settings import *
 from glorybond import runtime as dmc
 from glorybond.apps.qq.message_sender import add_msg
+from glorybond.apps.qq.errors import report_exception, report_error_text, register_error_hooks
 
 import os
 import schedule
@@ -10,7 +11,6 @@ import datetime
 import json
 import random
 import time
-import traceback
 import asyncio
 # from apscheduler.schedulers.background import BackgroundScheduler
 # from apscheduler.util import timezone
@@ -54,6 +54,7 @@ def _initialize_business_cache_impl():
             loader()
         except Exception as error:
             log_message(f"BUSINESS_CACHE_INIT_FAILED: component={name} error_type={type(error).__name__}", logging.WARNING)
+            report_exception(error, operation="启动数据初始化 " + name)
 
 
 @scheduler.scheduled_job("interval", seconds=confs.get("QQAgent", {}).get("task_poll_seconds", 1),
@@ -102,8 +103,10 @@ def load_yesterday(imple_type=0):
             dmc.infolast[item['key']]={}
             for key,value in item.items():
                 dmc.infolast[item['key']][key]=value
-    except Exception:
+    except FileNotFoundError:
         return
+    except Exception as error:
+        report_exception(error, operation="读取昨日战绩")
     return
 
 
@@ -132,9 +135,10 @@ def _dump_today_impl():
     log_message("DUMPBEGIN "+dump_date+".json")
     retry_time=3
     gameinfo=[]
+    failures = {}
     while retry_time:
         if (not gameinfo): visitfield=userlist
-        else: visitfield=dmc.DumpTodayFailedList
+        else: visitfield=list(dmc.DumpTodayFailedList)
         for key in visitfield:
             try:
                 gameinfo.append(
@@ -143,8 +147,12 @@ def _dump_today_impl():
                         savepath=personal_history_path(dump_date, userlist[key]),
                     )
                 )
+                failures.pop(key, None)
+                if key in dmc.DumpTodayFailedList:
+                    dmc.DumpTodayFailedList.remove(key)
                 time.sleep(0.3)
-            except Exception:
+            except Exception as error:
+                failures[key] = error
                 if (key not in dmc.DumpTodayFailedList):
                     dmc.DumpTodayFailedList.append(key)
         if (not dmc.DumpTodayFailedList):
@@ -152,7 +160,8 @@ def _dump_today_impl():
         time.sleep(10)
         retry_time-=1
     if (not retry_time): 
-        add_msg("Dump failed for "+str(dmc.DumpTodayFailedList), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        for error in failures.values():
+            report_exception(error, operation="每日战绩归档", partial=True)
         dmc.DumpTodayFailedList=[]
     filename = daily_history_path(dump_date)
     writerl(filename,gameinfo)
@@ -183,11 +192,11 @@ async def notify_msg():
     # 处理返回的结果
     for i, msg in enumerate(messages):
         if isinstance(msg, dict) and msg.get("admin_error"):
-            add_msg(msg["admin_error"], msg_type="private", to_id=confs["QQBot"]["super_qid"])
+            report_error_text(msg["admin_error"], operation="每日战报", partial=True)
             continue
         # 如果第一条包含错误堆栈（通常很长），发给管理员
         if i == 0 and "Traceback" in str(msg):
-            add_msg(msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+            report_error_text(msg, operation="每日战报")
             continue
 
         # 处理（文本, 图片路径, 图片下方文案），保持发送顺序。
@@ -246,8 +255,8 @@ async def kpl_match_push():
     from glorybond.features.facade import kpl_check_and_push
     try:
         await asyncio.to_thread(kpl_check_and_push, debug=False)
-    except Exception:
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+    except Exception as error:
+        report_exception(error, operation="KPL 定时推送")
         raise
 
 
@@ -263,9 +272,10 @@ async def bili_video_push():
     from glorybond.features.facade import bili_video_check_and_push
 
     try:
-        await asyncio.to_thread(bili_video_check_and_push, debug=False)
-    except Exception:
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        await asyncio.to_thread(bili_video_check_and_push, debug=False,
+                                on_error=lambda error: report_exception(error, operation="B站订阅视频获取", partial=True))
+    except Exception as error:
+        report_exception(error, operation="B站定时推送")
         raise
 
 
@@ -279,7 +289,8 @@ async def bili_video_push():
 async def x_subscription_push():
     from glorybond.features.facade import x_check_and_push
 
-    result = await asyncio.to_thread(x_check_and_push)
+    result = await asyncio.to_thread(x_check_and_push,
+                                     on_error=lambda error: report_exception(error, operation="X 定时推送", partial=True))
     if result.get("errors"):
         log_message("X_SUBSCRIPTION_PUSH: " + str(result["errors"]))
 
@@ -296,8 +307,7 @@ async def ai_daily_push():
         result = await asyncio.to_thread(ai_daily_check_and_push)
         log_message("AI_DAILY_PUSH: " + str(result))
     except Exception as error:
-        log_message(f"AI_DAILY_PUSH_FAILED: {error!r}")
-        add_msg(f"AI_DAILY_PUSH_FAILED: {error!r}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        report_exception(error, operation="AI 日报推送")
 
 
 def _fetch_news_impl():
@@ -373,8 +383,7 @@ async def run_web_shared_btls_processor():
         # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
         add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
     except Exception as e:
-        add_msg(f"Shared Processor Error: {str(e)}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        report_exception(e, operation="网页战绩分享")
 
     return 
 
@@ -423,8 +432,7 @@ async def run_web_analyze_btls_processor():
             add_msg(snd_msg, msg_type="group", to_id=confs["QQBot"]["group_qid"])
             # add_msg(snd_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
     except Exception as e:
-        add_msg(f"Analyze Processor Error: {str(e)}", msg_type="private", to_id=confs["QQBot"]["super_qid"])
-        add_msg(traceback.format_exc(), msg_type="private", to_id=confs["QQBot"]["super_qid"])
+        report_exception(e, operation="网页战绩分析", private=bool(Special))
 
     return
 
@@ -451,7 +459,7 @@ async def run_history_power_idle_processor():
                 or dmc.redis_deamon_analyze_btl.llen(REDIS_KEY_BATTLE_ANALYZE_QUEUE)
             )
         except Exception as e:
-            log_message(f"HISTORY_POWER_QUEUE_CHECK_ERROR: {str(e)}")
+            report_exception(e, operation="底蕴后台队列检查")
             return False
 
     if getattr(dmc, "HistoryPowerIdleRunning", False):
@@ -489,8 +497,12 @@ async def run_history_power_idle_processor():
                 except Exception as mark_error:
                     error_msg += f"\nmark_failed_error: {str(mark_error)}"
                     log_message(f"HISTORY_POWER_MARK_FAILED_ERROR: {gameseq} {str(mark_error)}")
-                add_msg(error_msg, msg_type="private", to_id=confs["QQBot"]["super_qid"])
+                    report_exception(mark_error, operation="保存底蕴失败状态")
+                report_exception(e, operation="历史底蕴计算", partial=True)
                 skipped_gameseqs.add(str(gameseq))
             await asyncio.sleep(0)
     finally:
         dmc.HistoryPowerIdleRunning = False
+
+
+register_error_hooks(scheduler)

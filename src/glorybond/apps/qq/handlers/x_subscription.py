@@ -25,7 +25,7 @@ def parse_x_command(raw):
     return None
 
 
-async def command_reply(event):
+async def command_reply(event, *, on_error=None):
     from glorybond.features import facade as zfunc
 
     parsed = parse_x_command(event.get_plaintext())
@@ -40,7 +40,5 @@ async def command_reply(event):
     args = (query,) if action == "admin" else (event.get_user_id(),)
     if action in {"subscribe", "unsubscribe"}:
         args += (query,)
-    try:
-        return await asyncio.to_thread(functions[action], *args)
-    except (ValueError, RuntimeError) as error:
-        return str(error)
+    return await asyncio.to_thread(functions[action], *args,
+                                   **({"on_error": on_error} if on_error and action in {"latest", "admin"} else {}))

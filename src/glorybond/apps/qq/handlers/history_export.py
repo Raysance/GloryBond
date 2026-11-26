@@ -1,7 +1,6 @@
 """History-export command parsing and async business dispatch."""
 
 import asyncio
-import traceback
 
 from glorybond.config.settings import roleidlist, userlist
 
@@ -19,7 +18,7 @@ def parse_export_command(raw_message):
     return arguments[0], arguments[1]
 
 
-async def export_history_replies(raw_message):
+async def export_history_replies(raw_message, *, on_error=None):
     from glorybond.features.facade import dump_specific_user
 
     realname, target_date = parse_export_command(raw_message)
@@ -42,7 +41,10 @@ async def export_history_replies(raw_message):
                 )
                 inaccessible.extend(gameinfo.get("unaccessible_battles") or [])
         except Exception as exc:
-            replies.append(f"全部导出失败: {exc}")
+            if on_error:
+                on_error(exc)
+            else:
+                replies.append(f"全部导出失败: {exc}")
             return replies
         if inaccessible:
             replies.append(f"全部导出battle失败: {inaccessible}")
@@ -67,5 +69,8 @@ async def export_history_replies(raw_message):
         else:
             replies.append("导出完成")
     except Exception as exc:
-        replies.append(f"导出失败: {exc}{traceback.format_exc()}")
+        if on_error:
+            on_error(exc)
+        else:
+            replies.append(f"导出失败: {exc}")
     return replies

@@ -260,7 +260,10 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
              patch.object(ZAPI, "bilibili_search_videos_by_mid", return_value=[{"bvid": BV, "pubdate": 100}]), \
              patch.object(ZFUNC, "_bili_video_send_group_message", return_value=0) as send:
             with patch.object(ZFUNC, "bili_video_download_message", side_effect=API.BiliVideoError("size")):
-                result = BUSINESS.bili_video_check_and_push()
+                report = Mock()
+                result = BUSINESS.bili_video_check_and_push(on_error=report)
+                report.assert_called_once()
+                self.assertIsInstance(report.call_args.args[0], API.BiliVideoError)
             self.assertEqual(result["pushed"], 0)
             send.assert_not_called()
             self.assertFalse(redis.sismember("hok:bili:seen:123", BV))
@@ -275,6 +278,15 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
                 {"up_mid": "10", "up_name": "First"}, {"up_mid": "20", "up_name": "Second"}]}), \
              patch.object(BUSINESS, "_bili_video_latest_for_item", side_effect=["video1", "video2"]):
             self.assertEqual(BUSINESS.bili_video_latest_for_user("1"), ["video1", "video2"])
+
+    def test_partial_latest_failure_keeps_success_and_reports_the_original_exception(self):
+        error = API.BiliVideoError("size")
+        report = Mock()
+        with patch.object(ZFUNC, "_bili_video_get_subscriptions", return_value={"1": [
+                {"up_mid": "10", "up_name": "First"}, {"up_mid": "20", "up_name": "Second"}]}), \
+             patch.object(BUSINESS, "_bili_video_latest_for_item", side_effect=[error, "video2"]):
+            self.assertEqual(BUSINESS.bili_video_latest_for_user("1", on_error=report), ["video2"])
+        report.assert_called_once_with(error)
 
 
 if __name__ == "__main__":
