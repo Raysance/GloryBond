@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `81a864045917f8d018b7dea84d39c8b85c085c1a` (version `0.8.0`)
+- `vendor/hok-camp-client`: `a679c0fd0697c4f2c6d582a6eece644b9114a9b4` (version `0.8.0`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,23 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Single Python version for Camp CI — 2026-11-26
+
+The application and Camp SDK use Python 3.13, matching the production runtime.
+Camp CI now has one test job with the video extra; offline tests, repository
+checks and package builds each run once. Application deployment verification
+also uses Python 3.13. Python 3.10/3.12 compatibility jobs are removed.
+
+SDK updates are delivered through private repository commits and fixed
+submodule references. Routine updates no longer create GitHub Releases or
+upload distribution attachments; package builds remain an installation and
+content-boundary check.
+
+Python 3.13 validation passed 162 SDK tests (including video decoding), 62 host
+Camp tests, 45 Web tests and 45 publication/deployment tests, plus repository,
+manual and installed-wheel checks. The existing local debugger environment was
+updated to the same Python minor version.
 
 ## Application source layout — 2026-11-26
 

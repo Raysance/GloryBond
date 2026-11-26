@@ -4,12 +4,12 @@
 
 ## 持久 Python 环境
 
-调试依赖统一安装到 `local_debugger/.venv`。该目录不纳入 Git，但会保留在本机项目目录中，因此 Codex 切换 session 后可直接复用，无需重新配置或安装。
+调试依赖统一安装到 `local_debugger/.venv`，Python 使用与生产环境相同的 3.13。该目录不纳入 Git，但会保留在本机项目目录中，因此 Codex 切换 session 后可直接复用，无需重新配置或安装。
 
 首次创建或依赖变更后执行：
 
 ```bash
-python3 tools/debugger/setup_env.py
+python3.13 tools/debugger/setup_env.py --python python3.13
 ```
 
 运行调试脚本时推荐使用包装入口。若环境还不存在，它会先自动创建：

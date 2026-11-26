@@ -2,6 +2,8 @@
 
 营地能力使用私有 `hok-camp-client` 0.8.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、业务查询、对局走势与完整回顾、直播地址及视频帧接口，不依赖本项目或Android。
 
+项目与 SDK 使用同一 Python 3.13 运行版本。SDK CI 只运行一个含 video 扩展的测试任务，仓库检查和构建各执行一次；日常通过仓库提交与固定 gitlink 更新，不创建额外 GitHub Release。
+
 ## 会话归属
 
 正式会话位于 `HOK_DATA_DIR/account_sessions/camp-session.json`，权限0600，由SDK读取和保存。Bot/Web只向 `CampClient(state_file=...)` 传路径，不读取token、userKey、完整登录响应或调用 `export_session()`。每次查询前调用 `reload_session()`；同一进程复用实例，保留至少5秒的请求间隔。

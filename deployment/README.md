@@ -87,7 +87,7 @@ include private rule media with its Redis rules to preserve image and GIF action
 
 ## Install on another Linux server
 
-Install Python 3.12+, Redis 6+, PostgreSQL 16 (or compatible remote services),
+Install Python 3.13, Redis 6+, PostgreSQL 16 (or compatible remote services),
 Nginx, FFmpeg, `git`, `tar`, and `findutils`. Bilibili video delivery requires
 Bot and NapCat to read the same private media paths. Parser Lite standalone is
 installed from the commit pinned in `pyproject.toml`; its NoneBot plugin is not
@@ -95,6 +95,7 @@ loaded separately. Extract the bundle, then run:
 
 ```bash
 sudo deployment/scripts/install.sh \
+  --python python3.13 \
   --prefix /opt/hok-qqbot \
   --state-dir /var/lib/hok-qqbot \
   --modules nbot,web,cleanup,nginx \

@@ -3,7 +3,7 @@ name = "GloryBond"
 version = "0.1.0"
 description = "QQ Agent for Honor of Kings: Track Stats & Interactive Engagement."
 readme = "README.md"
-requires-python = ">=3.12, <4.0"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "fastapi>=0.115,<1",
     "jinja2>=3.1,<4",

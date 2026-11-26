@@ -6,6 +6,8 @@ GloryBond是Bot与Web的唯一开发及部署仓库。实现、文档和部署�
 
 源码已统一整理到 [`src/glorybond`](src/glorybond)，按应用入口、业务功能、共享 AI、外部服务、账号、存储和渲染分工。测试集中在 `tests/`，开发工具在 `tools/`，功能手册在 `docs/manual/`。目录职责与调用关系见[项目结构](docs/ARCHITECTURE.md)；现有 QQ 命令、网页地址、订阅和数据继续沿用。
 
+项目与营地 SDK 统一使用 Python 3.13，CI 与生产环境保持一致。营地 SDK 仅运行一组完整离线测试，通过私有仓库和固定 submodule 提交更新，无需另建 GitHub Release。
+
 阿里云搜索缺少密钥时，会明确提示应配置的环境变量名称；不会显示密钥内容。
 
 完整功能手册与专题说明：
