@@ -325,10 +325,12 @@ async def _send_queued_message(bot, payload, *, observe=True):
             raise ValueError("Invalid queued message channel")
     except BaseException as error:
         _record_watch_lineup_outcome(payload, error=error)
+        _record_watch_report_outcome(payload, error=error)
         if observe:
             await _automation_sent(payload, status="failed" if isinstance(error, ActionFailed) else "unknown")
         raise
     _record_watch_lineup_outcome(payload, result=result)
+    _record_watch_report_outcome(payload, result=result)
     if observe:
         await _automation_sent(payload, result)
         await _record_task_receipt(payload, result)
@@ -347,6 +349,20 @@ def _record_watch_lineup_outcome(payload, *, result=None, error=None):
         record_outcome(payload, status)
     except Exception as exc:
         log_message("WATCH_LINEUP_RECEIPT_FAILED: error_type=" + type(exc).__name__)
+
+
+def _record_watch_report_outcome(payload, *, result=None, error=None):
+    if not payload.get("watch_report_key"):
+        return
+    from glorybond.storage.watch_reports import record_outcome
+
+    status = "failed" if isinstance(error, ActionFailed) else "unknown"
+    if error is None and _confirmed_message_id(result) is not None:
+        status = "sent"
+    try:
+        record_outcome(payload, status)
+    except Exception as exc:
+        log_message("WATCH_REPORT_RECEIPT_FAILED: error_type=" + type(exc).__name__)
 
 
 async def _send_video_with_metadata(bot, payload):
@@ -600,6 +616,33 @@ def add_watch_lineup_msg(battle_id, image_path, *, event):
                                                           metadata={"source": "watch_lineup"}))
     payload["watch_lineup_key"] = key
     return enqueue_once(key, payload)
+
+
+def battle_reply_message(battle):
+    """The same single-battle text/link/image used by manual and watch reports."""
+    return MessageSegment.text(battle["text"]) + MessageSegment.image(battle["image_path"])
+
+
+def offer_watch_report(scope, target, reference, *, event):
+    from glorybond.storage.watch_reports import offer
+    from glorybond.time import current_timestamp
+
+    content = MessageSegment.text(
+        f"观战的【{target['display_name']}】本局结束后，要推送该局战绩吗？\n请在2分钟内回复“是”或“否”。")
+    if scope[1] == "group":
+        content = MessageSegment.at(scope[3]) + content
+    payload = _prepare_automation_payload(_message_payload(content, event=event,
+                                                          metadata={"source": "watch_report_prompt"}))
+    return offer(scope, target, reference, payload, now=current_timestamp())
+
+
+def add_watch_report_msg(job, battle):
+    from glorybond.storage.watch_reports import finish
+
+    payload = _prepare_automation_payload(_message_payload(battle_reply_message(battle),
+        msg_type=job["scope"][1], to_id=job["scope"][2], metadata={"source": "watch_report"}))
+    payload["watch_report_key"] = job["key"]
+    return finish(job, payload=payload)
 
 
 def add_chat_result_msg(result, *, event=None, destination=None, task_id=None):

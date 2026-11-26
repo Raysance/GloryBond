@@ -60,6 +60,8 @@ _bili_share = on_message(rule=judge_bili_share, priority=2, block=True)
 
 _player_client = on_message(rule=judge_player_client, priority=3, block=True)
 _live_watch = on_message(rule=Rule(judge_to_me, judge_live_watch), priority=3, block=True)
+from glorybond.apps.qq.rules import judge_watch_report_answer
+_watch_report_answer = on_message(rule=judge_watch_report_answer, priority=2, block=True)
 
 _direct_chat=on_message(rule=judge_direct_ai_request,priority=3,block=True)
 
@@ -571,6 +573,7 @@ async def f_rnk(bot,event):
 @_single.handle()
 async def f_single(bot,event):
     from glorybond.apps.qq.handlers.player_reports import single_last_battle_reply, single_summary_reply
+    from glorybond.apps.qq.message_sender import battle_reply_message
 
     log_message("VISIT: SINGLEPLAYER_FUNCTION")
     group_id = getattr(event, "group_id", None)
@@ -590,7 +593,7 @@ async def f_single(bot,event):
         report_exception(error, operation='个人战绩查询', event=event)
         return
     if battle:
-        add_msg(MessageSegment.text(battle["text"])+MessageSegment.image(battle["image_path"]), event=event)
+        add_msg(battle_reply_message(battle), event=event)
 @_btlview.handle()
 async def f_btlview(bot,event):
     from glorybond.apps.qq.handlers.player_reports import battle_view_reply
@@ -707,8 +710,16 @@ async def f_live_watch(event):
         return
     if result["kind"] == "image":
         add_text_image_msg(result["text"], result["image_path"], event=event)
+        from glorybond.apps.qq.handlers.watch_reports import ask_after_watch
+        await asyncio.to_thread(ask_after_watch, prepared, result, event=event)
     else:
         add_msg(result["text"], event=event)
+
+
+@_watch_report_answer.handle()
+async def f_watch_report_answer(event: MessageEvent):
+    from glorybond.apps.qq.handlers.watch_reports import answer_after_watch
+    await answer_after_watch(event)
 
 @_spoiler.handle()
 async def f_spoiler(bot, event):

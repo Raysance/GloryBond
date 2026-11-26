@@ -71,6 +71,12 @@ async def qq_automation_events():
     await automation_tick()
 
 
+@scheduler.scheduled_job("interval", seconds=10, id="watch_battle_reports", max_instances=1, coalesce=True)
+async def watch_battle_reports():
+    from glorybond.apps.qq.handlers.watch_reports import check_pending_reports
+    await check_pending_reports()
+
+
 # 配置执行器和作业默认值，确保在任务运行时间不可控时不轻易跳过任务
 # - 使用线程池以支持并发执行
 # - 提高 max_instances 以允许多个并发实例

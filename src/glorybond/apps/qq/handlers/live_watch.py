@@ -32,7 +32,7 @@ def prepare_watch_request(event):
     if str(userlist[name]) in {"", "0", "-1", "None"} or str(roleidlist[name]) in {"", "0", "-1", "None"}:
         return {"kind": "text", "text": "该玩家尚未配置完整的游戏账号"}
     display = namenick.get(name, name)
-    return {"kind": "ready", "userid": userlist[name], "roleid": roleidlist[name],
+    return {"kind": "ready", "name": name, "userid": userlist[name], "roleid": roleidlist[name],
             "display_name": display, "status": f"正在获取【{display}】的观战截图，首次加载可能需要约一分钟…"}
 
 
@@ -57,8 +57,10 @@ def _capture(prepared, *, on_lineup=None, on_error=None):
         options = {"on_battle_info": show_lineup} if on_lineup is not None else {}
         result = wzry_watch_frame(prepared["userid"], prepared["roleid"], **options)
         if result["state"] == "ready":
+            from glorybond.features.game.watch_report import battle_reference
             return {"kind": "image", "text": f"【{display}】观战画面",
-                    "image_path": save_watch_frame(result["jpeg"])}
+                    "image_path": save_watch_frame(result["jpeg"]),
+                    "battle_reference": battle_reference(result.get("battle_info"), role_id=prepared["roleid"])}
         text = {"pending": "等待观战画面超时，请稍后再次观战", "ended": "该对局已结束"}.get(
             result["state"], "当前对局暂时无法观战")
         return {"kind": "text", "text": text}

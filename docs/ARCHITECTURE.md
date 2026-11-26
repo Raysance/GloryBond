@@ -37,6 +37,8 @@ B站与 X 定时订阅的连续失败通知由 `apps/qq/interval_jobs.py` 管理
 
 观战由 `apps/qq/handlers/live_watch.py` 调用共享营地适配层；SDK管理唯一的持续直播和最新帧，`features/game/watch_lineup.py` 只投影观战响应，复用 `rendering/gen_coplayer_analyses.py` 的底蕴/预言模板。图片IO归 `storage/files.py`，阵容的会话/对局去重与实际回执归 `storage/watch_lineups.py`，统一沿 QQ 队列交付。
 
+观战后的结束战绩确认由 `apps/qq/handlers/watch_reports.py` 编排，`features/game/watch_report.py` 从已有详情路由投影精确对局参数并匹配历史行；`storage/watch_reports.py` 保存短期确认和跨重启任务，`scheduler.py` 注册检查。单局生成复用个人战绩处理器，统一消息出口复用同一文字/图片组装。
+
 根目录只保留项目说明、统一依赖、启动脚本及这些职责明确的目录：
 
 | 目录 | 内容 |

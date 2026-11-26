@@ -2321,6 +2321,14 @@
         {
           "path": "src/glorybond/storage/watch_lineups.py",
           "symbol": "enqueue_once"
+        },
+        {
+          "path": "src/glorybond/apps/qq/handlers/watch_reports.py",
+          "symbol": "answer_after_watch"
+        },
+        {
+          "path": "src/glorybond/storage/watch_reports.py",
+          "symbol": "claim_due"
         }
       ],
       "document": {

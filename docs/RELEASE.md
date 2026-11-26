@@ -22,6 +22,25 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Optional post-watch battle reports — 2026-11-26
+
+After a successful screenshot, the requesting viewer is asked whether to receive
+that battle's final report. Only their yes/no reply in the same conversation
+within two minutes is accepted. Yes creates a Redis-backed task; no or expiry
+starts no history queries. Confirmed requests survive target switches and restarts.
+
+Bounded checks run once a minute for up to two hours and require an exact match of
+the watched battle's sequence, servers and mode in completed history. Missing
+reference data does not fall back to the latest battle. Delivery reuses the
+manual player query's single-battle formatter and text/link/image message.
+Enqueueing is atomic, QQ receipts are separate and unknown sends never replay.
+Changed bindings, disabled query access, hidden history and request/rendering
+errors stop the task and report safely to its original conversation.
+
+Validation passed 66 focused host tests, manual/source checks and a plugin import
+smoke check registering both the reply matcher and scheduled job without startup
+or live requests.
+
 ## Preserve the original watch lineup template — 2026-11-26
 
 Watch lineups now use the strength template's original font, geometry and avatar

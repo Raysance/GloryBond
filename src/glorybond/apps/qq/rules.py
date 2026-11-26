@@ -35,6 +35,18 @@ async def judge_live_watch(event):
     return watch_target(event.get_plaintext()) is not None
 
 
+async def judge_watch_report_answer(event):
+    if event.get_plaintext().strip() not in {"是", "否"}:
+        return False
+    if not is_battle_visible_qid_enabled(event.get_user_id()):
+        return False
+    if await check_sleep(event) or (dmc.repair and await judge_unsuper(event)):
+        return False
+    import asyncio
+    from glorybond.apps.qq.handlers.watch_reports import has_pending
+    return await asyncio.to_thread(has_pending, event)
+
+
 def is_direct_bot_mention(event):
     """Inspect this message's own segments, not inferred to_me or quoted content."""
     bot_id = str(getattr(event, "self_id", "") or "")
