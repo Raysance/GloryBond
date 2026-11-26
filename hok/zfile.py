@@ -7,7 +7,7 @@ _bili_video_cache_locks = [threading.Lock() for _ in range(32)]
 
 
 def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
-                      max_height=480, max_size_mb_per_5min=10):
+                      max_height=480, target_size_mb_per_5min=10, max_output_size_mb=20):
     """Own video files in private storage; publish only complete worker output."""
     import hashlib
     from pathlib import Path
@@ -18,7 +18,8 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
 
     root = Path(data_root) / "bili_videos"
     root.mkdir(parents=True, exist_ok=True, mode=0o750)
-    profile = f"{reference}\ncompressed-v1:{max_height}:{max_size_mb_per_5min}"
+    profile = f"{reference}\ncompressed-v2:{max_height}:{target_size_mb_per_5min}:{max_output_size_mb}"
+    output_limit = min(max_size_mb * 1024 * 1024, max_output_size_mb * 1_000_000)
     digest = hashlib.sha256(profile.encode()).hexdigest()
     destination = root / (digest + ".mp4")
     lock = _bili_video_cache_locks[int(digest[:8], 16) % len(_bili_video_cache_locks)]
@@ -28,7 +29,7 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
         now = current_epoch_seconds()
         if destination.is_file() and not destination.is_symlink():
             stat = destination.stat()
-            if now - stat.st_mtime < 86400 and 0 < stat.st_size <= max_size_mb * 1024 * 1024:
+            if now - stat.st_mtime < 86400 and 0 < stat.st_size <= output_limit:
                 destination.touch()
                 return destination.resolve()
         if not _bili_video_download_slots.acquire(blocking=False):
@@ -52,7 +53,8 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
             with tempfile.TemporaryDirectory(prefix=".download-", dir=root) as temporary:
                 source = download_bili_video(reference, temporary, max_size_mb=max_size_mb,
                                              timeout_seconds=timeout_seconds, max_height=max_height,
-                                             max_size_mb_per_5min=max_size_mb_per_5min)
+                                             target_size_mb_per_5min=target_size_mb_per_5min,
+                                             max_output_size_mb=max_output_size_mb)
                 source.replace(destination)
             return destination.resolve()
         finally:

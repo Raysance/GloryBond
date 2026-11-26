@@ -15,9 +15,10 @@ from urllib.parse import parse_qs, urlsplit
 def video_budget(duration, request):
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError("Invalid media duration")
-    # MB is decimal here: a 300-second result must be at most 10,000,000 bytes.
+    # The duration-based target is soft; only the per-video limit is mandatory.
     return min(request["max_size_mb"] * 1024 * 1024,
-               max(65536, int(duration * request["max_size_mb_per_5min"] * 1_000_000 / 300)))
+               request["max_output_size_mb"] * 1_000_000,
+               max(65536, int(duration * request["target_size_mb_per_5min"] * 1_000_000 / 300)))
 
 
 async def run_media_command(*arguments):
@@ -30,17 +31,18 @@ async def run_media_command(*arguments):
 
 
 async def prepare_video(source, request):
-    """Keep sound, cap resolution and enforce the measured output size budget."""
+    """Prefer quick delivery; compress only to fit resolution or the video limit."""
     info = json.loads(await run_media_command("ffprobe", "-v", "error", "-show_entries",
         "format=duration:stream=codec_type,codec_name,width,height,avg_frame_rate", "-of", "json", str(source)))
     duration = float(info["format"]["duration"])
     budget = video_budget(duration, request)
+    output_limit = request["max_output_size_mb"] * 1_000_000
     video = next(stream for stream in info["streams"] if stream.get("codec_type") == "video")
     audio = [stream for stream in info["streams"] if stream.get("codec_type") == "audio"]
     height = request["max_height"]
     width = 854 if height == 480 else 1280
     output = Path(request["directory"]) / "video.mp4"
-    if (source.stat().st_size <= budget and video.get("codec_name") == "h264"
+    if (source.stat().st_size <= output_limit and video.get("codec_name") == "h264"
             and video["height"] <= height and video["width"] <= width
             and all(stream.get("codec_name") == "aac" for stream in audio)):
         shutil.copyfile(source, output)
@@ -59,7 +61,7 @@ async def prepare_video(source, request):
             "-threads", "2", "-b:v", str(video_rate), "-maxrate", str(video_rate),
             "-bufsize", str(video_rate * 2), "-pix_fmt", "yuv420p", "-c:a", "aac",
             "-b:a", str(audio_rate or 48000), "-ac", "2", "-movflags", "+faststart", str(output))
-        if 0 < output.stat().st_size <= budget:
+        if 0 < output.stat().st_size <= output_limit:
             return {"ok": True}
         video_rate = max(16000, int(video_rate * 0.75))
     output.unlink(missing_ok=True)

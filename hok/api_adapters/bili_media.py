@@ -18,7 +18,7 @@ class BiliVideoError(RuntimeError):
         "invalid": "未识别到有效的 B站视频地址。",
         "unavailable": "B站视频暂时无法下载，可能已失效、受访问限制或接口暂时不可用。",
         "timeout": "B站视频下载超时，请稍后再试。",
-        "size": "B站视频超过下载大小上限。",
+        "size": "B站视频超过下载或发送大小上限。",
         "busy": "B站视频下载繁忙，请稍后再试。",
         "dependency": "B站视频下载组件暂不可用。",
         "disabled": "B站视频下载已关闭。",
@@ -102,7 +102,7 @@ def resolve_video_reference(reference):
 
 
 def download_bili_video(reference, directory, *, max_size_mb=90, timeout_seconds=180,
-                       max_height=480, max_size_mb_per_5min=10):
+                       max_height=480, target_size_mb_per_5min=10, max_output_size_mb=20):
     """Run only the Bilibili portion of the pinned standalone dependency."""
     reference = normalize_video_reference(reference)
     if not reference or urlsplit(reference).hostname not in _VIDEO_HOSTS:
@@ -110,7 +110,8 @@ def download_bili_video(reference, directory, *, max_size_mb=90, timeout_seconds
     directory = Path(directory).resolve()
     worker = Path(__file__).with_name("bili_media_worker.py")
     request = json.dumps({"url": reference, "directory": str(directory), "max_size_mb": max_size_mb,
-                          "max_height": max_height, "max_size_mb_per_5min": max_size_mb_per_5min})
+                          "max_height": max_height, "target_size_mb_per_5min": target_size_mb_per_5min,
+                          "max_output_size_mb": max_output_size_mb})
     # A separate process contains plugin logs, temporary state and FFmpeg children.
     with subprocess.Popen([sys.executable, str(worker)], cwd=directory, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
@@ -131,6 +132,7 @@ def download_bili_video(reference, directory, *, max_size_mb=90, timeout_seconds
     if process.returncode or not result.get("ok"):
         raise BiliVideoError(result.get("code", "unavailable"))
     path = directory / "video.mp4"
-    if not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= max_size_mb * 1024 * 1024:
+    output_limit = min(max_size_mb * 1024 * 1024, max_output_size_mb * 1_000_000)
+    if not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= output_limit:
         raise BiliVideoError("size")
     return path

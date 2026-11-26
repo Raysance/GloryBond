@@ -1964,10 +1964,12 @@ def bili_video_download_message(reference):
     timeout = max(30, min(300, int(config.get("timeout_seconds", 180))))
     height = int(config.get("max_height", 480))
     height = height if height in {480, 720} else 480
-    budget = max(1, min(50, int(config.get("max_size_mb_per_5min", 10))))
+    budget = max(1, min(50, int(config.get("target_size_mb_per_5min", config.get("max_size_mb_per_5min", 10)))))
+    output_size = max(1, min(100, int(config.get("max_output_size_mb", 20))))
     canonical = resolve_video_reference(reference)
     path = cached_bili_video(canonical, max_size_mb=size, timeout_seconds=timeout,
-                             max_height=height, max_size_mb_per_5min=budget)
+                             max_height=height, target_size_mb_per_5min=budget,
+                             max_output_size_mb=output_size)
     return str(MessageSegment.video(path.as_uri()))
 
 

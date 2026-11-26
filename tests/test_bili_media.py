@@ -122,16 +122,17 @@ class BiliCacheTests(unittest.TestCase):
 
 
 class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
-    def test_five_minute_budget_is_ten_decimal_megabytes(self):
-        request = {"max_size_mb": 90, "max_size_mb_per_5min": 10}
+    def test_duration_target_never_exceeds_per_video_limit(self):
+        request = {"max_size_mb": 90, "target_size_mb_per_5min": 10, "max_output_size_mb": 20}
         self.assertEqual(WORKER.video_budget(300, request), 10_000_000)
         self.assertEqual(WORKER.video_budget(150, request), 5_000_000)
+        self.assertEqual(WORKER.video_budget(1200, request), 20_000_000)
         for duration in [0, -1, float("nan"), float("inf")]:
             with self.assertRaises(ValueError):
                 WORKER.video_budget(duration, request)
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
-    async def test_compression_meets_budget_resolution_and_keeps_audio(self):
+    async def test_compression_reduces_size_caps_resolution_and_keeps_audio(self):
         with TemporaryDirectory() as directory:
             source = Path(directory) / "source.mp4"
             subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
@@ -139,11 +140,11 @@ class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
                 "-t", "6", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                 "-c:a", "aac", str(source)], check=True, timeout=30, capture_output=True)
             request = {"directory": directory, "max_size_mb": 90, "max_height": 480,
-                       "max_size_mb_per_5min": 10}
+                       "target_size_mb_per_5min": 10, "max_output_size_mb": 20}
             result = await WORKER.prepare_video(source, request)
             self.assertTrue(result["ok"])
             output = Path(directory) / "video.mp4"
-            self.assertLessEqual(output.stat().st_size, 200_000)
+            self.assertLessEqual(output.stat().st_size, 20_000_000)
             self.assertLess(output.stat().st_size, source.stat().st_size)
             info = json.loads(await WORKER.run_media_command("ffprobe", "-v", "error", "-show_entries",
                 "stream=codec_type,codec_name,height", "-of", "json", str(output)))
@@ -151,6 +152,41 @@ class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(video["codec_name"], "h264")
             self.assertLessEqual(video["height"], 480)
             self.assertTrue(any(s["codec_type"] == "audio" and s["codec_name"] == "aac" for s in info["streams"]))
+
+    async def test_compatible_source_above_soft_target_does_not_need_transcoding(self):
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "source.mp4"
+            with source.open("wb") as stream:
+                stream.truncate(11_000_000)
+            request = {"directory": directory, "max_size_mb": 90, "max_height": 480,
+                       "target_size_mb_per_5min": 10, "max_output_size_mb": 20}
+            info = {"format": {"duration": "300"}, "streams": [
+                {"codec_type": "video", "codec_name": "h264", "height": 480, "width": 854},
+                {"codec_type": "audio", "codec_name": "aac"}]}
+            with patch.object(WORKER, "run_media_command", new=AsyncMock(return_value=json.dumps(info))) as run:
+                self.assertTrue((await WORKER.prepare_video(source, request))["ok"])
+            self.assertEqual(run.await_count, 1)  # Probe only; no unnecessary encode.
+            self.assertEqual((Path(directory) / "video.mp4").stat().st_size, 11_000_000)
+
+    async def test_encoded_video_can_exceed_target_but_never_output_limit(self):
+        for encoded_size, expected_ok, expected_encodes in [(11_000_000, True, 1), (20_000_001, False, 2)]:
+            with self.subTest(encoded_size=encoded_size), TemporaryDirectory() as directory:
+                source = Path(directory) / "source.mp4"
+                source.write_bytes(b"synthetic input")
+                request = {"directory": directory, "max_size_mb": 90, "max_height": 480,
+                           "target_size_mb_per_5min": 10, "max_output_size_mb": 20}
+                info = {"format": {"duration": "300"}, "streams": [
+                    {"codec_type": "video", "codec_name": "h264", "height": 720, "width": 1280}]}
+                async def run(*args):
+                    if args[0] == "ffprobe":
+                        return json.dumps(info)
+                    with Path(args[-1]).open("wb") as stream:
+                        stream.truncate(encoded_size)
+                    return b""
+                with patch.object(WORKER, "run_media_command", new=AsyncMock(side_effect=run)) as media:
+                    self.assertEqual((await WORKER.prepare_video(source, request))["ok"], expected_ok)
+                self.assertEqual(media.await_count, 1 + expected_encodes)
+                self.assertEqual((Path(directory) / "video.mp4").exists(), expected_ok)
 
 
 class BiliRoutingTests(unittest.IsolatedAsyncioTestCase):

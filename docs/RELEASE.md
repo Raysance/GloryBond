@@ -38,9 +38,11 @@ writes leave subscription items pending; queued messages retain the existing
 receipt/no-replay behavior. Video titles remain available to content-based
 automation rules without adding a separate visible card.
 
-Delivery defaults to 480p and at most 10 decimal MB per five minutes of actual
-duration. Low-resolution streams are preferred; FFmpeg compresses oversized
-results with H.264/AAC while retaining audio. The final byte count is checked
+Delivery defaults to 480p with a 20 decimal MB limit per video. Compatible
+low-resolution sources below that limit are reused directly. When compression
+is needed, FFmpeg targets about 10 MB per five minutes, bounded by the per-video
+limit, and preserves H.264/AAC audio and video. Exceeding the soft target alone
+does not cause another encode or rejection. The final byte count is checked
 before enqueueing, and cache keys include the delivery profile.
 
 Validation covered routing, video-only output, cache reuse, duplicate shares,
