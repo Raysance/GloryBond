@@ -629,6 +629,39 @@ def recent_emoji_messages(user_id, group_id, limit=8):
             and not ("战力" in row["text"] and "查询" in row["text"])][-max(1, min(40, int(limit))):]
 
 
+def poke_chat_context(user_id, group_id, *, as_of):
+    """Recent public speech from the actual poke group, bounded by event time."""
+    if group_id is None:
+        return []
+    user, group = str(user_id), str(group_id)
+    if not all(value.isascii() and value.isdecimal() and int(value) > 0 for value in (user, group)):
+        raise ValueError("Poke context requires trusted QQ and group IDs")
+    boundary = int(as_of)
+    records = load_group_chat_history(group, limit=40, time_start=boundary - 3600, time_end=boundary)
+    speakers, selected = {}, []
+    for row in records:
+        if str(row.get("group_id")) != group:
+            continue
+        try:
+            timestamp = int(row.get("timestamp") or 0)
+        except (TypeError, ValueError):
+            continue
+        text = str(row.get("text") or "").strip()
+        author = str(row.get("user_id") or "")
+        if not boundary - 3600 <= timestamp <= boundary or not text or text.startswith(("#", "＃")):
+            continue
+        if not author:
+            continue
+        speaker = speakers.setdefault(author, f"群成员{len(speakers) + 1}")
+        selected.append({"message_id": str(row.get("message_id") or ""),
+                         "reply_to_message_id": row.get("reply_to_message_id"),
+                         "speaker": "戳人者" if author == user else speaker,
+                         "is_poking_user": author == user, "timestamp": timestamp,
+                         "seconds_before_poke": boundary - timestamp,
+                         "text": text[:500], "text_truncated": len(text) > 500})
+    return selected[-20:]
+
+
 def emoji_message_state(user_id, group_id, action, message_hash, value=None):
     """Read/write regenerable emoji decisions, isolated by group and speaker."""
     user, group = str(user_id), str(group_id or "private")

@@ -1,7 +1,7 @@
 import datetime
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from tools.debugger import import_project_module
 
@@ -34,6 +34,12 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         POKE.dmc.LastBtlMsgStatus = False
         POKE.dmc.EmojiImageProb = 0
         POKE.dmc.LastBtlMsgCoolDownTime = "2000-01-01 00:00:00"
+        context = patch.object(FUNCS, "poke_chat_context", return_value=[])
+        self.context = context.start()
+        self.addCleanup(context.stop)
+        service = patch.object(POKE.dmc, "qq_agent_service", None)
+        service.start()
+        self.addCleanup(service.stop)
 
     def tearDown(self):
         for name, value in self.saved.items():
@@ -86,6 +92,44 @@ class PokeEventHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["text"], "emoji_gen_error: provider unavailable")
         self.assertIn("RuntimeError", result["traceback"])
         text.assert_not_called()
+
+    async def test_twenty_five_percent_image_boundary_uses_one_draw(self):
+        POKE.dmc.EmojiImageProb = .25
+        for probability, expected in ((.249, "image"), (.25, "text"), (.99, "text")):
+            with self.subTest(probability=probability), \
+                 patch.object(POKE.random, "random", return_value=probability) as draw, \
+                 patch.object(GEN, "generate_user_emoji_image", return_value={"image_path": "/tmp/emoji.png"}), \
+                 patch.object(FUNCS, "ai_parser", return_value="你来了。"):
+                result = await POKE.group_poke_reply(EventStub())
+                self.assertEqual(result["kind"], expected)
+                draw.assert_called_once()
+
+    async def test_text_binds_event_time_group_and_current_user_role(self):
+        event = EventStub()
+        event.group_id, event.time = 200, 1234567890
+        self.context.return_value = [{"speaker": "戳人者", "text": "晚饭还没吃。"}]
+        role = {"selected": {"role_id": "assistant", "name": "助手"}, "preferences": {"length": "concise"}}
+        roles = SimpleNamespace(manage=AsyncMock(return_value=role))
+        with patch.object(POKE.dmc, "qq_agent_service", SimpleNamespace(roles=roles)), \
+             patch.object(FUNCS, "ai_parser", return_value="饭选好了吗？") as generate:
+            result = await POKE.group_poke_reply(event)
+        self.assertEqual(result, {"kind": "text", "text": "饭选好了吗？"})
+        self.context.assert_called_once_with("10001", 200, as_of=1234567890)
+        self.assertEqual(roles.manage.call_args.args[0].user_id, "10001")
+        self.assertEqual(generate.call_args.args[0][2:], [self.context.return_value, role])
+
+    async def test_context_failures_still_reply_without_invented_history(self):
+        self.context.side_effect = RuntimeError("history offline")
+        with patch.object(FUNCS, "ai_parser", return_value="收到，戳一下就上线。") as generate, \
+             self.assertLogs(POKE.__name__, level="WARNING"):
+            self.assertEqual((await POKE.group_poke_reply(EventStub()))["kind"], "text")
+        self.assertEqual(generate.call_args.args[0][2], [])
+
+    async def test_text_provider_failure_uses_diagnostics_instead_of_raw_text(self):
+        with patch.object(FUNCS, "ai_parser", side_effect=RuntimeError("provider failed")):
+            result = await POKE.group_poke_reply(EventStub())
+        self.assertEqual(result["kind"], "error")
+        self.assertIsInstance(result["error"], RuntimeError)
 
 
 if __name__ == "__main__":

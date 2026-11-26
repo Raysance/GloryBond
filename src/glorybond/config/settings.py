@@ -222,6 +222,7 @@ for heroid,heroname in varia["HeroName_replacements"].items():
     varia["HeroNames"].append(heroname)
 globals().update(varia)
 dynamic_variables = dict(confs.get("DynamicVariables", {}))
+dynamic_variables.setdefault("EmojiImageProb", 0.25)
 
 # Standalone game client; credentials stay in the single dotenv source.
 player_client_config = dict(confs.get("PlayerClient", {}))

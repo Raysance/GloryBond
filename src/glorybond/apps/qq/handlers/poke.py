@@ -8,10 +8,35 @@ import traceback
 from glorybond import runtime as dmc
 
 
+async def _text_reply(event, user_qid):
+    from agent_runtime import Principal
+    from glorybond.features.facade import ai_parser, poke_chat_context, qid2nick
+    from glorybond.time import current_epoch_seconds, epoch_to_text
+
+    now = current_epoch_seconds()
+    event_time = getattr(event, "time", None)
+    boundary = min(now, int(event_time)) if isinstance(event_time, (int, float)) and event_time > 0 else now
+    context_call = asyncio.wait_for(asyncio.to_thread(
+        poke_chat_context, user_qid, getattr(event, "group_id", None), as_of=boundary), timeout=3)
+    calls = [context_call]
+    roles = getattr(getattr(dmc, "qq_agent_service", None), "roles", None)
+    if roles is not None:
+        calls.append(asyncio.wait_for(roles.manage(Principal(user_qid, frozenset({"roleplay.use"}))), timeout=3))
+    results = await asyncio.gather(*calls, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            logging.getLogger(__name__).warning("Poke context unavailable: error_type=%s", type(result).__name__)
+    messages = results[0] if isinstance(results[0], list) else []
+    role = results[1] if len(results) > 1 and isinstance(results[1], dict) else None
+    text = await asyncio.to_thread(ai_parser,
+        [qid2nick(user_qid), epoch_to_text(boundary, timezone_name="Asia/Shanghai"), messages, role], "poke")
+    return {"kind": "text", "text": text}
+
+
 async def group_poke_reply(event):
     from glorybond.storage.files import file_exist, watch_battle_shot_path
-    from glorybond.features.facade import ai_parser, battle_power_process, qid2nick
-    from glorybond.time import add_second, calc_gap, current_datetime_text, str_to_time, time_r, time_to_str
+    from glorybond.features.facade import battle_power_process
+    from glorybond.time import add_second, calc_gap, str_to_time, time_r, time_to_str
 
     if event.target_id != event.self_id:
         return {"kind": "none"}
@@ -54,8 +79,7 @@ async def group_poke_reply(event):
         return {"kind": "none"}
 
     user_qid = event.get_user_id()
-    send_text = random.random() > -1
-    if random.random() < (getattr(dmc, "EmojiImageProb", None) or 0):
+    if random.random() < getattr(dmc, "EmojiImageProb", 0.25):
         from glorybond.rendering.gen_emoji_image import EmojiTemplatesUnavailable, generate_user_emoji_image
 
         try:
@@ -73,16 +97,7 @@ async def group_poke_reply(event):
             }
         else:
             return {"kind": "image", "image_path": meta["image_path"]}
-    if send_text:
-        text = await asyncio.to_thread(
-            ai_parser,
-            [qid2nick(user_qid), current_datetime_text()],
-            "poke",
-        )
-        return {"kind": "text", "text": text}
-
-    from glorybond.features.facade import get_emoji_url
-    from glorybond.config.settings import emoji_amount
-
-    image_index = random.randint(1, emoji_amount + 1)
-    return {"kind": "image", "image_path": get_emoji_url(image_index)}
+    try:
+        return await _text_reply(event, user_qid)
+    except Exception as error:
+        return {"kind": "error", "error": error, "text": str(error), "traceback": traceback.format_exc()}
