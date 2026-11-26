@@ -33,14 +33,15 @@ class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
              patch.object(SENDER.dmc, 'last_msg_send_ts', 0, create=True), \
              patch.object(SENDER, 'MESSAGE_SEND_INTERVAL', 0), \
              patch.object(SENDER.nonebot, 'get_bot', return_value=bot), \
+             patch.object(errors.logging, 'getLogger', return_value=Mock()), \
              patch.object(SENDER, 'log_message', logger):
             with self.assertRaises(asyncio.CancelledError):
                 await SENDER.message_sender_loop()
         # Only a diagnostic may be queued; never replay an unconfirmed message.
         for call in queue.lpush.call_args_list:
             self.assertEqual(json.loads(call.args[1])["automation_metadata"]["source"], "diagnostic")
-            self.assertNotIn('secret transport body', call.args[1])
         queue.rpush.assert_not_called()
+        return queue
 
     async def test_timeout_does_not_replay_or_stop_next_group_and_private_deliveries(self):
         bot = SimpleNamespace(
@@ -49,7 +50,8 @@ class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
         payloads = [dict(type=kind, toid=123, content=text) for kind, text in
                     [('group', 'first'), ('group', 'second'), ('private', 'third')]]
         logger = Mock()
-        await self.run_queue([json.dumps(row) for row in payloads], bot, logger)
+        queue = await self.run_queue([json.dumps(row) for row in payloads], bot, logger)
+        self.assertTrue(any('secret transport body' in call.args[1] for call in queue.lpush.call_args_list))
         self.assertEqual(bot.send_group_msg.await_count, 2)
         bot.send_private_msg.assert_awaited_once()
         logger.assert_called_once()

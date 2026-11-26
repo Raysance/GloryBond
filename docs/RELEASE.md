@@ -22,6 +22,18 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Use original tracebacks in QQ error reports — 2026-11-27
+
+Generic QQ error details now use Python's original `traceback.format_exception`
+output, including exception chains, complete stack frames and exception messages.
+The previous redacted cause/location sections and credential lookup for report
+redaction are removed. Operation, readable summary, timestamp and report number
+still accompany the traceback, delivered as literal text to the original
+conversation and administrator through the existing diagnostic flow.
+
+Validation covers exact traceback output, long messages, native text handling,
+conversation routing, throttling, cancellation and delivery recovery.
+
 ## Preserve requested dates in personal history reports — 2026-11-27
 
 When the current day's archive was absent after midnight, a range ending today

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
@@ -62,25 +63,31 @@ class ErrorReportTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(errors.report_exception(asyncio.CancelledError(), operation="对话"))
         self.queue.lpush.assert_not_called()
 
-    def test_chained_empty_exception_has_readable_reason_without_private_material(self):
+    def test_chained_exception_preserves_original_traceback_and_readable_reason(self):
         try:
             try:
                 raise TimeoutError()
             except TimeoutError as exc:
                 raise RuntimeError("upload https://host/private?signature=secret /srv/private/file token=abc MySecret") from exc
         except RuntimeError as exc:
-            report = "\n".join(errors.build_report(exc, operation="处理", report_id="test", secrets=["MySecret"]))
+            nodes = errors.build_report(exc, operation="处理", report_id="test")
+            self.assertEqual(nodes[1], "".join(traceback.format_exception(exc)))
+            report = "\n".join(nodes)
         for private in ("https://host", "/srv/private", "signature", "abc", "MySecret"):
-            self.assertNotIn(private, report)
+            self.assertIn(private, report)
         self.assertIn("超时", report)
         self.assertIn("TimeoutError", report)
         self.assertIn("test_qq_errors.py", report)
+        self.assertIn("Traceback (most recent call last)", report)
+        self.assertNotIn("错误原因（已脱敏）", report)
+        self.assertNotIn("诊断位置", report)
 
-    def test_http_response_body_does_not_reach_report(self):
-        error = RuntimeError('service returned personal document contents')
+    def test_http_error_preserves_full_message_without_truncation(self):
+        message = 'service returned personal document contents ' + 'x' * 1000
+        error = RuntimeError(message)
         error.response = SimpleNamespace(status_code=403)
         report = "\n".join(errors.build_report(error, operation="读取", report_id="test"))
-        self.assertNotIn("personal document", report)
+        self.assertIn(message, report)
         self.assertIn("HTTP 403", report)
 
     async def test_diagnostic_delivery_failure_does_not_generate_another_report(self):

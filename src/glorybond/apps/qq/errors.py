@@ -1,47 +1,18 @@
-"""Bounded, literal-text error records for trusted QQ destinations."""
+"""Original tracebacks as literal-text reports to trusted QQ destinations."""
 from collections import OrderedDict
 from datetime import datetime
 import logging
-import os
-import re
 from threading import Lock
 import time
+import traceback
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from glorybond.agent.tool_errors import exception_details, redact_error
+from glorybond.agent.tool_errors import exception_details
 
 
 _recent = OrderedDict()
 _lock = Lock()
-_SECRET_KEY = re.compile(r"key|token|password|passwd|secret|cookie|credential|authorization|dsn|session", re.I)
-
-
-def _secret_values(config):
-    values = [v for k, v in os.environ.items() if _SECRET_KEY.search(k) and len(v) >= 4]
-
-    def visit(node, private=False):
-        if isinstance(node, dict):
-            for key, value in node.items():
-                visit(value, private or bool(_SECRET_KEY.search(str(key))))
-        elif isinstance(node, (list, tuple)):
-            for value in node:
-                visit(value, private)
-        elif private and isinstance(node, str) and len(node) >= 4:
-            values.append(node)
-    visit(config)
-    return values
-
-
-def sanitize(text, secrets=()):
-    text = str(redact_error(str(text), secrets))
-    text = re.sub(r"(?i)(cookie|set-cookie|session(?:_id)?|passwd)\s*[:=].*", r"\1=[redacted]", text)
-    text = re.sub(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>\"']+", "[URL已隐藏]", text)
-    text = re.sub(r"(?<![\w])(?:[A-Za-z]:[\\/]|/)[\w.~/\\-]+", "[路径已隐藏]", text)
-    # Response bodies, request parameters and headers are private diagnostics.
-    text = re.sub(r"(?is)\b(?:response(?:_body)?|body|headers|payload|params|query)\s*[=:].*", "[原始内容已隐藏]", text)
-    text = re.sub(r"(?s)[{\[].*[}\]]", "[结构化内容已隐藏]", text)
-    return text[:600]
 
 
 def readable_reason(details):
@@ -70,30 +41,14 @@ def readable_reason(details):
     return "处理过程中发生异常，本次操作未能完整完成。"
 
 
-def build_report(error, *, operation, report_id, secrets=(), partial=False):
-    details = exception_details(error, phase=operation, redactor=lambda value: redact_error(value, secrets))
+def build_report(error, *, operation, report_id, partial=False):
+    details = exception_details(error, phase=operation)
     reason = readable_reason(details)
     timestamp = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds")
     nodes = [f"{operation}异常\n{reason}\n"
              + ("已有结果继续保留，其余部分未完成。\n" if partial else "")
              + f"时间：{timestamp}\n报告编号：{report_id}"]
-    causes = []
-    current = error
-    for item in [details, *details.get("causes", [])]:
-        message = sanitize(item.get("message") or item["error_type"], secrets).splitlines()[0]
-        # HTTP/adapter exceptions commonly embed server bodies or request input.
-        external = type(current).__module__.startswith(("requests", "httpx", "httpcore", "nonebot", "hok_camp_client", "hok_research", "psycopg", "redis"))
-        if (item["error_type"] in {"ActionFailed", "CampError", "OSError", "ConnectionError", "ConnectError", "ProxyError", "NetworkError"}
-                or external or "Timeout" in item["error_type"] or details.get("diagnostics", {}).get("http_status")):
-            message = reason
-        causes.append(f"{item['error_type']}：{message}")
-        if current is not None:
-            current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
-    nodes.append("错误原因（已脱敏）\n" + "\n由以下异常引起：\n".join(causes))
-    locations = [f"{v['file']}:{v['line']} · {v['function']}"
-                 for v in details.get("locations", [])]
-    if locations:
-        nodes.append("诊断位置\n" + "\n".join(locations))
+    nodes.append("".join(traceback.format_exception(error)))
     return nodes
 
 
@@ -131,8 +86,7 @@ def report_exception(error, *, operation, event=None, group_id=None, private=Fal
         if not _claim(key, interval=300):
             return False
         report_id = uuid4().hex[:10]
-        nodes = build_report(error, operation=operation, report_id=report_id,
-                             secrets=_secret_values(confs), partial=partial)
+        nodes = build_report(error, operation=operation, report_id=report_id, partial=partial)
         logging.getLogger(__name__).error("QQ_ERROR_REPORT %s", "\n\n".join(nodes))
         options = {"sender_name": "机器人诊断", "title": operation + "异常", "preview": nodes[0].splitlines()[1],
                    "metadata": {"source": "diagnostic", "error_report_id": report_id}}
