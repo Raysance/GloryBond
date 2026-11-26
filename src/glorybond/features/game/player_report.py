@@ -4,7 +4,7 @@ import re
 
 from glorybond import runtime as dmc
 from glorybond.storage.files import list_history_dates_descending, read_history_date, read_personal_history, web_history_json_path, write_daily_history_export, writerl
-from glorybond.config.settings import fin, namenick, record_begin_date, roleidlist, serr, userlist
+from glorybond.config.settings import fin, namenick, roleidlist, serr, userlist
 
 
 def _zfunc_attr(name):
@@ -40,7 +40,7 @@ def latest_battle_params(details):
 
 
 def single_process(received_message):
-    from glorybond.time import calc_gap, current_timestamp, stamp_to_time, str_to_time, time_delta, time_r, time_r_delta, time_sul, time_to_str
+    from glorybond.time import calc_gap, current_timestamp, stamp_to_time, time_delta, time_r, time_r_delta, time_sul, time_to_str
 
     message = ""
     poke_names = []
@@ -73,14 +73,12 @@ def single_process(received_message):
             traceback_date = str(time_r_delta(traceback_count).strftime("%Y-%m-%d"))
             exhibit_date = str(time_r_delta(traceback_count).strftime("%m-%d"))
             available_dates = set(list_history_dates_descending())
-            if traceback_date not in available_dates:
-                traceback_date = str(record_begin_date)
-            histories = read_history_date(traceback_date)
-            gameinfo = [
-                history
-                for history in histories
-                if history["id"] == userlist[matching_name]
-            ][0]
+            histories = (read_history_date(traceback_date) or []) if traceback_date in available_dates else []
+            gameinfo = next((history for history in histories
+                             if str(history.get("id")) == str(userlist[matching_name])), None)
+            if gameinfo is None:
+                return [f"未收录【{namenick[matching_name]}】在 {traceback_date} 的战绩，暂时无法生成该日期的战报。",
+                        [], False, None, roleidlist[matching_name]]
             if "roleid" not in gameinfo:
                 gameinfo["roleid"] = str(roleidlist[gameinfo["key"]])
             if "visible" not in gameinfo:
@@ -111,17 +109,14 @@ def single_process(received_message):
             traceback_date_from = time_r_delta(traceback_from)
             traceback_date_to = time_r_delta(traceback_to)
             available_dates = set(list_history_dates_descending())
-            if traceback_date_from.strftime("%Y-%m-%d") not in available_dates:
-                traceback_date_from = str_to_time(record_begin_date)
-            if traceback_date_to.strftime("%Y-%m-%d") not in available_dates:
-                traceback_date_to = str_to_time(record_begin_date)
 
             raw_gameinfo = []
             scan_date = traceback_date_from
             while scan_date <= traceback_date_to:
                 scan_date_text = scan_date.strftime("%Y-%m-%d")
+                matching_history = None
                 if scan_date_text in available_dates:
-                    histories = read_history_date(scan_date_text)
+                    histories = read_history_date(scan_date_text) or []
                     matching_history = next(
                         (
                             history
@@ -130,13 +125,17 @@ def single_process(received_message):
                         ),
                         None,
                     )
-                    if matching_history:
-                        raw_gameinfo.append(matching_history)
-                    else:
-                        lost_info_dates.append(scan_date.strftime("%m-%d"))
+                if matching_history is not None:
+                    raw_gameinfo.append(matching_history)
+                else:
+                    lost_info_dates.append(scan_date.strftime("%m-%d"))
                 scan_date = time_delta(scan_date, 1)
+            if not raw_gameinfo:
+                date_range = f"{traceback_date_from:%Y-%m-%d} 至 {traceback_date_to:%Y-%m-%d}"
+                return [f"未收录【{namenick[matching_name]}】在 {date_range} 的战绩，暂时无法生成该区间的战报。",
+                        [], False, None, roleidlist[matching_name]]
             lost_info = (
-                f"(Lost {' '.join(lost_info_dates)})" if lost_info_dates else ""
+                f"（缺少 {'、'.join(lost_info_dates)} 的归档，仅统计已收录日期）" if lost_info_dates else ""
             )
             exhibit_date = (
                 f"{traceback_date_from.strftime('%m-%d')} - "

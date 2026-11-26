@@ -22,6 +22,20 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Preserve requested dates in personal history reports — 2026-11-27
+
+When the current day's archive was absent after midnight, a range ending today
+incorrectly moved its end to the oldest configured record date. The inverted
+range produced an empty merge and then raised `KeyError: map_cnt`.
+
+Historical reports now keep the requested dates, collect available snapshots
+inside that range and identify missing days or missing player records. Empty
+ranges and missing single-day records return an explicit no-archive result
+without merging, exporting an empty page or substituting another date. Tests
+cover both range orders, missing endpoints, partial coverage and absent players.
+Replaying the affected request against saved production history recovered its
+26 recorded battles across three days and identified the unarchived current day.
+
 ## Clarify the automatic battle report heading — 2026-11-27
 
 Automatic post-watch reports now start with “观战对局战绩” instead of “最后一局”.
