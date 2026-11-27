@@ -49,6 +49,18 @@ class LinkTests(unittest.TestCase):
         page = extract_webpage(b'https://example.com/test_(x)', "text/plain", "https://example.com/")
         self.assertEqual(page["links"][0]["url"], "https://example.com/test_(x)")
 
+    def test_markdown_table_does_not_reparse_destinations_with_cell_separators(self):
+        page = extract_webpage(b'''|File|Commit|
+|---|---|
+|[Sources](https://example.com/src)|[Revision](https://example.com/rev)|
+|https://example.com/bare|https://example.com/next|
+`https://example.com/code`''', "text/markdown", "https://example.com/", None)
+        self.assertEqual(page["links"], [
+            {"url": "https://example.com/src", "text": "Sources"},
+            {"url": "https://example.com/rev", "text": "Revision"},
+            {"url": "https://example.com/bare", "text": ""},
+            {"url": "https://example.com/next", "text": ""}])
+
 
 class ReadingTests(unittest.IsolatedAsyncioTestCase):
     async def test_default_first_batch_exposes_links_after_navigation_and_continues_after_100(self):

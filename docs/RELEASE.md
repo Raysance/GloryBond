@@ -41,7 +41,10 @@ text/link continuation. Fetch credentials are supplied privately, separately fro
 chat credentials. Provider errors do not fall back to local HTML extraction;
 document URL downloads retain their existing Clash and public-address checks.
 
-Validation: 153 host regression tests, including simultaneous HTTP entry behind
+Markdown link targets are parsed once; bare URL extraction excludes code and
+link labels and respects table cell separators.
+
+Validation: 154 host regression tests, including simultaneous HTTP entry behind
 a locked RPC, cancellation, failure isolation, private bootstrap settings,
 excerpt selection, official Fetch Markdown, response limits and links beyond navigation; deployment/publication checks
 and the functional manual index.

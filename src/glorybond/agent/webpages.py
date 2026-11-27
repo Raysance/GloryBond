@@ -37,7 +37,7 @@ class PageError(ValueError):
     pass
 
 
-_LINK = re.compile(r"https?://[^\s<>\"'`{}，。！？；、（）【】]+", re.I)
+_LINK = re.compile(r"https?://[^\s<>\"'`{}|，。！？；、（）【】]+", re.I)
 
 
 def normalize_url(value: str) -> str:
@@ -186,19 +186,25 @@ def extract_webpage(raw: bytes, content_type: str, base_url="", max_links=20):
     media_type = content_type.split(";", 1)[0].strip().lower()
     if media_type in {"text/plain", "text/markdown"}:
         from markdown_it import MarkdownIt
-        entries = []
+        entries, bare = [], []
         for token in MarkdownIt("commonmark").parse(source):
             children = token.children or []
+            in_link = False
             for index, child in enumerate(children):
+                if child.type == "link_close":
+                    in_link = False
+                if child.type == "text" and not in_link:
+                    bare.extend((_clean_link(match.group()), "") for match in _LINK.finditer(child.content))
                 if child.type != "link_open":
                     continue
+                in_link = True
                 label = []
                 for following in children[index + 1:]:
                     if following.type == "link_close":
                         break
                     label.append(following.content)
                 entries.append((child.attrGet("href") or "", "".join(label)))
-        entries.extend((_clean_link(match.group()), "") for match in _LINK.finditer(source))
+        entries.extend(bare)
         return {"title": "", "text": source.strip(), **readable_links(entries, base_url, max_links)}
     if media_type not in {"text/html", "application/xhtml+xml"}:
         raise PageError("该链接不是可提取的 HTML/文字网页")
