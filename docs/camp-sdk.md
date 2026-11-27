@@ -1,12 +1,12 @@
 # 营地 SDK 接入
 
-营地能力使用私有 `hok-camp-client` 0.8.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、业务查询、对局走势与完整回顾、直播地址及视频帧接口，不依赖本项目或Android。
+营地能力使用私有 `hok-camp-client` 0.9.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、营地好友申请、业务查询、对局走势与完整回顾、直播地址及视频帧接口，不依赖本项目或Android。
 
 项目与 SDK 使用同一 Python 3.13 运行版本。SDK CI 只运行一个含 video 扩展的测试任务，仓库检查和构建各执行一次；日常通过仓库提交与固定 gitlink 更新，不创建额外 GitHub Release。
 
 ## 会话归属
 
-正式会话位于 `HOK_DATA_DIR/account_sessions/camp-session.json`，权限0600，由SDK读取和保存。Bot/Web只向 `CampClient(state_file=...)` 传路径，不读取token、userKey、完整登录响应或调用 `export_session()`。每次查询前调用 `reload_session()`；同一进程复用实例，保留至少5秒的请求间隔。
+正式会话位于 `HOK_DATA_DIR/account_sessions/camp-session.json`，权限0600，由SDK读取和保存。Bot/Web只向 `CampClient(state_file=...)` 传路径，不读取token、userKey、完整登录响应或调用 `export_session()`。每次查询前调用 `reload_session()`；同一进程复用实例，保留至少2秒的请求间隔。
 
 管理员登录流程在临时SDK文件中完成扫码和角色选择。原会话继续可用；远端验证、挑战期限和Redis租约均通过后，调用SDK `save_session()` 带旧版本标识原子发布。并发更新时SDK拒绝覆盖，业务配置、玩家映射与.env不写入营地凭据。
 
@@ -55,6 +55,14 @@ SDK 新增 `get_battle_winning_trend`、`get_battle_replay` 和 `get_battle_anal
 前两项参数与 `get_battle_detail` 相同；完整回顾使用详情 `head.playerId`，不能改用角色 ID 或营地用户 ID。字段与时间单位以私有 SDK 的 [README](https://github.com/Raysance/hok-camp-client#对局走势与完整回顾) 和维护文档为准。SDK 负责协议，宿主接入时仍须经过共享客户端和原有授权，再处理保存及展示。
 
 这次同步依赖仅提供接口能力，现有 Bot/Web 不自动获取这些新资料，也未新增回放页面。新增协议已用 APK/官方公开脚本静态核对及合成数据离线验证，未进行真实对局请求；对局覆盖、隐私和保留期以服务端结果为准。
+
+## 营地好友申请
+
+SDK 公开 `add_camp_friend(friend_user_id, *, content='', remark='')`，向明确的营地用户发送一次好友申请。`content` 是申请留言，`remark` 是当前账号给对方的备注；目标必须使用营地用户 ID，不能以 QQ 号或游戏角色 ID 替代。接口复用 SDK 会话和限速，保留服务端全部返回字段，不将申请已发送视为已成为好友，超时或结果未知不自动重发。
+
+本次仅更新 SDK 能力及固定引用，Bot/Web 和 AI 工具未新增加好友入口。后续宿主接入须沿用可信入口授权及共享客户端，由明确调用触发。协议通过 APK 静态核对及合成数据离线验证，并经用户明确授权复用既有会话确认申请成功和已是好友的返回；SDK 用户说明见其 [README](https://github.com/Raysance/hok-camp-client#添加营地好友)。
+
+0.9.0 同时按用户要求将实例内营地 HTTP 最小起始间隔从5秒调至2秒，战绩列表、详情、翻页和好友申请都走同一入口。Bot和Web各进程复用一个业务实例，登录适配器及维护工具可创建独立实例；共享会话文件不共享请求锁和时间戳。QQ轮询、二维码冷却和自动观战心跳保留原有调度。2秒是客户端设置，未确认服务端每日好友申请上限。
 
 ## 验证与发布
 

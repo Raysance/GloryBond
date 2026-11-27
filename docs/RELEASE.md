@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `761366e97841349dae0a7c8fb31944954d32a7bf` (version `0.8.0`)
+- `vendor/hok-camp-client`: `31ca0c2dc6afe0984aa23d28fe47847e73f12777` (version `0.9.0`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,24 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Add Camp friend applications and shorten request spacing — 2026-11-27
+
+The private Camp SDK exposes `add_camp_friend(friend_user_id, content=..., remark=...)`
+for one explicit Camp friend application. It preserves the server response and
+does not equate an application with an accepted friendship or retry an unknown
+outcome. Bot/Web and agent tools do not gain an automatic friend-request entry.
+
+At the user's request, the shared Camp HTTP entry now spaces request starts by
+at least two seconds per client instance, including battle lists, details,
+pagination and friend applications. Process-local reuse and serialization remain;
+independent clients do not share rate state. QR and automatic watch-heartbeat
+schedules retain their existing rules.
+
+Validation: 196 SDK offline tests, 100 host compatibility tests and 45 Web tests,
+package boundaries and isolated wheel installation. Explicitly authorized live
+requests confirmed successful applications and existing-friend responses.
+A fixed server-side daily application quota remains unconfirmed.
 
 ## Use original tracebacks in QQ error reports — 2026-11-27
 
