@@ -150,7 +150,7 @@ class QQAgentService:
                 self.mentions = ReplyMentions()
                 service = QQCapabilities(self.bridge, self.state_bridge, self.mentions)
                 registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(self.state_bridge.redact(self.bridge.redact(value))))
-                register_application_tools(registry, service=service, catalogs=self.catalogs)
+                register_application_tools(registry, service=service, catalogs=self.catalogs, webpages=self.webpages)
                 if self.chat_ignore_operation is not None:
                     register_chat_ignore_tool(registry, operation=self.chat_ignore_operation)
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):

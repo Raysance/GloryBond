@@ -27,6 +27,7 @@ const toolNames = {
   list_reference_catalogs: "读取参考目录",
   lookup_reference_data: "查询名称与 ID 对应关系",
   web_search: "联网搜索",
+  read_webpage: "网页与PDF阅读",
   execute_python: "执行 Python",
   render_plot: "绘制图表",
   generate_image: "生成图片",

@@ -14,6 +14,7 @@ from glorybond.agent.tools.memory import recent_history_limits, validate_memory_
 from glorybond.agent.tools.sql_validation import normalize_game_scope
 from glorybond.agent.tools.bot_manual import register_bot_manual_tool
 from glorybond.agent.tools.kpl import register_kpl_tool
+from glorybond.agent.tools.webpages import register_webpage_tool
 from glorybond.agent.timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS, SQL_TOOL_TIMEOUT_SECONDS
 
 
@@ -187,7 +188,9 @@ class CancelTaskArgs(Args):
     task_id: str
 
 
-def register_application_tools(registry, *, service, catalogs):
+def register_application_tools(registry, *, service, catalogs, webpages=None):
+    if webpages is not None:
+        register_webpage_tool(registry, fetcher=webpages)
     if "kpl" in catalogs:
         register_kpl_tool(registry, service=service, catalog=catalogs["kpl"])
     if "bot_info" in catalogs:

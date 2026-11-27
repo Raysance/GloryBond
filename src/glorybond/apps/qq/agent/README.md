@@ -133,6 +133,10 @@ API只读GET且无凭据、环境代理与重定向，保留查询范围、来�
 GitHub 公开仓库、README文件页和原始文字链接使用同一路径；代理隧道固定公网 IP，
 每跳的源站 TLS 上下文显式绑定原域名用于 SNI 和证书校验，保留默认 CA 验证，
 不依赖 HTTPcore 代理路径未支持的 `sni_hostname` 扩展，不读取私有仓库凭据。
+共享 `internet/read_webpage` 工具可由模型按需继续读取搜索结果、正文候选链接及PDF，
+一批最多3链接并发，分别返回正文或错误；普通网页预读不自动跟随候选链接。
+PDF默认最多8 MiB，每次3页（上限5页），返回文字层、页码、续读位置和截断标记，
+独立子进程限时解析并随请求取消，不做OCR。工具沿用 `web.read` 授权和现有ReAct预算。
 
 工具实现和参数位于 `agent_console/tools`，数据库 schema、参考映射、绘图和角色
 位于 `resources/agent`，内核不识别 QQ 或数据库。QQ worker 在服务器本地执行同一 RPC

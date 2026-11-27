@@ -156,7 +156,7 @@ def create_app(*, config_path=None):
                                      kpl_config=public.get("kpl_config"))
             catalogs["references"] = public["references"]["directory"]
             register_application_tools(
-                registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs
+                registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs, webpages=webpages
             )
             roles = RoleplayService(
                 bridge=state_bridge,
