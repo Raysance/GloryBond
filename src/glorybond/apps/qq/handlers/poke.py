@@ -58,7 +58,7 @@ async def group_poke_reply(event):
         return {"kind": "text", "text": "最快10秒ob一次"}
     if dmc.LastBtlMsgStatus and calc_gap(
         time_r(), str_to_time(dmc.LastBtlMsgTime)
-    ) < 600:
+    ) < 30 * 60:
         dmc.LastBtlMsgStatus = False
         dmc.LastBtlMsgCoolDownTime = time_to_str(add_second(time_r(), 30))
         try:

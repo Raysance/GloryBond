@@ -22,6 +22,12 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Extend the post-query poke analysis window — 2026-11-27
+
+A pending battle can now be analyzed by poking the bot within 30 minutes after
+the player-report query, extended from 10 minutes. The existing single-use
+pending state, 30-second cooldown and spectator priority remain in effect.
+
 ## Raise the default video limit and simplify publication labels — 2026-11-27
 
 Bilibili shares, subscription pushes and latest-video requests now default to a
