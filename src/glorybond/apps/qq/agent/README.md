@@ -130,6 +130,9 @@ API只读GET且无凭据、环境代理与重定向，保留查询范围、来�
 下载页面图片。每次连接与重定向校验公网地址并固定连接 IP，保留原域名 TLS 验证，
 禁止本机/内网访问、环境代理、认证和 Cookie 继承。QQ 默认系统 DNS；本地 Web
 按自身配置使用 HTTPS DNS，解析结果同样必须为公网。
+GitHub 公开仓库、README文件页和原始文字链接使用同一路径；代理隧道固定公网 IP，
+每跳的源站 TLS 上下文显式绑定原域名用于 SNI 和证书校验，保留默认 CA 验证，
+不依赖 HTTPcore 代理路径未支持的 `sni_hostname` 扩展，不读取私有仓库凭据。
 
 工具实现和参数位于 `agent_console/tools`，数据库 schema、参考映射、绘图和角色
 位于 `resources/agent`，内核不识别 QQ 或数据库。QQ worker 在服务器本地执行同一 RPC

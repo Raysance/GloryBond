@@ -13,9 +13,11 @@ import ipaddress
 import json
 import re
 import socket
+import ssl
 from urllib.parse import urljoin, urlsplit, urlunsplit
 import zlib
 
+import certifi
 import httpx
 from pydantic import BaseModel, Field
 
@@ -249,6 +251,29 @@ async def _body(response, limit):
     return bytes(result)
 
 
+class _OriginTLSContext(ssl.SSLContext):
+    """Verify the URL's origin even when a proxy tunnels to a pinned IP.
+
+    HTTPcore's HTTP CONNECT and SOCKS paths do not honor ``sni_hostname``.
+    Bind the name at the TLS boundary instead; each redirect gets its own context.
+    This context is only for origin TLS, never the proxy's own TLS connection.
+    """
+
+    def __new__(cls, hostname):
+        return super().__new__(cls, ssl.PROTOCOL_TLS_CLIENT)
+
+    def __init__(self, hostname):
+        self._origin_hostname = hostname
+        # Match Python 3.13 / HTTPX's default verification and CA bundle, without
+        # trusting SSL_CERT_FILE / SSL_CERT_DIR from the process environment.
+        self.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN | ssl.VERIFY_X509_STRICT
+        self.load_verify_locations(cafile=certifi.where())
+
+    def wrap_bio(self, incoming, outgoing, server_side=False, server_hostname=None, session=None):
+        return super().wrap_bio(incoming, outgoing, server_side=server_side,
+                                server_hostname=self._origin_hostname, session=session)
+
+
 class WebPageFetcher:
     def __init__(self, limits=None, *, proxy_url="", resolver=None, client_factory=httpx.AsyncClient):
         self.limits = limits or WebPageLimits()
@@ -305,6 +330,7 @@ class WebPageFetcher:
             # Fresh clients do not propagate cookies across redirect hosts sharing an IP.
             async with self.client_factory(trust_env=False, follow_redirects=False,
                     proxy=self.proxy_url,
+                    verify=_OriginTLSContext(original.host),
                     timeout=self.limits.timeout_seconds,
                     limits=httpx.Limits(max_connections=1, max_keepalive_connections=0)) as client:
                 async with client.stream("GET", pinned,

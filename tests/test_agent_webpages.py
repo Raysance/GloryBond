@@ -1,8 +1,13 @@
 """Backend checks for automatic webpage enrichment, without external requests."""
 import asyncio
+from contextlib import asynccontextmanager
+import datetime
 import gzip
 import json
+from pathlib import Path
 import socket
+import ssl
+import tempfile
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -54,6 +59,85 @@ def fetcher(handler, **options):
     return reader, resolver, factories
 
 
+@asynccontextmanager
+async def tls_proxy(*, certificate_hosts=("github.com",), trusted=True, redirect=False):
+    """Real CONNECT/TLS exchange; only the proxy socket is local, never the URL."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, certificate_hosts[0])])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(minutes=1))
+            .not_valid_after(now + datetime.timedelta(hours=1))
+            .add_extension(x509.SubjectAlternativeName([x509.DNSName(host) for host in certificate_hosts]), critical=False)
+            .sign(key, hashes.SHA256()))
+    connects, requests, names, tasks = [], [], [], set()
+    with tempfile.TemporaryDirectory() as folder:
+        cert_file, key_file = Path(folder) / "cert.pem", Path(folder) / "key.pem"
+        cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+        cert_file.write_bytes(cert_pem)
+        key_file.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                               serialization.NoEncryption()))
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert_file, key_file)
+        context.set_servername_callback(lambda sock, name, ctx: names.append(name))
+
+        async def proxy(reader, writer):
+            tasks.add(asyncio.current_task())
+            try:
+                connects.append((await reader.readuntil(b"\r\n\r\n")).decode())
+                writer.write(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                await writer.drain()
+                await writer.start_tls(context)
+                requests.append((await reader.readuntil(b"\r\n\r\n")).decode())
+                if redirect and "Host: github.com\r\n" in requests[-1]:
+                    writer.write(b"HTTP/1.1 302 Found\r\nLocation: https://raw.githubusercontent.com/example/repo/main/README.md\r\n"
+                                 b"Set-Cookie: token=never-forward\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    await writer.drain()
+                    return
+                body = b"<main><article><h1>GitHub README</h1><p>Repository content</p></article></main>"
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: "
+                             + str(len(body)).encode() + b"\r\n\r\n" + body)
+                await writer.drain()
+            except (ConnectionError, ssl.SSLError, asyncio.IncompleteReadError):
+                # The negative cases deliberately reject the TLS handshake.
+                pass
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except (ConnectionError, ssl.SSLError):
+                    pass
+
+        real_client = httpx.AsyncClient
+
+        def client_factory(**kwargs):
+            # Trust this ephemeral certificate only in the positive/hostname tests.
+            # No production verification flags or hostname checks are disabled.
+            verify = kwargs.get("verify")
+            if not isinstance(verify, ssl.SSLContext):
+                verify = httpx.create_ssl_context(trust_env=False)
+                kwargs["verify"] = verify
+            if trusted:
+                verify.load_verify_locations(cadata=cert_pem.decode())
+            return real_client(**kwargs)
+
+        server = await asyncio.start_server(proxy, "127.0.0.1", 0)
+        async with server:
+            port = server.sockets[0].getsockname()[1]
+            reader = WebPageFetcher(proxy_url=f"http://127.0.0.1:{port}",
+                                    resolver=AsyncMock(return_value="93.184.216.34"), client_factory=client_factory)
+            try:
+                yield reader, connects, requests, names
+            finally:
+                if tasks:
+                    await asyncio.gather(*tasks)
+
+
 class ExtractionTests(unittest.TestCase):
     def test_article_preserves_facts_and_removes_markup_and_boilerplate(self):
         title, text = extract_page(HTML.encode(), "text/html; charset=utf-8")
@@ -91,6 +175,42 @@ class ExtractionTests(unittest.TestCase):
 
 
 class FetchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_https_proxy_pins_connect_ip_but_verifies_original_hostname(self):
+        async with tls_proxy() as (reader, connects, requests, names):
+            prepared = await reader.prepare([("message", "https://github.com/example/repo")])
+        page = prepared.report["pages"][0]
+        self.assertEqual(page["status"], "ok", page)
+        self.assertIn("Repository content", page["text"])
+        self.assertEqual(page["final_url"], "https://github.com/example/repo")
+        self.assertIn("CONNECT 93.184.216.34:443 HTTP/1.1", connects[0])
+        self.assertEqual(names, ["github.com"])
+        self.assertIn("Host: github.com", requests[0])
+
+    async def test_https_proxy_still_rejects_wrong_hostname_and_untrusted_certificate(self):
+        for options in ({"certificate_hosts": ("wrong.example",)}, {"trusted": False}):
+            with self.subTest(options=options):
+                async with tls_proxy(**options) as (reader, connects, requests, names):
+                    prepared = await reader.prepare([("message", "https://github.com/example/repo")])
+                page = prepared.report["pages"][0]
+                self.assertEqual(page["status"], "unavailable")
+                self.assertEqual(page["error_type"], "ConnectError")
+                self.assertNotIn("text", page)
+                self.assertFalse(requests)
+
+    async def test_https_proxy_redirect_binds_new_tls_hostname_without_cookies(self):
+        async with tls_proxy(certificate_hosts=("github.com", "raw.githubusercontent.com"), redirect=True) as data:
+            reader, connects, requests, names = data
+            prepared = await reader.prepare([("message", "https://github.com/example/repo/raw/main/README.md")])
+        page = prepared.report["pages"][0]
+        self.assertEqual(page["status"], "ok", page)
+        self.assertEqual(page["final_url"], "https://raw.githubusercontent.com/example/repo/main/README.md")
+        self.assertEqual(names, ["github.com", "raw.githubusercontent.com"])
+        self.assertEqual(len(connects), 2)
+        self.assertTrue(all("CONNECT 93.184.216.34:443 HTTP/1.1" in row for row in connects))
+        self.assertIn("Host: raw.githubusercontent.com", requests[1])
+        self.assertNotIn("Cookie:", requests[1])
+        self.assertEqual([call.args[0] for call in reader.resolver.await_args_list], names)
+
     async def test_missing_or_failed_proxy_never_falls_back_to_direct(self):
         factory = Mock(side_effect=RuntimeError("sensitive proxy error"))
         reader = WebPageFetcher(client_factory=factory)
