@@ -102,7 +102,7 @@ def resolve_video_reference(reference):
 
 
 def download_bili_video(reference, directory, *, max_size_mb=90, timeout_seconds=180,
-                       max_height=480, target_size_mb_per_5min=10, max_output_size_mb=20):
+                       max_height=480, target_size_mb_per_5min=10, max_output_size_mb=50):
     """Run only the Bilibili portion of the pinned standalone dependency."""
     reference = normalize_video_reference(reference)
     if not reference or urlsplit(reference).hostname not in _VIDEO_HOSTS:

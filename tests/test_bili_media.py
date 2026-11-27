@@ -209,16 +209,16 @@ class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as directory:
             source = Path(directory) / "source.mp4"
             with source.open("wb") as stream:
-                stream.truncate(11_000_000)
+                stream.truncate(26_800_000)
             request = {"directory": directory, "max_size_mb": 90, "max_height": 480,
-                       "target_size_mb_per_5min": 10, "max_output_size_mb": 20}
+                       "target_size_mb_per_5min": 10, "max_output_size_mb": 50}
             info = {"format": {"duration": "300"}, "streams": [
                 {"codec_type": "video", "codec_name": "h264", "height": 480, "width": 854},
                 {"codec_type": "audio", "codec_name": "aac"}]}
             with patch.object(WORKER, "run_media_command", new=AsyncMock(return_value=json.dumps(info))) as run:
                 self.assertTrue((await WORKER.prepare_video(source, request))["ok"])
             self.assertEqual(run.await_count, 1)  # Probe only; no unnecessary encode.
-            self.assertEqual((Path(directory) / "video.mp4").stat().st_size, 11_000_000)
+            self.assertEqual((Path(directory) / "video.mp4").stat().st_size, 26_800_000)
 
     async def test_encoded_video_can_exceed_target_but_never_output_limit(self):
         for encoded_size, expected_ok, expected_encodes in [(11_000_000, True, 1), (20_000_001, False, 2)]:
@@ -295,7 +295,8 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
 
     def test_native_video_keeps_metadata_separate_without_cover_or_link(self):
         from nonebot.adapters.onebot.v11 import Message
-        with patch.object(FILES, "cached_bili_video", return_value=Path("/tmp/video.mp4")), \
+        with patch.dict(ZFUNC.confs, {"BiliVideo": {}}), \
+             patch.object(FILES, "cached_bili_video", return_value=Path("/tmp/video.mp4")) as download, \
              patch.object(FILES, "read_bili_video_metadata", return_value=METADATA):
             result = ZFUNC.bili_video_download_message(URL)
             message = Message(result.video)
@@ -303,7 +304,9 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
         self.assertEqual(message[0].data["file"], "file:///tmp/video.mp4")
         self.assertIn("标题：" + METADATA["title"], result.text)
         self.assertIn("作者：示例UP", result.text)
-        self.assertIn("2024-01-01 08:00:00（北京时间）", result.text)
+        self.assertIn("发布时间：2024-01-01 08:00:00\n", result.text)
+        self.assertNotIn("北京时间", result.text)
+        self.assertEqual(download.call_args.kwargs["max_output_size_mb"], 50)
         self.assertIn("时长：5:01", result.text)
 
     def test_missing_publication_time_stays_unknown_and_pages_are_identified(self):

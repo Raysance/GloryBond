@@ -227,7 +227,7 @@ def format_video_metadata(metadata):
         time_text = None
     lines = ["标题：" + label(metadata.get("title"), "未知"),
              "作者：" + label(metadata.get("author"), "未知"),
-             "发布时间：" + (time_text + "（北京时间）" if time_text else "未知")]
+             "发布时间：" + (time_text or "未知")]
     duration = metadata.get("duration", 0)
     if type(duration) is int and duration > 0:
         hours, remainder = divmod(duration, 3600)

@@ -7,7 +7,7 @@ _bili_video_cache_locks = [threading.Lock() for _ in range(32)]
 
 
 def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
-                      max_height=480, target_size_mb_per_5min=10, max_output_size_mb=20):
+                      max_height=480, target_size_mb_per_5min=10, max_output_size_mb=50):
     """Own video files in private storage; publish only complete worker output."""
     import hashlib
     from pathlib import Path

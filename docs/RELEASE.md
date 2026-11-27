@@ -22,6 +22,15 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Raise the default video limit and simplify publication labels — 2026-11-27
+
+Bilibili shares, subscription pushes and latest-video requests now default to a
+50 MB output limit. Compatible H.264/AAC sources up to that limit are reused
+without encoding; the cache profile includes the configured limit. Publication
+times remain Asia/Shanghai, with the timezone suffix removed from message text.
+Validation covers a 26.8 MB compatible source taking the copy path, default limit
+propagation, publication formatting and the existing video/subscription checks.
+
 ## Use official Fetch and concurrent search with selectable excerpts — 2026-11-27
 
 QQ/Web searches use a shared asynchronous DeepSeek adapter with two in-flight
