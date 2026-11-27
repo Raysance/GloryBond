@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `31ca0c2dc6afe0984aa23d28fe47847e73f12777` (version `0.9.0`)
+- `vendor/hok-camp-client`: `1184a0b0368dcdabe6a4f37721a80ad41793db60` (version `0.9.0`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
