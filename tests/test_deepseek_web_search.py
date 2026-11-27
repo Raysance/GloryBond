@@ -38,8 +38,9 @@ class DeepSeekSearchTests(unittest.TestCase):
             {"title": "第二来源", "url": "https://example.com/b", "snippet": "后备摘要"},
         ]}, max_results=2)
         self.assertEqual(result["provider"], "deepseek_search")
-        self.assertEqual(result["sources"], [{"title": "官方更新", "url": "https://pvp.qq.com/a"},
-                                             {"title": "第二来源", "url": "https://example.com/b"}])
+        self.assertEqual(result["sources"], [
+            {"title": "官方更新", "url": "https://pvp.qq.com/a", "excerpt_type": "summary", "truncated": False},
+            {"title": "第二来源", "url": "https://example.com/b", "excerpt_type": "snippet", "truncated": False}])
         self.assertIn("供模型阅读的长摘要", result["answer"])
         self.assertIn("2026-10-17T00:00:00Z", result["answer"])
         self.assertIn("后备摘要", result["answer"])
@@ -76,6 +77,30 @@ class DeepSeekSearchTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             WebArgs(query="字" * 129)
         self.assertEqual(WebArgs(query="字" * 128).query, "字" * 128)
+
+    def test_model_selects_excerpt_field_and_content_is_requested_only_when_selected(self):
+        item = {"url": "https://example.com/", "snippet": "短" * 500,
+                "summary": "长" * 2000, "content": "全" * 7000, "authority": 4, "rerank_score": 2.7}
+        for mode, char, limit in (("snippet", "短", 400), ("summary", "长", 1200), ("content", "全", 6000)):
+            with self.subTest(mode=mode):
+                result = self.search({"results": [item]}, result_type=mode)
+                self.assertIn(char * limit, result["answer"])
+                self.assertNotIn(char * (limit + 1), result["answer"])
+                self.assertEqual(result["sources"][0]["excerpt_type"], mode)
+                self.assertTrue(result["sources"][0]["truncated"])
+                self.assertIn("摘录已截断", result["answer"])
+                self.assertEqual(result["sources"][0]["authority"], 4)
+                self.assertEqual(self.request.call_args.kwargs["json"]["need_content"], mode == "content")
+        result = self.search({"results": [{"url": item["url"], "summary": "仅有摘要"}]}, result_type="content")
+        self.assertEqual(result["sources"][0]["excerpt_type"], "summary")
+        self.assertNotIn("正文摘录", result["answer"])
+        with patch.object(AI, "direct_request") as request:
+            with self.assertRaises(ValueError):
+                ZAPI.deepseek_web_search("q", result_type="invalid")
+            self.config["snippet_chars"] = -1
+            with self.assertRaises(ValueError):
+                ZAPI.deepseek_web_search("q", result_type="snippet")
+            request.assert_not_called()
 
     def test_http_and_malformed_responses_do_not_leak_body_or_fallback(self):
         for status in (301, 400, 401, 402, 429, 500, 504):

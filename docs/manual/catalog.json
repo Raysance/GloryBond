@@ -794,6 +794,14 @@
           "symbol": "deepseek_web_search"
         },
         {
+          "path": "src/glorybond/integrations/deepseek_web.py",
+          "symbol": "DeepSeekSearchClient.search"
+        },
+        {
+          "path": "src/glorybond/integrations/deepseek_web.py",
+          "symbol": "DeepSeekFetchClient.fetch"
+        },
+        {
           "path": "src/glorybond/agent/webpages.py",
           "symbol": "WebPageFetcher.read"
         },
@@ -843,7 +851,7 @@
       "id": "search_3",
       "title": "返回内容与注意事项",
       "parent": "search",
-      "summary": "DeepSeek 联网搜索来源、Clash 网页读取、失败与截断边界",
+      "summary": "DeepSeek Search 与官方 Fetch、摘录选择、失败与续读边界",
       "keywords": [
         "返回内容与注意事项"
       ],

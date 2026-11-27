@@ -22,6 +22,30 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Use official Fetch and concurrent search with selectable excerpts — 2026-11-27
+
+QQ/Web searches use a shared asynchronous DeepSeek adapter with two in-flight
+HTTP requests, independent of the serialized business/state RPC streams. Search
+credentials are supplied only through worker private settings. Cancellation and
+shutdown clean up active and queued requests; unchanged worker reconnects retain
+the search client. The synchronous entry reuses the same protocol and projection.
+
+The model can select snippet, summary or content excerpts, capped by default at
+400, 1200 or 6000 characters per result, with actual type and truncation reported.
+Only content mode requests full content from Search. Page reading returns up to
+100 visible links / 24000 characters per batch with continuation. A short shared
+expression rule asks for natural attribution of key external facts. There is no
+required tool order or file-type-specific prompt. Production page extraction
+now uses official DeepSeek Fetch Markdown, preserving inline links and independent
+text/link continuation. Fetch credentials are supplied privately, separately from
+chat credentials. Provider errors do not fall back to local HTML extraction;
+document URL downloads retain their existing Clash and public-address checks.
+
+Validation: 153 host regression tests, including simultaneous HTTP entry behind
+a locked RPC, cancellation, failure isolation, private bootstrap settings,
+excerpt selection, official Fetch Markdown, response limits and links beyond navigation; deployment/publication checks
+and the functional manual index.
+
 ## Use uniform tool batches and on-demand source reading — 2026-11-27
 
 The shared runtime admits at most two tool calls per model round, executes them

@@ -206,7 +206,7 @@ class RoleServiceTests(unittest.IsolatedAsyncioTestCase):
                 raise AssertionError(op)
 
         class Web:
-            async def web_search(self, query, count):
+            async def web_search(self, query, count, result_type="summary"):
                 return {
                     "answer": "角色简介",
                     "sources": [

@@ -141,6 +141,9 @@ class QQAgentService:
             self.state_bridge = self.bridge_factory(str(self.root), sys.executable, shared)
             try:
                 remote = await self.bridge.start()
+                async def fetch_page(**args):
+                    return await self.bridge.call("web_fetch", **args)
+                self.webpages.page_reader = fetch_page
                 await self.state_bridge.start()
                 self.public = remote["public"]
                 self.catalogs = load_catalogs(shared, recent_limits=self.public.get("recent_history_limits"),

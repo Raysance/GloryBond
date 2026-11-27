@@ -132,6 +132,9 @@ def create_app(*, config_path=None):
         bridge.kpl_config = state_bridge.kpl_config = document.get("AgentKPL")
         try:
             remote = await bridge.start()
+            async def fetch_page(**args):
+                return await bridge.call("web_fetch", **args)
+            webpages.page_reader = fetch_page
             await state_bridge.start()
             public.update(remote["public"])
             model_settings = local_model_settings(config, remote, environment={

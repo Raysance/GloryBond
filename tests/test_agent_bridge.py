@@ -85,12 +85,15 @@ class WorkerBootstrapTests(unittest.TestCase):
                 namespace.update({name: Mock() for name in names})
                 namespace.update(_apply_secret_environment=lambda cfg, env: cfg,
                                  _build_chat_api_config=lambda cfg, env: model,
-                                 _build_deepseek_search_config=lambda cfg, env: {'api_key': ''})
+                                 _build_deepseek_search_config=lambda cfg, env: {
+                                     'api_key': 'search-secret', 'endpoint': 'https://api.deepseek.com/v1/tools/search',
+                                     'summary_chars': 1200, 'unrelated_private_value': 'never-publish'})
             db, store = MagicMock(), Mock()
             cursor = db.__enter__.return_value.cursor.return_value.__enter__.return_value
             cursor.fetchone.return_value = ('hok_chat_reader', False, False, False, False, False)
             with patch.dict(remote_worker.CONTEXT, {}, clear=True), patch.dict(remote_worker.os.environ, {}, clear=True), \
-                 patch.object(remote_worker, 'dotenv_values', return_value={'HOK_CHAT_READONLY_DSN': 'test-dsn'}), \
+                 patch.object(remote_worker, 'dotenv_values', return_value={
+                     'HOK_CHAT_READONLY_DSN': 'test-dsn', 'HOK_DEEPSEEK_API_KEY': 'fetch-secret'}), \
                  patch.object(remote_worker, 'extracted_functions', side_effect=functions), \
                  patch.object(remote_worker.psycopg, 'connect', return_value=db), \
                  patch.object(remote_worker.redis, 'Redis', return_value=store):
@@ -101,6 +104,14 @@ class WorkerBootstrapTests(unittest.TestCase):
             self.assertEqual(result['private']['vision_api_key'], 'vision-secret')
             self.assertEqual(result['public']['model_options']['vision']['model'], 'doubao-vision')
             self.assertNotIn('vision-secret', json.dumps(result['public']))
+            self.assertEqual(result['private']['search_api_key'], 'search-secret')
+            self.assertEqual(result['public']['search_config'], {
+                'endpoint': 'https://api.deepseek.com/v1/tools/search', 'summary_chars': 1200})
+            self.assertNotIn('search-secret', json.dumps(result['public']))
+            self.assertNotIn('never-publish', json.dumps(result))
+            self.assertEqual(result['private']['fetch_api_key'], 'fetch-secret')
+            self.assertEqual(result['public']['fetch_config']['endpoint'], 'https://api.deepseek.com/v1/tools/fetch')
+            self.assertNotIn('fetch-secret', json.dumps(result['public']))
             self.assertNotIn('information_schema.views', str(cursor.execute.call_args_list))
 
 

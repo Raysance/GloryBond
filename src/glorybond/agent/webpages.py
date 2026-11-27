@@ -28,7 +28,8 @@ class WebPageLimits(BaseModel):
     max_redirects: int = Field(default=3, ge=0, le=8)
     max_response_bytes: int = Field(default=1048576, ge=1024, le=8388608)
     max_page_chars: int = Field(default=5000, ge=100, le=20000)
-    max_links: int = Field(default=20, ge=1, le=50)
+    max_links: int = Field(default=100, ge=1, le=200)
+    max_link_chars: int = Field(default=24000, ge=3000, le=48000)
     dns_over_https_url: str = ""
 
 
@@ -303,8 +304,9 @@ class _OriginTLSContext(ssl.SSLContext):
 
 
 class WebPageFetcher:
-    def __init__(self, limits=None, *, proxy_url="", resolver=None, client_factory=httpx.AsyncClient):
+    def __init__(self, limits=None, *, proxy_url="", resolver=None, client_factory=httpx.AsyncClient, page_reader=None):
         self.limits = limits or WebPageLimits()
+        self.page_reader = page_reader
         self.proxy_url = str(proxy_url or "").strip()
         self.resolver, self.client_factory = resolver or self._resolve, client_factory
 
@@ -391,6 +393,24 @@ class WebPageFetcher:
             return await self._download(normalize_url(url), max_bytes=max_bytes)
 
     async def _fetch(self, url, *, all_links=False):
+        if self.page_reader is not None:
+            host = urlsplit(url).hostname
+            try:
+                literal = ipaddress.ip_address(host)
+            except ValueError:
+                literal = None
+            if (literal is not None and not _public_ip(str(literal))) or host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+                raise PageError("不读取本机、内网或保留地址")
+            try:
+                data = await self.page_reader(url=url, max_bytes=self.limits.max_response_bytes,
+                                              timeout_seconds=self.limits.timeout_seconds)
+            except RuntimeError as exc:
+                raise PageError(str(exc)) from None
+            page = extract_webpage(data["content"].encode(), "text/markdown", url,
+                                   None if all_links else self.limits.max_links)
+            return {**page, "title": data["title"], "provider": "deepseek_fetch", "content_format": "markdown"}
+        # Retained low-level extractor for offline/debug callers; QQ/Web always
+        # bind the official reader and never fall back to local HTML extraction.
         downloaded = await self._download(url, max_bytes=self.limits.max_response_bytes, text_only=True)
         page = await asyncio.to_thread(extract_webpage, downloaded["raw"], downloaded["content_type"],
                                        downloaded["final_url"], None if all_links else self.limits.max_links)
@@ -429,7 +449,7 @@ class WebPageFetcher:
             selected, chars = [], 0
             for link in links[link_offset:link_offset + self.limits.max_links]:
                 size = len(link["url"]) + len(link["text"])
-                if chars + size > 6000:
+                if chars + size > self.limits.max_link_chars:
                     break
                 selected.append(link)
                 chars += size

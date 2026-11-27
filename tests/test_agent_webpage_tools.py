@@ -51,6 +51,20 @@ class LinkTests(unittest.TestCase):
 
 
 class ReadingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_default_first_batch_exposes_links_after_navigation_and_continues_after_100(self):
+        raw = ("<nav>" + "".join(f'<a href="/nav/{i}">Menu {i}</a>' for i in range(30)) +
+               "</nav><main>Body" + "".join(f'<a href="/source/{i}">Source {i}</a>' for i in range(79)) +
+               "</main>").encode()
+        reader, _, _ = fetcher(lambda _: response(raw))
+        first = await reader.read("https://example.com/")
+        self.assertEqual(len(first["links"]), 100)
+        self.assertEqual(first["total_links"], 109)
+        self.assertEqual(first["next_link_offset"], 100)
+        self.assertIn({"url": "https://example.com/source/0", "text": "Source 0"}, first["links"])
+        rest = await reader.read("https://example.com/", link_offset=first["next_link_offset"])
+        self.assertEqual(len(rest["links"]), 9)
+        self.assertIsNone(rest["next_link_offset"])
+
     async def test_continuations_recover_all_text_and_links_without_following_them(self):
         raw = ("<main><p>" + "x" * 310 + "</p>" +
                "".join(f'<a href="/{i}.dat">Source {i}</a>' for i in range(26)) + "</main>").encode()

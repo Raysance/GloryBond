@@ -38,6 +38,10 @@ class SearchArgs(Args):
 
 
 class WebArgs(Args):
+    result_type: Literal["snippet", "summary", "content"] = Field(
+        default="summary",
+        description="snippet为短摘要，summary为较长摘要，content请求正文摘录；按所需信息量选择，截断会标记",
+    )
     query: str = Field(min_length=1, max_length=128, description="简短网页查询，最多128个字符；支持 site:、after:、before: 等搜索语法")
     max_results: int = Field(default=5, ge=1, le=10)
 
@@ -268,7 +272,7 @@ def register_application_tools(registry, *, service, catalogs, webpages=None, do
         return await sql(args, ctx, "chat")
 
     async def web(args, ctx):
-        return await service.web_search(args.query, args.max_results)
+        return await service.web_search(args.query, args.max_results, args.result_type)
 
     async def python(args, ctx):
         data = {key: ctx.resource(key)["rows"] for key in args.dataset_ids}

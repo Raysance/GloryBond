@@ -142,6 +142,8 @@ handle vision errors. See [Doubao setup](../src/glorybond/agent/README.md#豆包
 
 Chat web search uses the configured DeepSeek search adapter. Its endpoint and limits are under `DeepSeekSearch` in `config.yaml`; credentials come from `.env`.
 
+Page reading uses official DeepSeek Fetch. Optional `DeepSeekFetch.endpoint` and `api_key_env` default to `https://api.deepseek.com/v1/tools/fetch` and `HOK_DEEPSEEK_API_KEY`. Worker private bootstrap settings provide the independent key to QQ/Web; Search and Fetch HTTP requests do not occupy the serialized business RPC. Page extraction does not require Clash; document downloads still do.
+
 Steam, APIMart, and X website subscriptions share the explicit `Proxy.clash_url` route from
 `config.yaml`; `HOK_CLASH_PROXY_URL` can override it per process.
 On the Aliyun host, this points to the existing Clash service at

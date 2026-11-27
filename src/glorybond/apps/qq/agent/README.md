@@ -120,10 +120,12 @@ API只读GET且无凭据、环境代理与重定向，保留查询范围、来�
 本工具不注册新定时任务，内核和业务SQL不包含KPL网站schema。
 
 正文和授权引用中的链接交给模型，入口不自动抓取。
-`internet/read_webpage` 每次读取一个公开URL，返回可读正文和全页可见链接；
+`internet/read_webpage` 每次读取一个公开URL，返回官方 Fetch 提供的正文和其中的链接；
 不按文件后缀筛选，不自动访问子链接。正文及链接列表分别支持偏移续读。
-读取由共享 `agent/webpages.py` 完成，默认12秒、响应最多1 MiB、每次正文5000字及20个链接。
-代理固定已验证的公网IP，每跳按原域名验证TLS，不继承Cookie或回退直连。
+读取由共享 `agent/webpages.py` 调用官方 DeepSeek Fetch，保留返回的 Markdown 与内嵌链接，
+默认12秒、API响应最多1 MiB、每次正文5000字及100个链接（链接合计24000字符）。
+官方密钥仅由 worker private 设置传递，独立于聊天供应商；失败不回退本地HTML提取器。
+文档下载仍通过Clash固定已验证公网IP，每跳按原域名验证TLS，不继承Cookie或回退直连。
 `documents/read_document` 接受公开URL或授权本地绝对路径，复用DeepSeek Files解析，
 将原生文件交给下一轮主模型；单份16 MiB，不使用本地解析器或额外摘要模型。
 本地目录由 `QQAgent.document_roots` 配置，默认项目下 `resources/agent/documents`；
@@ -131,6 +133,9 @@ API只读GET且无凭据、环境代理与重定向，保留查询范围、来�
 工具共用发现、授权、预算和执行流程，主提示词不规定某个工具或来源的优先级。
 每轮最多两个独立调用并发，全部返回后继续，总预算不变；依赖结果的调用分轮执行。
 底层worker和外部协议的串行、限速约束继续生效。
+联网搜索使用独立异步 HTTP 通道，不经过串行业务 RPC；最多两个搜索请求同时进行，取消会中止对应请求。
+worker 仅通过 private 设置提供独立 DeepSeek Search 密钥并纳入脱敏，QQ/Web 复用同一适配器。
+模型可按需选择短摘要、长摘要或正文摘录，每条默认上限400、1200、6000字符，返回实际类型与截断标记。
 
 工具实现和参数位于 `agent_console/tools`，数据库 schema、参考映射、绘图和角色
 位于 `resources/agent`，内核不识别 QQ 或数据库。QQ worker 在服务器本地执行同一 RPC

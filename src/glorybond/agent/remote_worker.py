@@ -216,6 +216,10 @@ def bootstrap(args):
     CONTEXT["fonts"] = [str(path) for path in font_candidates if path.is_file()]
     model_options = {key: model[key] for key in ('timeout_seconds', 'first_token_timeout_seconds') if key in model}
     private = {"api_key": model["api_key"]}
+    fetch_cfg = cfg.get("DeepSeekFetch", {})
+    private["fetch_api_key"] = str(env.get(fetch_cfg.get("api_key_env", "HOK_DEEPSEEK_API_KEY")) or "").strip()
+    if search_cfg.get("api_key"):
+        private["search_api_key"] = search_cfg["api_key"]
     if model.get('fallback'):
         private['fallback_api_key'] = model['fallback']['api_key']
         model_options['fallback'] = {key: value for key, value in model['fallback'].items() if key != 'api_key'}
@@ -240,6 +244,11 @@ def bootstrap(args):
             "references": references,
             "source": "运行进程环境 + 服务器 config.yaml / API 源码",
             "search": bool(search_cfg["api_key"]),
+            "fetch_config": {"endpoint": fetch_cfg.get("endpoint", "https://api.deepseek.com/v1/tools/fetch")},
+            "search_config": {key: search_cfg[key] for key in (
+                "endpoint", "timeout_seconds", "need_content", "max_result_chars",
+                "result_type", "snippet_chars", "summary_chars", "content_chars",
+            ) if key in search_cfg},
             "images": bool(cfg.get("QQBot", {}).get("apimart_key")),
         },
     }
@@ -945,7 +954,7 @@ def dispatch(args):
         return sandbox(args)
     if op == "web_search":
         return CONTEXT["api"]["deepseek_web_search"](
-            args["query"], args.get("max_results", 5)
+            args["query"], args.get("max_results", 5), args.get("result_type")
         )
     if op == "image":
         result = CONTEXT["api"]["apimart_images_generate"](

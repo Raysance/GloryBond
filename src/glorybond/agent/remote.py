@@ -12,6 +12,7 @@ from glorybond.agent.bot_manual import load_manual_documents
 from glorybond.agent.timeouts import IMAGE_RPC_TIMEOUT_SECONDS, SQL_RPC_TIMEOUT_SECONDS
 from glorybond.agent.tools.memory import dialogue_with_sources
 from glorybond.agent.chat_context import active_turn, observe_chat_event
+from glorybond.integrations.deepseek_web import DeepSeekSearchClient, DeepSeekFetchClient
 
 
 class BridgeUnavailable(ConnectionError):
@@ -36,6 +37,8 @@ class RemoteBridge:
         self._closed = False
         self.response_timeout = 190
         self.kpl_config = None
+        self._search_client = None
+        self._fetch_client = None
 
     async def _spawn_worker(self):
         source = Path(__file__).with_name("remote_worker.py").read_text()
@@ -142,6 +145,19 @@ class RemoteBridge:
             if isinstance(value, str) and value
         ]
         self.secrets = list(dict.fromkeys([*self.secrets, *private_values]))
+        search = self.config.get("public", {}).get("search_config")
+        key = self.config.get("private", {}).get("search_api_key")
+        settings = {**search, "api_key": key} if search and key else None
+        if self._search_client is None or self._search_client.settings != settings:
+            if self._search_client:
+                await self._search_client.close()
+            self._search_client = DeepSeekSearchClient(settings) if settings else None
+        fetch = self.config.get("public", {}).get("fetch_config", {})
+        settings = {**fetch, "api_key": self.config.get("private", {}).get("fetch_api_key", "")}
+        if self._fetch_client is None or self._fetch_client.settings != settings:
+            if self._fetch_client:
+                await self._fetch_client.close()
+            self._fetch_client = DeepSeekFetchClient(settings)
 
     async def health(self):
         try:
@@ -170,6 +186,14 @@ class RemoteBridge:
         return value
 
     async def call(self, op, **args):
+        if op == "web_fetch":
+            if self._closed or self._fetch_client is None:
+                raise BridgeUnavailable("DeepSeek Fetch 连接尚未启动或已关闭。")
+            return await self._fetch_client.fetch(**args)
+        if op == "web_search" and self._search_client:
+            if self._closed:
+                raise BridgeUnavailable("远程数据连接尚未启动或已关闭。")
+            return await self._search_client.search(**args)
         # A cancelled caller must not leave an unread response for the next RPC.
         exchange = asyncio.create_task(self._exchange(op, **args))
 
@@ -246,6 +270,12 @@ class RemoteBridge:
 
     async def close(self):
         self._closed = True
+        if self._fetch_client:
+            await self._fetch_client.close()
+            self._fetch_client = None
+        if self._search_client:
+            await self._search_client.close()
+            self._search_client = None
         async with self.lock:
             await self._stop_worker_locked()
 

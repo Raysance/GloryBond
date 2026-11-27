@@ -67,9 +67,9 @@ class Capabilities:
                if domain in {"game", "power"} and "message_timestamp" in ctx.request.metadata else {}),
         )
 
-    async def web_search(self, query, max_results):
+    async def web_search(self, query, max_results, result_type="summary"):
         return await self.bridge.call(
-            "web_search", query=query, max_results=max_results
+            "web_search", query=query, max_results=max_results, result_type=result_type
         )
 
     async def kpl_query(self, args):
