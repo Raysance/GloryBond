@@ -1,6 +1,6 @@
 # 营地 SDK 接入
 
-营地能力使用私有 `hok-camp-client` 0.9.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、营地好友申请、业务查询、对局走势与完整回顾、直播地址及视频帧接口，不依赖本项目或Android。
+营地能力使用私有 `hok-camp-client` 0.10.0，具体提交以gitlink和RELEASE.md为准。SDK独立提供登录、状态、营地好友列表与申请、业务查询、对局走势与完整回顾、直播地址及视频帧接口，不依赖本项目或Android。
 
 项目与 SDK 使用同一 Python 3.13 运行版本。SDK CI 只运行一个含 video 扩展的测试任务，仓库检查和构建各执行一次；日常通过仓库提交与固定 gitlink 更新，不创建额外 GitHub Release。
 
@@ -56,7 +56,11 @@ SDK 新增 `get_battle_winning_trend`、`get_battle_replay` 和 `get_battle_anal
 
 这次同步依赖仅提供接口能力，现有 Bot/Web 不自动获取这些新资料，也未新增回放页面。新增协议已用 APK/官方公开脚本静态核对及合成数据离线验证，未进行真实对局请求；对局覆盖、隐私和保留期以服务端结果为准。
 
-## 营地好友申请
+## 营地好友列表与申请
+
+`get_camp_friends(*, page=0)` 读取当前登录账号的一页好友列表，不接受其他用户 ID。返回完整 `data`，其中 `userList`、`roleList`、`userOffAccs` 分别保留营地用户、游戏角色、公众号条目，以及原始 `hasMore`、`nextPage` 和未知字段；不混合类别、不补字段。SDK 根据 APK 保留的 PHP 分支实现，`hasMore > 0` 时可显式请求当前 `page + 1`，调用者须限制总页数，不能把一页当作全部好友。每次仅发一次请求，沿用共享2秒间隔，不自动翻页、重试或回退其他端点。
+
+列表接口已通过 APK 静态核对、205项SDK离线测试及36项宿主兼容测试。随后用户授权复用现有会话读取两页，第0页返回13条 `isCampFriend=1` 的用户，第1页为 `hasMore=0` 且省略列表的终止页；确认该账号当时可用，原始名单只保存在私有目录。这里只同步 SDK 能力和固定引用，不新增 Bot/Web 或 AI 查询入口。用法见 SDK [读取营地好友列表](https://github.com/Raysance/hok-camp-client#读取营地好友列表)。
 
 SDK 公开 `add_camp_friend(friend_user_id, *, content='', remark='')`，向明确的营地用户发送一次好友申请。`content` 是申请留言，`remark` 是当前账号给对方的备注；目标必须使用营地用户 ID，不能以 QQ 号或游戏角色 ID 替代。接口复用 SDK 会话和限速，保留服务端全部返回字段，不将申请已发送视为已成为好友，超时或结果未知不自动重发。
 

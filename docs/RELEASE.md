@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `1184a0b0368dcdabe6a4f37721a80ad41793db60` (version `0.9.0`)
+- `vendor/hok-camp-client`: `9d74016e11097da917a74b826709457bc84440ec` (version `0.10.0`)
 - `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,21 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Read the signed-in account's Camp friend list — 2026-11-27
+
+Camp SDK 0.10.0 adds `get_camp_friends(page=0)`, a read-only single-page query
+for the signed-in account. It preserves separate user, role and official-account
+lists and all pagination metadata. The retained APK PHP branch starts at page
+zero and increments the page when `hasMore` is positive. There is no implicit
+pagination, endpoint fallback or retry; the shared two-second gate remains.
+Bot/Web and agent tools receive no new entry point.
+
+Validation: the APK call chain and request/response types, 205 SDK offline tests,
+36 host compatibility tests, package boundaries and isolated wheel installation.
+A subsequent user-authorized read using the existing session returned 13 Camp
+friends on page zero and an empty terminal page one. Both requests succeeded;
+no friend mutation or retry occurred. Account data and raw responses remain private.
 
 ## Add Camp friend applications and shorten request spacing — 2026-11-27
 
