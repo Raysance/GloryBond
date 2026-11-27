@@ -12,7 +12,7 @@ Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
 - `vendor/hok-camp-client`: `9d74016e11097da917a74b826709457bc84440ec` (version `0.10.0`)
-- `vendor/react-agent-runtime`: `d49b40745a57eeaac9ad63ab6d81d6f7ac2df406`
+- `vendor/react-agent-runtime`: `f8e32540bb80dd9346fd98bb71b3c1c01f4ecbd8`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
 
@@ -21,6 +21,27 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Use uniform tool batches and on-demand source reading — 2026-11-27
+
+The shared runtime admits at most two tool calls per model round, executes them
+concurrently, and waits for the entire batch before continuing. Total budgets
+are unchanged. Every call retains an ordered observation, including over-budget,
+failed, timed-out and cancelled calls; completed siblings survive cancellation.
+The global instructions describe only generic dependency and concurrency rules.
+
+QQ and local Web no longer prefetch message URLs. The model chooses among the
+usual authorized tools at each step. Page reading returns prose and visible
+links without selecting file types, with independent continuations for text and
+links. Document reading accepts public URLs or files under configured local
+roots and reuses DeepSeek Files; native file inputs reach the next main-model
+request on the upload account. Local PDF parsing and its dependency are removed.
+The earlier pinned-IP proxy TLS correction remains covered by real CONNECT tests.
+
+Validation: 101 host regression tests, 27 independent runtime tests and the SDK
+example, plus deployment/publication checks and the functional manual index.
+The source-chain test uses a table document and a concurrent page read to verify
+native provider input without any document-specific planning policy.
 
 ## Read the signed-in account's Camp friend list — 2026-11-27
 

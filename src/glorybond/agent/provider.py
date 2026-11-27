@@ -122,6 +122,8 @@ class DeepSeekModel:
 
     async def complete(self, messages, tools, on_delta, *, tool_choice="auto"):
         vision_context = {}
+        if self.documents:
+            messages = self.documents.project_tool_documents(messages)
         if self.image_store:
             messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
         messages, has_documents = project_documents(messages)

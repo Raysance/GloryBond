@@ -149,8 +149,11 @@ class QQAgentService:
                 self.local_log = LocalEventLog(self.root / self.config.get("log_directory", "log/glorybond.apps.qq.agent"), redactor=self.bridge.redact)
                 self.mentions = ReplyMentions()
                 service = QQCapabilities(self.bridge, self.state_bridge, self.mentions)
+                self.documents = QQDocuments(remote)
                 registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(self.state_bridge.redact(self.bridge.redact(value))))
-                register_application_tools(registry, service=service, catalogs=self.catalogs, webpages=self.webpages)
+                register_application_tools(registry, service=service, catalogs=self.catalogs, webpages=self.webpages,
+                    documents=self.documents.provider,
+                    document_roots=self.config.get("document_roots", [self.root / "resources/agent/documents"]))
                 if self.chat_ignore_operation is not None:
                     register_chat_ignore_tool(registry, operation=self.chat_ignore_operation)
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):
@@ -169,7 +172,6 @@ class QQAgentService:
                 if self.bot_avatar_setter is not None:
                     register_bot_avatar_tool(registry, setter=self.bot_avatar_setter, image_store=self.image_store,
                                              generated_image_reader=self.generated_image_reader)
-                self.documents = QQDocuments(remote)
                 options = {
                     "documents": self.documents.provider,
                     **remote_model_options(remote),
@@ -449,11 +451,6 @@ class QQAgentService:
                 "用户明确要求设置规则时，先读automation动作目录并用send_media选择media_index。"
                 "QQ自带表情使用原生face ID，图片和动图保留原文件。\n" + json.dumps(catalog, ensure_ascii=False)
                 + ("\n[原生表情数量超限，其余未提供]" if omitted_faces else "")},)
-        page_sources = [("message", question)]
-        if quoted_message and quoted_message.get("available"):
-            page_sources.append(("quote", quoted_message.get("text", "")))
-        page_context = await self.webpages.prepare(page_sources)
-        context_messages += page_context.messages
         quoted_files = quoted_message.get("document_sources", ()) if quote and quote.get("available") else ()
         if len(document_sources) + len(quoted_files) > MAX_DOCUMENTS:
             raise ValueError("每次最多附加或引用 4 份文档")

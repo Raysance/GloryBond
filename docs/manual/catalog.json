@@ -779,6 +779,8 @@
       ],
       "tools": [
         "web_search",
+        "read_webpage",
+        "read_document",
         "list_reference_catalogs",
         "lookup_reference_data"
       ],
@@ -793,11 +795,15 @@
         },
         {
           "path": "src/glorybond/agent/webpages.py",
-          "symbol": "WebPageFetcher.prepare"
+          "symbol": "WebPageFetcher.read"
         },
         {
           "path": "src/glorybond/agent/tools/webpages.py",
           "symbol": "register_webpage_tool"
+        },
+        {
+          "path": "src/glorybond/agent/tools/documents.py",
+          "symbol": "register_document_tool"
         },
         {
           "path": "src/glorybond/agent/tools/reference_data.py",

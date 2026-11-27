@@ -156,7 +156,9 @@ def create_app(*, config_path=None):
                                      kpl_config=public.get("kpl_config"))
             catalogs["references"] = public["references"]["directory"]
             register_application_tools(
-                registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs, webpages=webpages
+                registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs, webpages=webpages,
+                documents=app.state.documents,
+                document_roots=config.get("document_roots", [root / "resources/agent/documents"]),
             )
             roles = RoleplayService(
                 bridge=state_bridge,
@@ -434,9 +436,6 @@ def create_app(*, config_path=None):
         try:
             prompt = await app.state.current_prompt(query=message)
             role_name = (await app.state.roles.manage(app.state.principal))["selected"]["name"]
-            page_context = await webpages.prepare([("message", message)])
-            if page_context.report:
-                await log_request("request.webpages", page_context.report)
             if body.session_id in active_sessions:
                 raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
         except Exception as exc:
@@ -451,7 +450,6 @@ def create_app(*, config_path=None):
             user_message=message,
             budget=application_budget(config.get("budget")),
             images=images,
-            context_messages=page_context.messages,
             conversation_id=body.session_id,
             principal=principal,
             system_prompt=prompt,
@@ -459,7 +457,7 @@ def create_app(*, config_path=None):
             metadata={"role_name": role_name, "document_names": [doc["name"] for doc in documents], "message_timestamp": received_at, "chat_context": chat_metadata(
                 current=current_message(message, actor={"user_id": principal.user_id,
                     "name": principal.attributes.get("identity", {}).get("name", "")}, images=images, documents=documents),
-                context_count=len(page_context.messages), policy=context_policy.model_dump(),
+                context_count=0, policy=context_policy.model_dump(),
                 user_id=principal.user_id, timestamp=received_at)},
         )
         run_id = app.state.runtime.submit(request)

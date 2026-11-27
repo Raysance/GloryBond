@@ -249,7 +249,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(self.gateway.mentions.targets)
                 if phase == "tool":
                     results = [e["data"]["result"]["code"] for e in events if e["kind"] == "tool.result"]
-                    self.assertEqual(results, ["CANCELLED", "SKIPPED_CANCELLED"])
+                    self.assertEqual(results, ["CANCELLED", "CANCELLED"])
 
     async def test_cancelled_run_with_cached_final_saves_trace_without_sending_it(self):
         from agent_runtime.runtime.output import EventOutput
@@ -767,6 +767,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["memory", "tasks"]}, "d")]},
             {"role": "assistant", "content": "", "tool_calls": [
                 call("remember_memory", {"content": "喜欢玩安琪拉", "evidence_quotes": ["我喜欢安琪拉"]}, "m"),
+            ]},
+            {"role": "assistant", "content": "", "tool_calls": [
                 call("emit_message", {"text": "记忆已保存，正在设置提醒。"}, "e"),
                 call("create_task", {"kind": "message", "message": "提醒 {run}", "interval_seconds": 10, "max_runs": 3}, "t"),
             ]},
@@ -848,34 +850,19 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(m["role"] == "user" and m["content"] == "看引用" for m in followup))
         self.assertTrue(any(m["role"] == "assistant" and m["content"] == self.sent[0][0]["variants"]["detailed"] for m in followup))
 
-    async def test_webpages_from_message_and_authorized_quote_are_current_only(self):
-        from tests.test_agent_webpages import fetcher, response
-        requests = []
-        def handler(request):
-            requests.append(request)
-            return response()
-        self.gateway.webpages, _, _ = fetcher(handler)
-        self.script = [
-            {"role": "assistant", "content": "", "tool_calls": [call("discover_tools", {"categories": ["references"]}, "d")]},
-            {"role": "assistant", "content": "已读取网页正文。"},
-        ] * 2
-        question = "帮我总结 https://example.com/article#current"
+    async def test_links_in_message_and_quote_are_not_fetched_before_model_choice(self):
+        self.gateway.webpages.read = AsyncMock(side_effect=AssertionError("unexpected prefetch"))
+        self.script = [{"role": "assistant", "content": "请说明希望了解的内容。"}]
+        question = "https://example.com/article"
         await self.gateway.chat(user_text=question, user_id="101", nickname="B", use_memory=False,
-                                quoted_message={"text": "https://example.com/article#quoted", "available": True})
-        self.assertEqual(len(requests), 1)
+                                quoted_message={"text": "https://example.com/quoted", "available": True})
+        self.gateway.webpages.read.assert_not_awaited()
         messages = self.gateway.model.requests[0].messages
-        page = next(message for message in messages if "安琪拉技能伤害提升" in json.dumps(message, ensure_ascii=False))
-        self.assertEqual(page["role"], "user")
-        self.assertIn('"origins": ["message", "quote"]', page["content"])
-        self.assertNotIn("安琪拉技能伤害提升", json.dumps([m for m in messages if m["role"] == "system"], ensure_ascii=False))
-        self.assertNotIn("安琪拉技能伤害提升", json.dumps(self.dialogue, ensure_ascii=False))
-        self.assertEqual(self.dialogue["qq_p_101"][0]["content"], question)
-        await self.gateway.chat(user_text="接着说", user_id="101", nickname="B", use_memory=False,
-                                quoted_message={"text": "https://unavailable.invalid/", "available": False})
-        self.assertEqual(len(requests), 1)
-        self.assertNotIn("安琪拉技能伤害提升", json.dumps(self.gateway.model.requests[2].messages, ensure_ascii=False))
-        start = next(row for row in self.events['qq_p_101'] if row['kind'] == 'run.start')
-        self.assertIn("安琪拉技能伤害提升", json.dumps(start, ensure_ascii=False))
+        self.assertIn(question, json.dumps(messages))
+        self.assertIn("https://example.com/quoted", json.dumps(messages))
+        discovery = next(tool for tool in self.gateway.model.requests[0].tools
+                         if tool["function"]["name"] == "discover_tools")
+        self.assertIn("read_webpage", discovery["function"]["description"])
 
     async def test_qq_image_download_becomes_native_input_and_is_saved(self):
         buffer = BytesIO()
