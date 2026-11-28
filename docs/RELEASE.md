@@ -30,6 +30,8 @@ accepts explicit native revoke-element updates, retains no message bodies, bound
 its cache, and never guesses an operator or treats lookup failure as withdrawal.
 The existing plugin loader is used without modifying the installed NapCat bundle;
 deployment is opt-in per host and only changed plugin code restarts NapCat.
+The managed loader entry is a regular ESM file because NapCat's directory scan
+skips symlinks; deployment migrates the earlier owned link to this entry.
 
 QQ recall processing cancels the active request immediately and persists a scoped
 withdrawal marker for one day. Foreground output carries its trusted trigger key

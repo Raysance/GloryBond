@@ -42,11 +42,20 @@ class NativeBridgeDeploymentTests(unittest.TestCase):
     def test_first_install_and_changed_source_restart_but_unchanged_deploy_does_not(self):
         with patch("deployment.scripts.sync_napcat_recall.subprocess.run") as run:
             self.assertTrue(sync(self.root, restart=True)["restarted"])
-            self.assertEqual(self.plugin.resolve(), self.source.resolve())
+            self.assertFalse(self.plugin.is_symlink())
+            self.assertIn(self.source.resolve().as_uri(), self.plugin.read_text())
             self.assertFalse(sync(self.root, restart=True)["restarted"])
             self.source.write_text("export function plugin_init() { return 1; }")
             self.assertTrue(sync(self.root, restart=True)["restarted"])
         self.assertEqual(sum(call.args[0][0] == "systemctl" for call in run.call_args_list), 2)
+
+    def test_owned_symlink_is_migrated_to_a_discoverable_regular_module(self):
+        self.plugin.parent.mkdir()
+        self.plugin.symlink_to(self.source.resolve())
+        with patch('deployment.scripts.sync_napcat_recall.subprocess.run'):
+            self.assertTrue(sync(self.root, restart=True)['restarted'])
+        self.assertTrue(self.plugin.is_file())
+        self.assertFalse(self.plugin.is_symlink())
 
     def test_foreign_files_and_symlinks_are_never_replaced(self):
         self.plugin.parent.mkdir()

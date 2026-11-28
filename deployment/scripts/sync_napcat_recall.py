@@ -1,6 +1,7 @@
 """Install the owned recall plugin through NapCat's existing plugin loader."""
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 
@@ -17,15 +18,21 @@ def sync(root, *, restart=False):
         raise ValueError("napcat_plugin_directory must identify this host's NapCat plugins directory")
     source = root / "src/glorybond/integrations/napcat_recall.mjs"
     subprocess.run(["node", "--check", str(source)], check=True)
-    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    wrapper = 'export { plugin_init, plugin_onmessage, plugin_cleanup } from ' + json.dumps(source.resolve().as_uri()) + ';\n'
+    digest = hashlib.sha256(source.read_bytes() + wrapper.encode()).hexdigest()
     directory.mkdir(exist_ok=True)
     target = directory / "glorybond_recall.mjs"
-    if (target.exists() or target.is_symlink()) and (not target.is_symlink() or target.resolve() != source.resolve()):
+    if target.is_symlink():
+        if target.resolve() != source.resolve():
+            raise ValueError("Refusing to replace an unrelated NapCat plugin")
+        target.unlink()
+    elif target.exists() and target.read_text() != wrapper:
         raise ValueError("Refusing to replace an unrelated NapCat plugin")
     state = root / "data/napcat_recall_bridge.sha256"
     changed = not target.exists() or not state.exists() or state.read_text().strip() != digest
-    if not target.is_symlink():
-        target.symlink_to(source.resolve())
+    if not target.exists():
+        # NapCat checks Dirent.isFile(), which deliberately excludes symlinks.
+        target.write_text(wrapper)
     if changed and restart:
         subprocess.run(["systemctl", "restart", "hok-napcat.service"], check=True)
         state.parent.mkdir(exist_ok=True, mode=0o700)
