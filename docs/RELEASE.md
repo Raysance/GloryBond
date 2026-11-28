@@ -22,6 +22,22 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Bind quoted video reads to the matching source file — 2026-11-28
+
+QQ media inputs retain the platform's expected byte size. Verified quotes authored
+by the current bot resolve an exact filename and size in authorized local media
+roots before using a download URL. Other senders cannot select local originals by
+filename. Downloads and unconverted local inputs must match the reported size;
+voice conversion uses the resulting file's size instead. Attachment source caches
+use a new version, while content-based analysis remains reusable. Results carry
+the attachment and source message identifiers for traceability.
+
+Regression checks cover a correct local original paired with an inconsistent
+remote URL, sender isolation, size mismatches before analysis, changed local files,
+symlink boundaries and source identifiers in tool results.
+Replaying the affected 32.2-second quote selected the byte-identical local video
+without a QQ download and produced an analysis of the matching content.
+
 ## Read media with sampled frames and parallel speech transcription — 2026-11-28
 
 The discovered `read_media` tool accepts session-bound QQ video/voice attachments,

@@ -183,6 +183,7 @@ class MediaReader:
             if len(self.attachments) >= 512 and key not in self.attachments:
                 self.attachments.pop(next(iter(self.attachments)))
             self.attachments.setdefault(key, {"scope": scope, "source": source, "reader": reader,
+                                               "message_id": str(message_id) if message_id is not None else None,
                                                "expires": now + self.limits.cache_seconds})
             result.append({"attachment_id": key, "kind": source["kind"], "name": source.get("name", source["kind"])})
         return result
@@ -191,8 +192,9 @@ class MediaReader:
         item = self.attachments.get(key)
         if not item or item["scope"] != scope or item["expires"] <= time.time():
             raise PermissionError("音视频附件不在当前会话中或已过期，请重新引用")
-        return await self.read(source_key="attachment:" + key,
+        result = await self.read(source_key="attachment:v2:" + key,
             loader=lambda: item["reader"](item["source"]), question=question)
+        return {**result, "attachment_id": key, "source_message_id": item["message_id"]}
 
     async def read(self, *, source_key, loader, question):
         if not self.enabled:

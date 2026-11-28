@@ -91,6 +91,7 @@ def media_sources(message):
         if kind in {"video", "record"}:
             result.append({"kind": "video" if kind == "video" else "audio",
                            "url": data.get("url"), "file": data.get("file"),
+                           "file_size": data.get("file_size"),
                            "name": str(data.get("name") or ("视频" if kind == "video" else "语音"))[:200]})
     return result
 

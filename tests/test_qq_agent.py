@@ -880,6 +880,20 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         identifier = next(iter(self.gateway.media.attachments))
         self.assertEqual(self.gateway.media.attachments[identifier]['scope'], 'qq_p_101')
 
+    async def test_only_verified_bot_quote_can_reuse_sent_local_video(self):
+        self.script = [{"role": "assistant", "content": "已收到。"}] * 2
+        with patch('glorybond.apps.qq.agent.service.read_qq_media', new_callable=AsyncMock) as read:
+            for sender in ('300', '101'):
+                quote = {"text": "[video消息，未读取内容]", "available": True,
+                         "sender_id": sender, "message_id": 'quoted-' + sender,
+                         "media_sources": [{"kind": "video", "file": "sent.mp4", "file_size": "13"}]}
+                await self.gateway.chat(user_text="解释视频", user_id="101", nickname="B", use_memory=False,
+                                        quoted_message=quote)
+                item = next(item for item in self.gateway.media.attachments.values()
+                            if item['message_id'] == 'quoted-' + sender)
+                await item['reader'](item['source'])
+                self.assertEqual(read.call_args.kwargs['prefer_cached_video'], sender == '300')
+
     async def test_qq_image_download_becomes_native_input_and_is_saved(self):
         buffer = BytesIO()
         Image.new("RGB", (16, 16), "red").save(buffer, "PNG")

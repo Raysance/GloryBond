@@ -471,14 +471,15 @@ class QQAgentService:
         if len(media_sources) + len(quoted_media) > 4:
             raise ValueError("每次最多附加或引用 4 份音视频")
         if media_sources or quoted_media:
+            from functools import partial
             roots = tuple(Path(root).resolve() for root in self.config.get("qq_media_roots", [self.root / "data/bili_videos"]))
-            async def load_media(source):
-                return await read_qq_media(source, fetcher=self.webpages, max_bytes=self.media.limits.max_bytes,
-                                           local_roots=roots, bot=media_bot)
             for sources, identifier, quoted in ((media_sources, message_id, False),
                                                 (quoted_media, (quote or {}).get("message_id"), True)):
                 if not sources:
                     continue
+                load_media = partial(read_qq_media, fetcher=self.webpages, max_bytes=self.media.limits.max_bytes,
+                    local_roots=roots, bot=media_bot,
+                    prefer_cached_video=bool(quoted and self.bot_id and str(quote.get("sender_id")) == str(self.bot_id)))
                 attachments = self.media.bind(scope=conversation, message_id=identifier, sources=sources, reader=load_media)
                 if quoted:
                     quote["media_attachments"] = attachments

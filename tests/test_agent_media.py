@@ -34,12 +34,14 @@ class MediaInputTests(unittest.TestCase):
     def test_native_quoted_media_requires_its_actual_scope(self):
         event = Mock(group_id=10, self_id=30)
         event.reply = {'message_id': 4, 'message_type': 'group', 'sender': {'user_id': 20},
-                       'message': [{'type': 'video', 'data': {'url': 'https://cdn.qq.com/video?secret=x'}}]}
+                       'message': [{'type': 'video', 'data': {'url': 'https://cdn.qq.com/video?secret=x',
+                                                            'file': 'sent.mp4', 'file_size': '4'}}]}
         self.assertFalse(CHAT.normalize_quoted_message(event)['available'])
         self.assertFalse(CHAT.normalize_quoted_message(event, {**event.reply, 'group_id': 99})['available'])
         quote = CHAT.normalize_quoted_message(event, {**event.reply, 'group_id': 10})
         self.assertTrue(quote['available'])
         self.assertEqual(quote['media_sources'][0]['kind'], 'video')
+        self.assertEqual(quote['media_sources'][0]['file_size'], '4')
         self.assertEqual(quote['text'], '[video消息，未读取内容]')
         self.assertEqual(CHAT.media_sources('[CQ:video,file=file:///private]'), [])
 
@@ -187,6 +189,52 @@ class MediaAnalysisTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             await read_qq_media(source, bot=bot, fetcher=fetcher, max_bytes=100000, local_roots=())
 
+    async def test_bot_video_uses_exact_local_file_instead_of_inconsistent_url(self):
+        root = Path(self.tmp.name)
+        (root / 'sent.mp4').write_bytes(b'correct-video')
+        source = {'kind': 'video', 'file': 'sent.mp4', 'file_size': '13', 'url': 'https://qq.example/wrong'}
+        fetcher = Mock(download=AsyncMock(return_value={'raw': b'wrong-video'}))
+        result = await read_qq_media(source, fetcher=fetcher, max_bytes=100000,
+                                    local_roots=(root,), prefer_cached_video=True)
+        self.assertEqual(result, b'correct-video')
+        fetcher.download.assert_not_awaited()
+        # A different sender cannot select the bot's local file by its basename.
+        with self.assertRaisesRegex(ValueError, '文件大小不一致'):
+            await read_qq_media(source, fetcher=fetcher, max_bytes=100000, local_roots=(root,))
+        fetcher.download.assert_awaited_once_with(source['url'], max_bytes=13)
+
+    async def test_mismatched_download_cannot_enter_cache_or_reach_analysis(self):
+        source = {'kind': 'video', 'file_size': 4, 'url': 'https://qq.example/media'}
+        fetcher = Mock(download=AsyncMock(return_value={'raw': b'bad'}))
+        async def load():
+            return await read_qq_media(source, fetcher=fetcher, max_bytes=100000)
+        with self.assertRaisesRegex(ValueError, '文件大小不一致'):
+            await self.reader.read(source_key='mismatch', loader=load, question='概要')
+        self.assertEqual(list(Path(self.tmp.name).glob('*/source.media')), [])
+        self.assertEqual(self.model.calls, 0)
+        self.asr.assert_not_awaited()
+        fetcher.download.return_value = {'raw': b'good'}
+        self.assertEqual(await load(), b'good')
+
+    async def test_local_video_replacement_and_path_escape_are_rejected(self):
+        root = Path(self.tmp.name)
+        allowed = root / 'allowed'
+        allowed.mkdir()
+        (allowed / 'sent.mp4').write_bytes(b'changed-size')
+        source = {'kind': 'video', 'file': 'sent.mp4', 'file_size': '4'}
+        fetcher = Mock(download=AsyncMock())
+        with self.assertRaisesRegex(ValueError, '文件大小不一致'):
+            await read_qq_media(source, fetcher=fetcher, max_bytes=100000,
+                                local_roots=(allowed,), prefer_cached_video=True)
+        outside = root / 'outside.mp4'
+        outside.write_bytes(b'good')
+        (allowed / 'sent.mp4').unlink()
+        (allowed / 'sent.mp4').symlink_to(outside)
+        with self.assertRaises(PermissionError):
+            await read_qq_media(source, fetcher=fetcher, max_bytes=100000,
+                                local_roots=(allowed,), prefer_cached_video=True)
+        fetcher.download.assert_not_awaited()
+
     async def test_cancellation_terminates_media_decoder(self):
         started = asyncio.Event()
         process = Mock(returncode=None)
@@ -217,6 +265,8 @@ class MediaAnalysisTests(unittest.IsolatedAsyncioTestCase):
         with patch('glorybond.agent.media_inputs.prepare_media', side_effect=self.prepare):
             result = await self.reader.read_attachment(entries[0]['attachment_id'], 'chat:1', '概要')
         self.assertTrue(result['audio_complete'])
+        self.assertEqual(result['attachment_id'], entries[0]['attachment_id'])
+        self.assertEqual(result['source_message_id'], '10')
         load.assert_awaited_once()
 
     async def test_tool_is_discovered_normally_and_exposes_actual_usage(self):
