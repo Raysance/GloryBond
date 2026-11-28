@@ -366,7 +366,8 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
     model = getattr(dmc, "EmojiImageModel", None) or "gpt-image-2"
     payload = {"model": model, "prompt": prompt, "n": 1, "size": size, "resolution": resolution}
     if reference_image_url:
-        payload["image"] = reference_image_url
+        payload["image_urls" if model.startswith("gpt-image-") else "image"] = (
+            [reference_image_url] if model.startswith("gpt-image-") else reference_image_url)
 
     request_payload = {
         "base_url": base_url,
@@ -377,7 +378,7 @@ def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str,
         "resolution": resolution,
     }
     if reference_image_url:
-        request_payload["image"] = reference_image_url
+        request_payload.update({key: payload[key] for key in ("image", "image_urls") if key in payload})
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     try:

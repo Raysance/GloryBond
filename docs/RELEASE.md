@@ -22,6 +22,30 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Read images through an ordinary tool — 2026-11-29
+
+QQ and local Web keep their configured text model for reasoning, tool selection
+and final answers. Current, quoted, selected-history and tool images enter the
+main request as attachment IDs only. The discovered `images/read_image` tool
+uses Seed 2.1 Pro solely for visible-content transcription, with no chat history,
+business tools or reasoning enabled. Complete descriptions are cached privately
+by prepared pixels, provider/model and transcription instructions; partial and
+failed results are not cached. Original files remain available for previews.
+
+Image reading and generation references accept a run-bound attachment ID,
+public image URL or authorized local path. Generation retains its provider,
+polling and delivery, passing prepared references through the documented
+GPT Image `image_urls` field. Tool results retain attachment references instead
+of base64. Source validation, proportional resizing and animation sampling are
+shared with existing image inputs.
+
+Validation covers 225 related offline checks, including SQL, QQ, model routing,
+documents, source permissions, cache reuse, provider failures and generation
+parameter forwarding. A synthetic three-square image completed the real
+DeepSeek discovery → read_image → DeepSeek answer path: all three main requests
+used deepseek-flash with no pixels; the one Pro transcription took 6.4 seconds
+and reported zero reasoning tokens. No QQ message or paid generation was sent.
+
 ## Allow authorized game relation joins — 2026-11-29
 
 The game SQL catalogue permits joins between its public semantic relations,

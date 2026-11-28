@@ -998,7 +998,7 @@ def dispatch(args):
     if op == "image":
         result = CONTEXT["api"]["apimart_images_generate"](
             prompt=args["prompt"],
-            reference_image_url="",
+            reference_image_url=args.get("reference_image_url") or "",
             size=args.get("size", "1:1"),
             resolution="1K",
             task_timeout_seconds=args.get("task_timeout_seconds", 600),
@@ -1014,10 +1014,17 @@ def dispatch(args):
             604800,
             base64.b64encode(raw).decode(),
         )
+        request = dict(result["request"])
+        if args.get("reference_image_url"):
+            reference = "attachment://" + args["reference_image_id"]
+            if "image_urls" in request:
+                request["image_urls"] = [reference]
+            elif "image" in request:
+                request["image"] = reference
         return {
             "artifact_id": artifact_id,
             "mime": response.headers.get("content-type", "image/png"),
-            "request": result["request"],
+            "request": request,
         }
     if op == "artifact":
         return store.get(STATE_PREFIX + "artifact:" + args["artifact_id"])

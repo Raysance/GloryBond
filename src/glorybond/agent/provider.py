@@ -7,6 +7,7 @@ import time
 import httpx
 
 from glorybond.agent.document_inputs import project_documents
+from glorybond.agent.image_reader import ImageReader
 from glorybond.agent.model_metadata import metadata_messages, model_metadata
 
 
@@ -102,6 +103,7 @@ class DeepSeekModel:
         fallback=None,
         vision=None,
         documents=None,
+        include_runtime_metadata=True,
     ):
         self.api_key, self.base_url, self.model = api_key, base_url.rstrip("/"), model
         self.thinking, self.max_tokens = thinking, max_tokens
@@ -114,6 +116,9 @@ class DeepSeekModel:
         self.fallback = fallback
         self.documents = documents
         self.vision = vision
+        self.include_runtime_metadata = include_runtime_metadata
+        self.images = ImageReader(image_store, vision, model_factory=DeepSeekModel,
+                                  timeout_seconds=vision.get('timeout_seconds', timeout_seconds)) if vision else None
 
     async def complete_request(self, request, on_delta):
         return await self.complete(
@@ -124,29 +129,18 @@ class DeepSeekModel:
         vision_context = {}
         if self.documents:
             messages = self.documents.project_tool_documents(messages)
-        if self.image_store:
+        if self.images:
+            messages, vision_context = self.images.project(messages)
+        elif self.image_store:
             messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
         messages, has_documents = project_documents(messages)
         if has_documents:
             if not self.documents or not self.documents.settings:
                 raise ValueError("文件引用需要 DeepSeek 官方 deepseek-flash")
-            # Account-scoped file IDs and any accompanying pixels stay on the upload provider.
+            # Account-scoped files stay on their provider; image references are already text.
             model = DeepSeekModel(**self.documents.settings, thinking=self.thinking, max_tokens=self.max_tokens,
                                   response_format=self.response_format, timeout_seconds=self.timeout_seconds,
                                   first_token_timeout_seconds=self.first_token_timeout_seconds)
-            result = await model.complete(messages, tools, on_delta, tool_choice=tool_choice)
-            result['vision_context'] = vision_context
-            return result
-        if self.vision and has_image_inputs(messages):
-            # Route after resolving attachment references and the image budget.
-            # Text-provider failover must not intercept a dedicated vision error.
-            model = DeepSeekModel(**{
-                'thinking': self.thinking, 'max_tokens': self.max_tokens,
-                'response_format': self.response_format,
-                'timeout_seconds': self.timeout_seconds,
-                'first_token_timeout_seconds': self.first_token_timeout_seconds,
-                **self.vision,
-            })
             result = await model.complete(messages, tools, on_delta, tool_choice=tool_choice)
             result['vision_context'] = vision_context
             return result
@@ -201,7 +195,8 @@ class DeepSeekModel:
         configure_chat_payload(payload, self.protocol)
         metadata = model_metadata(model=selected_model, protocol=self.protocol, max_tokens=self.max_tokens,
                                   messages=payload["messages"], tools=payload.get("tools", []))
-        payload["messages"] = metadata_messages(payload["messages"], metadata)
+        if self.include_runtime_metadata:
+            payload["messages"] = metadata_messages(payload["messages"], metadata)
         text, reasoning, encrypted, calls, usage, finish = [], [], [], {}, {}, None
         response_model = None
         frames = []

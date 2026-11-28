@@ -78,8 +78,10 @@ class Capabilities:
     async def execute_python(self, code, data):
         return await self.bridge.call("python", code=code, data=data)
 
-    async def generate_image(self, prompt, size):
+    async def generate_image(self, prompt, size, *, reference_image_url=None, reference_image_id=None):
         return await self.bridge.call("image", prompt=prompt, size=size,
+                                      **({"reference_image_url": reference_image_url,
+                                          "reference_image_id": reference_image_id} if reference_image_url else {}),
                                       task_timeout_seconds=IMAGE_TASK_TIMEOUT_SECONDS)
 
     async def memory(self, action, ctx, **args):

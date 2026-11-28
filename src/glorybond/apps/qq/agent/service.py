@@ -161,7 +161,8 @@ class QQAgentService:
                 register_application_tools(registry, service=service, catalogs=self.catalogs, webpages=self.webpages,
                     documents=self.documents.provider,
                     document_roots=self.config.get("document_roots", [self.root / "resources/agent/documents"]),
-                    media=self.media, media_roots=self.config.get("media_roots", [self.root / "resources/agent/media"]))
+                    media=self.media, media_roots=self.config.get("media_roots", [self.root / "resources/agent/media"]),
+                    image_reader=lambda: self.model.images if isinstance(self.model, DeepSeekModel) else None)
                 if self.chat_ignore_operation is not None:
                     register_chat_ignore_tool(registry, operation=self.chat_ignore_operation)
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):
@@ -192,6 +193,12 @@ class QQAgentService:
                     "image_store": self.image_store,
                 }
                 self.model = self.model_factory(**options)
+                from glorybond.agent.tools.images import register_image_tool
+                if isinstance(self.model, DeepSeekModel) and self.model.images:
+                    self.model.images.fetcher = self.webpages
+                    self.model.images.local_roots = tuple(Path(p).expanduser().resolve() for p in
+                        self.config.get("image_roots", [self.root / "resources/agent/images"]))
+                    register_image_tool(registry, self.model.images)
                 self.roles = RoleplayService(bridge=self.state_bridge, capabilities=service, model=self.model,
                                              default_role=self.config.get("default_role", "makise_kurisu"))
                 register_roleplay_tools(registry, self.roles, authorize_target=self.authorize_role_target)

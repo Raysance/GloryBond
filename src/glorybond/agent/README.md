@@ -41,9 +41,11 @@ VisionAPI:
 
 QQ 的 worker 读取该配置，仅将 Key 放入 private 设置，QQ 和本地 Web 各自调用该视觉端点；公开模型选项、界面、轨迹和日志不包含 Key。本地 Web 从服务器 worker 继承 `VisionAPI`，因此也需先同步服务器配置和源码，再重启本地适配器。配置同步与发布沿用[现有部署流程](../../../docs/DEVELOPMENT.md#production-updates)，只更新目标字段，保留服务器当前登录会话和其他配置。
 
-附件解析及图片预算处理完成后，仍有图片的当前输入、历史追问和工具图片结果使用豆包；纯文字使用原渠道模型。`VisionAPI` 优先于旧 `vision_model`，未配置时保留旧路由。方舟将共享输入的 `auto` / `original` detail 映射为 `high`，仅调整请求副本。视觉失败明确报错，不借用文字主备端点或密钥；运行记录报告实际选用的视觉模型及接口返回的用量。识图模型切换不代表准确率已提高，须用相同图片对照验证。
+图片在主请求中只表示为附件编号，主对话、推理、工具决策和最终回答沿用渠道文字模型。`images/read_image` 是普通发现工具，按需使用 `VisionAPI` 把图片转写为文字；豆包只接收图片及转写要求，不接收主对话、角色或业务工具，不开启思考。`auto` / `original` detail 仅在方舟请求中映射为 `high`。原图仍保留用于预览，转写后不会把像素重新送进主上下文。
 
-Seed 2.1 的流式思考摘要与 `encrypted_content` 分别保留，多轮工具调用将加密原文原样回传给方舟。切回文字供应商时仅从请求副本中移除方舟专用加密字段，保存的上下文仍完整。协议要求见[回传思考内容](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh)。
+`read_image` 的 `image_id`、`url`、`local_path` 三选一。附件编号只能读取本轮已提供的当前、引用、入选历史和工具图片；公开 URL 沿用网页下载器的代理及公网限制，本地路径按真实路径校验 `QQAgent.image_roots` / `LocalAgent.image_roots`，默认项目 `resources/agent/images`。完整转写存入图片目录的私有 `.descriptions/`，按实际图片、模型和提示词复用；命中时 `cached=true, usage=null`，不会重复调用豆包。失败和截断不缓存；工具结果报告模型、实际用量和耗时。
+
+`generate_image.reference_image` 可使用同一来源结构，例如 `{"image_id":"附件编号"}`、`{"url":"公开图片直链"}` 或 `{"local_path":"授权绝对路径"}`。参考图经相同校验和缩放后传入原有生图 API；无需先识图。GPT Image 的参考图字段为 `image_urls`，支持 URL 和 data URI，见 [APIMart 参数说明](https://apimart.ai/model/gpt-image-2)。生图服务、模型、轮询和产物交付不变，主对话不接收参考图像素。
 
 ## 功能
 
@@ -62,7 +64,7 @@ QQ原生媒体保留平台的 `file_size`，并参与附件键计算。只有可
 ### 其他功能
 
 - 真实 DeepSeek 流式正文及接口返回的 `reasoning_content`。主执行阶段按渠道 thinking 配置支持自动工具调用中的推理，已有推理内容完整回传；旧无思考历史补空字段，只有强制或指定工具选择按 DeepSeek 协议关闭 thinking。回复表达阶段沿用渠道配置进行选句和编辑，不重新调查、计算或调用工具，界面不伪造思考过程。
-- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张，处理后单张 4 MiB、合计 8 MiB；超限图片等比例缩小后读取。带当前或历史图片时优先使用共享 `VisionAPI`，未配置时使用 `LocalAgent.llm.vision_model`；同一 ReAct 循环继续调用工具并支持图片追问。
+- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张，处理后单张 4 MiB、合计 8 MiB；超限图片等比例缩小后读取。当前或历史图片以编号提供给文字模型，按需发现并调用 `read_image`；识图、视频、网页和生图工具使用同一发现与执行流程。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。联网搜索调用 [DeepSeek Search API](https://api-docs.deepseek.com/zh-cn/guides/search/)，worker 启动时仅通过 private 设置传递独立搜索密钥（默认服务器 `HOK_DEEPSEEK_API_KEY`），不使用本地 ZenMux 密钥。QQ/Web 主机通过 `integrations/deepseek_web.py` 独立异步请求，最多两个 HTTP 请求同时进行，不占用串行业务 RPC；取消中止对应请求，关闭连接清理在途及排队搜索。配置与凭据不变的 worker 重连不取消搜索，空结果与 HTTP 失败明确区分。旧阿里云实现及配置保留，聊天不再调用或回退。
 - `web_search(query, max_results=5, result_type="summary")` 查询最多128字符、最多10条结果。模型可选择 `snippet`、`summary` 或 `content`，默认每条分别最多400、1200、6000字符；仅 `content` 请求正文。结果标明实际摘录类型和截断状态，保留来源、发布时间及接口提供的来源评分；摘要模式不因返回中意外含正文而扩大输出。`DeepSeekSearch` 可配置 `snippet_chars` / `summary_chars` / `content_chars`，各项及总上限 `max_result_chars` 均不超过6000，取较小值；`timeout_seconds` 默认30、最高40秒。原同步入口复用同一协议及投影，省略类型时兼容 `result_type` / `need_content` 配置。官方接口没有摘要字符数参数，上述限制由适配层执行。
 - 工具失败的 observation 附带 `data.error_details`：失败环节、异常类型、底层原因、有限定位与修复建议。SQL逐查询给出错误码/位置/提示，保留其他成功结果；Python沙箱给出退出码和有限stderr，网站错误保留HTTP状态。模型据此修正参数或改用其他来源。错误先脱敏后截断，不记录headers、局部变量或凭据；超时/断连写操作仍禁止自动重放。QQ、角色工具和后续注册的外部函数共用外部诊断注册表，内核协议不变。
@@ -119,7 +121,7 @@ QQ原生媒体保留平台的 `file_size`，并参与附件键计算。只有可
 
 输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表或修改原图。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用图片，刷新、重启后仍可预览与继续追问。合规静态图片按原文件发送；超限图片等比例缩小，压缩前原件保存为同编号 `.source`，`resized_from` 记录原尺寸、格式、帧数、字节数与摘要。模型与轨迹使用处理后的确切字节；动画按帧序抽样为最多 4 帧的 PNG 拼图并注明帧号，原 GIF/动态 WebP/APNG 仍保留，超限原件存入 `.source`。拼图单独保存，元数据记录来源和抽样索引；实际模型请求快照引用真正发送的 PNG，默认限制源动画 240 帧及累计解码像素，配置在 `LocalAgent.images`。包含图片的实际请求快照会显式标注 `image_payload_storage`，`GET /api/images/{id}` 可还原对应原图或模型拼图的确切字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。
 
-上传和 QQ 下载先按原文件预算接收，再按内容检测格式、解码并等比例缩放。`max_source_bytes` 默认32 MiB、`max_source_pixels` 默认8000万；模型单图仍按 `max_image_bytes`（4 MiB）、`max_side`（8192）与 `max_pixels`（3200万）处理。多图超过 `max_total_bytes`（8 MiB）时按各图处理后字节占比分配预算并继续缩小，历史原件不被覆盖；近期群图片工具也按处理后字节记账。JPEG重新编码为JPEG，其他静态图使用PNG并保留透明通道；动图维持原抽帧规则。QQ和Web入口在线程中解码和缩放，前端不再用原图大小套用模型预算。限制统一在 `QQAgent.images` / `LocalAgent.images`。默认每次模型调用最多读取 16 MiB 图片，优先保留当前及较新的图片，较早且超预算的图片替换为明确的缺失提示，`vision_context.omitted_history_images` 记录数量；不会把未提供的像素当作已看过。图片 token 包含在模型返回的输入 token 中，不另外估算叠加。
+上传和 QQ 下载先按原文件预算接收，再按内容检测格式、解码并等比例缩放。`max_source_bytes` 默认32 MiB、`max_source_pixels` 默认8000万；模型单图仍按 `max_image_bytes`（4 MiB）、`max_side`（8192）与 `max_pixels`（3200万）处理。多图超过 `max_total_bytes`（8 MiB）时按各图处理后字节占比分配预算并继续缩小，历史原件不被覆盖；近期群图片工具也按处理后字节记账。JPEG重新编码为JPEG，其他静态图使用PNG并保留透明通道；动图维持原抽帧规则。QQ和Web入口在线程中解码和缩放，前端不再用原图大小套用模型预算。限制统一在 `QQAgent.images` / `LocalAgent.images`。图片存储适配器保留16 MiB像素投影上限；主对话只接收附件编号，不再反复加载历史图片像素。每次 `read_image` 只投影指定图片；图片缺失或解码失败明确报错，不把未读取的内容当作已看过。图片 token 由识图工具的供应商用量报告，主模型仅消耗附件编号及转写文字的 token。
 
 外部适配器分别维护业务连接和状态连接：数据库/搜索/图片/沙箱走业务连接，对话、运行事件、记忆和任务走状态连接，避免慢业务调用阻塞定时通知。事件通过通用 `metadata` 标记后台来源；后台通知不覆盖正在输入或执行的前台聊天状态。
 

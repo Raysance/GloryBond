@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 import json
 import time
 
+from glorybond.agent.image_reader import observe_image_event
+
 
 _current = ContextVar("chat_model_metadata", default=None)
 _PHASES = {"model": "reasoning", "reply.model": "reply", "roleplay.model": "role_creation"}
@@ -48,6 +50,7 @@ class RunMetadata:
 
 
 def observe_model_event(event):
+    observe_image_event(event)
     kind = event["kind"]
     if kind == "run.start":
         metadata = event.get("metadata", {})

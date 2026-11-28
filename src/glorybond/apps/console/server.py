@@ -158,6 +158,12 @@ def create_app(*, config_path=None):
                 image_store=image_store,
             )
             registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(state_bridge.redact(bridge.redact(value))))
+            from glorybond.agent.tools.images import register_image_tool
+            if model.images:
+                model.images.fetcher = webpages
+                model.images.local_roots = tuple(Path(p).expanduser().resolve() for p in
+                    config.get("image_roots", [root / "resources/agent/images"]))
+                register_image_tool(registry, model.images)
             catalogs = load_catalogs(shared, recent_limits=public.get("recent_history_limits"),
                                      kpl_config=public.get("kpl_config"))
             catalogs["references"] = public["references"]["directory"]
@@ -166,6 +172,7 @@ def create_app(*, config_path=None):
                 documents=app.state.documents,
                 document_roots=config.get("document_roots", [root / "resources/agent/documents"]),
                 media=app.state.media, media_roots=config.get("media_roots", [root / "resources/agent/media"]),
+                image_reader=model.images,
             )
             roles = RoleplayService(
                 bridge=state_bridge,

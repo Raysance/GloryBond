@@ -2,6 +2,7 @@
 
 import asyncio
 from types import SimpleNamespace
+from pathlib import Path
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -18,6 +19,51 @@ from tests.test_agent_runtime import call
 
 
 class ImageGenerationTests(unittest.IsolatedAsyncioTestCase):
+    def test_gpt_reference_uses_documented_image_urls_wire_field(self):
+        replies = [Mock(json=lambda: {'code': 200, 'data': [{'task_id': 'fixture'}]}),
+                   Mock(json=lambda: {'code': 200, 'data': {'status': 'completed',
+                        'result': {'images': [{'url': ['https://public.invalid/result.png']}]}}})]
+        request = Mock(side_effect=replies)
+        namespace = {'confs': {'QQBot': {'apimart_key': 'test-key'}},
+                     'dmc': SimpleNamespace(EmojiImageModel='gpt-image-2'), 'clash_request': request}
+        remote_worker.extracted_functions(Path(__file__).parents[1] / 'src/glorybond/integrations/ai.py',
+                                         ['apimart_images_generate'], namespace)
+        result = namespace['apimart_images_generate'](prompt='fixture',
+            reference_image_url='data:image/png;base64,fixture', size='1:1', resolution='1K')
+        payload = request.call_args_list[0].kwargs['json']
+        self.assertEqual(payload['image_urls'], ['data:image/png;base64,fixture'])
+        self.assertNotIn('image', payload)
+        self.assertEqual(result['request']['image_urls'], payload['image_urls'])
+
+    async def test_reference_is_prepared_once_and_forwarded_without_changing_generation(self):
+        reader = SimpleNamespace(reference=AsyncMock(return_value=('a' * 32, 'data:image/png;base64,prepared')))
+        service = Mock(generate_image=AsyncMock(return_value={'artifact_id': 'b' * 32, 'mime': 'image/png'}))
+        registry = DiagnosticToolRegistry()
+        register_application_tools(registry, service=service, catalogs={}, image_reader=reader)
+        ctx = ToolContext(RunRequest('根据参考图画一张图', 's',
+            Principal('u', frozenset({'image.generate', 'web.read'}))), AsyncMock())
+        ctx.disclosed.add('generate_image')
+        result = await execute(registry, call('generate_image', {
+            'prompt': '保持参考图的构图', 'reference_image': {'url': 'https://public.invalid/image.png'}}), ctx)
+        self.assertTrue(result.ok)
+        reader.reference.assert_awaited_once_with(run_id=ctx.request.run_id, image_id=None,
+            url='https://public.invalid/image.png', local_path=None)
+        service.generate_image.assert_awaited_once_with('保持参考图的构图', '1:1',
+            reference_image_url='data:image/png;base64,prepared', reference_image_id='a' * 32)
+
+    async def test_worker_forwards_reference_and_keeps_pixels_out_of_result(self):
+        generate = Mock(return_value={'url': 'https://public.invalid/generated.png',
+                                     'request': {'image': 'data:image/png;base64,prepared'}})
+        fetch = Mock(return_value=SimpleNamespace(content=b'image', headers={}, raise_for_status=lambda: None))
+        async def dispatch(op, **args):
+            return remote_worker.dispatch({'op': op, **args})
+        with patch.dict(remote_worker.CONTEXT, {'store': Mock(), 'api': {
+            'apimart_images_generate': generate, 'clash_request': fetch}}, clear=True):
+            result = await Capabilities(Mock(call=dispatch)).generate_image('prompt', '1:1',
+                reference_image_url='data:image/png;base64,prepared', reference_image_id='a' * 32)
+        self.assertEqual(generate.call_args.kwargs['reference_image_url'], 'data:image/png;base64,prepared')
+        self.assertEqual(result['request']['image'], 'attachment://' + 'a' * 32)
+
     def setup_tool(self, generate):
         self.service = Mock(generate_image=AsyncMock(side_effect=generate))
         self.registry = DiagnosticToolRegistry()

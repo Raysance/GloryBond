@@ -284,8 +284,12 @@
         "抽帧",
         "转写"
       ],
-      "tools": ["read_recent_group_images", "read_media"],
+      "tools": ["read_image", "read_recent_group_images", "read_media"],
       "code": [
+        {
+          "path": "src/glorybond/agent/tools/images.py",
+          "symbol": "register_image_tool"
+        },
         {
           "path": "src/glorybond/agent/tools/media.py",
           "symbol": "register_media_tool"

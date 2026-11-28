@@ -17,6 +17,7 @@ from glorybond.agent.tools.kpl import register_kpl_tool
 from glorybond.agent.tools.webpages import register_webpage_tool
 from glorybond.agent.tools.documents import register_document_tool
 from glorybond.agent.tools.media import register_media_tool
+from glorybond.agent.tools.images import ReadImageArgs
 from glorybond.agent.timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS, SQL_TOOL_TIMEOUT_SECONDS
 
 
@@ -93,6 +94,8 @@ class PythonArgs(Args):
 class ImageArgs(Args):
     prompt: str = Field(min_length=1, max_length=3000)
     size: str = Field(default="1:1", description="图片比例，例如 1:1、3:2、2:3")
+    reference_image: ReadImageArgs | None = Field(default=None,
+        description="可选参考图，提供 image_id、公开 url 或授权 local_path 中的一种")
 
 
 class RecallArgs(Args):
@@ -194,7 +197,7 @@ class CancelTaskArgs(Args):
     task_id: str
 
 
-def register_application_tools(registry, *, service, catalogs, webpages=None, documents=None, document_roots=(), media=None, media_roots=()):
+def register_application_tools(registry, *, service, catalogs, webpages=None, documents=None, document_roots=(), media=None, media_roots=(), image_reader=None):
     if webpages is not None:
         register_webpage_tool(registry, fetcher=webpages)
         if documents is not None:
@@ -293,11 +296,21 @@ def register_application_tools(registry, *, service, catalogs, webpages=None, do
         return result
 
     async def image(args, ctx):
+        reference = {}
+        if args.reference_image:
+            reader = image_reader() if callable(image_reader) else image_reader
+            if reader is None:
+                raise ValueError("未配置参考图片读取")
+            if args.reference_image.url and "web.read" not in ctx.principal.scopes:
+                raise PermissionError("当前调用者没有网页读取权限")
+            reference_id, reference_url = await reader.reference(
+                run_id=ctx.request.run_id, **args.reference_image.model_dump())
+            reference = {"reference_image_url": reference_url, "reference_image_id": reference_id}
         await ctx.emit(
             "output.message",
             {"kind": "progress", "text": "正在生成图片，完成后会发送产物。"},
         )
-        pending = asyncio.create_task(service.generate_image(args.prompt, args.size))
+        pending = asyncio.create_task(service.generate_image(args.prompt, args.size, **reference))
         try:
             while True:
                 done, _ = await asyncio.wait({pending}, timeout=IMAGE_PROGRESS_INTERVAL_SECONDS)
@@ -533,7 +546,7 @@ def register_application_tools(registry, *, service, catalogs, webpages=None, do
         ),
         (
             "generate_image",
-            "根据提示词生成图片并发送产物，成功返回本轮image_resource_id供后续工具使用。耗时较长。",
+            "根据提示词及可选参考图生成图片并发送产物，参考图支持附件编号、公开URL或授权本地路径；成功返回本轮image_resource_id供后续工具使用。耗时较长。",
             ImageArgs,
             image,
             "images",
@@ -623,7 +636,7 @@ def register_application_tools(registry, *, service, catalogs, webpages=None, do
             "以下是本轮实际注册且已授权的能力，不是建议或历史记录。按类别调用本工具取得参数定义，"
             "再执行所需工具；尚未披露参数不等于工具不存在。查询失败和权限限制须以本轮实际工具结果为准，"
             "不能沿用旧回答中的‘没有数据/没有入口/不能查询’。已有定义不必再次发现。"
-            "图片输入由模型直接理解，images类别用于生成。能力目录："
+            "能力目录："
             + json.dumps(categories, ensure_ascii=False, separators=(",", ":"))
         )
 
