@@ -339,28 +339,36 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
     # consumers ask for specific players. Only narrow a relation if EVERY
     # physical reference has an explicit top-level conjunct on player_key.
     player_filters = {}
+    model_relations = set()
     for model_scope in traverse_scope(tree):
         for alias, (_, source) in model_scope.selected_sources.items():
             if not isinstance(source, exp.Table) or source.db != "hok":
                 continue
             name = source.name
+            model_relations.add(name)
             if name not in {"chat_player_battles", "chat_player_equipment", "chat_player_battle_roster"}:
                 continue
             values = None
             where = model_scope.expression.args.get("where")
             for predicate in where.this.flatten() if where and isinstance(where.this, exp.And) else [where.this] if where else []:
-                if not isinstance(predicate, exp.EQ):
+                if isinstance(predicate, exp.EQ):
+                    column, value = predicate.this, predicate.expression
+                    if isinstance(value, exp.Column):
+                        column, value = value, column
+                    candidates = [value]
+                elif isinstance(predicate, exp.In) and not predicate.args.get("query"):
+                    column, candidates = predicate.this, predicate.expressions
+                else:
                     continue
-                column, value = predicate.this, predicate.expression
-                if isinstance(value, exp.Column):
-                    column, value = value, column
                 if (isinstance(column, exp.Column) and column.name == "player_key"
                         and (column.table == alias or not column.table and len(model_scope.selected_sources) == 1)
-                        and isinstance(value, exp.Literal) and value.is_string):
-                    values = [value.copy()]
+                        and candidates and all(isinstance(value, exp.Literal) and value.is_string
+                                               for value in candidates)):
+                    values = [value.copy() for value in candidates]
                     break
             player_filters.setdefault(name, []).append(values)
     required = {}
+    dependencies = {}
     aliases = {}
     reserved = {node.alias.lower() for node in tree.find_all(exp.CTE)}
     scoped_battles = any(table.db == "hok" and table.name in {
@@ -371,6 +379,13 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
         if player_bindings is None:
             player_bindings = reference_data().game_identity_rows()
         definitions["chat_configured_players"] = configured_players_sql(player_bindings)
+
+    def narrow_players(view, selections):
+        if selections and all(selection is not None for selection in selections):
+            values = {value.this: value.copy() for selection in selections for value in selection}
+            return exp.select("*").from_(view.subquery("selected_players")).where(
+                exp.column("player_key").isin(*values.values()))
+        return view
 
     def expand(expression):
         for table in list(expression.find_all(exp.Table)):
@@ -383,12 +398,10 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
                     reserved.add(alias.lower())
                     aliases[name] = alias
                     view = parse_one(definitions[name], read="postgres")
+                    dependencies[name] = {table.name for table in view.find_all(exp.Table)
+                                          if table.db == "hok" and table.name in definitions}
                     expand(view)
-                    selections = player_filters.get(name, [])
-                    if selections and all(selection is not None for selection in selections):
-                        values = {value.this: value for selection in selections for value in selection}
-                        view = exp.select("*").from_(view.subquery("selected_players")).where(
-                            exp.column("player_key").isin(*values.values()))
+                    view = narrow_players(view, player_filters.get(name, []))
                     if query_scope is not None:
                         # Bound the shared recorded perspectives before using
                         # them to project configured participants into matches.
@@ -412,6 +425,30 @@ def expand_semantic_views(sql, query_scope=None, player_bindings=None):
                 column.set("db", None)
 
     expand(tree)
+    facts = "chat_player_battle_facts"
+    if facts in required:
+        # These two views preserve player_key throughout their fact reads.
+        # Roster identity mapping and power activity also consume the shared
+        # facts, but need other players or complete history. Any such consumer
+        # (including future views) prevents narrowing this shared relation.
+        def reads_facts(name):
+            pending, seen = [name], set()
+            while pending:
+                current = pending.pop()
+                if current == facts:
+                    return True
+                if current not in seen:
+                    seen.add(current)
+                    pending.extend(dependencies.get(current, ()))
+            return False
+
+        readers = {name for name in model_relations if reads_facts(name)}
+        if readers and readers <= {"chat_player_battles", "chat_player_equipment"}:
+            selections = [selection for name in sorted(readers)
+                          for selection in player_filters.get(name, [None])]
+            # Filter the union's output before MATERIALIZED, keeping its
+            # internal match anchors and configured identity mappings complete.
+            required[facts] = narrow_players(required[facts], selections)
     if required:
         current = tree.args.get("with_")
         ctes = [

@@ -153,6 +153,16 @@ class ExtraPlayerSQLTests(unittest.TestCase):
         self.assertEqual(self.query("SELECT result FROM hok.chat_player_battles WHERE player_key='extra' AND game_seq=1"),
                          [{'result': '胜利'}])
 
+    def test_multiple_selected_players_keep_external_anchors_and_own_records(self):
+        rows = self.query("SELECT player_key,game_seq,result,record_source FROM hok.chat_player_battles "
+                          "WHERE player_key IN ('extra','opponent') ORDER BY player_key,game_seq")
+        self.assertEqual(rows, [
+            {'player_key': 'extra', 'game_seq': 1, 'result': '胜利', 'record_source': 'battle_participant'},
+            {'player_key': 'extra', 'game_seq': 2, 'result': '失败', 'record_source': 'battle_record'},
+            {'player_key': 'extra', 'game_seq': 3, 'result': None, 'record_source': 'battle_participant'},
+            {'player_key': 'opponent', 'game_seq': 1, 'result': '失败', 'record_source': 'battle_participant'},
+        ])
+
     def test_configuration_literals_are_escaped_and_private_relations_stay_private(self):
         key = "member'; SELECT 1; --"
         self.bindings.append({'player_key': key, 'user_id': 1003, 'role_id': 103})

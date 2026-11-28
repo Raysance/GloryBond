@@ -16,6 +16,72 @@ DEFINITIONS = json.loads((Path(__file__).parents[1] / 'resources/agent/hok_sql/v
 
 
 class SemanticCompilerTests(unittest.TestCase):
+    def test_fact_pushdown_preserves_results_and_all_consumers(self):
+        db = sqlite3.connect(':memory:')
+        self.addCleanup(db.close)
+        db.execute("ATTACH DATABASE ':memory:' AS hok")
+        db.execute('CREATE TABLE hok.saved_facts (player_key TEXT, game_seq INTEGER)')
+        db.executemany('INSERT INTO hok.saved_facts VALUES (?,?)',
+                       [('a', 1), ('b', 1), ('c', 2), (None, 2)])
+        definitions = {
+            'chat_player_battle_facts': 'SELECT * FROM hok.saved_facts',
+            'chat_player_battle_source': 'SELECT * FROM hok.chat_player_battle_facts',
+            'chat_player_battles': 'SELECT * FROM hok.chat_player_battle_source',
+            'chat_player_equipment': 'SELECT * FROM hok.chat_player_battle_source',
+            'chat_player_battle_roster':
+                'SELECT battle.player_key, battle.game_seq, tracked.player_key AS participant_player_key '
+                'FROM hok.chat_player_battle_source battle JOIN hok.chat_player_battle_source tracked '
+                'ON tracked.game_seq=battle.game_seq',
+            'chat_power_activity': 'SELECT * FROM hok.chat_player_battle_facts',
+            'future_consumer': 'SELECT * FROM hok.chat_power_activity',
+        }
+        for name, definition in definitions.items():
+            db.execute(f'CREATE VIEW hok.{name} AS {definition}')
+        all_players = {None, 'a', 'b', 'c'}
+        cases = [
+            ("SELECT * FROM hok.chat_player_battles WHERE player_key='a'", {'a'}),
+            ("SELECT * FROM hok.chat_player_battles WHERE 'a'=player_key", {'a'}),
+            ("SELECT * FROM hok.chat_player_equipment WHERE player_key IN ('a','b')", {'a', 'b'}),
+            ("SELECT a.player_key,b.player_key FROM hok.chat_player_battles a "
+             "JOIN hok.chat_player_equipment b ON a.game_seq=b.game_seq "
+             "WHERE a.player_key='a' AND b.player_key='b'", {'a', 'b'}),
+            ("SELECT a.player_key,b.player_key FROM hok.chat_player_battles a "
+             "JOIN hok.chat_player_battles b ON a.game_seq=b.game_seq "
+             "WHERE a.player_key='a' AND b.player_key IN ('a','b')", {'a', 'b'}),
+            ("SELECT a.player_key,b.player_key FROM hok.chat_player_battles a "
+             "JOIN hok.chat_player_equipment b ON a.game_seq=b.game_seq "
+             "WHERE a.player_key='a'", all_players),
+            ("WITH mine AS (SELECT * FROM hok.chat_player_battles WHERE player_key='a') "
+             "SELECT * FROM mine", {'a'}),
+            ("WITH everyone AS (SELECT * FROM hok.chat_player_battles) "
+             "SELECT * FROM everyone WHERE player_key='a'", all_players),
+            ("SELECT * FROM hok.chat_player_battles WHERE player_key='a' OR game_seq=2", all_players),
+            ("SELECT * FROM hok.chat_player_battles WHERE player_key IS NULL", all_players),
+            ("SELECT * FROM hok.chat_player_battles WHERE player_key IN (SELECT 'a')", all_players),
+            ("SELECT * FROM hok.chat_player_battle_roster WHERE player_key='a'", all_players),
+            ("SELECT b.player_key,r.participant_player_key FROM hok.chat_player_battles b "
+             "JOIN hok.chat_player_battle_roster r ON r.game_seq=b.game_seq "
+             "WHERE b.player_key='a' AND r.player_key='a'", all_players),
+            ("SELECT b.player_key,f.player_key FROM hok.chat_player_battles b "
+             "JOIN hok.future_consumer f ON f.game_seq=b.game_seq WHERE b.player_key='a'", all_players),
+        ]
+        with patch.dict(worker.CONTEXT, {'definitions': definitions}, clear=True):
+            for sql, expected_players in cases:
+                with self.subTest(sql=sql):
+                    compiled = parse_one(worker.expand_semantic_views(sql), read='postgres')
+                    expected = db.execute(sql).fetchall()
+                    actual = db.execute(compiled.sql(dialect='sqlite')).fetchall()
+                    self.assertCountEqual(actual, expected)
+                    facts = next(cte for cte in compiled.args['with_'].expressions
+                                 if cte.alias == '__agent_view_chat_player_battle_facts')
+                    self.assertIs(facts.args['materialized'], True)
+                    # Inspect the materialized relation's actual rows: filtering
+                    # only the final answer leaves the expensive full input here.
+                    materialized = exp.select('player_key').from_(facts.alias)
+                    materialized.set('with_', compiled.args['with_'].copy())
+                    players = {row[0] for row in db.execute(materialized.sql(dialect='sqlite'))}
+                    self.assertEqual(players, expected_players)
+
     def test_shared_player_filter_requires_every_reference_to_be_bounded(self):
         name = 'chat_player_battle_roster'
         definition = "SELECT 'a' AS player_key, 1 AS game_seq UNION ALL SELECT 'b', 1"
