@@ -864,6 +864,22 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                          if tool["function"]["name"] == "discover_tools")
         self.assertIn("read_webpage", discovery["function"]["description"])
 
+    async def test_native_video_quote_binds_opaque_attachment_without_automatic_read(self):
+        self.script = [{"role": "assistant", "content": "请说明希望了解的内容。"}]
+        self.gateway.webpages.download = AsyncMock(side_effect=AssertionError("unexpected media download"))
+        quote = {"text": "[video消息，未读取内容]", "available": True, "message_id": "quoted-video",
+                 "media_sources": [{"kind": "video", "url": "https://cdn.qq.com/video?secret=signed-source"}]}
+        await self.gateway.chat(user_text="这段视频能做什么？", user_id="101", nickname="B", use_memory=False,
+                                quoted_message=quote)
+        messages = json.dumps(self.gateway.model.requests[0].messages, ensure_ascii=False)
+        self.assertIn('media_attachments', messages)
+        self.assertIn('attachment_id', messages)
+        self.assertNotIn('signed-source', messages)
+        self.assertNotIn('signed-source', json.dumps(self.calls))
+        self.gateway.webpages.download.assert_not_awaited()
+        identifier = next(iter(self.gateway.media.attachments))
+        self.assertEqual(self.gateway.media.attachments[identifier]['scope'], 'qq_p_101')
+
     async def test_qq_image_download_becomes_native_input_and_is_saved(self):
         buffer = BytesIO()
         Image.new("RGB", (16, 16), "red").save(buffer, "PNG")

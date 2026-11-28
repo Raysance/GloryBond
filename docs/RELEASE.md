@@ -22,6 +22,28 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Read media with sampled frames and parallel speech transcription — 2026-11-28
+
+The discovered `read_media` tool accepts session-bound QQ video/voice attachments,
+public media-file URLs and authorized local paths. It samples video every ten
+seconds, extracts the complete first audio track, transcribes all 115-second
+segments concurrently through official DeepSeek ASR, and sends the ordered full
+transcript with sampled frames to DeepSeek Flash. Sources exceeding ten minutes
+or 50 MB are rejected. Existing image routing and outer tool budgets are unchanged.
+
+Private content caches and cross-process locks reuse downloads, frames, completed
+transcript segments and same-question answers. Cancellation finishes pending HTTP
+requests and decoder cleanup. Tool results include actual usage and phase timings;
+QQ signed URLs remain outside model inputs and published traces. Local configuration
+and platform voice-conversion requirements are documented in the shared AI README.
+
+Validation covers all six segments running concurrently with ordered results,
+complete audio tails, duration rejection before API calls, cancellation, cache
+reuse, source authorization and QQ quote binding without automatic downloads.
+An authorized 599-second cached-video sample took 25.6 seconds with 60 frames and
+six parallel speech requests; the estimated off-peak API cost was CNY 0.085 at
+2026-11-28 published prices. This excludes downloading and the outer chat response.
+
 ## Deliver oversized subscription videos as links — 2026-11-28
 
 Bilibili media exceeding the configured output limit (50 MB by default) now

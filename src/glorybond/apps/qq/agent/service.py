@@ -21,6 +21,8 @@ from glorybond.agent.document_inputs import MAX_DOCUMENTS
 from glorybond.apps.qq.agent.documents import QQDocuments
 from glorybond.apps.qq.agent.history_images import register_history_image_tool
 from glorybond.agent.image_inputs import ImageLimits, ImageStore
+from glorybond.agent.media_inputs import MediaReader, MediaLimits, media_settings
+from glorybond.apps.qq.agent.media import read_qq_media
 from glorybond.agent.local_logs import LocalEventLog
 from glorybond.agent.provider import DeepSeekModel, remote_model_options
 from glorybond.agent.remote import ProcessBridge, RemoteState
@@ -153,10 +155,13 @@ class QQAgentService:
                 self.mentions = ReplyMentions()
                 service = QQCapabilities(self.bridge, self.state_bridge, self.mentions)
                 self.documents = QQDocuments(remote)
+                self.media = MediaReader(self.root / self.config.get("media_directory", "data/agent_media"),
+                                         media_settings(remote), limits=MediaLimits(**self.config.get("media", {})))
                 registry = DiagnosticToolRegistry(redactor=lambda value: redact_error(self.state_bridge.redact(self.bridge.redact(value))))
                 register_application_tools(registry, service=service, catalogs=self.catalogs, webpages=self.webpages,
                     documents=self.documents.provider,
-                    document_roots=self.config.get("document_roots", [self.root / "resources/agent/documents"]))
+                    document_roots=self.config.get("document_roots", [self.root / "resources/agent/documents"]),
+                    media=self.media, media_roots=self.config.get("media_roots", [self.root / "resources/agent/media"]))
                 if self.chat_ignore_operation is not None:
                     register_chat_ignore_tool(registry, operation=self.chat_ignore_operation)
                 if self.automation_operation is not None and self.config.get("automation", {}).get("enabled", True):
@@ -378,7 +383,8 @@ class QQAgentService:
 
     async def chat(self, *, user_text, user_id, nickname, group_id=None, message_id=None,
                    use_memory=True, quoted_message=None, image_urls=(), original_user_text=None, native_faces=(),
-                   message_timestamp=None, mentioned_user_ids=(), document_sources=(), read_file=None):
+                   message_timestamp=None, mentioned_user_ids=(), document_sources=(), read_file=None,
+                   media_sources=(), media_bot=None):
         received_at = message_timestamp if message_timestamp is not None else time.time()
         await self.start()
         snapshot = await self.bridge.call("reference_snapshot")
@@ -387,7 +393,7 @@ class QQAgentService:
                                  admin_private_default_group_id=self.config.get("admin_private_default_group_id"),
                                  bot_id=self.bot_id)
         question = str(user_text) or ("请结合引用的消息回复。" if quoted_message else
-                                     "请分析所附资料。" if document_sources else
+                                     "请分析所附资料。" if document_sources or media_sources else
                                      "请分析这些图片。" if image_urls else "请回应这次招呼。")
         participant_ids = [*mentioned_user_ids]
         if quoted_message and quoted_message.get("available"):
@@ -436,7 +442,7 @@ class QQAgentService:
         quote = None
         quoted_images = ()
         if quoted_message:
-            quote = {key:value for key, value in quoted_message.items() if key not in {"image_urls", "native_faces", "document_sources"}}
+            quote = {key:value for key, value in quoted_message.items() if key not in {"image_urls", "native_faces", "document_sources", "media_sources"}}
             if quote.get("available") and quote.get("sender_id"):
                 quote["sender_identity"] = participant_identity(snapshot, quote["sender_id"])
             if omitted_quote_images:
@@ -460,11 +466,29 @@ class QQAgentService:
         scope = ("group", str(group_id)) if group_id else ("private", str(user_id))
         documents = await self.documents.prepare(document_sources, scope, message_id, read_file)
         quoted_documents = await self.documents.prepare(quoted_files, scope, (quote or {}).get("message_id"), read_file)
+        conversation = "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id)
+        quoted_media = quoted_message.get("media_sources", ()) if quote and quote.get("available") else ()
+        if len(media_sources) + len(quoted_media) > 4:
+            raise ValueError("每次最多附加或引用 4 份音视频")
+        if media_sources or quoted_media:
+            roots = tuple(Path(root).resolve() for root in self.config.get("qq_media_roots", [self.root / "data/bili_videos"]))
+            async def load_media(source):
+                return await read_qq_media(source, fetcher=self.webpages, max_bytes=self.media.limits.max_bytes,
+                                           local_roots=roots, bot=media_bot)
+            for sources, identifier, quoted in ((media_sources, message_id, False),
+                                                (quoted_media, (quote or {}).get("message_id"), True)):
+                if not sources:
+                    continue
+                attachments = self.media.bind(scope=conversation, message_id=identifier, sources=sources, reader=load_media)
+                if quoted:
+                    quote["media_attachments"] = attachments
+                else:
+                    documents.append({"type": "text", "text": "本次音视频附件（尚未读取）：\n" + json.dumps(attachments, ensure_ascii=False)})
         current = current_message(question, actor={"user_id": principal.user_id, "name": str(nickname)},
                                   message_id=message_id, quote=quote, images=images, quoted_images=quoted_images,
                                   documents=documents, quoted_documents=quoted_documents)
         request = RunRequest(
-            question, "qq_" + ("g_" + str(group_id) if group_id else "p") + "_" + str(user_id), principal,
+            question, conversation, principal,
             system_prompt=prompt, required_tools=chat_required_tools(),
             budget=application_budget(self.config.get("budget")), images=images,
             context_messages=context_messages,

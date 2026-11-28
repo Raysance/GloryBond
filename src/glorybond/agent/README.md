@@ -47,6 +47,18 @@ Seed 2.1 的流式思考摘要与 `encrypted_content` 分别保留，多轮工�
 
 ## 功能
 
+### 音视频读取
+
+`media/read_media` 是普通的按需发现工具，QQ 与本地 Web 共用 `agent/media_inputs.py`。参数为 `question` 加 `attachment_id` / `url` / `local_path` 三选一；QQ原生视频、语音的当前消息和有效引用由可信入口绑定附件编号，签名地址不进入模型上下文。Web暂不增加媒体上传控件，可使用公开文件直链及授权本地路径。工具默认每10秒取一帧，完整第一音轨下混为16kHz单声道WAV，115秒分段全部同时调用官方 ASR，再将有序完整转写与采样帧一起交给 Flash 回答问题。返回分析、转写、实际覆盖范围、阶段耗时与用量；长转写在工具 observation 中最多32000字符并标明截断，Flash 已读取完整转写。
+
+官方密钥通过 worker private 的 `media_api_key` 获取，来源为 `HOK_DEEPSEEK_API_KEY`，不借用第三方聊天或视觉密钥。固定使用官方 ASR 与 `deepseek-flash`；普通图片仍按 `VisionAPI` 路由。需安装 FFmpeg/FFprobe，解码只允许本地音视频容器，不加载播放列表或外部资源；取消等待请求和解码器结束。
+
+`QQAgent` / `LocalAgent` 可配置 `media`：`enabled=true`、`max_bytes=50000000`、`max_duration_seconds=600`（只可调低）、`frame_interval_seconds=10`、`max_frames=120`、`timeout_seconds=900`、`cache_seconds=86400`、`max_cache_bytes=2147483648`。超长文件在解码前拒绝，不截断；帧数超限时增大间隔并明确返回。外层每轮最多两个工具的总预算保持原样，工具内全部音频分段并发。DeepSeek ASR 账号限50个并发，10分钟来源最多6段；Flash与ASR分别受供应商账号额度约束。
+
+`media_roots` 默认 `resources/agent/media`，本地路径解析真实路径后校验目录；QQ平台返回的本地媒体受独立 `qq_media_roots` 限制，默认仅 `HOK_DATA_DIR/bili_videos`，平台语音缓存目录需显式加入。公开直链复用既有公网校验和 Clash 下载。`media_directory` 默认为私有 `data/agent_media`，QQ按 `HOK_DATA_DIR` 投影。缓存按来源及内容摘要复用下载、解码和转写，按问题缓存分析；多个进程通过文件锁共享，失败保留已完成分段。过期清理含正在运行的宽限期，空间不足拒绝新下载。缓存命中返回本次新增用量为零；不同问题复用转写但重新计分析 token。
+
+### 其他功能
+
 - 真实 DeepSeek 流式正文及接口返回的 `reasoning_content`。主执行阶段按渠道 thinking 配置支持自动工具调用中的推理，已有推理内容完整回传；旧无思考历史补空字段，只有强制或指定工具选择按 DeepSeek 协议关闭 thinking。回复表达阶段沿用渠道配置进行选句和编辑，不重新调查、计算或调用工具，界面不伪造思考过程。
 - 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时优先使用共享 `VisionAPI`，未配置时使用 `LocalAgent.llm.vision_model`；同一 ReAct 循环继续调用工具并支持图片追问。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。联网搜索调用 [DeepSeek Search API](https://api-docs.deepseek.com/zh-cn/guides/search/)，worker 启动时仅通过 private 设置传递独立搜索密钥（默认服务器 `HOK_DEEPSEEK_API_KEY`），不使用本地 ZenMux 密钥。QQ/Web 主机通过 `integrations/deepseek_web.py` 独立异步请求，最多两个 HTTP 请求同时进行，不占用串行业务 RPC；取消中止对应请求，关闭连接清理在途及排队搜索。配置与凭据不变的 worker 重连不取消搜索，空结果与 HTTP 失败明确区分。旧阿里云实现及配置保留，聊天不再调用或回退。

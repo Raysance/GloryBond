@@ -16,6 +16,7 @@ from glorybond.agent.tools.bot_manual import register_bot_manual_tool
 from glorybond.agent.tools.kpl import register_kpl_tool
 from glorybond.agent.tools.webpages import register_webpage_tool
 from glorybond.agent.tools.documents import register_document_tool
+from glorybond.agent.tools.media import register_media_tool
 from glorybond.agent.timeouts import IMAGE_PROGRESS_INTERVAL_SECONDS, IMAGE_TOOL_TIMEOUT_SECONDS, SQL_TOOL_TIMEOUT_SECONDS
 
 
@@ -193,11 +194,13 @@ class CancelTaskArgs(Args):
     task_id: str
 
 
-def register_application_tools(registry, *, service, catalogs, webpages=None, documents=None, document_roots=()):
+def register_application_tools(registry, *, service, catalogs, webpages=None, documents=None, document_roots=(), media=None, media_roots=()):
     if webpages is not None:
         register_webpage_tool(registry, fetcher=webpages)
         if documents is not None:
             register_document_tool(registry, documents=documents, fetcher=webpages, local_roots=document_roots)
+        if media is not None:
+            register_media_tool(registry, media=media, fetcher=webpages, local_roots=media_roots)
     if "kpl" in catalogs:
         register_kpl_tool(registry, service=service, catalog=catalogs["kpl"])
     if "bot_info" in catalogs:

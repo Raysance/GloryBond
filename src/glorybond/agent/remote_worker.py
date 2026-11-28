@@ -216,6 +216,7 @@ def bootstrap(args):
     CONTEXT["fonts"] = [str(path) for path in font_candidates if path.is_file()]
     model_options = {key: model[key] for key in ('timeout_seconds', 'first_token_timeout_seconds') if key in model}
     private = {"api_key": model["api_key"]}
+    private["media_api_key"] = str(env.get("HOK_DEEPSEEK_API_KEY") or "").strip()
     fetch_cfg = cfg.get("DeepSeekFetch", {})
     private["fetch_api_key"] = str(env.get(fetch_cfg.get("api_key_env", "HOK_DEEPSEEK_API_KEY")) or "").strip()
     if search_cfg.get("api_key"):

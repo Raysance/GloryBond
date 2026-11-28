@@ -81,6 +81,20 @@ def document_sources(message):
     return files
 
 
+def media_sources(message):
+    """Native segments only: text resembling a CQ video cannot mint an attachment."""
+    if isinstance(message, str):
+        return []
+    result = []
+    for segment in message or ():
+        kind, data = _field(segment, "type"), _field(segment, "data", {})
+        if kind in {"video", "record"}:
+            result.append({"kind": "video" if kind == "video" else "audio",
+                           "url": data.get("url"), "file": data.get("file"),
+                           "name": str(data.get("name") or ("视频" if kind == "video" else "语音"))[:200]})
+    return result
+
+
 def native_faces(message):
     """Keep native QQ face IDs as data; never infer them from visible text."""
     faces = []
@@ -147,7 +161,8 @@ def normalize_quoted_message(event, reply=None):
         return unavailable
     message = _field(reply, "message", [])
     files = document_sources(message)
-    if files:
+    media = media_sources(message)
+    if files or media:
         # NoneBot's compact Reply can omit group_id. Re-fetch get_msg so the
         # file can be tied to its actual group or the peer of an outgoing DM.
         if group_id and str(reply_group) != str(group_id):
@@ -161,6 +176,7 @@ def normalize_quoted_message(event, reply=None):
             "sender_name": str(_field(sender, "card") or _field(sender, "nickname") or ""),
             "text": text[:12000], "truncated": len(text) > 12000,
             **({"document_sources": files} if files else {}),
+            **({"media_sources": media} if media else {}),
             "image_urls": image_urls(message), "native_faces": native_faces(message)}
 
 
@@ -290,6 +306,8 @@ async def prepare_live_chat_request(event, common_expressions, default_use_memor
         async def read_file(source):
             return await read_qq_document(bot, getattr(event, "group_id", None), source)
         request["read_file"] = read_file
+    if request.get("media_sources") or quote.get("media_sources"):
+        request["media_bot"] = bot
     return request
 
 
@@ -337,6 +355,7 @@ def prepare_chat_request(event, common_expressions, default_use_memory):
         "use_memory": use_memory,
         "quoted_message": normalize_quoted_message(event),
         "document_sources": document_sources(getattr(event, "original_message", None) or getattr(event, "message", None)),
+        "media_sources": media_sources(getattr(event, "original_message", None) or getattr(event, "message", None)),
         "image_urls": image_urls(segments),
         "native_faces": native_faces(segments),
     }

@@ -27,6 +27,7 @@ from glorybond.agent.tools.application import register_application_tools
 from glorybond.agent.capabilities import Capabilities, Clock, application_prompt, chat_required_tools, load_catalogs, reference_prompt
 from glorybond.agent.provider import DeepSeekModel, remote_model_options
 from glorybond.agent.document_inputs import DeepSeekDocuments, MAX_DOCUMENTS, document_name, read_document_bytes
+from glorybond.agent.media_inputs import MediaReader, MediaLimits, media_settings
 from glorybond.agent.image_inputs import ImageLimits, ImageStore
 from glorybond.agent.local_logs import LocalEventLog
 from glorybond.agent.remote import BridgeUnavailable, RemoteBridge, RemoteState
@@ -147,6 +148,8 @@ def create_app(*, config_path=None):
                         connection.secrets.append(key)
             public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model", "proxy_url")})
             app.state.documents = DeepSeekDocuments(remote)
+            app.state.media = MediaReader(root / config.get("media_directory", "data/agent_media"),
+                media_settings(remote), limits=MediaLimits(**config.get("media", {})))
             model = DeepSeekModel(
                 documents=app.state.documents,
                 **model_settings,
@@ -162,6 +165,7 @@ def create_app(*, config_path=None):
                 registry, service=Capabilities(bridge, state_bridge), catalogs=catalogs, webpages=webpages,
                 documents=app.state.documents,
                 document_roots=config.get("document_roots", [root / "resources/agent/documents"]),
+                media=app.state.media, media_roots=config.get("media_roots", [root / "resources/agent/media"]),
             )
             roles = RoleplayService(
                 bridge=state_bridge,

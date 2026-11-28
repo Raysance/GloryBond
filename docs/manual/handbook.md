@@ -5,7 +5,7 @@
 ## 聊天、身份与偏好
 
 - [AI 聊天](chapters/chat.md)
-- [图片、引用和动态表情](chapters/vision.md)
+- [图片、音视频、引用和动态表情](chapters/vision.md)
 - [群聊背景查询](chapters/history.md)
 - [记住偏好与清除记忆](chapters/memory.md)
 - [角色与回复风格](chapters/roles.md)

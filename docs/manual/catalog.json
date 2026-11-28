@@ -264,7 +264,7 @@
     },
     {
       "id": "vision",
-      "title": "图片、引用和动态表情",
+      "title": "图片、音视频、引用和动态表情",
       "keywords": [
         "图片",
         "看图",
@@ -278,10 +278,22 @@
         "动态表情",
         "emoji",
         "gif",
-        "视频"
+        "视频",
+        "音频",
+        "语音",
+        "抽帧",
+        "转写"
       ],
-      "tools": ["read_recent_group_images"],
+      "tools": ["read_recent_group_images", "read_media"],
       "code": [
+        {
+          "path": "src/glorybond/agent/tools/media.py",
+          "symbol": "register_media_tool"
+        },
+        {
+          "path": "src/glorybond/agent/media_inputs.py",
+          "symbol": "MediaReader"
+        },
         {
           "path": "src/glorybond/apps/qq/handlers/chat.py",
           "symbol": "read_quoted_message"
@@ -296,7 +308,7 @@
         }
       ],
       "parent": "conversation",
-      "summary": "用途\n描述图片内容、理解截图，或针对明确引用的消息继续讨论。动态表情会取若干画面来理解，不能保证看到了整个动画。\n使用示例\n发送一张图片，再 @机器人：这张图里有什么？\n引用别人发的图片，再 @机器人：这个表情是什么意思？\n引用一条发言，再 @机器人：这句话是在回应什么？\n返回内"
+      "summary": "读取图片、文档及明确引用的消息；音视频最多10分钟、50 MB，默认10秒抽一帧，完整音轨分段并行转写后结合画面分析，缓存复用已完成结果。"
     },
     {
       "id": "vision_1",

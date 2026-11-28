@@ -1236,6 +1236,9 @@ async def agent_runtime_start():
         config["log_directory"] = os.path.join(log_root, "glorybond.apps.qq.agent")
     if config.get("image_directory", "data/agent_inputs") == "data/agent_inputs":
         config["image_directory"] = os.path.join(data_root, "agent_inputs")
+    if config.get("media_directory", "data/agent_media") == "data/agent_media":
+        config["media_directory"] = os.path.join(data_root, "agent_media")
+    config.setdefault("qq_media_roots", [os.path.join(data_root, "bili_videos")])
 
     async def send(packet, delivery):
         return add_chat_result_msg({**packet, "text": format_text(packet["text"])}, destination=delivery,
