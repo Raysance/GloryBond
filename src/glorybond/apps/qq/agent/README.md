@@ -158,7 +158,7 @@ worker 仅通过 private 设置提供独立 DeepSeek Search 密钥并纳入脱�
 远程 `ChatAPI.proxy_url` 为空，工具循环、回复整理、角色生成和业务文案均直连，
 不继承环境代理。本地 Web 继续按自己的 llm 配置使用 ZenMux 与 `LLM_API_KEY`。
 
-识图独立使用 `VisionAPI` 的豆包 Seed 2.1 Lite（`doubao-seed-2-1-lite-260915`），
+识图独立使用 `VisionAPI` 的豆包 Seed 2.1 Pro（`doubao-seed-2-1-pro-260628`），
 Key 来自 `.env` 的 `HOK_ARK_API_KEY`，端点为 `https://ark.cn-beijing.volces.com/api/v3`。
 当前、历史及工具图片在实际仍有像素时走该端点，保留工具调用及图片追问；视觉失败不会进入文字备用模型。
 worker 通过 private 设置传递并脱敏该密钥，本地 Web 同样继承视觉配置。

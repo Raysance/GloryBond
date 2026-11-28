@@ -25,14 +25,14 @@ QQ 的 `ChatAPI.fallback` 支持 DeepSeek 故障时切至百炼 `kimi-k3`，凭�
 ## 豆包识图接入
 
 1. 登录[火山方舟](https://ark.volcengine.com/region:cn-beijing/apikey)，在 API Key 管理中创建并保存 Key。已有方舟 Key 可继续使用。
-2. 在控制台的模型开通入口开通 **Seed 2.1 Lite**，模型 ID 为 `doubao-seed-2-1-lite-260915`；确认该 Key 所属项目有权调用。Key 创建与模型开通是独立步骤，返回 `ModelNotOpen` 时先检查开通状态。官方步骤见[快速入门](https://docs.volcengine.com/docs/ark/quick-start-beginner?lang=zh)，可用 ID 见[模型列表](https://docs.volcengine.com/docs/ark/model-list?lang=zh)。
+2. 在控制台的模型开通入口开通 **Seed 2.1 Pro**，模型 ID 为 `doubao-seed-2-1-pro-260628`；确认该 Key 所属项目有权调用。Key 创建与模型开通是独立步骤，返回 `ModelNotOpen` 时先检查开通状态。官方步骤见[快速入门](https://docs.volcengine.com/docs/ark/quick-start-beginner?lang=zh)，可用 ID 见[模型列表](https://docs.volcengine.com/docs/ark/model-list?lang=zh)。
 3. 将 Key 写入现有 `.env` 的 `HOK_ARK_API_KEY`，在现有 `config.yaml` 配置以下非密钥设置。需要单独管理识图 Key 时，可改用自己的 `api_key_env` 变量名。
 
 ```yaml
 VisionAPI:
   base_url: https://ark.cn-beijing.volces.com/api/v3
   api_key_env: HOK_ARK_API_KEY
-  model: doubao-seed-2-1-lite-260915
+  model: doubao-seed-2-1-pro-260628
   protocol: ark
   proxy_url: ''
   first_token_timeout_seconds: 45

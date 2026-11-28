@@ -22,6 +22,17 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Switch the shared vision model to Seed 2.1 Pro — 2026-11-28
+
+The shared `VisionAPI` configuration selects `doubao-seed-2-1-pro-260628`
+for QQ and local Web image requests. The existing Ark endpoint, credentials,
+timeouts and image routing are retained. Text generation and the media tool's
+DeepSeek transcription and frame analysis keep their existing models.
+Deployment updates only the private vision model field, with a private backup
+and the existing credentials lock. Local and production credentials both passed
+a live image request through the shared provider, correctly counting three red
+squares. All 38 related configuration, vision routing and bridge checks passed.
+
 ## Bind quoted video reads to the matching source file — 2026-11-28
 
 QQ media inputs retain the platform's expected byte size. Verified quotes authored

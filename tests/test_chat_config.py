@@ -141,7 +141,7 @@ class ChatEnvironmentTests(unittest.TestCase):
         self.assertEqual(set(local_routes), {'deepseek/deepseek-v4.1-flash'})
         self.assertEqual(config['VisionAPI'], {
             'base_url': 'https://ark.cn-beijing.volces.com/api/v3', 'api_key_env': 'HOK_ARK_API_KEY',
-            'model': 'doubao-seed-2-1-lite-260915', 'protocol': 'ark', 'proxy_url': '',
+            'model': 'doubao-seed-2-1-pro-260628', 'protocol': 'ark', 'proxy_url': '',
             'first_token_timeout_seconds': 45, 'timeout_seconds': 120,
         })
         self.assertEqual(config['Proxy']['clash_url'], 'http://127.0.0.1:7890')
