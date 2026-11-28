@@ -68,6 +68,18 @@ class AnimationTests(unittest.TestCase):
         wire, _ = reopened.model_messages([{"role":"user", "content":[self.store.inputs([saved["id"]])[0].content_part()]}])
         self.assertTrue(wire[0]["content"][1]["image_url"]["url"].startswith("data:image/png;"))
 
+    def test_oversized_animation_keeps_sampling_metadata_and_original(self):
+        raw = animation()
+        store = ImageStore(self.tmp.name, ImageLimits(max_image_bytes=400))
+        self.assertGreater(len(raw), 400)
+        saved = store.save(raw, 'large.gif')
+        self.assertLessEqual(saved['bytes'], 400)
+        self.assertEqual(saved['mime'], 'image/png')
+        self.assertEqual(saved['projection']['sampled_frames'], [0, 2, 5, 7])
+        self.assertEqual(store._path(saved['id'], '.source').read_bytes(), raw)
+        wire, _ = store.model_messages([{'role':'user','content':[store.inputs([saved['id']])[0].content_part()]}])
+        self.assertIn('原动画 8 帧', wire[0]['content'][0]['text'])
+
 
 class AnimationProviderTests(unittest.IsolatedAsyncioTestCase):
     async def test_vision_provider_receives_png_frames_instead_of_a_single_gif(self):

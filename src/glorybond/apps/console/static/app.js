@@ -15,6 +15,7 @@ const state = {
   imageLimits: {
     max_images: 4,
     max_image_bytes: 4194304,
+    max_source_bytes: 33554432,
     max_total_bytes: 8388608,
   },
 };
@@ -856,16 +857,12 @@ async function uploadImages(files) {
         !(file.type === "" && /\.(png|jpe?g|webp|gif)$/i.test(file.name))
       )
         throw Error("请选择支持的图片或文档格式");
-      if (file.size > state.imageLimits.max_image_bytes)
+      if (file.size > state.imageLimits.max_source_bytes)
         throw Error(
-          "单张图片不能超过 " +
-            (state.imageLimits.max_image_bytes / 1048576).toFixed(0) +
-            " MB",
+          "原始图片不能超过 " +
+            (state.imageLimits.max_source_bytes / 1048576).toFixed(0) +
+            " MiB",
         );
-      const total =
-        images.reduce((n, image) => n + image.bytes, 0) + file.size;
-      if (total > state.imageLimits.max_total_bytes)
-        throw Error("本次图片总大小超过限制");
       const image = {
         name: file.name,
         bytes: file.size,

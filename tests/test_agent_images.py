@@ -3,6 +3,7 @@
 import base64
 from io import BytesIO
 import json
+import random
 from pathlib import Path
 import tempfile
 import unittest
@@ -22,6 +23,13 @@ from tests.test_agent_runtime import Clock, ScriptedModel, Sink, State, Args, ca
 def png(color="red", size=(24, 16)):
     buffer = BytesIO()
     Image.new("RGB", size, color).save(buffer, "PNG")
+    return buffer.getvalue()
+
+
+def noisy_png(size=(160, 80)):
+    image = Image.frombytes("RGB", size, random.Random(7).randbytes(size[0] * size[1] * 3))
+    buffer = BytesIO()
+    image.save(buffer, "PNG")
     return buffer.getvalue()
 
 
@@ -144,8 +152,66 @@ class ImageStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             limited.save(png())
         limited = ImageStore(self.tmp.name, ImageLimits(max_side=10))
-        with self.assertRaises(ValueError):
-            limited.save(png())
+        saved = limited.save(png())
+        self.assertEqual((saved["width"], saved["height"]), (10, 6))
+
+    def test_oversized_source_is_scaled_and_original_is_preserved_across_reload(self):
+        raw = noisy_png()
+        store = ImageStore(self.tmp.name, ImageLimits(max_image_bytes=3000, max_side=120, max_pixels=6000))
+        saved = store.save(raw)
+        self.assertLessEqual(saved['bytes'], 3000)
+        self.assertLessEqual(saved['width'], 120)
+        self.assertLessEqual(saved['width'] * saved['height'], 6000)
+        self.assertLessEqual(abs(saved['width'] - 2 * saved['height']), 1)
+        self.assertEqual(store._path(saved['id'], '.source').read_bytes(), raw)
+        self.assertEqual(saved['resized_from']['bytes'], len(raw))
+        reopened = ImageStore(self.tmp.name, store.limits)
+        image = reopened.inputs([saved['id']])[0]
+        wire, _ = reopened.model_messages([{'role':'user','content':[image.content_part()]}])
+        pixels = base64.b64decode(wire[0]['content'][0]['image_url']['url'].split(',', 1)[1])
+        self.assertEqual(pixels, reopened.load(saved['id'])[1])
+
+    def test_pixel_limit_alone_scales_and_preserves_transparency(self):
+        buffer = BytesIO()
+        Image.new('RGBA', (200, 100), (255, 0, 0, 80)).save(buffer, 'PNG')
+        store = ImageStore(self.tmp.name, ImageLimits(max_pixels=5000))
+        saved = store.save(buffer.getvalue())
+        self.assertEqual((saved['width'], saved['height']), (100, 50))
+        with Image.open(BytesIO(store.load(saved['id'])[1])) as image:
+            self.assertEqual(image.mode, 'RGBA')
+            self.assertEqual(image.getpixel((50, 25))[3], 80)
+
+    def test_jpeg_resize_keeps_display_orientation(self):
+        buffer = BytesIO()
+        exif = Image.Exif()
+        exif[274] = 6
+        Image.new('RGB', (160, 80), 'blue').save(buffer, 'JPEG', exif=exif)
+        store = ImageStore(self.tmp.name, ImageLimits(max_side=100))
+        saved = store.save(buffer.getvalue())
+        self.assertEqual(saved['mime'], 'image/jpeg')
+        self.assertEqual((saved['width'], saved['height']), (50, 100))
+        with Image.open(BytesIO(store.load(saved['id'])[1])) as image:
+            self.assertIsNone(image.getexif().get(274))
+
+    def test_batch_budget_shrinks_images_without_modifying_saved_inputs(self):
+        store = ImageStore(self.tmp.name, ImageLimits(max_image_bytes=5000, max_total_bytes=3000))
+        saved = [store.save(noisy_png()) for _ in range(2)]
+        original = [store.load(info['id'])[1] for info in saved]
+        inputs = store.inputs([info['id'] for info in saved])
+        prepared = [store.load(image.url.removeprefix('attachment://')) for image in inputs]
+        self.assertLessEqual(sum(len(raw) for info, raw in prepared), 3000)
+        self.assertEqual([store.load(info['id'])[1] for info in saved], original)
+        for info, raw in prepared:
+            self.assertLessEqual(abs(info['width'] - 2 * info['height']), 1)
+        wire, _ = store.model_messages([{'role':'user','content':[image.content_part() for image in inputs]}])
+        self.assertEqual(sum(part['type'] == 'image_url' for part in wire[0]['content']), 2)
+
+    def test_raw_decode_limits_are_checked_before_resizing(self):
+        for limits in (ImageLimits(max_source_bytes=50), ImageLimits(max_source_pixels=100)):
+            store = ImageStore(self.tmp.name, limits)
+            with patch.object(store, '_fit_image', side_effect=AssertionError('unexpected resize')):
+                with self.assertRaises(ValueError):
+                    store.save(png())
 
     def test_context_budget_keeps_current_images_and_notices_omitted_history(self):
         raw = png()
@@ -178,7 +244,7 @@ class ImageAPITests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.store = ImageStore(self.tmp.name, ImageLimits(max_image_bytes=1024))
+        self.store = ImageStore(self.tmp.name, ImageLimits(max_image_bytes=1024, max_source_bytes=32768))
         with patch("glorybond.apps.console.server.ImageStore", return_value=self.store):
             self.app = create_app()
         self.client = TestClient(self.app)
@@ -204,7 +270,7 @@ class ImageAPITests(unittest.TestCase):
 
     def test_invalid_oversized_and_unknown_input_rejected(self):
         self.assertEqual(self.upload(b"not a PNG").status_code, 422)
-        self.assertEqual(self.upload(b"x" * 1025).status_code, 413)
+        self.assertEqual(self.upload(b"x" * 32769).status_code, 413)
         self.assertEqual(self.client.get("/api/images/" + "f" * 32).status_code, 404)
         self.assertEqual(
             self.client.post(
@@ -214,6 +280,7 @@ class ImageAPITests(unittest.TestCase):
             ).status_code,
             422,
         )
+
         self.assertEqual(
             self.client.post(
                 "/api/chat",
@@ -222,6 +289,14 @@ class ImageAPITests(unittest.TestCase):
             ).status_code,
             422,
         )
+
+    def test_upload_over_model_byte_limit_is_resized(self):
+        raw = noisy_png((100, 80))
+        self.assertGreater(len(raw), self.store.limits.max_image_bytes)
+        response = self.upload(raw)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertLessEqual(response.json()['bytes'], 1024)
+        self.assertEqual(response.json()['resized_from']['bytes'], len(raw))
 
     def test_image_only_request_reaches_runtime_as_native_attachment(self):
         image = self.upload().json()

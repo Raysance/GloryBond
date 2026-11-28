@@ -332,11 +332,11 @@ def create_app(*, config_path=None):
     async def upload_image(request: Request, name: str = "图片"):
         data = bytearray()
         async for chunk in request.stream():
-            if len(data) + len(chunk) > image_store.limits.max_image_bytes:
-                raise HTTPException(413, "图片超过单张大小限制")
+            if len(data) + len(chunk) > image_store.limits.max_source_bytes:
+                raise HTTPException(413, "图片超过原始文件大小限制")
             data.extend(chunk)
         try:
-            return image_store.save(bytes(data), name)
+            return await asyncio.to_thread(image_store.save, bytes(data), name)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -421,7 +421,7 @@ def create_app(*, config_path=None):
         if body.session_id in active_sessions:
             raise HTTPException(409, "当前会话仍在执行，可停止后再发送")
         try:
-            images = image_store.inputs(body.image_ids)
+            images = await asyncio.to_thread(image_store.inputs, body.image_ids)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         documents = []

@@ -6,12 +6,13 @@ from dataclasses import dataclass
 import hashlib
 from io import BytesIO
 import json
+import math
 from pathlib import Path
 import re
 from uuid import uuid4
 import warnings
 
-from PIL import Image, ImageDraw, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from agent_runtime import ImageInput
 
@@ -24,6 +25,8 @@ class ImageLimits:
     max_context_bytes: int = 16777216
     max_side: int = 8192
     max_pixels: int = 32000000
+    max_source_bytes: int = 33554432
+    max_source_pixels: int = 80000000
     max_animation_frames: int = 240
     animation_sample_frames: int = 4
 
@@ -61,9 +64,38 @@ class ImageStore:
             raise ValueError("无效图片路径")
         return path
 
-    def save(self, data, name="", *, projection=None):
-        if not data or len(data) > self.limits.max_image_bytes:
-            raise ValueError("图片为空或超过单张大小限制")
+    def _fit_image(self, image, *, max_bytes, jpeg=False):
+        """Fit pixels and encoded bytes without cropping or changing aspect ratio."""
+        image = ImageOps.exif_transpose(image)
+        image = image.convert("RGB" if jpeg else "RGBA" if "A" in image.getbands()
+                              or "transparency" in image.info else "RGB")
+        width, height = image.size
+        scale = min(1, self.limits.max_side / max(width, height),
+                    math.sqrt(self.limits.max_pixels / (width * height)))
+        size = (max(1, int(width * scale)), max(1, int(height * scale)))
+        while True:
+            resized = image.resize(size, Image.Resampling.LANCZOS) if size != image.size else image
+            buffer = BytesIO()
+            if jpeg:
+                resized.save(buffer, "JPEG", quality=90, optimize=True)
+            else:
+                resized.save(buffer, "PNG")
+            raw = buffer.getvalue()
+            if len(raw) <= max_bytes:
+                return raw
+            if size == (1, 1):
+                raise ValueError("图片缩小后仍无法满足大小限制")
+            scale *= min(.85, math.sqrt(max_bytes / len(raw)) * .95)
+            size = (max(1, int(width * scale)), max(1, int(height * scale)))
+
+    def save(self, data, name="", *, projection=None, max_bytes=None):
+        if not data or len(data) > self.limits.max_source_bytes:
+            raise ValueError("图片为空或超过原始文件大小限制")
+        max_bytes = min(self.limits.max_image_bytes, max_bytes if max_bytes is not None
+                        else self.limits.max_image_bytes)
+        if max_bytes < 1:
+            raise ValueError("图片大小预算已用尽")
+        source, original = None, data
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -73,16 +105,26 @@ class ImageStore:
                     frames = getattr(image, "n_frames", 1)
                     if not mime:
                         raise ValueError("仅支持 PNG、JPEG、WebP 和 GIF")
-                    if (
-                        max(width, height) > self.limits.max_side
-                        or width * height > self.limits.max_pixels
-                    ):
-                        raise ValueError("图片分辨率超过限制")
+                    if width * height > self.limits.max_source_pixels:
+                        raise ValueError("原始图片像素超过解码上限")
                     if frames > self.limits.max_animation_frames or (frames > 1 and width * height * frames > self.limits.max_pixels * 4):
                         raise ValueError("动态图片帧数或解码像素总量超过限制")
                     image.verify()
                 with Image.open(BytesIO(data)) as decoded:
                     decoded.load()
+                    if (len(data) > max_bytes or max(width, height) > self.limits.max_side
+                            or width * height > self.limits.max_pixels):
+                        source = {"width": width, "height": height, "bytes": len(data),
+                                  "mime": mime, "frames": frames,
+                                  "sha256": hashlib.sha256(data).hexdigest()}
+                        if frames > 1:
+                            sheet, projection = self._animation_sheet(decoded)
+                            data = self._fit_image(sheet, max_bytes=max_bytes)
+                        else:
+                            data = self._fit_image(decoded, max_bytes=max_bytes, jpeg=mime == "image/jpeg")
+                        with Image.open(BytesIO(data)) as prepared:
+                            width, height = prepared.size
+                            mime, frames = self.formats[prepared.format], 1
         except (
             UnidentifiedImageError,
             OSError,
@@ -105,8 +147,12 @@ class ImageStore:
         }
         if projection is not None:
             metadata["projection"] = copy.deepcopy(projection)
+        if source:
+            metadata["resized_from"] = source
         self.directory.mkdir(parents=True, exist_ok=True)
         self._path(image_id, ".image").write_bytes(data)
+        if source:
+            self._path(image_id, ".source").write_bytes(original)
         self._path(image_id, ".json").write_text(
             json.dumps(metadata, ensure_ascii=False)
         )
@@ -130,13 +176,19 @@ class ImageStore:
             raise ValueError("图片数量超过限制")
         if len(set(image_ids)) != len(image_ids):
             raise ValueError("同一图片不应重复附加")
-        result, size = [], 0
+        prepared, size = [], 0
         for image_id in image_ids:
             info, data = self.load(image_id)
+            model_info, data = self._model_image(info, data)
             size += len(data)
-            result.append(ImageInput("attachment://" + image_id, name=info["name"]))
-        if size > self.limits.max_total_bytes:
-            raise ValueError("本次图片总大小超过限制")
+            prepared.append((info, model_info, data))
+        result = []
+        for info, model_info, data in prepared:
+            if size > self.limits.max_total_bytes:
+                target = self.limits.max_total_bytes * len(data) // size
+                info = self.save(data, info["name"], projection={
+                    **model_info.get("projection", {}), "source_image_id": info["id"]}, max_bytes=target)
+            result.append(ImageInput("attachment://" + info["id"], name=info["name"]))
         return tuple(result)
 
     def _model_image(self, info, data):
@@ -147,19 +199,32 @@ class ImageStore:
         if info.get("frames") == 1:
             return info, data
         with Image.open(BytesIO(data)) as image:
-            count = getattr(image, "n_frames", 1)
-            if count == 1:
+            if getattr(image, "n_frames", 1) == 1:
                 return info, data
-            if count > self.limits.max_animation_frames or image.width * image.height * count > self.limits.max_pixels * 4:
-                raise ValueError("动态图片帧数或解码像素总量超过限制")
-            sample_count = min(count, self.limits.animation_sample_frames)
-            indices = [round(i * (count - 1) / (sample_count - 1)) for i in range(sample_count)] if sample_count > 1 else [0]
-            frames = []
-            for index in indices:
-                image.seek(index)
-                frame = image.convert("RGBA")
-                frame.thumbnail((768, 768), Image.Resampling.LANCZOS)
-                frames.append(frame)
+            sheet, projection = self._animation_sheet(image)
+        pixels = self._fit_image(sheet, max_bytes=self.limits.max_image_bytes)
+        saved = self.save(pixels, info["name"] + " · 动画帧", projection={
+            **projection, "source_image_id": info["id"],
+        })
+        self._model_images[info["id"]] = saved["id"]
+        return self.load(saved["id"])
+
+    def model_image(self, image_id):
+        """Return the exact prepared pixels used for model input and budgeting."""
+        return self._model_image(*self.load(image_id))
+
+    def _animation_sheet(self, image):
+        count = getattr(image, "n_frames", 1)
+        if count > self.limits.max_animation_frames or image.width * image.height * count > self.limits.max_pixels * 4:
+            raise ValueError("动态图片帧数或解码像素总量超过限制")
+        sample_count = min(count, self.limits.animation_sample_frames)
+        indices = [round(i * (count - 1) / (sample_count - 1)) for i in range(sample_count)] if sample_count > 1 else [0]
+        frames = []
+        for index in indices:
+            image.seek(index)
+            frame = image.convert("RGBA")
+            frame.thumbnail((768, 768), Image.Resampling.LANCZOS)
+            frames.append(frame)
         columns = min(2, len(frames))
         rows = (len(frames) + columns - 1) // columns
         width, height = max(frame.width for frame in frames), max(frame.height for frame in frames)
@@ -169,23 +234,10 @@ class ImageStore:
             x, y = 12 + position % columns * (width + 12), 12 + position // columns * (height + 36)
             draw.text((x, y), f"{position + 1}: frame {index + 1}/{count}", fill="#64748b")
             sheet.paste(frame, (x + (width - frame.width) // 2, y + 24), frame)
-        side = min(self.limits.max_side, int(self.limits.max_pixels ** .5))
-        sheet.thumbnail((side, side), Image.Resampling.LANCZOS)
-        while True:
-            buffer = BytesIO()
-            sheet.save(buffer, "PNG")
-            pixels = buffer.getvalue()
-            if len(pixels) <= self.limits.max_image_bytes:
-                break
-            if sheet.width == 1 and sheet.height == 1:
-                raise ValueError("动画帧拼图超过图片大小限制")
-            sheet = sheet.resize((max(1, sheet.width // 2), max(1, sheet.height // 2)), Image.Resampling.LANCZOS)
-        saved = self.save(pixels, info["name"] + " · 动画帧", projection={
-            "source_image_id":info["id"], "source_frames":count, "sampled_frames":indices,
+        return sheet, {
+            "source_frames":count, "sampled_frames":indices,
             "layout":"chronological_contact_sheet", "background":"white",
-        })
-        self._model_images[info["id"]] = saved["id"]
-        return self.load(saved["id"])
+        }
 
     def model_messages(self, messages):
         """Prioritize the newest images; retain explicit notices for omitted history."""
@@ -257,7 +309,7 @@ class ImageStore:
                 self._wire_references[hashlib.sha256(data_url.encode()).digest()] = (
                     "attachment://" + info["id"]
                 )
-                if info.get("projection"):
+                if "sampled_frames" in info.get("projection", {}):
                     projection = info["projection"]
                     indices = "、".join(str(index + 1) for index in projection["sampled_frames"])
                     content.insert(index, {"type":"text", "text":

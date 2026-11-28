@@ -62,7 +62,7 @@ QQ原生媒体保留平台的 `file_size`，并参与附件键计算。只有可
 ### 其他功能
 
 - 真实 DeepSeek 流式正文及接口返回的 `reasoning_content`。主执行阶段按渠道 thinking 配置支持自动工具调用中的推理，已有推理内容完整回传；旧无思考历史补空字段，只有强制或指定工具选择按 DeepSeek 协议关闭 thinking。回复表达阶段沿用渠道配置进行选句和编辑，不重新调查、计算或调用工具，界面不伪造思考过程。
-- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张、单张 4 MiB、合计 8 MiB。带当前或历史图片时优先使用共享 `VisionAPI`，未配置时使用 `LocalAgent.llm.vision_model`；同一 ReAct 循环继续调用工具并支持图片追问。
+- 网页支持选择、粘贴、拖入 PNG/JPEG/WebP/GIF，发送前可预览、移除；可以只发图片，也可同时发送文字。默认最多 4 张，处理后单张 4 MiB、合计 8 MiB；超限图片等比例缩小后读取。带当前或历史图片时优先使用共享 `VisionAPI`，未配置时使用 `LocalAgent.llm.vision_model`；同一 ReAct 循环继续调用工具并支持图片追问。
 - 按需披露工具，动态聊天/王者 SQL、BM25/RRF 群聊检索、联网搜索、长期记忆、图表和图片生成。联网搜索调用 [DeepSeek Search API](https://api-docs.deepseek.com/zh-cn/guides/search/)，worker 启动时仅通过 private 设置传递独立搜索密钥（默认服务器 `HOK_DEEPSEEK_API_KEY`），不使用本地 ZenMux 密钥。QQ/Web 主机通过 `integrations/deepseek_web.py` 独立异步请求，最多两个 HTTP 请求同时进行，不占用串行业务 RPC；取消中止对应请求，关闭连接清理在途及排队搜索。配置与凭据不变的 worker 重连不取消搜索，空结果与 HTTP 失败明确区分。旧阿里云实现及配置保留，聊天不再调用或回退。
 - `web_search(query, max_results=5, result_type="summary")` 查询最多128字符、最多10条结果。模型可选择 `snippet`、`summary` 或 `content`，默认每条分别最多400、1200、6000字符；仅 `content` 请求正文。结果标明实际摘录类型和截断状态，保留来源、发布时间及接口提供的来源评分；摘要模式不因返回中意外含正文而扩大输出。`DeepSeekSearch` 可配置 `snippet_chars` / `summary_chars` / `content_chars`，各项及总上限 `max_result_chars` 均不超过6000，取较小值；`timeout_seconds` 默认30、最高40秒。原同步入口复用同一协议及投影，省略类型时兼容 `result_type` / `need_content` 配置。官方接口没有摘要字符数参数，上述限制由适配层执行。
 - 工具失败的 observation 附带 `data.error_details`：失败环节、异常类型、底层原因、有限定位与修复建议。SQL逐查询给出错误码/位置/提示，保留其他成功结果；Python沙箱给出退出码和有限stderr，网站错误保留HTTP状态。模型据此修正参数或改用其他来源。错误先脱敏后截断，不记录headers、局部变量或凭据；超时/断连写操作仍禁止自动重放。QQ、角色工具和后续注册的外部函数共用外部诊断注册表，内核协议不变。
@@ -117,9 +117,9 @@ QQ原生媒体保留平台的 `file_size`，并参与附件键计算。只有可
 
 服务只监听本机 loopback；请求校验 Host、Origin、本地会话 cookie 和写请求头。SSH 密钥、模型 key、DSN 不进入浏览器或新文件。运行记录保留完整输入和工具资料，因此本界面作为受信任的本地管理员控制台使用。
 
-原始输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表或修改原图。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用图片，刷新、重启后仍可预览与继续追问。静态图片发送原始像素的 data URL；动画按帧序抽样为最多 4 帧的 PNG 拼图并注明帧号，原 GIF/动态 WebP/APNG 仍保留。拼图单独保存，元数据记录来源和抽样索引；实际模型请求快照引用真正发送的 PNG，默认限制源动画 240 帧及累计解码像素，配置在 `LocalAgent.images`。包含图片的实际请求快照会显式标注 `image_payload_storage`，`GET /api/images/{id}` 可还原对应原图或模型拼图的确切字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。
+输入图片与校验元数据存于被 Git 忽略的 `file_transfer/agent_inputs/`，不会覆盖生成图表或修改原图。Redis 会话、运行记录和 SSE 用 `attachment://<id>` 引用图片，刷新、重启后仍可预览与继续追问。合规静态图片按原文件发送；超限图片等比例缩小，压缩前原件保存为同编号 `.source`，`resized_from` 记录原尺寸、格式、帧数、字节数与摘要。模型与轨迹使用处理后的确切字节；动画按帧序抽样为最多 4 帧的 PNG 拼图并注明帧号，原 GIF/动态 WebP/APNG 仍保留，超限原件存入 `.source`。拼图单独保存，元数据记录来源和抽样索引；实际模型请求快照引用真正发送的 PNG，默认限制源动画 240 帧及累计解码像素，配置在 `LocalAgent.images`。包含图片的实际请求快照会显式标注 `image_payload_storage`，`GET /api/images/{id}` 可还原对应原图或模型拼图的确切字节；轨迹中不反复嵌入 base64。需要保留图片会话时应一起保留此本地目录，文件被删除时会明确报错。
 
-上传按实际内容检测格式、完整解码并校验文件大小、尺寸和像素数，API 同样执行数量与总大小限制。限制统一在 `LocalAgent.images`。默认每次模型调用最多读取 16 MiB 图片，优先保留当前及较新的图片，较早且超预算的图片替换为明确的缺失提示，`vision_context.omitted_history_images` 记录数量；不会把未提供的像素当作已看过。图片 token 包含在模型返回的输入 token 中，不另外估算叠加。
+上传和 QQ 下载先按原文件预算接收，再按内容检测格式、解码并等比例缩放。`max_source_bytes` 默认32 MiB、`max_source_pixels` 默认8000万；模型单图仍按 `max_image_bytes`（4 MiB）、`max_side`（8192）与 `max_pixels`（3200万）处理。多图超过 `max_total_bytes`（8 MiB）时按各图处理后字节占比分配预算并继续缩小，历史原件不被覆盖；近期群图片工具也按处理后字节记账。JPEG重新编码为JPEG，其他静态图使用PNG并保留透明通道；动图维持原抽帧规则。QQ和Web入口在线程中解码和缩放，前端不再用原图大小套用模型预算。限制统一在 `QQAgent.images` / `LocalAgent.images`。默认每次模型调用最多读取 16 MiB 图片，优先保留当前及较新的图片，较早且超预算的图片替换为明确的缺失提示，`vision_context.omitted_history_images` 记录数量；不会把未提供的像素当作已看过。图片 token 包含在模型返回的输入 token 中，不另外估算叠加。
 
 外部适配器分别维护业务连接和状态连接：数据库/搜索/图片/沙箱走业务连接，对话、运行事件、记忆和任务走状态连接，避免慢业务调用阻塞定时通知。事件通过通用 `metadata` 标记后台来源；后台通知不覆盖正在输入或执行的前台聊天状态。
 

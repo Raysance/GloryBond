@@ -22,6 +22,26 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Resize oversized images before model input — 2026-11-28
+
+QQ current/quoted/recent images and local Web uploads share proportional image
+resizing. Source acceptance limits are separate from model input limits: defaults
+allow 32 MiB and 80 million source pixels, then fit each image within 4 MiB,
+8192 pixels per side and 32 million pixels. Batches exceeding 8 MiB receive
+proportional byte budgets and are resized again. Model context and tool-image
+budgets count the actual prepared bytes.
+
+Valid smaller files remain byte-identical. Resized originals are kept privately
+with source metadata, while traces refer to the exact processed pixels. Alpha
+channels and aspect ratios are retained; animations keep ordered frame sampling
+and explicit coverage. Upload/download checks admit larger sources, and image
+decoding and resizing run outside the async event loop.
+
+Validation passed 126 Python checks and ten image UI checks. A synthetic
+3200×1800 PNG (17.3 MB) was resized to 1496×841 (3.51 MB) in 1.2 seconds
+with its original retained. Coverage includes byte/pixel/batch budgets, alpha,
+JPEG orientation, animation frame metadata, reloads and QQ/Web/tool inputs.
+
 ## Reduce Camp request spacing to one second — 2026-11-28
 
 Camp SDK 0.10.1 spaces HTTP request starts at least one second apart within

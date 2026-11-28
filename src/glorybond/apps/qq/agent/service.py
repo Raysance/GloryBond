@@ -305,7 +305,7 @@ class QQAgentService:
                 raw = await self.download_qq_image(client, source)
                 saved = await asyncio.to_thread(self.image_store.save, raw, "QQ图片")
                 ids.append(saved["id"])
-        return self.image_store.inputs(ids)
+        return await asyncio.to_thread(self.image_store.inputs, ids)
 
     async def download_qq_image(self, client, source):
         domains = self.config.get("image_hosts", ["qq.com", "qq.com.cn", "qpic.cn"])
@@ -319,8 +319,8 @@ class QQAgentService:
             response.raise_for_status()
             async for chunk in response.aiter_bytes():
                 raw.extend(chunk)
-                if len(raw) > self.image_store.limits.max_image_bytes:
-                    raise ValueError("图片超过大小上限")
+                if len(raw) > self.image_store.limits.max_source_bytes:
+                    raise ValueError("图片超过原始文件大小上限")
         return bytes(raw)
 
     async def load_history_image(self, url, ctx):
@@ -344,16 +344,20 @@ class QQAgentService:
                 for part in ctx.request.metadata.get("chat_context", {}).get("current", ()):
                     if isinstance(part, dict) and part.get("type") == "image_url":
                         sources.add(part["image_url"]["url"])
-                size = sum(self.image_store.load(source.removeprefix("attachment://"))[0]["bytes"]
+                size = sum(self.image_store.model_image(source.removeprefix("attachment://"))[0]["bytes"]
                            for source in sources if source.startswith("attachment://"))
                 budget = {"count": len(sources), "bytes": size}
                 ctx.resources["qq_profile_image_budget"] = budget
             limits = self.image_store.limits
-            if budget["count"] >= limits.max_images or budget["bytes"] + len(raw) > limits.max_total_bytes:
+            remaining = limits.max_total_bytes - budget["bytes"]
+            if budget["count"] >= limits.max_images or remaining <= 0:
                 raise ValueError("本轮输入图片数量或总大小预算已用尽，保留文字资料")
-            saved = self.image_store.save(raw, name)
+            saved = self.image_store.save(raw, name, max_bytes=remaining)
+            saved, pixels = self.image_store.model_image(saved["id"])
+            if len(pixels) > remaining:
+                saved = self.image_store.save(pixels, name, projection=saved.get("projection"), max_bytes=remaining)
             budget["count"] += 1
-            budget["bytes"] += len(raw)
+            budget["bytes"] += saved["bytes"]
             return saved
         async with ctx.resources.setdefault("qq_tool_image_lock", asyncio.Lock()):
             return await asyncio.to_thread(save)

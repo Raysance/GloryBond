@@ -907,6 +907,23 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         wire, _ = self.gateway.image_store.model_messages([{"role": "user", "content": [images[0].content_part()]}])
         self.assertTrue(wire[0]["content"][0]["image_url"]["url"].startswith("data:image/png;base64,"))
 
+    async def test_large_qq_and_tool_images_use_processed_byte_budget(self):
+        from glorybond.agent.image_inputs import ImageLimits, ImageStore
+        from tests.test_agent_images import noisy_png
+        from types import SimpleNamespace
+        self.gateway.image_store = ImageStore(self.gateway.image_store.directory, ImageLimits(max_image_bytes=1500))
+        raw = noisy_png()
+        real_client = httpx.AsyncClient
+        with patch('glorybond.apps.qq.agent.service.httpx.AsyncClient', side_effect=lambda **kw: real_client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, content=raw)), **kw)):
+            images = await self.gateway.input_images(['https://gchat.qpic.cn/large'])
+        info, pixels = self.gateway.image_store.load(images[0].url.removeprefix('attachment://'))
+        self.assertLessEqual(len(pixels), 1500)
+        self.assertEqual(info['resized_from']['bytes'], len(raw))
+        ctx = SimpleNamespace(resources={}, request=SimpleNamespace(images=images, context_messages=[], metadata={}))
+        tool_image = await self.gateway.store_tool_image(raw, 'tool', ctx)
+        self.assertEqual(ctx.resources['qq_profile_image_budget']['bytes'], len(pixels) + tool_image['bytes'])
+
     async def test_forwarded_quote_reaches_native_context_without_following_children_or_saving_history(self):
         from types import SimpleNamespace
         from tools.debugger import import_project_module

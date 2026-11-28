@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const staticRoot = path.join(__dirname, "../agent_console/static");
+const staticRoot = path.join(__dirname, "../src/glorybond/apps/console/static");
 
 function setup({ uploadError = false, chatError = false } = {}) {
   class Element {
@@ -168,6 +168,19 @@ test("image limits apply before upload and unfinished uploads block sending", as
   ui.evaluate("state.uploading=1");
   await ui.evaluate("send()");
   assert.equal(ui.requests.length, 1);
+});
+
+test("large images reach server resizing and total budget is applied after processing", async () => {
+  const ui = setup();
+  ui.file.size = 5 * 1048576;
+  await ui.evaluate("uploadImages([file,file])");
+  assert.equal(ui.requests.length, 2);
+  assert.equal(ui.evaluate("state.attachments.length"), 2);
+  assert.equal(ui.evaluate("state.attachments[0].bytes"), 20);
+  ui.file.size = 33 * 1048576;
+  await ui.evaluate("uploadImages([file])");
+  assert.equal(ui.requests.length, 2);
+  assert.match(ui.ids.get("error-banner").textContent, /原始图片/);
 });
 
 test("persisted image events rebuild thumbnails and preserve event deduplication", () => {
