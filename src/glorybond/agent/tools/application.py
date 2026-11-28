@@ -140,7 +140,7 @@ class ReferenceArgs(Args):
     )
     namespace: str | None = Field(
         default=None,
-        description="查询 ID 时指定目录声明的命名空间，例如 qq、player_key、hero_id",
+        description="仅输入已经知道的 ID 时指定，例如 qq、player_key、hero_id；查询昵称或别名必须省略。此参数限制匹配字段，不指定返回 ID 的类型。",
     )
     match: str = Field(default="exact", pattern="^(exact|contains)$")
     offset: int = Field(default=0, ge=0)

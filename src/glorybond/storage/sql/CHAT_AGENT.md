@@ -17,6 +17,8 @@ QQ 与本地网页使用 `vendor/react-agent-runtime` 的同一个内核。工�
 4. worker 先整批 AST 校验，再在独立只读账号/事务中执行。整批任一项无效时不访问
    数据库。每项保留状态、截断说明和 dataset_id；游戏查询只允许目录语义视图。
 
+游戏目录允许跨白名单语义关系的 JOIN/EXISTS。优先直接使用已有字段；同一玩家同局关联使用(player_key,game_seq)，一对多先聚合或 EXISTS，避免重复统计；未知胜负不计入胜率分母。所有关系在聚合前使用同一 scope。底蕴和聊天目录的单关系约束不变。参考数据 namespace 仅限制输入 ID 字段，查询昵称/别名须省略。
+
 SQL 白名单按 sqlglot 规范名称校验，包括 PostgreSQL `BOOL_AND/BOOL_OR` 和数组
 `@>`、`<@`、`&&`。命名参数写为未加引号的 `:name` 或 `%(name)s`，值放在
 `params` 中；缺失、多余、位置参数及非 JSON 标量均拒绝，不改写含义不明确的 SQL。

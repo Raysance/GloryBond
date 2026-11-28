@@ -284,7 +284,8 @@ class ReferenceData:
             "next_offset": offset + limit if offset + limit < len(matches) else None,
             "unmatched_terms": [term for term in terms if term not in matched_terms],
             "term_resolution": resolutions,
-            "notice": "unmatched表示配置未确认该称呼，不能按首字母、谐音或旧助手说法补全身份；"
+            "notice": ("本次仅在指定 ID 字段匹配；昵称/别名不参与匹配，查名称应省略 namespace。" if namespace else "")
+                      + "unmatched表示在本次匹配范围内未找到，不能按首字母、谐音或旧助手说法补全身份；"
                       "candidate是包含匹配线索，ambiguous保留歧义。必要时用当前原生提及或用户澄清确认，不反复改写相同查询。",
             "field_usage": {
                 name: self.catalogs[name]["spec"].get("field_usage", {})

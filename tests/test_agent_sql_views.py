@@ -16,6 +16,43 @@ DEFINITIONS = json.loads((Path(__file__).parents[1] / 'resources/agent/hok_sql/v
 
 
 class SemanticCompilerTests(unittest.TestCase):
+    def test_cross_relation_team_counts_apply_scope_before_aggregation(self):
+        from glorybond.agent.tools import sql_validation as validation
+        validate_readonly_sql = validation.validate_readonly_sql
+        root = Path(__file__).parents[1]
+        catalog = json.loads((root / 'resources/agent/hok_sql/catalog.json').read_text())
+        db = sqlite3.connect(':memory:'); self.addCleanup(db.close)
+        db.execute("ATTACH DATABASE ':memory:' AS hok")
+        db.execute('CREATE TABLE hok.battles (player_key TEXT, game_seq INTEGER, result TEXT, is_official BOOLEAN, game_time_epoch INTEGER)')
+        db.execute('CREATE TABLE hok.roster (player_key TEXT, game_seq INTEGER, relation TEXT, participant_player_key TEXT, is_official BOOLEAN, game_time_epoch INTEGER)')
+        for seq, result, official in [(1, '胜利', True), (2, '失败', True), (3, None, True), (4, '胜利', False)]:
+            for player in ('anchor', 'another'):
+                db.execute('INSERT INTO hok.battles VALUES (?,?,?,?,?)', (player, seq, result, official, seq))
+                for member in (['member1'] if seq == 2 else ['member1', 'member2']):
+                    db.execute('INSERT INTO hok.roster VALUES (?,?,?,?,?,?)',
+                               (player, seq, 'teammate', member, official, seq))
+        sql = """WITH teams AS (
+          SELECT player_key, game_seq, COUNT(DISTINCT participant_player_key) AS overlap
+          FROM hok.chat_player_battle_roster
+          WHERE relation='teammate' AND participant_player_key IN ('member1','member2')
+          GROUP BY player_key,game_seq
+        ) SELECT t.overlap, COUNT(*) AS total_games,
+          COUNT(*) FILTER (WHERE b.result IN ('胜利','失败')) AS known_games,
+          COUNT(*) FILTER (WHERE b.result='胜利') AS wins
+          FROM hok.chat_player_battles b JOIN teams t
+          ON t.player_key=b.player_key AND t.game_seq=b.game_seq
+          WHERE b.player_key='anchor' GROUP BY t.overlap ORDER BY t.overlap"""
+        normalized = validate_readonly_sql(sql, allowed_tables=catalog['tables'], schema_name='hok',
+            one_relation_per_query=catalog['query_contract']['one_relation_per_query'])
+        definitions = {'chat_player_battles': 'SELECT * FROM hok.battles',
+                       'chat_player_battle_roster': 'SELECT * FROM hok.roster'}
+        with patch.dict(worker.CONTEXT, {'definitions': definitions, 'catalogs': {'hok_sql': catalog},
+                                        'validation': validation.__dict__}, clear=True):
+            expanded = worker.expand_semantic_views(normalized, {'mode': 'official', 'time_basis': 'calendar',
+                'start_at': None, 'end_at': None, 'as_of': None})
+        self.assertEqual(db.execute(parse_one(expanded, read='postgres').sql(dialect='sqlite')).fetchall(),
+                         [(1, 1, 1, 0), (2, 2, 1, 1)])
+
     def test_fact_pushdown_preserves_results_and_all_consumers(self):
         db = sqlite3.connect(':memory:')
         self.addCleanup(db.close)

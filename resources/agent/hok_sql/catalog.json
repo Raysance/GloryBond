@@ -151,8 +151,8 @@
     }
   },
   "query_contract": {
-    "one_relation_per_query": true,
-    "rule": "每条查询只选择一个语义关系；需要多类数据时在同一次analyze调用中提交多条查询。",
+    "one_relation_per_query": false,
+    "rule": "可关联目录中已授权的语义关系；优先复用已包含所需字段的单一关系。关联前确认行粒度，同一玩家同一局按(player_key,game_seq)关联，一对多关系先聚合或用EXISTS筛选，避免放大场次与胜负。多条独立查询可在同一次analyze中提交。",
     "scope": {
       "applies_to": [
         "chat_player_battles",
@@ -171,7 +171,7 @@
   },
   "semantics": [
     "SQL 方言PostgreSQL。仅单条SELECT或非递归WITH ... SELECT，可JOIN、聚合、窗口和JSON。必须显式列名，COUNT(*)可用。模型无权访问采集层战绩表、身份ID、文件路径、系统目录或导入清单。",
-    "先按所需粒度选择语义视图：玩家每局用chat_player_battles，玩家本人装备用chat_player_equipment，以玩家为视角的阵容关系用chat_player_battle_roster。每条查询只使用一个语义关系；多类数据在同一次analyze调用中拆成多条查询，不得跨视图重建已有关系。",
+    "先按所需粒度选择语义视图：玩家每局用chat_player_battles，玩家本人装备用chat_player_equipment，以玩家为视角的阵容关系用chat_player_battle_roster。单个关系已有所需字段时直接查询；确需跨关系时可JOIN或EXISTS，先处理一对多粒度，不能把阵容或装备行数当比赛数。",
     "chat_player_battles已按(player_key,game_seq)选择最新快照并精确绑定该玩家本人的参赛者数据，一行就是一名已记录玩家的一局，无需DISTINCT去重。game_seq缺失的采集行不进入模型语义层。玩家场次用COUNT(*)，全局物理比赛数用COUNT(DISTINCT game_seq)。",
     "额外成员来自extra_useridlist、extra_roleidlist、extra_namenick，与主成员一样使用参考目录的player_key。SQL在可信侧按游戏角色ID和营地ID映射，不按昵称、QQ或sameuser拼接游戏账号。ID冲突时不猜测。",
     "record_source=battle_record表示本人归档战绩；battle_participant表示从其他已收录玩家同局详情补出的本人视角。补出的英雄、KDA、评分、MVP和装备均属于该成员本人；仅复用同局时间、模式和时长，胜负按已知阵营转换，段位/巅峰分变化保留NULL。每个账号每局仍只有一行，已有本人战绩优先。",
@@ -224,7 +224,8 @@
       "battle_mode": "未指定模式时，主统计仅含正式5v5排位、巅峰、战队，排除1v1/2v2/3v3；其他模式若作对照须分开标注。",
       "answer_source": "最终排名必须取符合用户时间与模式要求的主查询；不能把用于诊断的更宽范围查询冒充主查询。"
     },
-    "query_shape": "先按结果粒度选择一个主语义视图，再在单条SQL中完成时间过滤和最终聚合。不要跨语义视图重建已有的玩家、装备或阵容关系，不要访问系统目录。"
+    "query_shape": "优先使用包含所需字段的主语义视图。允许关联白名单语义关系，关联键须符合对象与行粒度；同一玩家同局用(player_key,game_seq)，对局筛选可用EXISTS或先按比赛聚合。相关数据遵守同一scope，禁止系统目录及原始存储。",
+    "cooccurrence": "按用户给出的成员、英雄或其他条件定义同现集合。完全相同与部分重合是不同口径；相似条件未明确时返回可解释的重合数量分组，不把完全相同的空集合当作不存在相似记录。先按(player_key,game_seq)聚合再统计场次、已知胜负和覆盖时间；未知胜负不计入胜率分母。"
   },
   "column_usage": {
     "chat_player_battles.game_time_label": {

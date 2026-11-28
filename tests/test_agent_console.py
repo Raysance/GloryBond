@@ -29,6 +29,7 @@ class SQLTests(unittest.TestCase):
             allowed_tables=self.catalog["tables"],
             column_usage=self.catalog["column_usage"],
             schema_name=self.catalog["schema"],
+            one_relation_per_query=self.catalog["query_contract"]["one_relation_per_query"],
         )
 
     def test_raw_storage_write_and_scope_mutation_are_rejected(self):
@@ -47,6 +48,19 @@ class SQLTests(unittest.TestCase):
             {"player": "x'; DELETE FROM hok.battle_records; --"},
         )
         self.assertIn("x''; DELETE", result)
+
+    def test_joined_public_relations_keep_column_and_storage_validation(self):
+        sql = ("SELECT b.player_key, b.game_seq, b.result FROM hok.chat_player_battles b "
+               "WHERE EXISTS (SELECT 1 FROM hok.chat_player_battle_roster r "
+               "WHERE r.player_key=b.player_key AND r.game_seq=b.game_seq AND r.relation='teammate')")
+        self.assertIn('EXISTS', self.validate(sql))
+        for invalid in (sql.replace('r.game_seq=b.game_seq', 'r.private_id=b.game_seq'),
+                        sql.replace('hok.chat_player_battle_roster', 'hok.battle_participants')):
+            with self.assertRaises(ChatSQLValidationError):
+                self.validate(invalid)
+        with self.assertRaises(ChatSQLValidationError):
+            validate_readonly_sql(sql, allowed_tables=self.catalog['tables'], schema_name='hok',
+                                  one_relation_per_query=True)
 
     def test_postgres_string_aggregation_uses_parser_canonical_function_name(self):
         result = self.validate("SELECT game_seq, STRING_AGG(player_key, ',' ORDER BY player_key) AS players "

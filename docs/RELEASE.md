@@ -22,6 +22,21 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Allow authorized game relation joins — 2026-11-29
+
+The game SQL catalogue permits joins between its public semantic relations,
+removing the blanket single-relation rejection while preserving AST column and
+function validation, parameter binding, shared scope and read-only execution.
+Other SQL domains keep their catalogue restrictions. Guidance distinguishes
+row grain, exact and partial co-occurrence, and known-result denominators.
+Reference lookups now explicitly distinguish input ID namespaces from name
+matching, and an ID-only miss no longer claims that a nickname is unregistered.
+
+Regression checks execute joined team aggregates with multiple perspectives,
+unknown outcomes and excluded modes, and reject private tables and unknown
+columns. The previously rejected query shape completed in 4.2 seconds against
+the production archive through its existing read-only account.
+
 ## Resize oversized images before model input — 2026-11-28
 
 QQ current/quoted/recent images and local Web uploads share proportional image

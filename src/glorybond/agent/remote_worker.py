@@ -498,6 +498,7 @@ def analyze(args):
                 column_usage=column_usage,
                 schema_name=catalog["schema"],
                 json_root_owners=owners,
+                one_relation_per_query=catalog.get("query_contract", {}).get("one_relation_per_query", True),
             )
         )
     scope = trusted_scope(args["principal"], args.get("group_id")) if domain == "chat" else None

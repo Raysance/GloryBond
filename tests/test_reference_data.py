@@ -58,6 +58,14 @@ class ReferenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.references.lookup(catalogs=["heroes"], namespace="qq")
 
+    def test_name_lookup_explains_id_only_scope_and_preserves_ambiguity(self):
+        result = self.references.lookup(catalogs=['players'], terms=['KK'], namespace='player_key')
+        self.assertEqual(result['matches'], [])
+        self.assertIn('省略 namespace', result['notice'])
+        corrected = self.references.lookup(catalogs=['players'], terms=['KK'])
+        self.assertEqual(corrected['term_resolution'][0]['status'], 'ambiguous')
+        self.assertEqual(corrected['total_matches'], 3)
+
     def test_game_bindings_include_extra_accounts_without_borrowing_related_ids(self):
         data = values()
         data['extra_roleidlist'] = {'extra': 30002}

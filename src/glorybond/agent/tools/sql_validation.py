@@ -184,6 +184,7 @@ def validate_readonly_sql(
     schema_tool_name="discover_tools",
     schema_name=None,
     json_root_owners=None,
+    one_relation_per_query=True,
 ):
     """Return canonical SQL after validating one bounded analytical read.
 
@@ -499,7 +500,7 @@ def validate_readonly_sql(
     except SqlglotError as exc:
         raise ChatSQLValidationError("SQL来源解析失败") from exc
 
-    if len(physical_relations) > 1:
+    if one_relation_per_query and len(physical_relations) > 1:
         raise ChatSQLValidationError(
             "每条查询只能使用一个模型语义关系；当前混用了："
             + ", ".join(sorted(physical_relations))
