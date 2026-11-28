@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -291,6 +292,7 @@ class DeepSeekModel:
             "finish_reason": finish,
             "model": response_model or selected_model,
             "runtime_metadata": metadata,
+            "provider_host": urlsplit(self.base_url).hostname,
             "request_payload": payload,
             "response_payload": {"stream": True, "frames": frames},
         }

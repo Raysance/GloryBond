@@ -199,6 +199,8 @@ def create_app(*, config_path=None):
                 redactor=bridge.redact,
             )
             app.state.local_log = local_log
+            from glorybond.agent.tools.run_history import register_run_history_tool
+            register_run_history_tool(registry, log=local_log)
             state = RemoteState(
                 state_bridge, event_projector=image_store.project_event, local_log=local_log
             )

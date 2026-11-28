@@ -14,6 +14,36 @@ with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda 
 
 
 class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_run_receipts_bind_real_direct_and_forward_message_ids(self):
+        bot = SimpleNamespace(self_id="33", send_group_msg=AsyncMock(return_value={"message_id": 55}),
+                              send_private_forward_msg=AsyncMock(return_value={"message_id": 66}))
+        metadata = {"source": "agent", "origin_run_id": "old", "origin_session_id": "qq_g_22_11"}
+        with patch("glorybond.storage.agent_run_receipts.record_receipt") as save, \
+             patch.object(SENDER, "_automation_before_send", side_effect=lambda payload: payload), \
+             patch.object(SENDER, "_automation_sent", new=AsyncMock()):
+            await SENDER._send_queued_message(bot, {"type": "group", "toid": "22", "content": "answer",
+                                                    "automation_metadata": metadata})
+            self.assertEqual(save.call_args.kwargs, {"bot_id": "33", "channel": "group", "recipient_id": "22",
+                "message_id": 55, "run_id": "old", "session_id": "qq_g_22_11"})
+            await SENDER._handle_forward_msg(bot, {"type": "private", "toid": "11", "messages": [],
+                                                  "automation_metadata": metadata})
+            self.assertEqual(save.call_args.kwargs["message_id"], 66)
+            self.assertEqual(save.call_args.kwargs["channel"], "private")
+
+    async def test_missing_receipt_and_index_failure_never_replay_sent_message(self):
+        metadata = {"source": "agent", "origin_run_id": "old", "origin_session_id": "qq_p_11"}
+        payload = {"type": "private", "toid": "11", "content": "answer", "automation_metadata": metadata}
+        bot = SimpleNamespace(self_id="33", send_private_msg=AsyncMock(return_value={"message_id": 55}))
+        with patch("glorybond.storage.agent_run_receipts.record_receipt", side_effect=OSError("offline")) as save, \
+             patch.object(SENDER, "_automation_before_send", side_effect=lambda value: value), \
+             patch.object(SENDER, "_automation_sent", new=AsyncMock()), patch.object(SENDER, "log_message"):
+            await SENDER._record_agent_run_receipt(bot, payload, {})
+            save.assert_not_called()
+            result = await SENDER._send_queued_message(bot, payload)
+            self.assertEqual(result["message_id"], 55)
+            bot.send_private_msg.assert_awaited_once()
+            save.assert_called_once()
+
     def test_video_only_subscription_retains_title_for_content_rules(self):
         payload = {"type": "group", "toid": 123, "content": "[CQ:video,file=file:///tmp/video.mp4]",
                    "delivery_id_internal": "test", "automation_metadata": {

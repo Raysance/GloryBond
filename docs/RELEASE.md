@@ -22,6 +22,30 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Inspect previous runs through confirmed reply references — 2026-11-29
+
+The discovered `run_history/read_run_history` tool returns previous run metadata,
+model/tool timings, reported token usage and separately labelled cost estimates.
+QQ reply quotes resolve through confirmed delivery receipts for both detailed
+forwards and brief messages. Associations are bound to bot, channel and recipient,
+expire after seven days without renewal, and never fall back to text similarity.
+Explicit run IDs and the current caller's recent session runs remain available
+while local journals exist. Group/private/console scope is checked against the
+stored trusted input; private prompts and raw tool payloads are not returned.
+
+Parallel tool work and batch wall time are separate. Image/media model usage and
+new ASR seconds are included without charging cached work again. Prices use dated
+official snapshots, retain currency and uncertainty, and do not claim to be an
+account billing ledger. Unsupported providers and missing billable quantities
+remain unknown. New model responses record the provider hostname for attribution.
+The tool has the ordinary discovery contract without a new global prompt rule.
+
+Validation covers runtime discovery and quoted-reply lookup, group/private/bot
+and console isolation, confirmed direct/forward receipts, missing associations,
+overlapping tool durations, nested media usage, cache hits, incomplete journals,
+currency separation and bounded reads. Related QQ delivery, image/media, logging,
+runtime and model-metadata regressions also pass.
+
 ## Read images through an ordinary tool — 2026-11-29
 
 QQ and local Web keep their configured text model for reasoning, tool selection

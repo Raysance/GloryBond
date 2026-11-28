@@ -331,6 +331,7 @@ class MediaReader:
         if not isinstance(response.get("message", {}).get("content"), str) or not response["message"]["content"].strip():
             raise ValueError("音视频分析未返回正文")
         answer = {"analysis": response["message"]["content"], "model": response.get("model", "deepseek-flash"),
+                  "provider_host": response.get("provider_host"),
                   "duration_seconds": prepared["duration_seconds"], "frame_count": len(prepared["frames"]),
                   "frame_interval_seconds": prepared["frame_interval_seconds"],
                   "audio_duration_seconds": prepared["audio_duration_seconds"], "audio_segments": len(transcripts),

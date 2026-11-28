@@ -1416,11 +1416,19 @@
         "远程",
         "本地"
       ],
-      "tools": [],
+      "tools": ["read_run_history"],
       "code": [
         {
           "path": "src/glorybond/agent/local_logs.py",
           "symbol": "LocalEventLog"
+        },
+        {
+          "path": "src/glorybond/agent/run_history.py",
+          "symbol": "RunHistory"
+        },
+        {
+          "path": "src/glorybond/agent/tools/run_history.py",
+          "symbol": "register_run_history_tool"
         },
         {
           "path": "src/glorybond/apps/qq/message_sender.py",
@@ -1428,7 +1436,7 @@
         }
       ],
       "parent": "support",
-      "summary": "详细转发首条保留用户原话、末条复用本轮chat-trace链接，任何人持有效链接均可匿名打开；另发简略版，管理员可在控制台检索轨迹。"
+      "summary": "查看详细回复与轨迹；引用机器人回复可按真实回执查询对应运行的metadata、工具链、耗时、token和费用。"
     },
     {
       "id": "logs_1",

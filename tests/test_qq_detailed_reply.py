@@ -142,6 +142,8 @@ class DetailedReplyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(payload["messages"][-1]["data"]["content"][0]["data"]["text"],
                              "思考轨迹：https://hok.example.com/chat-trace?key=" + run)
             self.assertEqual(payload["reply_direct"]["content"], "简版" + run)
+            self.assertEqual(payload["automation_metadata"]["origin_run_id"], run)
+            self.assertEqual(payload["automation_metadata"]["origin_session_id"], "qq_p_" + run)
 
     async def test_failed_runs_forward_error_between_original_question_and_trace_in_both_channels(self):
         for channel in ("group", "private"):

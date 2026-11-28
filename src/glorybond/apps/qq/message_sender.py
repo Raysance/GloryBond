@@ -278,6 +278,7 @@ async def _handle_forward_msg(bot, payload):
             result = await bot.send_group_forward_msg(group_id=target, messages=payload["messages"], **card_options)
         if _confirmed_message_id(result) is None:
             raise RuntimeError("FORWARD_RESULT: missing message_id; delivery outcome unknown")
+        await _record_agent_run_receipt(bot, payload, result)
         await _automation_sent(_prepare_automation_payload(payload), result)
         await _record_task_receipt(payload, result)
         if payload.get("reply_notice"):
@@ -331,6 +332,7 @@ async def _send_queued_message(bot, payload, *, observe=True):
         raise
     _record_watch_lineup_outcome(payload, result=result)
     _record_watch_report_outcome(payload, result=result)
+    await _record_agent_run_receipt(bot, payload, result)
     if observe:
         await _automation_sent(payload, result)
         await _record_task_receipt(payload, result)
@@ -373,6 +375,21 @@ async def _send_video_with_metadata(bot, payload):
     if _confirmed_message_id(result) is None:
         raise RuntimeError("视频说明发送结果未确认，未继续发送视频。")
     return await _send_queued_message(bot, payload)
+
+
+async def _record_agent_run_receipt(bot, payload, result):
+    metadata = payload.get("automation_metadata", {})
+    message_id = _confirmed_message_id(result)
+    if not message_id or not metadata.get("origin_run_id") or not metadata.get("origin_session_id"):
+        return
+    try:
+        from glorybond.storage.agent_run_receipts import record_receipt
+        await asyncio.to_thread(record_receipt, bot_id=bot.self_id, channel=payload["type"],
+            recipient_id=payload["toid"], message_id=message_id,
+            run_id=metadata["origin_run_id"], session_id=metadata["origin_session_id"])
+    except Exception as exc:
+        # A receipt-index failure must never resend an already delivered reply.
+        log_message(f"AGENT_RUN_RECEIPT_SAVE_FAILED: error={type(exc).__name__}")
 
 
 async def _record_task_receipt(payload, result):

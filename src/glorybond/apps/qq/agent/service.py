@@ -203,6 +203,8 @@ class QQAgentService:
                                              default_role=self.config.get("default_role", "makise_kurisu"))
                 register_roleplay_tools(registry, self.roles, authorize_target=self.authorize_role_target)
                 self.state = RemoteState(self.state_bridge, self.image_store.project_event, self.local_log)
+                from glorybond.agent.tools.run_history import register_run_history_tool
+                register_run_history_tool(registry, log=self.local_log, bridge=self.state_bridge)
                 self.output = QQOutput(bridge=self.bridge, local_log=self.local_log, sender=self.sender,
                                        prepare_reply=self.prepare_reply, store_artifact=self.store_artifact,
                                        event_projector=self.image_store.project_event, mentions=self.mentions,

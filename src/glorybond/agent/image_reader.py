@@ -152,7 +152,8 @@ class ImageReader:
             text = str(message.get("content") or "").strip()
             if not text or message.get("tool_calls") or response.get("finish_reason") != "stop":
                 raise ValueError("图片转写未完整返回文字，请重试")
-            result = {"description": text, "model": response.get("model", self.settings["model"])}
+            result = {"description": text, "model": response.get("model", self.settings["model"]),
+                      "provider_host": response.get("provider_host")}
             if path:
                 await asyncio.to_thread(self._save, path, result)
             if len(self.cache) >= 128:
