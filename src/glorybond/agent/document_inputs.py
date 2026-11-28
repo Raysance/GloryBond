@@ -1,4 +1,4 @@
-"""Native DeepSeek document uploads and request-only file projections."""
+"""Account-scoped native document uploads and request-only file projections."""
 import asyncio
 import json
 from pathlib import PurePath
@@ -41,19 +41,25 @@ class DeepSeekDocuments:
         base = public["base_url"].rstrip("/")
         self.settings = None
         self.issued = {}
-        if base in {"https://api.deepseek.com", "https://api.deepseek.com/v1"} and public["model"] == "deepseek-flash":
+        service = public.get('model_services', {}).get('documents')
+        self.provider = 'openai' if service and service.get('protocol') == 'openai_responses' else 'deepseek'
+        if service:
+            self.settings = {**service, 'api_key': remote['private']['documents_api_key']}
+        elif base in {"https://api.deepseek.com", "https://api.deepseek.com/v1"} and public["model"] == "deepseek-flash":
             self.settings = dict(base_url=base, model=public["model"], api_key=remote["private"]["api_key"],
                                  proxy_url=public.get("proxy_url") or None)
 
     async def upload(self, name, raw):
         name = document_name(name)
         if not self.settings:
-            raise ValueError("文件读取需要配置 DeepSeek 官方 deepseek-flash")
+            raise ValueError("文件读取未配置文档供应商")
         if not 0 < len(raw) <= MAX_DOCUMENT_BYTES:
             raise ValueError("文件须为非空且不超过 16 MiB")
         purpose = "rich_layout_recognition" if PurePath(name).suffix.lower() in LAYOUT_FORMATS else "user_data"
+        if self.provider == 'openai':
+            purpose = 'user_data'
         try:
-            async with asyncio.timeout(250), httpx.AsyncClient(proxy=self.settings["proxy_url"], trust_env=False,
+            async with asyncio.timeout(250), httpx.AsyncClient(proxy=self.settings.get("proxy_url") or None, trust_env=False,
                                                                 timeout=245) as client:
                 response = await client.post(self.settings["base_url"] + "/files",
                     headers={"Authorization": "Bearer " + self.settings["api_key"]},
@@ -61,16 +67,18 @@ class DeepSeekDocuments:
                           "expires_after[seconds]": str(FILE_TTL)},
                     files={"file": (name, raw, "application/octet-stream")})
             if response.status_code not in (200, 201):
-                raise ValueError(f"DeepSeek 文件解析失败（HTTP {response.status_code}）")
+                raise ValueError(f"{self.provider} 文件解析失败（HTTP {response.status_code}）")
             data = response.json()
             if not isinstance(data, dict) or not re.fullmatch(r"file-[A-Za-z0-9_-]{1,128}", str(data.get("id", ""))):
-                raise ValueError("DeepSeek 未返回有效文件引用")
+                raise ValueError("文档供应商未返回有效文件引用")
             expires = int(data.get("expires_at") or time.time() + FILE_TTL)
         except (httpx.HTTPError, TimeoutError):
-            raise ValueError("DeepSeek 文件上传连接失败或超时") from None
+            raise ValueError("文档上传连接失败或超时") from None
         except (json.JSONDecodeError, TypeError):
-            raise ValueError("DeepSeek 文件解析响应无效") from None
+            raise ValueError("文档解析响应无效") from None
         part = {"type": "chat_document", "name": name, "file_id": data["id"], "expires_at": expires}
+        if self.provider != 'deepseek':
+            part['provider'] = self.provider
         self.issued = {key: value for key, value in self.issued.items() if value["expires_at"] > time.time()}
         if len(self.issued) >= 512:
             self.issued.pop(next(iter(self.issued)))
@@ -105,7 +113,7 @@ class DeepSeekDocuments:
             *selected.values()]}]
 
 
-def project_documents(messages):
+def project_documents(messages, *, provider='deepseek'):
     """Convert only host-issued attachment parts; stale history stays readable."""
     result, included = [], set()
     for message in reversed(messages):
@@ -119,6 +127,9 @@ def project_documents(messages):
                 parts.append(part)
                 continue
             label = json.dumps(part["name"], ensure_ascii=False)
+            if part.get('provider', 'deepseek') != provider:
+                parts.append({'type': 'text', 'text': f'附件 {label} 属于此前的文件供应商；如需重新读取请再次附上。'})
+                continue
             if part["expires_at"] <= time.time():
                 parts.append({"type": "text", "text": f"附件 {label} 已过期，如需读取请重新附上。"})
                 continue

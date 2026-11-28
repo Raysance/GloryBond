@@ -37,8 +37,15 @@ def media_settings(remote):
     key = private.get("media_api_key")
     if not key and public.get("base_url", "").rstrip("/") in {"https://api.deepseek.com", "https://api.deepseek.com/v1"}:
         key = private.get("api_key")
-    return {"api_key": key, "base_url": "https://api.deepseek.com", "model": "deepseek-flash",
-            "proxy_url": public.get("proxy_url") or None} if key else None
+    legacy = {"api_key": key, "base_url": "https://api.deepseek.com", "model": "deepseek-flash",
+                "proxy_url": public.get("proxy_url") or None} if key else None
+    analysis = public.get('model_services', {}).get('media_model')
+    asr = public.get('model_services', {}).get('asr')
+    if not analysis and not asr:
+        return legacy
+    model_settings = {**analysis, 'api_key': private['media_model_api_key']} if analysis else legacy
+    asr_settings = {**asr, 'api_key': private['asr_api_key']} if asr else legacy
+    return {**model_settings, 'asr': asr_settings} if model_settings and asr_settings else None
 
 
 def read_json(path):
@@ -198,7 +205,7 @@ class MediaReader:
 
     async def read(self, *, source_key, loader, question):
         if not self.enabled:
-            raise ValueError("音视频读取未配置 DeepSeek 官方密钥")
+            raise ValueError("音视频读取未配置内容理解或语音转写服务")
         async with asyncio.timeout(self.limits.timeout_seconds):
             key = hashlib.sha256(source_key.encode()).hexdigest()
             async with self._lock("source", key):
@@ -258,16 +265,24 @@ class MediaReader:
             raise ValueError("音视频缓存空间不足，请稍后重试")
 
     async def _transcribe(self, path):
-        async with self.client_factory(trust_env=False, proxy=self.settings.get("proxy_url"), timeout=180) as client:
-            response = await client.post("https://api.deepseek.com/v1/tools/asr",
-                headers={"Authorization": "Bearer " + self.settings["api_key"]},
+        asr = self.settings.get('asr', self.settings)
+        openai = asr.get('protocol') == 'openai'
+        async with self.client_factory(trust_env=False, proxy=asr.get("proxy_url") or None, timeout=180) as client:
+            response = await client.post(asr['base_url'].rstrip('/') + '/audio/transcriptions' if openai
+                                         else "https://api.deepseek.com/v1/tools/asr",
+                headers={"Authorization": "Bearer " + asr["api_key"]},
+                **({'data': {'model': asr['model']}} if openai else {}),
                 files={"file": (path.name, path.read_bytes(), "audio/wav")})
         if response.status_code != 200:
-            raise ValueError(f"DeepSeek 语音识别失败（HTTP {response.status_code}）")
+            raise ValueError(f"语音识别失败（HTTP {response.status_code}）")
         payload = response.json()
+        if openai:
+            # The provider need not return duration; use the exact submitted PCM.
+            with wave.open(str(path), 'rb') as audio:
+                payload['duration_ms'] = round(1000 * audio.getnframes() / audio.getframerate())
         if not isinstance(payload.get("text"), str) or not isinstance(payload.get("duration_ms"), int):
-            raise ValueError("DeepSeek 语音识别返回无效结果")
-        return {"text": payload["text"], "duration_ms": payload["duration_ms"]}
+            raise ValueError("语音识别返回无效结果")
+        return {"text": payload["text"], "duration_ms": payload["duration_ms"], 'usage': payload.get('usage')}
 
     async def _analyze(self, source, directory, question):
         begin = time.monotonic()
@@ -284,14 +299,21 @@ class MediaReader:
         prepare_seconds = time.monotonic() - begin
         if prepared["duration_seconds"] > self.limits.max_duration_seconds:
             raise ValueError("音视频超过当前时长限制")
-        answer_key = hashlib.sha256(question.encode()).hexdigest()
+        model_settings = {key: value for key, value in self.settings.items() if key != 'asr'}
+        cache_profile = {key: value for key, value in model_settings.items() if key != 'api_key'}
+        asr = self.settings.get('asr', self.settings)
+        asr_profile = {key: asr.get(key) for key in ('base_url', 'model', 'protocol')}
+        asr_key = hashlib.sha256(json.dumps(asr_profile, sort_keys=True).encode()).hexdigest()[:16]
+        answer_key = hashlib.sha256(json.dumps([question, cache_profile, asr_profile], sort_keys=True).encode()).hexdigest()
         answer_path = directory / ("answer-" + answer_key + ".json")
         answer = read_json(answer_path)
         if answer:
-            return {**answer, "cache_hit": True, "new_asr_seconds": 0, "new_model_usage": {},
+            return {**answer, "cache_hit": True, "new_asr_seconds": 0, "new_asr_usage": [], "new_model_usage": {},
                     "timings": {"prepare_seconds": round(prepare_seconds, 3), "asr_seconds": 0, "model_seconds": 0}}
         async def transcribe_chunk(index, chunk):
-            path = directory / f"transcript-{index:04d}.json"
+            # Keep legacy DeepSeek transcripts reusable when switching back.
+            suffix = '-' + asr_key if asr.get('protocol') == 'openai' else ''
+            path = directory / f"transcript{suffix}-{index:04d}.json"
             transcript = read_json(path)
             billed_seconds = 0
             if transcript is None:
@@ -299,7 +321,8 @@ class MediaReader:
                 write_json(path, transcript)
                 billed_seconds += max(1, math.ceil(transcript["duration_ms"] / 1000))
             return ({"start": round(chunk["start"], 3),
-                     "end": round(chunk["start"] + chunk["duration"], 3), "text": transcript["text"]}, billed_seconds)
+                     "end": round(chunk["start"] + chunk["duration"], 3), "text": transcript["text"]}, billed_seconds,
+                    transcript.get('usage') if billed_seconds else None)
         begin = time.monotonic()
         # At most six 115-second pieces for a permitted ten-minute source.
         # Submit every missing piece concurrently; preserve source order.
@@ -321,8 +344,8 @@ class MediaReader:
             content.append({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded, "detail": "original"}})
         async def ignore_delta(kind, text):
             pass
-        model = self.model_factory(**self.settings, thinking=False, max_tokens=4096,
-                                   timeout_seconds=240, first_token_timeout_seconds=180)
+        model = self.model_factory(**{'timeout_seconds': 240, 'first_token_timeout_seconds': 180,
+                                     **model_settings}, thinking=False, max_tokens=4096)
         begin = time.monotonic()
         response = await model.complete([{"role": "user", "content": content}], [], ignore_delta)
         model_seconds = time.monotonic() - begin
@@ -337,6 +360,8 @@ class MediaReader:
                   "audio_duration_seconds": prepared["audio_duration_seconds"], "audio_segments": len(transcripts),
                   "audio_complete": True, "has_audio": prepared["has_audio"],
                   "transcript": transcript_text, "model_usage": response.get("usage", {}),
+                  'asr_model': asr['model'] if asr.get('protocol') == 'openai' else 'deepseek-asr',
+                  'new_asr_usage': [row[2] for row in results if row[2] is not None],
                   "timings": {"prepare_seconds": round(prepare_seconds, 3),
                               "asr_seconds": round(asr_seconds, 3), "model_seconds": round(model_seconds, 3)},
                   "new_model_usage": response.get("usage", {}), "new_asr_seconds": billed_seconds, "cache_hit": False}

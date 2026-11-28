@@ -131,7 +131,7 @@ class ImageReader:
                     {"role": "user", "content": [part]}]
         if self.store:
             messages, _ = await asyncio.to_thread(self.store.model_messages, messages)
-        identity = {key: self.settings.get(key) for key in ("base_url", "model", "protocol")}
+        identity = {key: self.settings.get(key) for key in ("base_url", "model", "protocol", "reasoning_effort")}
         digest = hashlib.sha256(json.dumps([identity, messages], ensure_ascii=False,
                                            sort_keys=True).encode()).hexdigest()
         path = (Path(self.store.directory) / ".descriptions" / (digest + ".json")) if self.store else None

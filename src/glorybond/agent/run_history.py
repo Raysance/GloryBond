@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 
 from glorybond.agent.model_metadata import token_usage
-from glorybond.agent.run_costs import model_cost, number, total_cost, SNAPSHOT_DATE, SOURCES
+from glorybond.agent.run_costs import model_cost, image_cost, number, total_cost, SNAPSHOT_DATE, SOURCES
 
 COMPONENT = r"[a-zA-Z0-9_-]{1,80}"
 MAX_FILE_BYTES = 128 * 1024 * 1024
@@ -106,7 +106,13 @@ def project_run(events):
                 if row["name"] == "read_media":
                     audio = 0 if cached else number(value.get("new_asr_seconds"))
                     row["new_asr_seconds"] = audio
-                    if audio is not None:
+                    row['asr_model'] = value.get('asr_model', 'deepseek-asr')
+                    if audio is not None and row['asr_model'] == 'gpt-transcribe':
+                        cost = {'kind': 'estimated', 'currency': 'USD', 'min': round(audio * .0045 / 60, 8),
+                                'max': round(audio * .0045 / 60, 8), 'price_date': SNAPSHOT_DATE,
+                                'source': 'https://developers.openai.com/api/docs/models/gpt-transcribe',
+                                'assumptions': ['按已提交音频时长估算，非账单']}
+                    elif audio is not None and row['asr_model'] == 'deepseek-asr':
                         cost = {"kind": "estimated", "currency": "CNY", "min": round(audio * .39 / 3600, 8),
                                 "max": round(audio * .78 / 3600, 8), "price_date": SNAPSHOT_DATE,
                                 "source": SOURCES["deepseek"], "assumptions": ["ASR限时优惠到标准价格范围，非账单"]}
@@ -114,7 +120,12 @@ def project_run(events):
                         cost = {"kind": "unknown", "reason": "没有新消费音频秒数"}
                     row["asr_cost"] = cost
                     costs.append(cost)
-            elif row["name"] in {"search_web", "read_webpage", "read_document", "generate_image"}:
+            elif row['name'] == 'generate_image':
+                row.update(model=value.get('model'), usage=value.get('usage'))
+                cost = image_cost(value.get('model'), value.get('usage'), provider_host=value.get('provider_host'))
+                row['cost'] = cost
+                costs.append(cost)
+            elif row["name"] in {"search_web", "read_webpage", "read_document"}:
                 cost = {"kind": "unknown", "reason": "工具未记录可核对的计费请求数、页数或金额"}
                 row["cost"] = cost
                 costs.append(cost)
@@ -186,7 +197,7 @@ def load_events(path):
                 elif kind == "tool.result":
                     result = data.get("result") or {}
                     value = result.get("data") or {}
-                    keep = ("model", "provider_host", "usage", "new_model_usage", "new_asr_seconds", "cached", "cache_hit")
+                    keep = ("model", "provider_host", "usage", "new_model_usage", "new_asr_seconds", "asr_model", "new_asr_usage", "cached", "cache_hit")
                     data = {key: data.get(key) for key in ("call_id", "name", "duration")}
                     data["result"] = {"ok": result.get("ok"), "code": result.get("code"),
                                       "data": {key: value[key] for key in keep if key in value} if isinstance(value, dict) else {}}

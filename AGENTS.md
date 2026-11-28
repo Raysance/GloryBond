@@ -47,6 +47,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 ## 架构与数据约定
 
+- 模型切换通过 `config/settings.py#_apply_model_profile` 投影 `ModelProfiles.active`（可由 `HOK_MODEL_PROFILE` 覆盖）。`original` 使用原顶层配置；命名 profile 仅替换 ChatAPI、VisionAPI、DocumentAPI、MediaAPI、ASRAPI、ImageGenerationAPI 与 LocalAgent.llm，不覆盖业务配置或复制密钥。`openai` 使用 HOK_OPENAI_API_KEY，通用理解模型为 gpt-6.1-sol / medium，ASR 为 gpt-transcribe，生图为 gpt-image-2.6-flare。QQ、Web、回复整理、角色生成、业务文案和旧联网文案均经对应配置；原供应商及备用完整保留，OpenAI profile 不自动继承旧备用。search/fetch 密钥继续独立。Responses 在 `agent/openai_responses.py` 适配原循环，store=false，保留输出 phase、加密推理与 call_id，同批工具全部返回后继续；流未完成不执行部分调用，供应商专用状态不发给其他协议。文件引用标明供应商，切换后不混用旧ID；图片与媒体分析缓存包含模型/推理配置，转写缓存按ASR供应商隔离。用量保留原生字段并统一投影文本、缓存、推理计数，美元与人民币估价分别汇总；生图图片token单独计价。官方生图通过既有业务接口返回字节并由文件/产物边界保存，不因超时自动重复提交。具体配置、验证与回切见共享AI README。
+
 - Bot 的文件、数据库、HTTP、缓存、时间和消息操作遵循上述统一入口；业务层专注领域逻辑。共享适配层管理自身的协议、进程和存储边界。
 - Web 与共享模块独立导入。Bot 启动和后台任务由现有生命周期入口管理，定时任务集中注册，外部请求与写入由明确调用触发。
 - `react-agent-runtime`、`hok-player-client`、`hok-camp-client` 保持私有，通过 submodule 调用公开接口。渠道身份、业务工具和交付逻辑由主项目适配层负责。
@@ -91,8 +93,8 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 - 群消息归档从 original_message 保留原生 @，仅 @ 无正文也入库。payload.mentions 保存去重 QQ、当时可读取的 nickname/group_card/display_name，plain_text 保留纯文本；text 按消息段顺序写入可读 @ 与 QQ，供现有检索和只读 SQL 使用。昵称快照经 QQ 资料适配层限时读取，失败保留 QQ 和未知名称，@全体成员单独标记；不从引用内容提取、不以当前名称回填旧记录或授予身份权限。
 - 临时网页链接统一使用 Redis.REDIS_TEXT_EXPIRE_SECONDS=86400（1天），运行记录不再单设有效期；访问不续期。Redis载荷及运行索引沿用同一时限，文件直连的受益分析页按文件生成时间校验。链接失效与底层文件异步清理分别管理，不删除业务归档或私有运行日志。
 - 应用配置统一由 `.env` 和 `config.yaml` 提供。用户信息、登录态、密钥、原始输入和运行数据保存在私有配置及存储中，公开内容与运行记录经过脱敏。
-- QQ 与本地 Web 的聊天附件由 src/glorybond/agent/document_inputs.py 上传到官方 DeepSeek Files API。只有本轮或入选历史含有效文档时，主模型才使用同账号 deepseek-flash（包括混合图片和工具续轮）。服务端保存引用、来源与有效期，Web 上传句柄绑定会话，QQ 下载限定当前消息或已验证会话的显式引用。
-- 音视频通过普通发现工具 `media/read_media` 按需读取，输入为会话内附件编号、公开媒体直链或授权本地路径。QQ 当前及已校验引用的原生 video/record 只在入口绑定不透明编号，不预下载，不向模型或轨迹传递签名地址；本地 Web 共用直链/路径工具。`agent/media_inputs.py` 以 FFmpeg 同时抽帧和提取第一音轨，默认10秒一帧，完整单声道音轨按115秒分段，所有分段同时调用官方 DeepSeek ASR，按原顺序汇总后连同采样帧交给 deepseek-flash。最长600秒、50 MB，超长拒绝而非截断；ASR不保留音效或语气，采样不代表连续画面。独立官方密钥由 worker private 提供；普通图片仍沿用 VisionAPI。私有缓存复用下载、抽帧、各段转写和同问题答案，跨 Bot/Web 进程文件锁去重，失败保留已完成转写，取消回收子进程与请求；返回真实 token、音频用量及阶段耗时。能力说明仅在工具定义，主提示词不特化媒体；配置与本地目录范围见共享 AI README。
+- original 配置下，QQ 与本地 Web 的聊天附件由 src/glorybond/agent/document_inputs.py 上传到官方 DeepSeek Files API。只有本轮或入选历史含有效文档时，主模型才使用同账号 deepseek-flash（包括混合图片和工具续轮）。服务端保存引用、来源与有效期，Web 上传句柄绑定会话，QQ 下载限定当前消息或已验证会话的显式引用。
+- 音视频通过普通发现工具 `media/read_media` 按需读取，输入为会话内附件编号、公开媒体直链或授权本地路径。QQ 当前及已校验引用的原生 video/record 只在入口绑定不透明编号，不预下载，不向模型或轨迹传递签名地址；本地 Web 共用直链/路径工具。`agent/media_inputs.py` 以 FFmpeg 同时抽帧和提取第一音轨，默认10秒一帧，完整单声道音轨按115秒分段，original 配置下所有分段同时调用官方 DeepSeek ASR，按原顺序汇总后连同采样帧交给 deepseek-flash；OpenAI profile 使用独立ASRAPI与MediaAPI。最长600秒、50 MB，超长拒绝而非截断；ASR不保留音效或语气，采样不代表连续画面。独立官方密钥由 worker private 提供；普通图片仍沿用 VisionAPI。私有缓存复用下载、抽帧、各段转写和同问题答案，跨 Bot/Web 进程文件锁去重，失败保留已完成转写，取消回收子进程与请求；返回真实 token、音频用量及阶段耗时。能力说明仅在工具定义，主提示词不特化媒体；配置与本地目录范围见共享 AI README。
 - QQ 前台群聊可按需通过 read_recent_group_images 获取当前群近期图片。范围由入口和提问时间绑定，平台返回的群、时间与同秒顺序必须核对，实际取到的像素走工具图片预算。群历史窗口与 PostgreSQL 文字归档分别读取。
 - QQ 音视频输入保留平台 `file_size` 并用于附件键及读取校验。已验证引用作者为当前机器人时，优先按消息中的裸文件名与已知大小读取 `qq_media_roots` 内的发送原件；其他作者不得通过同名文件选择本地缓存。下载结果和未转换的本地文件须匹配平台大小，语音转换改核对转换结果大小；不匹配不缓存、不分析。附件源缓存使用 `attachment:v2` 排除旧版未校验结果，内容分析仍按实际字节摘要复用；工具返回附件与来源消息编号。媒体地址和本地读取许可由入口绑定，不能由模型授予。
 

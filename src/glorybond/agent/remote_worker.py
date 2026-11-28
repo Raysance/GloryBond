@@ -91,9 +91,10 @@ def bootstrap(args):
     namespace = {"urlparse": urlparse}
     extracted_functions(
         root / "src/glorybond/config/settings.py",
-        ["_build_chat_api_config", "_build_deepseek_search_config", "_apply_secret_environment"],
+        ["_apply_model_profile", "_build_model_service_config", "_build_chat_api_config", "_build_deepseek_search_config", "_apply_secret_environment"],
         namespace,
     )
+    cfg = namespace['_apply_model_profile'](cfg, env)
     cfg = namespace["_apply_secret_environment"](cfg, env)
     model = namespace["_build_chat_api_config"](cfg, env)
     if not env.get("HOK_CHAT_READONLY_DSN"):
@@ -124,6 +125,7 @@ def bootstrap(args):
         "json": json,
         "deepseek_search_config": search_cfg,
         "confs": cfg,
+        "image_generation_config": namespace['_build_model_service_config'](cfg, env, 'ImageGenerationAPI'),
         "dmc": SimpleNamespace(**cfg.get("DynamicVariables", {})),
         "sleep_seconds": time.sleep,
     }
@@ -142,7 +144,7 @@ def bootstrap(args):
     api_namespace.update(direct_request=request, clash_request=proxied_request)
     extracted_functions(
         root / "src/glorybond/integrations/ai.py",
-        ["deepseek_web_search", "apimart_images_generate"],
+        ["deepseek_web_search", "apimart_images_generate", "openai_images_generate"],
         api_namespace,
     )
     mem_namespace = {}
@@ -214,7 +216,7 @@ def bootstrap(args):
         Path("/usr/share/fonts/google-noto-emoji/NotoEmoji-Regular.ttf"),
     ]
     CONTEXT["fonts"] = [str(path) for path in font_candidates if path.is_file()]
-    model_options = {key: model[key] for key in ('timeout_seconds', 'first_token_timeout_seconds') if key in model}
+    model_options = {key: model[key] for key in ('timeout_seconds', 'first_token_timeout_seconds', 'protocol', 'reasoning_effort') if key in model}
     private = {"api_key": model["api_key"]}
     private["media_api_key"] = str(env.get("HOK_DEEPSEEK_API_KEY") or "").strip()
     fetch_cfg = cfg.get("DeepSeekFetch", {})
@@ -227,9 +229,16 @@ def bootstrap(args):
     if model.get('vision'):
         private['vision_api_key'] = model['vision']['api_key']
         model_options['vision'] = {key: value for key, value in model['vision'].items() if key != 'api_key'}
+    services = {}
+    for name, section in (('documents', 'DocumentAPI'), ('media_model', 'MediaAPI'), ('asr', 'ASRAPI')):
+        service = namespace['_build_model_service_config'](cfg, env, section)
+        if service:
+            private[name + '_api_key'] = service['api_key']
+            services[name] = {key: value for key, value in service.items() if key != 'api_key'}
     return {
         "private": private,
         "public": {
+            "model_services": services,
             "model_options": model_options,
             "model": model["model"],
             "base_url": model["base_url"],
@@ -250,7 +259,7 @@ def bootstrap(args):
                 "endpoint", "timeout_seconds", "need_content", "max_result_chars",
                 "result_type", "snippet_chars", "summary_chars", "content_chars",
             ) if key in search_cfg},
-            "images": bool(cfg.get("QQBot", {}).get("apimart_key")),
+            "images": bool(cfg.get("QQBot", {}).get("apimart_key") or api_namespace['image_generation_config']),
         },
     }
 
@@ -1006,9 +1015,13 @@ def dispatch(args):
             resolution="1K",
             task_timeout_seconds=args.get("task_timeout_seconds", 600),
         )
-        response = CONTEXT["api"]["clash_request"]("GET", result["url"], timeout=60)
-        response.raise_for_status()
-        raw = response.content
+        raw = result.get('image_bytes')
+        mime = result.get('mime', 'image/png')
+        if raw is None:
+            response = CONTEXT["api"]["clash_request"]("GET", result["url"], timeout=60)
+            response.raise_for_status()
+            raw = response.content
+            mime = response.headers.get('content-type', mime)
         if len(raw) > 8 * 1024**2:
             raise ValueError("图片超过大小上限")
         artifact_id = uuid4().hex
@@ -1024,9 +1037,12 @@ def dispatch(args):
                 request["image_urls"] = [reference]
             elif "image" in request:
                 request["image"] = reference
+            elif 'images' in request:
+                request['images'] = [{'image_url': reference}]
         return {
             "artifact_id": artifact_id,
-            "mime": response.headers.get("content-type", "image/png"),
+            "mime": mime,
+            **{key: result[key] for key in ('model', 'provider_host', 'usage') if key in result},
             "request": request,
         }
     if op == "artifact":

@@ -56,6 +56,49 @@ def _load_runtime_environment():
     return os.pathsep.join(loaded_paths)
 
 
+def _apply_model_profile(config, environment):
+    """Overlay only model settings; the original sections remain the rollback profile."""
+    from copy import deepcopy
+    profiles = config.get('ModelProfiles') or {}
+    selected = environment.get('HOK_MODEL_PROFILE') or profiles.get('active', 'original')
+    result = deepcopy(config)
+    if selected == 'original':
+        return result
+    overrides = (profiles.get('profiles') or {}).get(selected)
+    if not isinstance(overrides, dict):
+        raise ValueError(f'Unknown model profile: {selected}')
+    allowed = {'ChatAPI', 'VisionAPI', 'MediaAPI', 'DocumentAPI', 'ASRAPI', 'ImageGenerationAPI', 'LocalAgent'}
+    if set(overrides) - allowed:
+        raise ValueError('Model profile contains non-model settings')
+    for section, values in overrides.items():
+        if not isinstance(values, dict):
+            raise ValueError(f'Model profile section must be a mapping: {section}')
+        if section == 'LocalAgent':
+            if set(values) - {'llm'}:
+                raise ValueError('Model profile may only override LocalAgent.llm')
+            result.setdefault(section, {}).update(deepcopy(values))
+        else:
+            # A provider is an atomic set of endpoint/model/key/proxy settings.
+            # Never inherit another provider's fallback or account by accident.
+            result[section] = deepcopy(values)
+    return result
+
+
+def _build_model_service_config(config, environment, section):
+    settings = config.get(section)
+    if not settings:
+        return None
+    key_name = settings.get('api_key_env')
+    key = str(environment.get(key_name) or '').strip() if key_name else ''
+    if not key:
+        raise ValueError(f'{section} key is not configured: {key_name}')
+    values = {name: settings[name] for name in ('base_url', 'model', 'proxy_url', 'protocol',
+        'reasoning_effort', 'timeout_seconds', 'first_token_timeout_seconds') if name in settings}
+    if not values.get('base_url') or not values.get('model'):
+        raise ValueError(f'{section} requires base_url and model')
+    return {**values, 'api_key': key}
+
+
 def _build_chat_api_config(config, environment):
     """Resolve chat provider settings while allowing an explicit empty proxy."""
     values = {}
@@ -76,6 +119,9 @@ def _build_chat_api_config(config, environment):
     elif not values["api_key"] and urlparse(values["base_url"]).hostname == "api.deepseek.com":
         values["api_key"] = str(config.get("QQBot", {}).get("deepseek_key") or "").strip()
     settings = config.get('ChatAPI', {})
+    for key in ('protocol', 'reasoning_effort'):
+        if key in settings:
+            values[key] = settings[key]
     for key in ('timeout_seconds', 'first_token_timeout_seconds'):
         if key in settings:
             values[key] = float(settings[key])
@@ -88,7 +134,7 @@ def _build_chat_api_config(config, environment):
         if not api_key:
             raise ValueError(f'ChatAPI fallback key is not configured: {key_name}')
         values['fallback'] = {key: fallback[key] for key in (
-            'base_url', 'model', 'vision_model', 'proxy_url', 'protocol',
+            'base_url', 'model', 'vision_model', 'proxy_url', 'protocol', 'reasoning_effort',
             'timeout_seconds', 'first_token_timeout_seconds') if key in fallback}
         for key in ('base_url', 'model'):
             if not values['fallback'].get(key):
@@ -104,7 +150,7 @@ def _build_chat_api_config(config, environment):
         if not api_key:
             raise ValueError(f'VisionAPI key is not configured: {key_name}')
         values['vision'] = {key: vision[key] for key in (
-            'base_url', 'model', 'proxy_url', 'protocol',
+            'base_url', 'model', 'proxy_url', 'protocol', 'reasoning_effort',
             'timeout_seconds', 'first_token_timeout_seconds') if key in vision}
         for key in ('base_url', 'model'):
             if not values['vision'].get(key):
@@ -160,12 +206,14 @@ config_path = _runtime_path(
 # .env stores credentials; config.yaml stores every non-secret setting.
 with open(config_path, 'r', encoding='utf-8') as file:
     confs = yaml.load(file, Loader=yaml.FullLoader) or {}
+confs = _apply_model_profile(confs, os.environ)
 _apply_secret_environment(confs, os.environ)
 from glorybond.accounts.store import apply_credentials as _apply_login_credentials, secrets as _login_secrets
 if env_path:
     _apply_login_credentials(confs, _login_secrets(env_path))
 globals().update(confs.get("Redis", {}))
 chat_api_config = _build_chat_api_config(confs, os.environ)
+image_generation_config = _build_model_service_config(confs, os.environ, 'ImageGenerationAPI')
 deepseek_search_config = _build_deepseek_search_config(confs, os.environ)
 qq_task_message_link_ttl_seconds = confs.get("QQAgent", {}).get("task_message_link_ttl_seconds", 2592000)
 qq_forward_message_config = {

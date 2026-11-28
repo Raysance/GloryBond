@@ -83,7 +83,9 @@ class WorkerBootstrapTests(unittest.TestCase):
                                 'model': 'doubao-vision', 'protocol': 'ark'}}
             def functions(path, names, namespace):
                 namespace.update({name: Mock() for name in names})
-                namespace.update(_apply_secret_environment=lambda cfg, env: cfg,
+                namespace.update(_apply_model_profile=lambda cfg, env: cfg,
+                                 _build_model_service_config=lambda cfg, env, section: None,
+                                 _apply_secret_environment=lambda cfg, env: cfg,
                                  _build_chat_api_config=lambda cfg, env: model,
                                  _build_deepseek_search_config=lambda cfg, env: {
                                      'api_key': 'search-secret', 'endpoint': 'https://api.deepseek.com/v1/tools/search',

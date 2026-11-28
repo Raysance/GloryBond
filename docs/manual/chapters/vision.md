@@ -16,6 +16,8 @@
 
 ### 返回内容与注意事项
 
+识图、文档及音视频理解遵循当前模型配置。OpenAI profile 使用 6.1 Sol（medium），语音使用 GPT-Transcribe；original 保留原供应商。图片仍由独立工具按需转写，主对话仅使用附件编号与文字。切换不会删除本地原件，但旧供应商文件引用需要重新上传。
+
 要看本群近期图片，可以直接描述发图的人或问“刚才那张截图”。机器人按需查看 QQ 最近返回的 50 条群消息，默认取一张，可指定多张。只看提问前的本群图片，原图和发言者按消息对应。已过期、撤回或超出窗口的图片可能无法取回。
 
 QQ 支持读取当前消息和明确回复的文件，本地网页可选择或拖入附件。支持 PDF、DOC/DOCX、PPT/PPTX、XLS/XLSX、TXT、MD、CSV、TSV 和 JSON，每轮最多 4 份，每份最多 16 MiB。PDF、Word、PPT 用 DeepSeek 图文解析，文档有效期 24 小时，可在同一对话追问。成功解析按页收费，每次引用按模型实际输入量计费。文本和表格上传免费。[DeepSeek 文件解析说明](https://api-docs.deepseek.com/zh-cn/guides/document_parsing/)

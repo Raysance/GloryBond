@@ -127,6 +127,24 @@ class MediaAnalysisTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['audio_complete'])
         self.assertEqual(result['new_asr_seconds'], 9)
 
+    async def test_switching_model_and_transcriber_does_not_reuse_the_other_provider_answer(self):
+        with patch('glorybond.agent.media_inputs.prepare_media', side_effect=self.prepare):
+            await self.reader.read(source_key='source', loader=self.loader, question='概要')
+            new = MediaReader(self.tmp.name, {'api_key': 'new', 'base_url': 'https://api.openai.com/v1',
+                'model': 'gpt-6.1-sol', 'protocol': 'openai_responses', 'reasoning_effort': 'medium',
+                'asr': {'api_key': 'new', 'base_url': 'https://api.openai.com/v1',
+                        'model': 'gpt-transcribe', 'protocol': 'openai'}}, model_factory=Mock(return_value=self.model))
+            new._transcribe = AsyncMock(return_value={'text': 'new transcript', 'duration_ms': 1000,
+                                                       'usage': {'type': 'duration', 'seconds': 1}})
+            changed = await new.read(source_key='source', loader=self.loader, question='概要')
+            self.assertFalse(changed['cache_hit'])
+            self.assertEqual(new._transcribe.await_count, 2)
+            restored = await self.reader.read(source_key='source', loader=self.loader, question='概要')
+            self.assertTrue(restored['cache_hit'])
+            self.assertEqual(self.asr.await_count, 2)
+            self.assertEqual(self.preparations, 1)
+            self.loader.assert_awaited_once()
+
     async def test_independent_readers_share_locks_and_cached_analysis(self):
         other = MediaReader(self.tmp.name, SETTINGS, model_factory=Mock(return_value=self.model))
         other._transcribe = self.asr

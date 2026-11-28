@@ -15,6 +15,9 @@ _PHASES = {"model": "reasoning", "reply.model": "reply", "roleplay.model": "role
 def token_usage(raw):
     """Keep reported counters; cache and reasoning details do not add to totals."""
     raw = raw if isinstance(raw, dict) else {}
+    raw = {**raw, **{target: raw[source] for source, target in (
+        ('input_tokens', 'prompt_tokens'), ('output_tokens', 'completion_tokens'))
+        if source in raw and target not in raw}}
     counters = {}
     for name, value in raw.items():
         if name in {"prompt_tokens", "completion_tokens", "total_tokens",
@@ -24,6 +27,9 @@ def token_usage(raw):
     for parent, child, name in (
         ("prompt_tokens_details", "cached_tokens", "prompt_cache_hit_tokens"),
         ("completion_tokens_details", "reasoning_tokens", "reasoning_tokens"),
+        ('input_tokens_details', 'cached_tokens', 'prompt_cache_hit_tokens'),
+        ('input_tokens_details', 'cache_write_tokens', 'prompt_cache_write_tokens'),
+        ('output_tokens_details', 'reasoning_tokens', 'reasoning_tokens'),
     ):
         detail = raw.get(parent)
         value = detail.get(child) if isinstance(detail, dict) else None

@@ -807,7 +807,10 @@ def save_kpl_push_image(image_url, cid, date_text):
     day_dir = os.path.join("resources", "wzry_images", "kpl", str(date_text))
     ensure_dir(day_dir)
     local_path = os.path.join(day_dir, f"{cid}.png")
-    download_url_to_file(image_url, local_path)
+    if isinstance(image_url, bytes):
+        save_generated_image({'image_bytes': image_url}, local_path)
+    else:
+        download_url_to_file(image_url, local_path)
     return local_path
 
 
@@ -882,6 +885,19 @@ def copyfile_to_dir(src_file, dst_dir):
     dst_file = os.path.join(dst_dir, os.path.basename(src_file))
     shutil.copy(src_file, dst_file)
     return dst_file
+
+def save_generated_image(result, dst_file):
+    """Persist native image bytes or the existing provider URL through one boundary."""
+    raw = result.get('image_bytes')
+    if raw is None:
+        return download_url_to_file(result['url'], dst_file)
+    if not isinstance(raw, bytes) or not 0 < len(raw) <= 8 * 1024 ** 2:
+        raise ValueError('生成图片为空或超过8 MiB')
+    ensure_dir(os.path.dirname(dst_file))
+    with open(dst_file, 'wb') as stream:
+        stream.write(raw)
+    return dst_file
+
 
 def download_url_to_file(url: str, dst_file: str):
     """Download url to dst_file, raise on failure."""

@@ -19,6 +19,36 @@ from tests.test_agent_runtime import call
 
 
 class ImageGenerationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_image_bytes_are_stored_without_a_second_download(self):
+        generate = Mock(return_value={'image_bytes': b'png-data', 'mime': 'image/png',
+            'model': 'gpt-image-2.6-flare', 'usage': {'output_tokens': 1449},
+            'provider_host': 'api.openai.com', 'request': {'images': [{'image_url': 'data:image/png;base64,test'}]}})
+        fetch, store = Mock(), Mock()
+        with patch.dict(remote_worker.CONTEXT, {'store': store, 'api': {
+            'apimart_images_generate': generate, 'clash_request': fetch}}, clear=True):
+            result = remote_worker.dispatch({'op': 'image', 'prompt': 'test',
+                'reference_image_url': 'data:image/png;base64,test', 'reference_image_id': 'a' * 32})
+        fetch.assert_not_called()
+        store.setex.assert_called_once()
+        self.assertEqual(result['request']['images'], [{'image_url': 'attachment://' + 'a' * 32}])
+        self.assertNotIn('image_bytes', result)
+        self.assertEqual(result['model'], 'gpt-image-2.6-flare')
+
+    def test_openai_reference_edit_uses_the_same_account_and_decodes_native_bytes(self):
+        import base64
+        request = Mock(return_value=Mock(status_code=200, json=lambda: {
+            'data': [{'b64_json': base64.b64encode(b'png').decode()}], 'usage': {'output_tokens': 1}}))
+        namespace = {'direct_request': request}
+        remote_worker.extracted_functions(Path(__file__).parents[1] / 'src/glorybond/integrations/ai.py',
+                                         ['openai_images_generate'], namespace)
+        result = namespace['openai_images_generate'](settings={'model': 'gpt-image-2.6-flare',
+            'base_url': 'https://api.openai.com/v1', 'api_key': 'test-key'},
+            prompt='test', reference_image_url='data:image/png;base64,test', size='16:9')
+        self.assertEqual(result['image_bytes'], b'png')
+        self.assertEqual(request.call_args.args[1], 'https://api.openai.com/v1/images/edits')
+        self.assertEqual(request.call_args.kwargs['json']['images'], [{'image_url': 'data:image/png;base64,test'}])
+        self.assertNotIn('test-key', str(result))
+
     def test_gpt_reference_uses_documented_image_urls_wire_field(self):
         replies = [Mock(json=lambda: {'code': 200, 'data': [{'task_id': 'fixture'}]}),
                    Mock(json=lambda: {'code': 200, 'data': {'status': 'completed',

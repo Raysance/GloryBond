@@ -10,7 +10,7 @@ from ratelimit import limits, sleep_and_retry
 
 from glorybond import runtime as dmc
 from glorybond.storage.files import append_hok_exception_log
-from glorybond.config.settings import aliyun_search_config, ark_model_url, chat_api_config, confs, deepseek_search_config
+from glorybond.config.settings import aliyun_search_config, ark_model_url, chat_api_config, confs, deepseek_search_config, image_generation_config
 from glorybond.time import sleep_seconds
 from glorybond.common import log_message
 from glorybond.integrations.proxy import clash_request, direct_request
@@ -35,6 +35,8 @@ class AIRequestError(RuntimeError):
 
 def _chat_completion_create(input_items, temperature=None, timeout=30, thinking=None, response_format=None):
     """Call the configured provider without inheriting ambient proxy settings."""
+    if chat_api_config.get('protocol') == 'openai_responses':
+        return _openai_response_create(input_items, timeout, response_format)
     if chat_api_config.get('fallback'):
         try:
             return _chat_completion_stream(input_items, chat_api_config, temperature, timeout, thinking, response_format)
@@ -43,6 +45,34 @@ def _chat_completion_create(input_items, temperature=None, timeout=30, thinking=
                 raise
             return _chat_completion_stream(input_items, chat_api_config['fallback'], temperature, timeout, thinking, response_format)
     return _chat_completion_single(input_items, temperature, timeout, thinking, response_format)
+
+
+def _openai_response_create(input_items, timeout, response_format, *, web_search=False):
+    from glorybond.agent.openai_responses import response_payload, response_result
+    messages = [{'role': 'user', 'content': input_items}] if isinstance(input_items, str) else input_items
+    payload = response_payload(model=chat_api_config['model'], messages=messages,
+        reasoning_effort=chat_api_config.get('reasoning_effort', 'medium'), response_format=response_format)
+    if web_search:
+        payload['tools'] = [{'type': 'web_search'}]
+    data = None
+    try:
+        with DefaultHttpxClient(trust_env=False, proxy=chat_api_config.get('proxy_url') or None,
+                               timeout=timeout) as client:
+            response = client.post(chat_api_config['base_url'].rstrip('/') + '/responses', json=payload,
+                                   headers={'Authorization': 'Bearer ' + chat_api_config['api_key']})
+            data = response.json()
+            if response.status_code != 200:
+                raise ModelUnavailable(f'模型请求失败 HTTP {response.status_code}', response.status_code)
+        if data.get('status') != 'completed':
+            raise ModelUnavailable('Responses 未完整返回回答')
+        result = response_result(data)
+        if not result['message']['content']:
+            raise ModelUnavailable('Responses 未返回回答正文')
+        return {'content': result['message']['content'], 'request_payload': payload, 'response_payload': data,
+                'response_meta': {'model': result['model'], 'status_code': 200, 'usage': result['usage'],
+                                  'finish_reason': result['finish_reason']}}
+    except Exception as error:
+        raise AIRequestError(error, payload, data) from error
 
 
 def _chat_completion_stream(input_items, provider, temperature, timeout, thinking, response_format=None):
@@ -308,6 +338,8 @@ def aliyun_web_search(query, max_results=5):
 
 def ark_api(user_query): # 火山引擎-豆包联网模型
     log_message("VISIT: ark_api_common")
+    if chat_api_config.get('protocol') == 'openai_responses':
+        return _openai_response_create(user_query, 120, None, web_search=True)['content']
     try:
         client = OpenAI(api_key=confs["QQBot"]["ark_key"], base_url=ark_model_url)
 
@@ -333,6 +365,9 @@ def ark_api(user_query): # 火山引擎-豆包联网模型
     return _response_output_text(response)
 
 def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
+    if image_generation_config:
+        return openai_images_generate(settings=image_generation_config, prompt=prompt,
+            reference_image_url=reference_image_url, size=size)
     api_key = confs["QQBot"].get("ark_image_key") or confs["QQBot"].get("ark_key") or ""
     if not api_key:
         raise Exception("ark_images_generate_error: missing .env HOK_ARK_IMAGE_API_KEY")
@@ -357,7 +392,52 @@ def ark_images_generate(*, prompt: str, reference_image_url: str, size: str):
         raise Exception("ark_images_generate_error: missing url in response")
     return {"url": url, "request": request_payload}
 
+def openai_images_generate(*, settings, prompt, reference_image_url='', size='1:1', timeout=600):
+    """Single Image API request; no resubmission when the outcome is unknown."""
+    import base64
+    import math
+    if ':' in size:
+        width, height = (int(value) for value in size.split(':'))
+        ratio = width / height
+        if not 1 / 3 <= ratio <= 3:
+            raise ValueError('图片宽高比须在1:3到3:1之间')
+        # Preserve the requested ratio with provider-supported multiples of 16.
+        width = round(math.sqrt(1024 * 1024 * ratio) / 16) * 16
+        height = round(width / ratio / 16) * 16
+        dimensions = f'{width}x{height}'
+    else:
+        dimensions = size
+    payload = {'model': settings['model'], 'prompt': prompt, 'size': dimensions,
+               'n': 1, 'quality': 'medium', 'output_format': 'png'}
+    endpoint = settings['base_url'].rstrip('/') + '/images/'
+    if reference_image_url:
+        payload['images'] = [{'image_url': reference_image_url}]
+        endpoint += 'edits'
+    else:
+        endpoint += 'generations'
+    proxy = settings.get('proxy_url')
+    response = direct_request('POST', endpoint, json=payload,
+        headers={'Authorization': 'Bearer ' + settings['api_key']}, timeout=timeout,
+        proxies={'http': proxy, 'https': proxy} if proxy else {})
+    if response.status_code != 200:
+        raise RuntimeError(f'OpenAI 生图失败（HTTP {response.status_code}）')
+    data = response.json()
+    rows = data.get('data') or []
+    encoded = rows[0].get('b64_json') if rows else None
+    if not isinstance(encoded, str) or len(encoded) > 12 * 1024 ** 2:
+        raise ValueError('生图未返回有效图片或超过大小上限')
+    raw = base64.b64decode(encoded, validate=True)
+    if not 0 < len(raw) <= 8 * 1024 ** 2:
+        raise ValueError('生成图片超过8 MiB上限')
+    return {'image_bytes': raw, 'mime': 'image/png', 'model': settings['model'],
+            'provider_host': 'api.openai.com', 'usage': data.get('usage'),
+            'request': {'base_url': endpoint, **payload}}
+
+
 def apimart_images_generate(*, prompt: str, reference_image_url: str, size: str, resolution: str, task_timeout_seconds=None, task_poll_interval_seconds=None):
+    if confs.get('ImageGenerationAPI', {}).get('protocol') == 'openai':
+        return openai_images_generate(settings=image_generation_config, prompt=prompt,
+            reference_image_url=reference_image_url, size=size, timeout=task_timeout_seconds or 600)
     api_key = confs["QQBot"].get("apimart_key") or ""
     if not api_key:
         raise Exception("apimart_images_generate_error: missing .env HOK_APIMART_API_KEY")

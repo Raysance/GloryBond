@@ -1,6 +1,32 @@
 # Local Agent Studio
 
-可直接运行的本地聊天 UI，使用 Python 3.11 或更新版本。`glorybond.agent` 仅作为 `agent_runtime` 的外部适配层，QQ 通过 `qq_agent/` 复用同一内核、工具与角色服务，以 QQ 输入和输出适配器接入。
+可直接运行的本地聊天 UI，统一使用 Python 3.13。`glorybond.agent` 仅作为 `agent_runtime` 的外部适配层，QQ 通过 `glorybond.apps.qq.agent` 复用同一内核、工具与角色服务，以 QQ 输入和输出适配器接入。
+
+## 模型配置与切换
+
+私有 `config.yaml` 保留原来的顶层模型配置。`ModelProfiles.active: original` 使用原配置，`active: openai` 应用 `ModelProfiles.profiles.openai` 的模型覆盖；也可用 `HOK_MODEL_PROFILE` 指定。切换后重启 Bot/Web 和正在运行的本地控制台，不迁移或清空聊天、登录态及业务数据。私有 `.env` 新增 `HOK_OPENAI_API_KEY`，其他密钥原样保留。切回只需改 active，无需重新填写旧模型与密钥。
+
+OpenAI profile 的 ChatAPI、VisionAPI、DocumentAPI、MediaAPI 与 LocalAgent.llm 均配置 `base_url: https://api.openai.com/v1`、`api_key_env: HOK_OPENAI_API_KEY`、`model: gpt-6.1-sol`、`protocol: openai_responses`、`reasoning_effort: medium`。ASRAPI 使用同一账号的 `gpt-transcribe / protocol: openai`；ImageGenerationAPI 使用 `gpt-image-2.6-flare / protocol: openai`，默认 medium 画质、PNG，保留参考图参数及原产物交付方式。各服务显式配置 proxy_url，本地可直连，生产使用现有 Clash。profile 按完整服务替换，OpenAI 不继承原百炼备用；未配置 profile 的旧部署行为不变。示例结构：
+
+```yaml
+ModelProfiles:
+  active: openai # 改为 original 后重启即可恢复顶层配置
+  profiles:
+    openai:
+      ChatAPI:
+        base_url: https://api.openai.com/v1
+        api_key_env: HOK_OPENAI_API_KEY
+        model: gpt-6.1-sol
+        protocol: openai_responses
+        reasoning_effort: medium
+        proxy_url: ''
+      # VisionAPI、DocumentAPI、MediaAPI、ASRAPI、ImageGenerationAPI
+      # 及 LocalAgent.llm 按上文分别配置，密钥只写变量名。
+```
+
+`openai_responses.py` 把现有消息及 function tools 映射到 Responses，`store=false`，本地回传完整输出项、加密推理与 phase，不依赖服务器会话。每轮最多两个工具与总预算沿用内核；流中断不执行部分调用。识图继续作为普通工具，读取后只向主上下文提供文字。文件通过同账号 Files 上传，使用原生 input_file；旧供应商的历史引用不能跨供应商使用，切换后需要重新附上。ASR和内容分析缓存包含供应商身份，切回可复用原转写；缓存命中不重复计算用量。search/fetch 仍为独立 DeepSeek 工具，主提示词不添加供应商或某类工具的优先级。
+
+运行记录保留 OpenAI 原生 usage，并统一展示输入、输出、缓存及推理 token；缓存与推理明细不重复相加。6.1 Sol、GPT-Transcribe、Flare 的估算以美元记录，原供应商人民币另计；价格快照见 `run_costs.py`，估价不等于账单。已实测两工具续轮、识图、文件上传读取、分段转写、缓存、生图及参考图编辑；自动回归也覆盖切回原配置。协议与价格见 [Responses](https://developers.openai.com/api/docs/guides/reasoning)、[文件输入](https://developers.openai.com/api/docs/guides/file-inputs)、[转写](https://developers.openai.com/api/docs/guides/speech-to-text)、[生图](https://developers.openai.com/api/docs/guides/image-generation)。以下原供应商配置说明适用于 original。
 
 ## 启动
 

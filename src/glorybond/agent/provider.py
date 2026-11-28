@@ -46,6 +46,8 @@ def has_image_inputs(messages):
 
 def configure_chat_payload(payload, protocol):
     """Adapt provider-specific thinking and forced tool selection outside the kernel."""
+    payload['messages'] = [{key: value for key, value in message.items() if key != 'openai_output'}
+                           if 'openai_output' in message else message for message in payload['messages']]
     if protocol != 'ark':
         # Ark ciphertext is provider-specific. Keep it in the stored message,
         # but never forward it after switching back to a text provider.
@@ -99,6 +101,7 @@ class DeepSeekModel:
         response_format=None,
         proxy_url=None,
         protocol='deepseek',
+        reasoning_effort='medium',
         timeout_seconds=120,
         first_token_timeout_seconds=120,
         fallback=None,
@@ -112,6 +115,7 @@ class DeepSeekModel:
         self.response_format = response_format
         self.proxy_url = proxy_url or None
         self.protocol = protocol
+        self.reasoning_effort = reasoning_effort
         self.timeout_seconds = timeout_seconds
         self.first_token_timeout_seconds = first_token_timeout_seconds
         self.fallback = fallback
@@ -134,14 +138,17 @@ class DeepSeekModel:
             messages, vision_context = self.images.project(messages)
         elif self.image_store:
             messages, vision_context = await asyncio.to_thread(self.image_store.model_messages, messages)
-        messages, has_documents = project_documents(messages)
+        document_provider = (getattr(self.documents, 'provider', 'deepseek') if self.documents
+                             else 'openai' if self.protocol == 'openai_responses' else 'deepseek')
+        messages, has_documents = project_documents(messages, provider=document_provider)
         if has_documents:
             if not self.documents or not self.documents.settings:
-                raise ValueError("文件引用需要 DeepSeek 官方 deepseek-flash")
+                raise ValueError("文件引用需要配置对应的文档供应商")
             # Account-scoped files stay on their provider; image references are already text.
-            model = DeepSeekModel(**self.documents.settings, thinking=self.thinking, max_tokens=self.max_tokens,
-                                  response_format=self.response_format, timeout_seconds=self.timeout_seconds,
-                                  first_token_timeout_seconds=self.first_token_timeout_seconds)
+            model = DeepSeekModel(**{'timeout_seconds': self.timeout_seconds,
+                                    'first_token_timeout_seconds': self.first_token_timeout_seconds,
+                                    **self.documents.settings}, thinking=self.thinking, max_tokens=self.max_tokens,
+                                  response_format=self.response_format)
             result = await model.complete(messages, tools, on_delta, tool_choice=tool_choice)
             result['vision_context'] = vision_context
             return result
@@ -168,6 +175,13 @@ class DeepSeekModel:
         return result
 
     async def _complete_once(self, messages, tools, on_delta, *, tool_choice):
+        if self.protocol == 'openai_responses':
+            from glorybond.agent.openai_responses import complete_response
+            metadata = model_metadata(model=self.model, protocol=self.protocol, max_tokens=self.max_tokens,
+                                      messages=messages, tools=tools)
+            if self.include_runtime_metadata:
+                messages = metadata_messages(messages, metadata)
+            return await complete_response(self, messages, tools, on_delta, tool_choice=tool_choice, metadata=metadata)
         selected_model = self.vision_model if has_image_inputs(messages) else self.model
         payload = {
             "model": selected_model,

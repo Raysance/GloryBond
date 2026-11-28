@@ -114,7 +114,7 @@ def kpl_check_and_push(
                     size=size,
                     resolution=resolution,
                 )
-                image_url = (generated or {}).get("url") or ""
+                image_url = (generated or {}).get('image_bytes') or (generated or {}).get("url") or ""
                 if not image_url:
                     raise Exception(f"kpl_push_error: empty image url for cid={cid}")
                 if debug:

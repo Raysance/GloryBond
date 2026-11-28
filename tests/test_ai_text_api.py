@@ -10,6 +10,24 @@ ZAPI=import_project_module('glorybond.integrations.api')
 
 
 class TextAPITests(unittest.TestCase):
+    def test_business_text_uses_responses_medium_and_does_not_send_legacy_sampling(self):
+        requests = []
+        def handler(request):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json={'status': 'completed', 'model': 'gpt-6.1-sol',
+                'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': 'answer'}]}],
+                'usage': {'input_tokens': 10, 'output_tokens': 2}})
+        client = httpx.Client
+        with patch.object(API, 'chat_api_config', {'api_key': 'test-key', 'base_url': 'https://api.openai.com/v1',
+                'model': 'gpt-6.1-sol', 'protocol': 'openai_responses', 'reasoning_effort': 'medium'}), \
+             patch.object(API, 'DefaultHttpxClient', side_effect=lambda **kw: client(transport=httpx.MockTransport(handler), **kw)):
+            self.assertEqual(API.ai_api('test', temperature=1.5, thinking=False), 'answer')
+            self.assertEqual(API.ark_api('search test'), 'answer')
+        self.assertEqual(requests[0]['reasoning'], {'effort': 'medium'})
+        self.assertNotIn('temperature', requests[0])
+        self.assertNotIn('thinking', requests[0])
+        self.assertEqual(requests[1]['tools'], [{'type': 'web_search'}])
+
     def test_business_text_falls_back_to_streaming_kimi(self):
         requests = []
         def handler(request):

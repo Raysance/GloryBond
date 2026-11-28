@@ -154,7 +154,12 @@ worker 仅通过 private 设置提供独立 DeepSeek Search 密钥并纳入脱�
 
 主模型承担语境理解、角色语气和完整正文。已有合适短答直接沿用两版；较长正文只生成简版，整理器不再重写详细稿。两版保持同一对象、判断程度及执行状态，本人直接历史保存完整详细正文。
 
-当前 QQ 的文字、回复整理与联网角色生成使用 DeepSeek 官方
+当前模型通过 `ModelProfiles.active` 整体切换，OpenAI profile 使用 `gpt-6.1-sol / medium`，
+涵盖文字、回复整理、角色生成、独立识图和文档/媒体内容理解；转写为 `gpt-transcribe`，生图为
+`gpt-image-2.6-flare`。`original` 恢复下述保留配置。切换重启生效，密钥与业务数据保留，
+配置及 Responses 协议见[共享模型说明](../../../agent/README.md#模型配置与切换)。
+
+原配置的 QQ 文字、回复整理与联网角色生成使用 DeepSeek 官方
 `https://api.deepseek.com` 的 `deepseek-flash`。远程 `ChatAPI.api_key_env`
 引用现有 `.env` 中的 `HOK_DEEPSEEK_API_KEY`；业务单轮文案也使用该 ChatAPI。
 显式 `HOK_CHAT_API_KEY` 仍可覆盖，但部署启动环境不得遗留旧供应商配置。

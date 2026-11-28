@@ -98,6 +98,8 @@ def local_model_settings(config, remote, *, environment):
     model = overrides.get("model", remote["public"]["model"])
     return {
         **({'vision': vision} if vision else {}),
+        **{key: overrides[key] for key in ('protocol', 'reasoning_effort', 'timeout_seconds',
+                                          'first_token_timeout_seconds') if key in overrides},
         "api_key": key, "base_url": base_url, "model": model,
         "vision_model": vision['model'] if vision else overrides.get("vision_model", model),
         "proxy_url": overrides.get("proxy_url", ""),
@@ -108,6 +110,12 @@ def create_app(*, config_path=None):
     from glorybond.config.paths import project_root
     root = project_root()
     document = yaml.safe_load(Path(config_path or root / "config.yaml").read_text())
+    # Import the pure helper by AST, as the worker does, without starting Bot config.
+    from glorybond.agent.remote_worker import extracted_functions
+    namespace = {}
+    extracted_functions(root / 'src/glorybond/config/settings.py', ['_apply_model_profile'], namespace)
+    document = namespace['_apply_model_profile'](document, {
+        **dotenv_values(os.environ.get('HOK_ENV_FILE') or root / '.env'), **os.environ})
     config = document.get("LocalAgent", {})
     context_policy = ChatContextPolicy.model_validate(config.get("context", {}))
     token = secrets.token_urlsafe(32)

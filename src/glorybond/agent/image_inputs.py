@@ -326,6 +326,11 @@ class ImageStore:
             if isinstance(value, dict):
                 result = {k: visit(v) for k, v in value.items()}
                 image_url = result.get("image_url")
+                if result.get('type') == 'input_image' and isinstance(image_url, str) and image_url.startswith('data:image/'):
+                    reference = self._wire_references.get(hashlib.sha256(image_url.encode()).digest())
+                    if reference:
+                        result['image_url'] = reference
+                        converted = True
                 if isinstance(image_url, dict):
                     source = image_url.get("url", "")
                     if isinstance(source, str) and source.startswith("data:image/"):

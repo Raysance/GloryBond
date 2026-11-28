@@ -397,7 +397,7 @@ def _emoji_build_kmoji_prompt(*, last_user_text: str, prompt_tail: str, style_te
 
 def generate_user_emoji_image(*, user_qid: str, group_id=None, size=None):
     from glorybond.integrations.api import apimart_images_generate
-    from glorybond.storage.files import download_url_to_file, append_jsonl, ensure_dir
+    from glorybond.storage.files import save_generated_image, download_url_to_file, append_jsonl, ensure_dir
     from glorybond.time import time_r
 
 
@@ -425,7 +425,7 @@ def generate_user_emoji_image(*, user_qid: str, group_id=None, size=None):
             size = "1:1"
 
     gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution, task_timeout_seconds=_emoji_task_timeout_seconds())
-    image_url = gen_res["url"]
+    image_url = gen_res.get("url")
     request_payload = gen_res["request"]
 
     now = time_r()
@@ -434,7 +434,7 @@ def generate_user_emoji_image(*, user_qid: str, group_id=None, size=None):
     ensure_dir(local_dir)
     basename = f"emoji_{ts}_{user_qid}_{os.path.splitext(template_filename)[0]}.png"
     local_path = os.path.join(local_dir, basename)
-    download_url_to_file(image_url, local_path)
+    save_generated_image(gen_res, local_path)
     transparentize_checkerboard_background(local_path)
 
     meta = {
@@ -456,7 +456,7 @@ def generate_user_emoji_image(*, user_qid: str, group_id=None, size=None):
 
 def generate_user_kmoji_image(*, user_qid: str, group_id=None, custom_image_url: str = None, template_num: int = None, template_name: str = None, template_prefix: str = None, prompt_tail: str = "", size=None):
     from glorybond.integrations.api import apimart_images_generate
-    from glorybond.storage.files import download_url_to_file, append_jsonl, ensure_dir, copyfile_to_dir
+    from glorybond.storage.files import save_generated_image, download_url_to_file, append_jsonl, ensure_dir, copyfile_to_dir
     from glorybond.time import time_r
 
     use_default_template = False
@@ -519,14 +519,14 @@ def generate_user_kmoji_image(*, user_qid: str, group_id=None, custom_image_url:
             size = "1:1"
 
     gen_res = apimart_images_generate(prompt=prompt, reference_image_url=reference_url, size=size, resolution=resolution, task_timeout_seconds=_emoji_task_timeout_seconds())
-    image_url = gen_res["url"]
+    image_url = gen_res.get("url")
     request_payload = gen_res["request"]
 
     local_dir = _emoji_generated_local_dir()
     ensure_dir(local_dir)
     basename = f"kmoji_{ts}_{user_qid}.png"
     local_path = os.path.join(local_dir, basename)
-    download_url_to_file(image_url, local_path)
+    save_generated_image(gen_res, local_path)
     transparentize_checkerboard_background(local_path)
 
     meta = {

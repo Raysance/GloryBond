@@ -57,7 +57,7 @@ def register_media_tool(registry, *, media, fetcher, local_roots=()):
             async def load():
                 return raw
             result = await media.read(source_key="local:" + hashlib.sha256(raw).hexdigest(), loader=load, question=args.question)
-        # Flash already received every transcript segment. Bound the observation
+        # The analysis model received every transcript segment. Bound the observation
         # while explicitly preserving how much source text was returned.
         transcript = result["transcript"]
         return {**result, "transcript": transcript[:32000], "transcript_chars": len(transcript),
@@ -66,7 +66,7 @@ def register_media_tool(registry, *, media, fetcher, local_roots=()):
 
     registry.register(name="read_media", description=(
         "按问题读取当前会话的音视频附件、公开媒体文件直链或授权本地文件。"
-        "视频抽帧交由DeepSeek Flash，完整第一音轨分段经DeepSeek语音识别后参与分析；纯音频仅转写与分析。"
+        "视频抽帧与完整第一音轨的分段转写一起交给内容理解模型；纯音频仅转写与分析。"
         f"最多{media.limits.max_bytes}字节、{media.limits.max_duration_seconds}秒，缓存复用，返回采样范围、转写、分析和实际用量。"
         "ASR不保留背景音效或语气。授权本地目录：" + ("、".join(str(root) for root in roots) or "未配置")),
         args_model=ReadMediaArgs, handler=read, category="media", scopes=("web.read",), effect="read",
