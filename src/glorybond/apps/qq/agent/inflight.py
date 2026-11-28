@@ -51,3 +51,7 @@ class ChatRollouts:
         if not entry["task"].cancelling():
             entry["task"].cancel()
         return True
+
+    def was_recalled(self, key):
+        self._prune()
+        return key in self.recalled or bool(self.active.get(key, {}).get("recalled"))

@@ -14,6 +14,55 @@ with patch('nonebot.get_driver', return_value=SimpleNamespace(on_startup=lambda 
 
 
 class MessageSenderRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_recalled_queued_brief_and_forward_are_dropped_before_send(self):
+        from glorybond.apps.qq.handlers import chat
+        from glorybond.apps.qq.agent.inflight import ChatRollouts
+        key = ("300", "group", "200", "101", "42")
+        rollouts = ChatRollouts()
+        rollouts.recall(key)
+        payload = {"type": "group", "toid": 200, "content": "answer", "messages": [],
+                   "automation_metadata": {"chat_message_key": list(key)}}
+        bot = SimpleNamespace(send_group_msg=AsyncMock(), send_group_forward_msg=AsyncMock())
+        with patch.object(chat, "live_chat_rollouts", rollouts), \
+             patch.object(SENDER, "_automation_before_send", new=AsyncMock()) as automation:
+            await SENDER._send_queued_message(bot, payload)
+            await SENDER._handle_forward_msg(bot, payload)
+        bot.send_group_msg.assert_not_awaited()
+        bot.send_group_forward_msg.assert_not_awaited()
+        automation.assert_not_awaited()
+
+    async def test_persisted_withdrawal_survives_restart_and_presend_wait(self):
+        from glorybond.apps.qq.handlers import chat
+        from glorybond.apps.qq.agent.inflight import ChatRollouts
+        payload = {"type": "group", "toid": 200, "content": "answer",
+                   "automation_metadata": {"chat_message_key": ["300", "group", "200", "101", "42"]}}
+        bot = SimpleNamespace(send_group_msg=AsyncMock())
+        with patch.object(chat, "live_chat_rollouts", ChatRollouts()), \
+             patch("glorybond.storage.chat_cancellations.was_recalled", side_effect=[False, True]), \
+             patch.object(SENDER, "_automation_before_send", new=AsyncMock(return_value=payload)):
+            await SENDER._send_queued_message(bot, payload)
+        bot.send_group_msg.assert_not_awaited()
+
+    async def test_recall_during_forward_blocks_following_brief_and_mentions(self):
+        from glorybond.apps.qq.handlers import chat
+        from glorybond.apps.qq.agent.inflight import ChatRollouts
+        key = ("300", "group", "200", "101", "42")
+        rollouts = ChatRollouts()
+        async def forward(**kwargs):
+            rollouts.recall(key)
+            return {"message_id": 99}
+        payload = {"type": "group", "toid": 200, "messages": [], "reply_notice": "mention",
+                   "reply_direct": {"content": "brief"}, "automation_metadata": {"chat_message_key": list(key)}}
+        bot = SimpleNamespace(send_group_forward_msg=AsyncMock(side_effect=forward))
+        with patch.object(chat, "live_chat_rollouts", rollouts), \
+             patch("glorybond.storage.chat_cancellations.was_recalled", return_value=False), \
+             patch.object(SENDER, "_automation_sent", new=AsyncMock()), \
+             patch.object(SENDER, "_enqueue_payload") as enqueue, patch.object(SENDER, "add_msg") as notice:
+            await SENDER._handle_forward_msg(bot, payload)
+        bot.send_group_forward_msg.assert_awaited_once()
+        enqueue.assert_not_called()
+        notice.assert_not_called()
+
     async def test_run_receipts_bind_real_direct_and_forward_message_ids(self):
         bot = SimpleNamespace(self_id="33", send_group_msg=AsyncMock(return_value={"message_id": 55}),
                               send_private_forward_msg=AsyncMock(return_value={"message_id": 66}))

@@ -263,6 +263,8 @@ def _report_delivery_error(error, payload, *, operation):
 async def _handle_forward_msg(bot, payload):
     from glorybond.features.facade import finish_forward_delivery
 
+    if await _chat_reply_cancelled(payload):
+        return
     delivery_id = payload.get("delivery_id")
     status = "sent"
     try:
@@ -281,7 +283,7 @@ async def _handle_forward_msg(bot, payload):
         await _record_agent_run_receipt(bot, payload, result)
         await _automation_sent(_prepare_automation_payload(payload), result)
         await _record_task_receipt(payload, result)
-        if payload.get("reply_notice"):
+        if payload.get("reply_notice") and not await _chat_reply_cancelled(payload):
             try:
                 add_msg(Message(payload["reply_notice"]), msg_type="group", to_id=target,
                         task_id=payload.get("task_id"), metadata=payload.get("automation_metadata"))
@@ -298,7 +300,7 @@ async def _handle_forward_msg(bot, payload):
             # The QQ call may already have succeeded. Never enqueue the report again here.
             log_message(f"FORWARD_STATE_FAILED: delivery={delivery_id} status={status} error={error!r}")
             _report_delivery_error(error, payload, operation="保存合并转发回执")
-    if payload.get("reply_direct"):
+    if payload.get("reply_direct") and not await _chat_reply_cancelled(payload):
         try:
             direct = dict(payload["reply_direct"])
             direct["automation_metadata"] = dict(payload.get("automation_metadata", {}))
@@ -309,6 +311,8 @@ async def _handle_forward_msg(bot, payload):
 
 
 async def _send_queued_message(bot, payload, *, observe=True):
+    if await _chat_reply_cancelled(payload):
+        return None
     try:
         if observe:
             payload = await _automation_before_send(payload)
@@ -317,6 +321,8 @@ async def _send_queued_message(bot, payload, *, observe=True):
     msg_type, to_id = payload.get("type"), payload.get("toid")
     message = Message(payload.get("content", ""))
     send_options = {"_timeout": 180} if any(segment.type == "video" for segment in message) else {}
+    if await _chat_reply_cancelled(payload):
+        return None
     try:
         if msg_type == "group":
             result = await bot.send_group_msg(group_id=_normalize_target_id(to_id), message=message, **send_options)
@@ -375,6 +381,23 @@ async def _send_video_with_metadata(bot, payload):
     if _confirmed_message_id(result) is None:
         raise RuntimeError("视频说明发送结果未确认，未继续发送视频。")
     return await _send_queued_message(bot, payload)
+
+
+async def _chat_reply_cancelled(payload):
+    from glorybond.storage.chat_cancellations import normalize_key, was_recalled
+    key = normalize_key(payload.get("automation_metadata", {}).get("chat_message_key"))
+    if key is None:
+        return False
+    from glorybond.apps.qq.handlers.chat import live_chat_rollouts
+    if live_chat_rollouts.was_recalled(key):
+        return True
+    try:
+        persisted = await asyncio.to_thread(was_recalled, key)
+    except Exception as exc:
+        # Do not send a guarded reply whose withdrawal status cannot be checked.
+        log_message(f"CHAT_REPLY_WITHDRAWAL_CHECK_FAILED: error={type(exc).__name__}")
+        return True
+    return persisted or live_chat_rollouts.was_recalled(key)
 
 
 async def _record_agent_run_receipt(bot, payload, result):

@@ -14,6 +14,21 @@ The unified Bot/Web project has exactly two application configuration files, bot
 
 Both files are ignored by Git and transferred separately over SSH. Code, documentation and deployment methods are public in `Raysance/GloryBond`; private SDKs remain submodules. See [configuration synchronization](../docs/DEVELOPMENT.md) before deploying. Code-only updates retain the current server files, including its latest verified sessions.
 
+For the existing NapCat 4.8 installation, `QQAgent.napcat_plugin_directory` can
+explicitly name its absolute `plugins` directory next to `napcat.mjs`.
+`deployment/scripts/sync_napcat_recall.py` links the owned
+`src/glorybond/integrations/napcat_recall.mjs` through the existing plugin loader;
+it never patches or replaces the third-party bundle. The deployment hook validates
+JavaScript syntax and restarts `hok-napcat.service` only when the plugin changes,
+then records its digest under private `data/`. Unconfigured hosts are untouched;
+unrelated files or links are not overwritten. Verify the `[GloryBondRecall] ready`
+startup diagnostic and real native recall delivery after installation. The plugin
+uses the verified four-argument 4.8 `plugin_init` and six-argument
+`plugin_onmessage` contract; recheck these and native message fields before a
+NapCat upgrade. To disable, remove the configuration entry and only the managed
+`plugins/glorybond_recall.mjs` symlink, then restart NapCat. Login sessions and
+OneBot configuration remain unchanged.
+
 Do not create `.env.local`, `*.env.example`, `config.yaml.example`, `redis.json`,
 or separate static/dynamic-variable files. Runtime paths belong in systemd units
 and persistent business state belongs in Redis or PostgreSQL.

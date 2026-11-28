@@ -47,6 +47,16 @@ class QQOutput:
         packet = {key: value for key, value in packet.items() if key != "task_id"}
         packet["_automation_metadata"] = {"source": "agent", "origin_run_id": event["run_id"],
                                           "origin_session_id": event["session_id"]}
+        record = metadata.get("chat_context", {}).get("record", {})
+        if metadata.get("origin") not in {"background", "event"} and not metadata.get("automation_rule_id"):
+            from glorybond.storage.chat_cancellations import normalize_key
+            from glorybond.apps.qq.handlers.chat import live_chat_rollouts
+            key = normalize_key((record.get("bot_id"), delivery.get("channel"), delivery.get("recipient_id"),
+                                 record.get("user_id"), metadata.get("message_id")))
+            if key:
+                if live_chat_rollouts.was_recalled(key):
+                    raise asyncio.CancelledError
+                packet["_automation_metadata"]["chat_message_key"] = list(key)
         if task_id:
             packet["task_id"] = task_id
         await self.sender(packet, delivery)

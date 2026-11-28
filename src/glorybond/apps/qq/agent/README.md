@@ -35,6 +35,10 @@ QQ 输入使用真实发送者，网页身份由独立配置绑定。群聊只�
 `QQOutput` 释放缓存和提及设置，取消时即使已有最终底稿也只保存轨迹，不发送回复或失败提示。
 其他消息、Web和定时任务不受影响；已发送的消息、已创建任务和已提交外部操作不会回滚。
 
+`handlers/chat.handle_recalled_chat` 先取消匹配的前台任务，再经 `storage/chat_cancellations.py` 保存固定1天的撤回标记；日志报告消息ID与是否命中活动请求。`QQOutput` 将可信机器人、渠道、接收方、原发言者和触发消息ID传入发送队列。`message_sender` 在实际发送前、异步发送准备之后，以及详细转发后的简略回复/提及入队前复查；生成已结束、队列延迟或进程重启也不绕过撤回。Redis检查失败不发送受保护回复，后台任务不绑定前台取消键。已经提交的QQ发送调用与外部工具操作不假称已回滚。
+
+旧版NapCat的 `onMsgRecall` 在原生撤回之后查询灰条消息，查询未找到撤回元素时不发OneBot通知。自有 `integrations/napcat_recall.mjs` 通过现有插件生命周期和原生消息监听器补充关联：缓存已上报消息的会话、原生序列、原生ID、OneBot ID和作者，不缓存正文；原生撤回或明确撤回元素更新才生成通知。群/私聊、机器人和原作者分别匹配，操作者未知时用0及 `operator_known=false` 标明，不影响按原作者取消；重复回调去重，缺少已验证关联不伪造通知。缓存最多4096条、10分钟，回调先到时保留1分钟等待对应消息。启用及升级核验见[部署说明](../../../../../deployment/README.md)。
+
 群聊 AI 回复默认原生 @ 本次提问者。`src/glorybond/apps/qq/agent/mentions.py` 注册 `chat_delivery`
 类别的 `set_reply_mention`，由同一 ReAct 模型按本次意思选择其他当前群成员，或传
 `user_id=all` 原生 @全体成员、`user_id=null` 明确不 @。要求提醒全群时先选择 all，

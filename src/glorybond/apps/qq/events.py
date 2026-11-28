@@ -829,9 +829,9 @@ async def f_chat(bot,event):
 
 @_chat_recall.handle()
 async def f_chat_recall(event: Event):
-    from glorybond.apps.qq.handlers.chat import cancel_recalled_chat
+    from glorybond.apps.qq.handlers.chat import handle_recalled_chat
 
-    cancel_recalled_chat(event)
+    await handle_recalled_chat(event)
 
 
 @_player_client.handle()

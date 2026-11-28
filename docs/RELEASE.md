@@ -22,6 +22,24 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Propagate native recalls and suppress queued chat replies — 2026-11-29
+
+An owned plugin supplements NapCat's existing recall notification path using exact
+native session/sequence and previously observed OneBot message IDs. It also
+accepts explicit native revoke-element updates, retains no message bodies, bounds
+its cache, and never guesses an operator or treats lookup failure as withdrawal.
+The existing plugin loader is used without modifying the installed NapCat bundle;
+deployment is opt-in per host and only changed plugin code restarts NapCat.
+
+QQ recall processing cancels the active request immediately and persists a scoped
+withdrawal marker for one day. Foreground output carries its trusted trigger key
+into the outbound queue. Direct replies, detailed forwards and following brief
+messages recheck that key before sending, including across restarts. Existing
+runtime cancellation records remain intact; submitted sends and external side
+effects are not claimed to be reversible. Regressions cover cancellation stages,
+late recalls, concurrent scope isolation, queue barriers, native recall mapping,
+cache expiry and managed plugin installation.
+
 ## Inspect previous runs through confirmed reply references — 2026-11-29
 
 The discovered `run_history/read_run_history` tool returns previous run metadata,

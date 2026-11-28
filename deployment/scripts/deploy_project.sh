@@ -32,5 +32,6 @@ PYTHONPATH="$project_root/vendor/hok-camp-client/src" .venv/bin/python vendor/ho
     --output "$HOK_DATA_DIR/account_sessions/camp-session.json"
 .venv/bin/python deployment/scripts/public_artifact_permissions.py --directory "$HOK_FILE_TRANSFER_DIR" --apply
 .venv/bin/python deployment/scripts/migrate_source_layout.py --project-root "$project_root"
+.venv/bin/python deployment/scripts/sync_napcat_recall.py --project-root "$project_root" --restart
 systemctl restart hok-nbot.service hok-web.service
 .venv/bin/python deployment/scripts/verify_startup.py

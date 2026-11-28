@@ -251,6 +251,12 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     results = [e["data"]["result"]["code"] for e in events if e["kind"] == "tool.result"]
                     self.assertEqual(results, ["CANCELLED", "CANCELLED"])
 
+    async def test_foreground_reply_binds_original_trigger_for_outbound_withdrawal_check(self):
+        self.script = [{"role": "assistant", "content": "完成。"}]
+        await self.gateway.chat(user_text="测试", user_id="101", nickname="用户", group_id="200", message_id=42)
+        self.assertEqual(self.sent[-1][0]["_automation_metadata"]["chat_message_key"],
+                         ["300", "group", "200", "101", "42"])
+
     async def test_cancelled_run_with_cached_final_saves_trace_without_sending_it(self):
         from agent_runtime.runtime.output import EventOutput
         principal = qq_principal("101", "200", "用户", admin_id="999", references=REFERENCES)

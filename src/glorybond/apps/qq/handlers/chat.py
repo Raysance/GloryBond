@@ -1,6 +1,7 @@
 """AI chat event input normalization."""
 
 import asyncio
+import logging
 import re
 
 from glorybond.apps.qq.agent.inflight import ChatRollouts
@@ -30,6 +31,25 @@ def cancel_recalled_chat(event):
     if (kind == "group_recall") != (_field(event, "group_id") is not None):
         return False
     return live_chat_rollouts.recall(chat_message_key(event))
+
+
+async def handle_recalled_chat(event):
+    """Cancel immediately, then persist the same identity for queued replies."""
+    from glorybond.storage.chat_cancellations import normalize_key, record_recall
+    if _field(event, "notice_type") not in {"group_recall", "friend_recall"}:
+        return
+    if (_field(event, "notice_type") == "group_recall") != (_field(event, "group_id") is not None):
+        return
+    key = normalize_key(chat_message_key(event))
+    if key is None:
+        return
+    matched = live_chat_rollouts.recall(key)
+    logger = logging.getLogger(__name__)
+    logger.info("QQ_CHAT_RECALL message_id=%s active_matched=%s", key[-1], matched)
+    try:
+        await asyncio.to_thread(record_recall, key)
+    except Exception:
+        logger.exception("QQ_CHAT_RECALL_STORE_FAILED message_id=%s", key[-1])
 
 
 def _cq_unescape(value):

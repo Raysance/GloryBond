@@ -36,6 +36,9 @@ class RecallTests(unittest.IsolatedAsyncioTestCase):
         patcher = patch.object(CHAT, "live_chat_rollouts", self.rollouts)
         patcher.start()
         self.addCleanup(patcher.stop)
+        storage = patch("glorybond.storage.chat_cancellations.record_recall", return_value=True)
+        self.saved_recalls = storage.start()
+        self.addCleanup(storage.stop)
 
     async def test_group_and_private_notices_cancel_only_the_matching_message(self):
         for group in (200, None):
@@ -133,6 +136,27 @@ class RecallTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await job
         self.assertEqual(self.rollouts.active, {})
+
+    async def test_native_notice_with_unknown_operator_is_persisted_and_matches_original_sender(self):
+        started = asyncio.Event()
+        async def work():
+            started.set()
+            await asyncio.Event().wait()
+        key = CHAT.chat_message_key(message())
+        job = asyncio.create_task(self.rollouts.run(key, work))
+        await started.wait()
+        await CHAT.handle_recalled_chat(recall(operator_id=0, operator_known=False, glorybond_recall_source="native_sequence"))
+        self.assertIsNone(await job)
+        self.saved_recalls.assert_called_once_with(key)
+        self.assertTrue(self.rollouts.was_recalled(key))
+
+    async def test_recall_after_runtime_finishes_still_marks_the_outbound_reply(self):
+        key = CHAT.chat_message_key(message())
+        await self.rollouts.run(key, AsyncMock(return_value="queued"))
+        self.assertFalse(self.rollouts.active)
+        await CHAT.handle_recalled_chat(recall())
+        self.assertTrue(self.rollouts.was_recalled(key))
+        self.saved_recalls.assert_called_once_with(key)
 
     async def test_cleanup_error_after_recall_does_not_become_a_failure_reply(self):
         started = asyncio.Event()
