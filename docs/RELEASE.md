@@ -11,7 +11,7 @@ Current mappings are [application history](history-map-application.txt) and [ear
 Fixed private dependencies:
 
 - `vendor/hok-player-client`: `d9b32f1dcba5cd0e0af1b97d84c083ff774028df` (version `0.7.3`, ten commits after the `v0.7.3` tag)
-- `vendor/hok-camp-client`: `9d74016e11097da917a74b826709457bc84440ec` (version `0.10.0`)
+- `vendor/hok-camp-client`: `f029b96760ed3a40118f16cd2e932e76070880a9` (version `0.10.1`)
 - `vendor/react-agent-runtime`: `f8e32540bb80dd9346fd98bb71b3c1c01f4ecbd8`
 
 The player client update makes DATA sequence selection and frame writing atomic with automatic heartbeat sends. Public interfaces remain compatible. Research tools, native fixtures and historical release artifacts are now maintained outside the SDK runtime repository; application page tests use synthetic inputs rather than importing those fixtures. The reported server control codes 7/14 still have no confirmed cause.
@@ -21,6 +21,15 @@ The SDK also decodes the complete 1042 login-limit notification. A zero result c
 Official game-client requests are now disabled through the existing `PlayerClient.enabled` flag. Online queries use the original Camp path, battle collection skips the client provider, and ordinary hero commands reach the legacy handler without client supplements. Explicit client commands and official-account status, QR and polling operations stop before network access. Camp/NapCat login and saved credentials, bindings and history are retained. SDK pins remain unchanged.
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
+
+## Reduce Camp request spacing to one second — 2026-11-28
+
+Camp SDK 0.10.1 spaces HTTP request starts at least one second apart within
+each client instance while retaining serial execution. Bot/Web use the updated
+private submodule. QQ polling, QR creation cooldowns and automatic spectator
+heartbeat scheduling retain their existing intervals. Validation passed 205 SDK
+offline tests, 100 host checks and 45 Web checks, plus wheel/sdist boundaries and
+isolated import/CLI checks; no live Camp requests were made.
 
 ## Switch the shared vision model to Seed 2.1 Pro — 2026-11-28
 

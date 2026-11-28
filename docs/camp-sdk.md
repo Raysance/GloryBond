@@ -6,7 +6,7 @@
 
 ## 会话归属
 
-正式会话位于 `HOK_DATA_DIR/account_sessions/camp-session.json`，权限0600，由SDK读取和保存。Bot/Web只向 `CampClient(state_file=...)` 传路径，不读取token、userKey、完整登录响应或调用 `export_session()`。每次查询前调用 `reload_session()`；同一进程复用实例，保留至少2秒的请求间隔。
+正式会话位于 `HOK_DATA_DIR/account_sessions/camp-session.json`，权限0600，由SDK读取和保存。Bot/Web只向 `CampClient(state_file=...)` 传路径，不读取token、userKey、完整登录响应或调用 `export_session()`。每次查询前调用 `reload_session()`；同一进程复用实例，保留至少1秒的请求间隔。
 
 管理员登录流程在临时SDK文件中完成扫码和角色选择。原会话继续可用；远端验证、挑战期限和Redis租约均通过后，调用SDK `save_session()` 带旧版本标识原子发布。并发更新时SDK拒绝覆盖，业务配置、玩家映射与.env不写入营地凭据。
 
@@ -58,7 +58,7 @@ SDK 新增 `get_battle_winning_trend`、`get_battle_replay` 和 `get_battle_anal
 
 ## 营地好友列表与申请
 
-`get_camp_friends(*, page=0)` 读取当前登录账号的一页好友列表，不接受其他用户 ID。返回完整 `data`，其中 `userList`、`roleList`、`userOffAccs` 分别保留营地用户、游戏角色、公众号条目，以及原始 `hasMore`、`nextPage` 和未知字段；不混合类别、不补字段。SDK 根据 APK 保留的 PHP 分支实现，`hasMore > 0` 时可显式请求当前 `page + 1`，调用者须限制总页数，不能把一页当作全部好友。每次仅发一次请求，沿用共享2秒间隔，不自动翻页、重试或回退其他端点。
+`get_camp_friends(*, page=0)` 读取当前登录账号的一页好友列表，不接受其他用户 ID。返回完整 `data`，其中 `userList`、`roleList`、`userOffAccs` 分别保留营地用户、游戏角色、公众号条目，以及原始 `hasMore`、`nextPage` 和未知字段；不混合类别、不补字段。SDK 根据 APK 保留的 PHP 分支实现，`hasMore > 0` 时可显式请求当前 `page + 1`，调用者须限制总页数，不能把一页当作全部好友。每次仅发一次请求，沿用共享1秒间隔，不自动翻页、重试或回退其他端点。
 
 列表接口已通过 APK 静态核对、205项SDK离线测试及36项宿主兼容测试。随后用户授权复用现有会话读取两页，第0页返回13条 `isCampFriend=1` 的用户，第1页为 `hasMore=0` 且省略列表的终止页；确认该账号当时可用，原始名单只保存在私有目录。这里只同步 SDK 能力和固定引用，不新增 Bot/Web 或 AI 查询入口。用法见 SDK [读取营地好友列表](https://github.com/Raysance/hok-camp-client#读取营地好友列表)。
 
@@ -71,3 +71,5 @@ SDK 公开 `add_camp_friend(friend_user_id, *, content='', remark='')`，向明�
 ## 验证与发布
 
 先推送SDK，再更新宿主gitlink并运行DEVELOPMENT.md中的离线检查。部署安装video所需的PyAV；发布不追加真实营地请求或QQ测试消息。SDK已有一次授权的RTMP首帧实测，但不代表任意玩家、整场持续播放或精确直播延迟都已验证。
+
+0.10.1 按用户要求将当前营地 HTTP 最小起始间隔进一步调整为1秒，继续保留实例内串行；QQ轮询、二维码与自动观战心跳调度不变。SDK离线时钟测试覆盖等待不足1秒与已达到1秒的行为。
