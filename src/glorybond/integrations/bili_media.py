@@ -133,7 +133,9 @@ def download_bili_video(reference, directory, *, max_size_mb=90, timeout_seconds
         raise BiliVideoError(result.get("code", "unavailable"))
     path = directory / "video.mp4"
     output_limit = min(max_size_mb * 1024 * 1024, max_output_size_mb * 1_000_000)
-    if not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= output_limit:
+    if not path.is_file() or path.is_symlink() or path.stat().st_size <= 0:
+        raise BiliVideoError("unavailable")
+    if path.stat().st_size > output_limit:
         raise BiliVideoError("size")
     metadata_path = directory / "metadata.json"
     if not metadata_path.is_file() or metadata_path.is_symlink() or metadata_path.stat().st_size > 8192:

@@ -2043,7 +2043,8 @@ def bili_video_download_message(reference):
 def bili_video_share_message(reference, *, scope):
     """Bind duplicate suppression to the trusted incoming conversation."""
     import hashlib
-    from glorybond.integrations.api import resolve_video_reference
+    from glorybond.integrations.api import BiliVideoError, resolve_video_reference
+    from nonebot.adapters.onebot.v11 import MessageSegment
     from uuid import uuid4
 
     canonical = resolve_video_reference(reference)
@@ -2053,7 +2054,12 @@ def bili_video_share_message(reference, *, scope):
     if not dmc.redis_deamon.set(key, token, nx=True, ex=360):
         return None
     try:
-        message = bili_video_download_message(canonical)
+        try:
+            message = bili_video_download_message(canonical)
+        except BiliVideoError as error:
+            if error.code != "size":
+                raise
+            message = str(MessageSegment.text("视频超过大小上限，请打开链接观看：\n" + canonical))
         # Preserve at least a minute of cooldown after a successful download.
         dmc.redis_deamon.eval(
             "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('expire',KEYS[1],60) end return 0",

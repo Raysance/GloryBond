@@ -22,6 +22,22 @@ Official game-client requests are now disabled through the existing `PlayerClien
 
 Both `.env` and `config.yaml` remain only on local/production machines and are ignored. Separate SSH configuration synchronization precedes the normal GitHub Actions source deployment. See [development](DEVELOPMENT.md) and [publication boundaries](../deployment/PUBLICATION.md).
 
+## Deliver oversized subscription videos as links — 2026-11-28
+
+Bilibili media exceeding the configured output limit (50 MB by default) now
+uses the existing cover and link format for subscriptions/latest-video queries,
+and a canonical link for direct shares. Stream sizes are checked before body
+download; unknown lengths are checked during download and after merging.
+Oversized sources no longer enter compression. Size rejections are cached for
+24 hours without sliding expiry, keyed by video and limits, preventing repeated
+downloads after queue failures or repeated shares. Other failures remain
+retryable. Only accepted queue submissions advance subscription seen state;
+actual QQ delivery continues to use the existing receipt tracking.
+
+Validation covers early rejection without body download, unknown-length size
+checks, rejection cache reuse/expiry/config changes, preserved video reuse,
+literal text in link cards, and queue acceptance before marking a video seen.
+
 ## Extend the post-query poke analysis window — 2026-11-27
 
 A pending battle can now be analyzed by poking the bot within 30 minutes after

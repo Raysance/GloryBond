@@ -239,7 +239,32 @@ def format_video_metadata(metadata):
 
 
 def _bili_video_format_video_message(up_name, video):
-    return _zfunc_attr("bili_video_download_message")(video.get("bvid") or video.get("url"))
+    from glorybond.integrations.api import BiliVideoError
+
+    try:
+        return _zfunc_attr("bili_video_download_message")(video.get("bvid") or video.get("url"))
+    except BiliVideoError as error:
+        if error.code != "size":
+            raise
+        return _bili_video_format_link_message(up_name, video)
+
+
+def _bili_video_format_link_message(up_name, video):
+    """Keep the original cover/link delivery when native video is too large."""
+    from nonebot.adapters.onebot.v11 import MessageSegment
+    from glorybond.time import epoch_to_text
+
+    published = epoch_to_text(video.get("pubdate"), timezone_name="Asia/Shanghai") or "未知"
+    message = MessageSegment.text(
+        "B站订阅视频推送\n"
+        f"【{video.get('title') or '无标题'}】\n"
+        f"{up_name} · {published}\n\n")
+    picture = _bili_video_pic_url(video)
+    if picture:
+        message += MessageSegment.image(picture)
+        message += MessageSegment.text("\n\n")
+    message += MessageSegment.text(_bili_video_page_link(up_name, video))
+    return str(message)
 
 
 def _bili_video_format_push_message(up_name, video, subscribers):

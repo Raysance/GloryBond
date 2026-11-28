@@ -31,7 +31,9 @@ async def run_media_command(*arguments):
 
 
 async def prepare_video(source, request):
-    """Prefer quick delivery; compress only to fit resolution or the video limit."""
+    """Oversized sources use links; smaller sources may need codec/resolution fixes."""
+    if source.stat().st_size > request["max_output_size_mb"] * 1_000_000:
+        return {"ok": False, "code": "size"}
     info = json.loads(await run_media_command("ffprobe", "-v", "error", "-show_entries",
         "format=duration:stream=codec_type,codec_name,width,height,avg_frame_rate", "-of", "json", str(source)))
     duration = float(info["format"]["duration"])
@@ -72,7 +74,9 @@ async def download(request):
     # Configure before importing the downloader, whose limits are initialized on import.
     from nonebot_plugin_parser_lite import configure
 
-    configure(plite_max_size=request["max_size_mb"],
+    source_limit = min(request["max_size_mb"] * 1024 * 1024,
+                       request["max_output_size_mb"] * 1_000_000)
+    configure(plite_max_size=math.ceil(source_limit / (1024 * 1024)),
               plite_bili_video_quality=32 if request["max_height"] == 480 else 64,
               plite_bili_video_codes=["avc"], plite_max_comments=0, plite_max_retries=1,
               plite_bsb_api_base=None, plite_media_speedup_rules=[])
@@ -98,7 +102,9 @@ async def download(request):
         video, audio = await parser.get_download_streams(video=item, page_index=page - 1)
         streams = [video, audio] if audio else [video]
         sizes = await asyncio.gather(*(downloader.head_size(stream.url, ext_headers=parser.headers) for stream in streams))
-        if sum(size or 0 for size in sizes) > request["max_size_mb"] * 1024 * 1024:
+        # Reject known oversized streams before downloading their bodies. Unknown
+        # lengths remain bounded by the downloader and the merged-file check.
+        if sum(size or 0 for size in sizes) > source_limit:
             return {"ok": False, "code": "size"}
         options = {"cache_key": f"glorybond:{identifier}:{page}", "ext_headers": parser.headers}
         if audio:
@@ -112,7 +118,9 @@ async def download(request):
             from nonebot_plugin_parser_lite.utils.ffmpeg import FFmpeg
             path = await FFmpeg.remux_to_mp4(path, AsyncPath(request["directory"]) / "remux.mp4")
         source = Path(str(path))
-        if not 0 < source.stat().st_size <= request["max_size_mb"] * 1024 * 1024:
+        if source.stat().st_size <= 0:
+            return {"ok": False, "code": "unavailable"}
+        if source.stat().st_size > source_limit:
             return {"ok": False, "code": "size"}
         result = await prepare_video(source, request)
         if result.get("ok"):

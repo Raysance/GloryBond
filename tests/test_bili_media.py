@@ -1,6 +1,7 @@
 """Bilibili input, cache, download bounds and subscription delivery regressions."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import shutil
@@ -86,6 +87,29 @@ class BiliReferenceTests(unittest.TestCase):
 
 
 class BiliCacheTests(unittest.TestCase):
+    def test_oversize_verdict_is_reused_expires_and_respects_changed_limits(self):
+        with TemporaryDirectory() as root, patch.object(FILES, "data_root", root), \
+             patch.object(ZAPI, "download_bili_video", side_effect=API.BiliVideoError("size")) as download:
+            for _ in range(2):
+                with self.assertRaises(API.BiliVideoError) as caught:
+                    FILES.cached_bili_video(URL)
+                self.assertEqual(caught.exception.code, "size")
+            self.assertEqual(download.call_count, 1)
+            marker = next((Path(root) / "bili_videos").glob("*.size-*.json"))
+            stamp = marker.stat().st_mtime
+            with self.assertRaises(API.BiliVideoError):
+                FILES.cached_bili_video(URL)
+            self.assertEqual(marker.stat().st_mtime, stamp)
+            os.utime(marker, (stamp - 86401, stamp - 86401))
+            with self.assertRaises(API.BiliVideoError):
+                FILES.cached_bili_video(URL)
+            self.assertEqual(download.call_count, 2)
+            for config in ({"max_output_size_mb": 60}, {"max_size_mb": 100}):
+                with self.assertRaises(API.BiliVideoError):
+                    FILES.cached_bili_video(URL, **config)
+            self.assertEqual(download.call_count, 4)
+            self.assertFalse(list((Path(root) / "bili_videos").glob(".download-*")))
+
     def test_cache_reuses_completed_video_and_discards_partial_failure(self):
         with TemporaryDirectory() as root, patch.object(FILES, "data_root", root):
             calls = []
@@ -171,7 +195,7 @@ class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
                 "nonebot_plugin_parser_lite.utils.bilibili.video": SimpleNamespace(Video=video),
             }
             request = {"url": "https://www.bilibili.com/video/av170001?p=2", "directory": directory,
-                       "max_height": 480, "max_size_mb": 90}
+                       "max_height": 480, "max_size_mb": 90, "max_output_size_mb": 50}
             with patch.dict(sys.modules, modules), patch.object(WORKER, "prepare_video", return_value={"ok": True}):
                 result = await WORKER.download(request)
             self.assertTrue(result["ok"])
@@ -182,6 +206,55 @@ class BiliCompressionTests(unittest.IsolatedAsyncioTestCase):
                                         "duration": 301, "page": 2, "page_count": 2, "part": "第二集"})
             parser.aclose.assert_awaited_once()
             downloader.aclose.assert_awaited_once()
+
+    async def test_size_preflight_skips_bodies_and_unknown_sizes_are_checked_after_download(self):
+        for sizes, actual_size, should_download, expected in [
+                ([40_000_000, 15_000_000], 1, False, {"ok": False, "code": "size"}),
+                ([None, None], 50_000_001, True, {"ok": False, "code": "size"}),
+                ([49_000_000, 1_000_000], 50_000_000, True, {"ok": True}),
+                ([None, None], 0, True, {"ok": False, "code": "unavailable"})]:
+            with self.subTest(sizes=sizes), TemporaryDirectory() as directory:
+                source = Path(directory) / "source.mp4"
+                with source.open("wb") as file:
+                    file.truncate(actual_size)
+                credential = asyncio.get_running_loop().create_future()
+                credential.set_result(None)
+                stream = SimpleNamespace(url="https://cdn.example/video", backup_url=[])
+                parser = SimpleNamespace(credential=credential, headers={}, aclose=AsyncMock(),
+                    get_download_streams=AsyncMock(return_value=(stream, stream)))
+                downloader = SimpleNamespace(head_size=AsyncMock(side_effect=sizes), aclose=AsyncMock(),
+                    download_av_and_merge=AsyncMock(return_value=source))
+                item = SimpleNamespace(get_info=AsyncMock(return_value=SimpleNamespace(
+                    arc=SimpleNamespace(title="Test", author=SimpleNamespace(name="Test"), pubdate=1),
+                    pages=[SimpleNamespace(page=SimpleNamespace(part="Test", duration=100))])))
+                configure = Mock()
+                modules = {
+                    "nonebot_plugin_parser_lite": SimpleNamespace(configure=configure),
+                    "nonebot_plugin_parser_lite.parsers.bilibili": SimpleNamespace(BilibiliParser=lambda: parser),
+                    "nonebot_plugin_parser_lite.download": SimpleNamespace(StreamDownloader=lambda: downloader),
+                    "nonebot_plugin_parser_lite.exception": SimpleNamespace(SizeLimitException=type("SizeLimitException", (Exception,), {})),
+                    "nonebot_plugin_parser_lite.utils.bilibili.video": SimpleNamespace(Video=lambda **kwargs: item),
+                }
+                request = {"url": URL, "directory": directory, "max_height": 480,
+                           "max_size_mb": 90, "max_output_size_mb": 50}
+                with patch.dict(sys.modules, modules), \
+                     patch.object(WORKER, "prepare_video", new=AsyncMock(return_value={"ok": True})) as prepare:
+                    self.assertEqual(await WORKER.download(request), expected)
+                self.assertEqual(prepare.await_count, int(expected["ok"]))
+                self.assertEqual(downloader.download_av_and_merge.await_count, int(should_download))
+                self.assertEqual(configure.call_args.kwargs["plite_max_size"], 48)
+                parser.aclose.assert_awaited_once()
+                downloader.aclose.assert_awaited_once()
+
+    async def test_oversized_source_is_not_probed_or_transcoded(self):
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "source.mp4"
+            with source.open("wb") as file:
+                file.truncate(50_000_001)
+            with patch.object(WORKER, "run_media_command", new=AsyncMock()) as run:
+                self.assertEqual(await WORKER.prepare_video(source, {"max_output_size_mb": 50}),
+                                 {"ok": False, "code": "size"})
+            run.assert_not_awaited()
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg is required")
     async def test_compression_reduces_size_caps_resolution_and_keeps_audio(self):
@@ -292,6 +365,9 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
                 ZFUNC.bili_video_share_message(URL, scope="group:3")
             download.side_effect = None
             self.assertEqual(ZFUNC.bili_video_share_message(URL, scope="group:3"), "video")
+            download.side_effect = API.BiliVideoError("size")
+            self.assertIn(URL, ZFUNC.bili_video_share_message(URL, scope="group:4"))
+            self.assertIsNone(ZFUNC.bili_video_share_message(URL, scope="group:4"))
 
     def test_native_video_keeps_metadata_separate_without_cover_or_link(self):
         from nonebot.adapters.onebot.v11 import Message
@@ -326,7 +402,7 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
              patch.object(ZAPI, "bilibili_get_user_card", return_value={}), \
              patch.object(ZAPI, "bilibili_search_videos_by_mid", return_value=[{"bvid": BV, "pubdate": 100}]), \
              patch.object(ZFUNC, "_bili_video_send_group_message", return_value=0) as send:
-            with patch.object(ZFUNC, "bili_video_download_message", side_effect=API.BiliVideoError("size")):
+            with patch.object(ZFUNC, "bili_video_download_message", side_effect=API.BiliVideoError("timeout")):
                 report = Mock()
                 result = BUSINESS.bili_video_check_and_push(on_error=report)
                 report.assert_called_once()
@@ -339,6 +415,37 @@ class BiliSubscriptionVideoTests(unittest.TestCase):
             self.assertEqual(result["pushed"], 0)
             self.assertFalse(redis.sismember("hok:bili:seen:123", BV))
             self.assertNotIn("hok:lock:bili:video_push", redis.values)
+
+    def test_oversize_link_is_marked_seen_only_after_queue_acceptance(self):
+        from nonebot.adapters.onebot.v11 import Message
+        from tests.test_bili_video_subscription import FakeRedis
+        redis = FakeRedis()
+        redis.sadd("hok:bili:seen:123", "old")
+        row = {"bvid": BV, "pubdate": 100, "title": "Title [CQ:at,qq=all]", "pic": "https://cdn.example/cover.jpg"}
+        with patch.object(ZFUNC.dmc, "redis_deamon", redis), \
+             patch.object(ZFUNC.dmc, "BiliVideoPushEnabled", True, create=True), \
+             patch.object(BUSINESS, "_bili_video_subscribers_by_up", return_value={
+                 "mid:123": {"up_mid": "123", "up_name": "Test", "subscribers": ["10001"]}}), \
+             patch.object(ZAPI, "bilibili_get_user_card", return_value={}), \
+             patch.object(ZAPI, "bilibili_search_videos_by_mid", return_value=[row]), \
+             patch.object(BUSINESS, "_bili_video_page_link", return_value="https://example.test/video"), \
+             patch.object(ZFUNC, "bili_video_download_message", side_effect=API.BiliVideoError("size")) as download, \
+             patch.object(ZFUNC, "_bili_video_send_group_message", side_effect=[0, 1]) as send:
+            failed = Mock()
+            self.assertEqual(BUSINESS.bili_video_check_and_push(on_error=failed)["pushed"], 0)
+            self.assertFalse(redis.sismember("hok:bili:seen:123", BV))
+            self.assertIsInstance(failed.call_args.args[0], RuntimeError)
+            failed.reset_mock()
+            self.assertEqual(BUSINESS.bili_video_check_and_push(on_error=failed)["pushed"], 1)
+            self.assertTrue(redis.sismember("hok:bili:seen:123", BV))
+            self.assertEqual(BUSINESS.bili_video_check_and_push(on_error=failed)["pushed"], 0)
+            failed.assert_not_called()
+            self.assertEqual(download.call_count, 2)
+            message = Message(send.call_args.args[0])
+            self.assertEqual([part.type for part in message], ["text", "image", "text"])
+            self.assertIn(row["title"], message.extract_plain_text())
+            self.assertIn("https://example.test/video", message.extract_plain_text())
+            self.assertNotIn("北京时间", message.extract_plain_text())
 
     def test_multiple_latest_videos_are_separate_messages(self):
         with patch.object(ZFUNC, "_bili_video_get_subscriptions", return_value={"1": [

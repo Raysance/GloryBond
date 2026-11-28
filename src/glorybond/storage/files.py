@@ -23,6 +23,7 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
     digest = hashlib.sha256(profile.encode()).hexdigest()
     destination = root / (digest + ".mp4")
     metadata_path = destination.with_suffix(".json")
+    size_path = root / (digest + f".size-{max_size_mb}.json")
     lock = _bili_video_cache_locks[int(digest[:8], 16) % len(_bili_video_cache_locks)]
     if not lock.acquire(timeout=30):
         raise BiliVideoError("busy")
@@ -35,6 +36,15 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
                 destination.touch()
                 metadata_path.touch()
                 return destination.resolve()
+        # Fixed expiry: repeated shares/queue retries must not download a known
+        # oversized video again. A different limit has a different cache key.
+        try:
+            if (not size_path.is_symlink() and now - size_path.stat().st_mtime < 86400
+                    and size_path.stat().st_size < 128
+                    and json.loads(size_path.read_text(encoding="utf-8")) == {"code": "size"}):
+                raise BiliVideoError("size")
+        except (OSError, ValueError, UnicodeError):
+            pass
         if not _bili_video_download_slots.acquire(blocking=False):
             raise BiliVideoError("busy")
         try:
@@ -54,10 +64,17 @@ def cached_bili_video(reference, *, max_size_mb=90, timeout_seconds=180,
             if used + max_size_mb * 1024 * 1024 > 1024 ** 3:
                 raise BiliVideoError("busy")
             with tempfile.TemporaryDirectory(prefix=".download-", dir=root) as temporary:
-                source = download_bili_video(reference, temporary, max_size_mb=max_size_mb,
-                                             timeout_seconds=timeout_seconds, max_height=max_height,
-                                             target_size_mb_per_5min=target_size_mb_per_5min,
-                                             max_output_size_mb=max_output_size_mb)
+                try:
+                    source = download_bili_video(reference, temporary, max_size_mb=max_size_mb,
+                                                 timeout_seconds=timeout_seconds, max_height=max_height,
+                                                 target_size_mb_per_5min=target_size_mb_per_5min,
+                                                 max_output_size_mb=max_output_size_mb)
+                except BiliVideoError as error:
+                    if error.code == "size":
+                        marker = Path(temporary) / "oversize.json"
+                        marker.write_text(json.dumps({"code": "size"}), encoding="utf-8")
+                        marker.replace(size_path)
+                    raise
                 source_metadata = Path(temporary) / "metadata.json"
                 if _read_bili_metadata(source_metadata) is None:
                     raise BiliVideoError("unavailable")
