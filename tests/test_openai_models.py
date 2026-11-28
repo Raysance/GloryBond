@@ -19,6 +19,24 @@ ROOT = Path(__file__).parents[1]
 
 
 class ProfileTests(unittest.TestCase):
+    def test_local_profile_does_not_inherit_a_server_loopback_proxy_or_mutate_remote(self):
+        from glorybond.apps.console.server import local_service_settings
+        remote = {'public': {'model_options': {'vision': {'model': 'server', 'proxy_url': 'http://127.0.0.1:7890'}},
+                             'model_services': {'documents': {'proxy_url': 'http://127.0.0.1:7890'}}},
+                  'private': {'vision_api_key': 'server', 'documents_api_key': 'server'}}
+        saved = copy.deepcopy(remote)
+        doc = {'ModelProfiles': {'active': 'openai', 'profiles': {'openai': {'VisionAPI': {}, 'DocumentAPI': {}}}}}
+        result = local_service_settings(doc, remote, environment={}, resolve_service=lambda *args:
+            {'base_url': 'https://api.openai.com/v1', 'model': 'gpt-6.1-sol', 'proxy_url': '', 'api_key': 'local'})
+        self.assertEqual(result['public']['model_options']['vision']['proxy_url'], '')
+        self.assertEqual(result['public']['model_services']['documents']['proxy_url'], '')
+        self.assertEqual(result['private']['documents_api_key'], 'local')
+        self.assertNotIn('api_key', result['public']['model_options']['vision'])
+        self.assertEqual(remote, saved)
+        old = local_service_settings(doc, remote, environment={'HOK_MODEL_PROFILE': 'original'},
+                                     resolve_service=lambda *args: self.fail('Original must retain server settings'))
+        self.assertIs(old, remote)
+
     def test_round_trip_restores_all_original_providers_without_mutation(self):
         namespace = {}
         extracted_functions(ROOT / 'src/glorybond/config/settings.py', ['_apply_model_profile'], namespace)

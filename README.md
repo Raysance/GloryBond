@@ -376,7 +376,7 @@ GloryBond 是 QQ 群里的王者荣耀助手，支持战绩查询、英雄数据
 
 支持连续追问、查询战绩和数据分析。群聊回复会 @ 本次提问者，通常简短回答；需要完整内容时可要求展开。内容较多时，可以按完整意思分几条发送。
 
-模型配置支持整体切换：`ModelProfiles.active: openai` 使用官方 OpenAI 项目密钥，文字、识图、文档及视频内容理解采用 `gpt-6.1-sol`、`reasoning.effort=medium`，语音转写采用 `gpt-transcribe`，生图采用 `gpt-image-2.6-flare`。切为 `original` 并重启即恢复保留的 DeepSeek、豆包、ZenMux、百炼备用及 APIMart 配置。两套密钥分别保存在原 `.env`，不写入源码；每轮最多两个工具、独立识图工具和原有总预算保持。search/fetch 继续使用独立 DeepSeek 工具接口。详见[模型配置与切换](src/glorybond/agent/README.md#模型配置与切换)。
+模型配置支持整体切换：`ModelProfiles.active: openai` 使用官方 OpenAI 项目密钥，文字、识图、文档及视频内容理解采用 `gpt-6.1-sol`、`reasoning.effort=medium`，语音转写采用 `gpt-transcribe`，生图采用 `gpt-image-2.6-flare`。切为 `original` 并重启即恢复保留的 DeepSeek、豆包、ZenMux、百炼备用及 APIMart 配置。两套密钥分别保存在原 `.env`，不写入源码；本地 profile 的媒体服务使用本地代理配置，避免继承服务器回环地址；每轮最多两个工具、独立识图工具和原有总预算保持。search/fetch 继续使用独立 DeepSeek 工具接口。详见[模型配置与切换](src/glorybond/agent/README.md#模型配置与切换)。
 
 正文缩写按私有配置 `StaticVariables.common_expr` 展开。已登记玩家简称应保留自己的身份，若被误替换为其他昵称，需删除冲突映射、同步线上配置并通过部署重启生效；见[聊天说明](docs/manual/chapters/chat.md)。
 

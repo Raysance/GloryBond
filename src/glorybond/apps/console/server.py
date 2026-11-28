@@ -75,6 +75,28 @@ class ChatInput(BaseModel):
         return self
 
 
+def local_service_settings(document, remote, *, environment, resolve_service):
+    """Local profile services use local transport/keys; original keeps inheritance."""
+    profiles = document.get('ModelProfiles') or {}
+    selected = environment.get('HOK_MODEL_PROFILE') or profiles.get('active', 'original')
+    overrides = (profiles.get('profiles') or {}).get(selected, {}) if selected != 'original' else {}
+    if not overrides:
+        return remote
+    public, private = dict(remote['public']), dict(remote['private'])
+    public['model_options'] = dict(public.get('model_options') or {})
+    public['model_services'] = dict(public.get('model_services') or {})
+    for name, section in (('vision', 'VisionAPI'), ('documents', 'DocumentAPI'),
+                          ('media_model', 'MediaAPI'), ('asr', 'ASRAPI')):
+        if section not in overrides:
+            continue
+        service = resolve_service(document, environment, section)
+        if service:
+            private[name + '_api_key'] = service['api_key']
+            options = public['model_options'] if name == 'vision' else public['model_services']
+            options[name] = {key: value for key, value in service.items() if key != 'api_key'}
+    return {**remote, 'public': public, 'private': private}
+
+
 def local_model_settings(config, remote, *, environment):
     """Resolve Web text credentials and retain the independent shared vision route."""
     overrides = config.get("llm")
@@ -113,9 +135,10 @@ def create_app(*, config_path=None):
     # Import the pure helper by AST, as the worker does, without starting Bot config.
     from glorybond.agent.remote_worker import extracted_functions
     namespace = {}
-    extracted_functions(root / 'src/glorybond/config/settings.py', ['_apply_model_profile'], namespace)
-    document = namespace['_apply_model_profile'](document, {
-        **dotenv_values(os.environ.get('HOK_ENV_FILE') or root / '.env'), **os.environ})
+    extracted_functions(root / 'src/glorybond/config/settings.py',
+                        ['_apply_model_profile', '_build_model_service_config'], namespace)
+    environment = {**dotenv_values(os.environ.get('HOK_ENV_FILE') or root / '.env'), **os.environ}
+    document = namespace['_apply_model_profile'](document, environment)
     config = document.get("LocalAgent", {})
     context_policy = ChatContextPolicy.model_validate(config.get("context", {}))
     token = secrets.token_urlsafe(32)
@@ -141,18 +164,17 @@ def create_app(*, config_path=None):
         bridge.kpl_config = state_bridge.kpl_config = document.get("AgentKPL")
         try:
             remote = await bridge.start()
+            remote = local_service_settings(document, remote, environment=environment,
+                                            resolve_service=namespace['_build_model_service_config'])
             async def fetch_page(**args):
                 return await bridge.call("web_fetch", **args)
             webpages.page_reader = fetch_page
             await state_bridge.start()
             public.update(remote["public"])
-            model_settings = local_model_settings(config, remote, environment={
-                **dotenv_values(os.environ.get("HOK_ENV_FILE") or root / ".env"),
-                **os.environ,
-            })
+            model_settings = local_model_settings(config, remote, environment=environment)
             for connection in (bridge, state_bridge):
-                for key in (model_settings['api_key'], (model_settings.get('vision') or {}).get('api_key')):
-                    if key and key not in connection.secrets:
+                for key in (model_settings['api_key'], *remote['private'].values()):
+                    if isinstance(key, str) and key and key not in connection.secrets:
                         connection.secrets.append(key)
             public.update({name: model_settings[name] for name in ("base_url", "model", "vision_model", "proxy_url")})
             app.state.documents = DeepSeekDocuments(remote)

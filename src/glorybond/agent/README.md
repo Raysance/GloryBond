@@ -6,7 +6,7 @@
 
 私有 `config.yaml` 保留原来的顶层模型配置。`ModelProfiles.active: original` 使用原配置，`active: openai` 应用 `ModelProfiles.profiles.openai` 的模型覆盖；也可用 `HOK_MODEL_PROFILE` 指定。切换后重启 Bot/Web 和正在运行的本地控制台，不迁移或清空聊天、登录态及业务数据。私有 `.env` 新增 `HOK_OPENAI_API_KEY`，其他密钥原样保留。切回只需改 active，无需重新填写旧模型与密钥。
 
-OpenAI profile 的 ChatAPI、VisionAPI、DocumentAPI、MediaAPI 与 LocalAgent.llm 均配置 `base_url: https://api.openai.com/v1`、`api_key_env: HOK_OPENAI_API_KEY`、`model: gpt-6.1-sol`、`protocol: openai_responses`、`reasoning_effort: medium`。ASRAPI 使用同一账号的 `gpt-transcribe / protocol: openai`；ImageGenerationAPI 使用 `gpt-image-2.6-flare / protocol: openai`，默认 medium 画质、PNG，保留参考图参数及原产物交付方式。各服务显式配置 proxy_url，本地可直连，生产使用现有 Clash。profile 按完整服务替换，OpenAI 不继承原百炼备用；未配置 profile 的旧部署行为不变。示例结构：
+OpenAI profile 的 ChatAPI、VisionAPI、DocumentAPI、MediaAPI 与 LocalAgent.llm 均配置 `base_url: https://api.openai.com/v1`、`api_key_env: HOK_OPENAI_API_KEY`、`model: gpt-6.1-sol`、`protocol: openai_responses`、`reasoning_effort: medium`。ASRAPI 使用同一账号的 `gpt-transcribe / protocol: openai`；ImageGenerationAPI 使用 `gpt-image-2.6-flare / protocol: openai`，默认 medium 画质、PNG，保留参考图参数及原产物交付方式。各服务显式配置 proxy_url，本地可直连，生产使用现有 Clash。本地 profile 明确覆盖的视觉、文档、媒体和ASR使用本地服务设置，不继承服务器回环代理；original 延续原先的 worker 继承方式。profile 按完整服务替换，OpenAI 不继承原百炼备用；未配置 profile 的旧部署行为不变。示例结构：
 
 ```yaml
 ModelProfiles:

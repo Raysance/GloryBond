@@ -47,7 +47,7 @@ GloryBond 将 QQ Bot、Web 和共享 AI 能力统一维护在 `Raysance/GloryBon
 
 ## 架构与数据约定
 
-- 模型切换通过 `config/settings.py#_apply_model_profile` 投影 `ModelProfiles.active`（可由 `HOK_MODEL_PROFILE` 覆盖）。`original` 使用原顶层配置；命名 profile 仅替换 ChatAPI、VisionAPI、DocumentAPI、MediaAPI、ASRAPI、ImageGenerationAPI 与 LocalAgent.llm，不覆盖业务配置或复制密钥。`openai` 使用 HOK_OPENAI_API_KEY，通用理解模型为 gpt-6.1-sol / medium，ASR 为 gpt-transcribe，生图为 gpt-image-2.6-flare。QQ、Web、回复整理、角色生成、业务文案和旧联网文案均经对应配置；原供应商及备用完整保留，OpenAI profile 不自动继承旧备用。search/fetch 密钥继续独立。Responses 在 `agent/openai_responses.py` 适配原循环，store=false，保留输出 phase、加密推理与 call_id，同批工具全部返回后继续；流未完成不执行部分调用，供应商专用状态不发给其他协议。文件引用标明供应商，切换后不混用旧ID；图片与媒体分析缓存包含模型/推理配置，转写缓存按ASR供应商隔离。用量保留原生字段并统一投影文本、缓存、推理计数，美元与人民币估价分别汇总；生图图片token单独计价。官方生图通过既有业务接口返回字节并由文件/产物边界保存，不因超时自动重复提交。具体配置、验证与回切见共享AI README。
+- 模型切换通过 `config/settings.py#_apply_model_profile` 投影 `ModelProfiles.active`（可由 `HOK_MODEL_PROFILE` 覆盖）。`original` 使用原顶层配置；命名 profile 仅替换 ChatAPI、VisionAPI、DocumentAPI、MediaAPI、ASRAPI、ImageGenerationAPI 与 LocalAgent.llm，不覆盖业务配置或复制密钥。`openai` 使用 HOK_OPENAI_API_KEY，通用理解模型为 gpt-6.1-sol / medium，ASR 为 gpt-transcribe，生图为 gpt-image-2.6-flare。QQ、Web、回复整理、角色生成、业务文案和旧联网文案均经对应配置；原供应商及备用完整保留，OpenAI profile 不自动继承旧备用。search/fetch 密钥继续独立。Responses 在 `agent/openai_responses.py` 适配原循环，store=false，保留输出 phase、加密推理与 call_id，同批工具全部返回后继续；流未完成不执行部分调用，供应商专用状态不发给其他协议。文件引用标明供应商，切换后不混用旧ID；图片与媒体分析缓存包含模型/推理配置，转写缓存按ASR供应商隔离。用量保留原生字段并统一投影文本、缓存、推理计数，美元与人民币估价分别汇总；生图图片token单独计价。官方生图通过既有业务接口返回字节并由文件/产物边界保存，不因超时自动重复提交。本地Web命名profile中明确提供的视觉/文档/媒体/ASR服务使用本地端点、代理与密钥，未覆盖及original继续继承worker；不把服务器回环代理用于本地请求。具体配置、验证与回切见共享AI README。
 
 - Bot 的文件、数据库、HTTP、缓存、时间和消息操作遵循上述统一入口；业务层专注领域逻辑。共享适配层管理自身的协议、进程和存储边界。
 - Web 与共享模块独立导入。Bot 启动和后台任务由现有生命周期入口管理，定时任务集中注册，外部请求与写入由明确调用触发。

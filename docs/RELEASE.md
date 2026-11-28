@@ -8,6 +8,8 @@ and image generation. The OpenAI profile uses GPT-6.1 Sol with medium reasoning,
 GPT-Transcribe and GPT-Image-2.6 Flare. Original provider sections and credentials
 remain intact; selecting `original` and restarting restores them. Search/fetch
 remain independent DeepSeek tools.
+Console profile services resolve local credentials and transport separately so
+server loopback proxies are not reused by local vision, file or media requests.
 
 The Responses adapter preserves phases, encrypted reasoning, tool-call IDs and
 the existing two-tool round budget. Provider-specific document references and
